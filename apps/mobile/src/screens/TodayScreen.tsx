@@ -13,7 +13,10 @@ export function TodayScreen() {
   return (
     <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
       <Text style={{ fontSize: 20, marginBottom: 12 }}>Today</Text>
-      <Button title="Open Workout" onPress={() => navigation.navigate('WorkoutSession', { sessionId: 'demo' })} />
+      <Button
+        title="Open Workout"
+        onPress={() => navigation.navigate('WorkoutSession', { sessionId: 'demo' })}
+      />
     </View>
   );
 }
