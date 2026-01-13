@@ -1,8 +1,11 @@
 import React from 'react';
-import { View, Text, Button } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import type { RootStackParamList } from '../navigation/types';
+import { Screen } from '../components/Screen';
+import { AppText } from '../components/AppText';
+import { SecondaryButton } from '../components/Buttons';
+import { tokens } from '../theme/tokens';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'WorkoutSession'>;
 
@@ -10,10 +13,10 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
   const { sessionId } = route.params;
 
   return (
-    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-      <Text style={{ fontSize: 20, marginBottom: 12 }}>Workout Session</Text>
-      <Text style={{ marginBottom: 20 }}>sessionId: {sessionId}</Text>
-      <Button title="Close" onPress={() => navigation.goBack()} />
-    </View>
+    <Screen style={{ justifyContent: 'center', gap: tokens.spacing.md }}>
+      <AppText variant="title">Workout Session</AppText>
+      <AppText color="textSecondary">sessionId: {sessionId}</AppText>
+      <SecondaryButton title="Close" onPress={() => navigation.goBack()} />
+    </Screen>
   );
 }

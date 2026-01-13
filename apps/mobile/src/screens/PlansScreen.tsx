@@ -1,10 +1,11 @@
 import React from 'react';
-import { View, Text } from 'react-native';
+import { Screen } from '../components/Screen';
+import { AppText } from '../components/AppText';
 
 export function PlansScreen() {
   return (
-    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-      <Text style={{ fontSize: 20 }}>Plans</Text>
-    </View>
+    <Screen style={{ justifyContent: 'center' }}>
+      <AppText variant="title">Plans</AppText>
+    </Screen>
   );
 }
