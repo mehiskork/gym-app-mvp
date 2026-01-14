@@ -1,0 +1,12 @@
+[
+  { "id": "ex_bench_press_barbell", "name": "Barbell Bench Press" },
+  { "id": "ex_squat_back_barbell", "name": "Back Squat" },
+  { "id": "ex_deadlift_conventional", "name": "Conventional Deadlift" },
+  { "id": "ex_overhead_press_barbell", "name": "Barbell Overhead Press" },
+  { "id": "ex_pullup", "name": "Pull-Up" },
+  { "id": "ex_bent_over_row_barbell", "name": "Barbell Bent-Over Row" },
+  { "id": "ex_lat_pulldown", "name": "Lat Pulldown" },
+  { "id": "ex_incline_db_press", "name": "Incline Dumbbell Press" },
+  { "id": "ex_leg_press", "name": "Leg Press" },
+  { "id": "ex_leg_curl", "name": "Leg Curl" }
+]
