@@ -1,19 +1,40 @@
-import React, { useMemo } from 'react';
+import React, { useCallback, useState } from 'react';
 import { FlatList, View } from 'react-native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { Screen } from '../components/Screen';
 import { AppText } from '../components/AppText';
+import { PrimaryButton } from '../components/Buttons';
 import { tokens } from '../theme/tokens';
-import { listExercises } from '../db/exerciseRepo';
+import { listExercises, type ExerciseRow } from '../db/exerciseRepo';
+import type { RootStackParamList } from '../navigation/types';
+
+type Nav = NativeStackNavigationProp<RootStackParamList>;
 
 export function PlansScreen() {
-  const exercises = useMemo(() => listExercises(), []);
+  const navigation = useNavigation<Nav>();
+  const [exercises, setExercises] = useState<ExerciseRow[]>([]);
+
+  const load = useCallback(() => {
+    setExercises(listExercises());
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load]),
+  );
 
   return (
     <Screen>
-      <AppText variant="title" style={{ marginBottom: tokens.spacing.lg }}>
-        Plans (DB Test)
-      </AppText>
+      <View style={{ gap: tokens.spacing.md, marginBottom: tokens.spacing.lg }}>
+        <AppText variant="title">Exercises</AppText>
+        <PrimaryButton
+          title="Add custom exercise"
+          onPress={() => navigation.navigate('CreateExercise')}
+        />
+      </View>
 
       <FlatList
         data={exercises}
@@ -30,7 +51,9 @@ export function PlansScreen() {
             }}
           >
             <AppText variant="subtitle">{item.name}</AppText>
-            <AppText color="textSecondary">id: {item.id}</AppText>
+            <AppText color="textSecondary">
+              {item.is_custom ? 'Custom' : 'Curated'} • id: {item.id}
+            </AppText>
           </View>
         )}
       />
