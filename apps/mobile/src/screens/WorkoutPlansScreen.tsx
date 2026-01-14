@@ -2,12 +2,18 @@ import React, { useCallback, useState } from 'react';
 import { Alert, FlatList, Pressable, TextInput, View } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { Ionicons } from '@expo/vector-icons';
 
 import { Screen } from '../components/Screen';
 import { AppText } from '../components/AppText';
 import { PrimaryButton } from '../components/Buttons';
 import { tokens } from '../theme/tokens';
-import { createWorkoutPlan, listWorkoutPlans, type WorkoutPlanRow } from '../db/workoutPlanRepo';
+import {
+  createWorkoutPlan,
+  deleteWorkoutPlan,
+  listWorkoutPlans,
+  type WorkoutPlanRow,
+} from '../db/workoutPlanRepo';
 import type { RootStackParamList } from '../navigation/types';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
@@ -37,6 +43,20 @@ export function WorkoutPlansScreen() {
       const message = e instanceof Error ? e.message : 'Failed to create workout plan';
       Alert.alert('Error', message);
     }
+  };
+
+  const confirmDelete = (plan: WorkoutPlanRow) => {
+    Alert.alert('Delete workout plan?', `"${plan.name}" will be deleted from this device.`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () => {
+          deleteWorkoutPlan(plan.id);
+          load();
+        },
+      },
+    ]);
   };
 
   return (
@@ -71,22 +91,45 @@ export function WorkoutPlansScreen() {
         ItemSeparatorComponent={() => <View style={{ height: tokens.spacing.sm }} />}
         ListEmptyComponent={<AppText color="textSecondary">No workout plans yet.</AppText>}
         renderItem={({ item }) => (
-          <Pressable
-            onPress={() => navigation.navigate('WorkoutPlanDetail', { workoutPlanId: item.id })}
-            style={({ pressed }) => [
-              {
-                padding: tokens.spacing.md,
-                backgroundColor: tokens.colors.surface,
-                borderRadius: tokens.radius.md,
-                borderWidth: 1,
-                borderColor: tokens.colors.border,
-              },
-              pressed ? { opacity: 0.85 } : null,
-            ]}
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: tokens.spacing.sm,
+              padding: tokens.spacing.md,
+              backgroundColor: tokens.colors.surface,
+              borderRadius: tokens.radius.md,
+              borderWidth: 1,
+              borderColor: tokens.colors.border,
+            }}
           >
-            <AppText variant="subtitle">{item.name}</AppText>
-            {item.description ? <AppText color="textSecondary">{item.description}</AppText> : null}
-          </Pressable>
+            <Pressable
+              style={{ flex: 1 }}
+              onPress={() => navigation.navigate('WorkoutPlanDetail', { workoutPlanId: item.id })}
+            >
+              <AppText variant="subtitle">{item.name}</AppText>
+              <AppText color="textSecondary">Tap to open</AppText>
+            </Pressable>
+
+            <Pressable
+              onPress={() => confirmDelete(item)}
+              style={({ pressed }) => [
+                {
+                  minHeight: tokens.touchTargetMin,
+                  minWidth: tokens.touchTargetMin,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: tokens.radius.sm,
+                  borderWidth: 1,
+                  borderColor: tokens.colors.border,
+                },
+                pressed ? { opacity: 0.85 } : null,
+              ]}
+              accessibilityLabel="Delete workout plan"
+            >
+              <Ionicons name="trash-outline" size={20} color={tokens.colors.textSecondary} />
+            </Pressable>
+          </View>
         )}
       />
     </Screen>

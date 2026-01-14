@@ -1,13 +1,32 @@
 import { db } from './db';
 
+let txDepth = 0;
+
 export function inTransaction<T>(fn: () => T): T {
-  db.execSync('BEGIN');
+  const isOuter = txDepth === 0;
+
+  if (isOuter) {
+    db.execSync('BEGIN');
+  }
+
+  txDepth += 1;
+
   try {
     const result = fn();
-    db.execSync('COMMIT');
+    txDepth -= 1;
+
+    if (isOuter) {
+      db.execSync('COMMIT');
+    }
+
     return result;
   } catch (e) {
-    db.execSync('ROLLBACK');
+    txDepth -= 1;
+
+    if (isOuter) {
+      db.execSync('ROLLBACK');
+    }
+
     throw e;
   }
 }

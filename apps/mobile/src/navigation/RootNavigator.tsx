@@ -8,6 +8,8 @@ import { MainTabs } from './MainTabs';
 import { WorkoutSessionScreen } from '../screens/WorkoutSessionScreen';
 import { CreateExerciseScreen } from '../screens/CreateExerciseScreen';
 import { WorkoutPlanDetailScreen } from '../screens/WorkoutPlanDetailScreen';
+import { DayDetailScreen } from '../screens/DayDetailScreen';
+import { ExercisePickerScreen } from '../screens/ExercisePickerScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -27,10 +29,16 @@ export function RootNavigator() {
           options={{ presentation: 'modal', title: 'New Exercise' }}
         />
         <Stack.Screen
+          name="ExercisePicker"
+          component={ExercisePickerScreen}
+          options={{ presentation: 'modal', title: 'Select Exercise' }}
+        />
+        <Stack.Screen
           name="WorkoutPlanDetail"
           component={WorkoutPlanDetailScreen}
           options={{ title: 'Workout Plan' }}
         />
+        <Stack.Screen name="DayDetail" component={DayDetailScreen} options={{ title: 'Day' }} />
       </Stack.Navigator>
     </NavigationContainer>
   );

@@ -9,19 +9,63 @@ export type WorkoutPlanRow = {
   is_template: number;
 };
 
-export type WorkoutPlanWeekRow = {
-  id: string;
-  week_index: number;
-};
-
 export type WorkoutPlanDayRow = {
   id: string;
   day_index: number;
   name: string | null;
 };
 
-// NOTE: DB table is still named "program" for now.
-// We map it to the "WorkoutPlan" domain in code.
+function getOrCreateWeek1Id(workoutPlanId: string): string {
+  const existing = query<{ id: string }>(
+    `
+    SELECT id
+    FROM program_week
+    WHERE program_id = ? AND week_index = 1 AND deleted_at IS NULL
+    LIMIT 1;
+  `,
+    [workoutPlanId],
+  )[0];
+
+  if (existing?.id) return existing.id;
+
+  const weekId = newId('week');
+  exec(
+    `
+    INSERT INTO program_week (id, program_id, week_index)
+    VALUES (?, ?, 1);
+  `,
+    [weekId, workoutPlanId],
+  );
+  return weekId;
+}
+
+function normalizeDeletedDayIndices(programWeekId: string) {
+  const deleted = query<{ id: string; day_index: number }>(
+    `
+    SELECT id, day_index
+    FROM program_day
+    WHERE program_week_id = ? AND deleted_at IS NOT NULL
+    ORDER BY day_index ASC;
+  `,
+    [programWeekId],
+  );
+
+  for (const d of deleted) {
+    const minIdx =
+      query<{ min_idx: number }>(
+        `
+        SELECT COALESCE(MIN(day_index), 0) AS min_idx
+        FROM program_day
+        WHERE program_week_id = ?;
+      `,
+        [programWeekId],
+      )[0]?.min_idx ?? 0;
+
+    const newIdx = minIdx - 1;
+    exec('UPDATE program_day SET day_index = ? WHERE id = ?', [newIdx, d.id]);
+  }
+}
+
 export function listWorkoutPlans(): WorkoutPlanRow[] {
   return query<WorkoutPlanRow>(
     `
@@ -47,35 +91,55 @@ export function getWorkoutPlanById(id: string): WorkoutPlanRow | null {
   return rows[0] ?? null;
 }
 
-export function listWeeksForWorkoutPlan(workoutPlanId: string): WorkoutPlanWeekRow[] {
-  return query<WorkoutPlanWeekRow>(
+export function listDaysForWorkoutPlan(workoutPlanId: string): WorkoutPlanDayRow[] {
+  return query<WorkoutPlanDayRow>(
     `
-    SELECT id, week_index
-    FROM program_week
-    WHERE program_id = ? AND deleted_at IS NULL
-    ORDER BY week_index ASC;
+    SELECT d.id, d.day_index, d.name
+    FROM program_day d
+    JOIN program_week w ON w.id = d.program_week_id
+    WHERE w.program_id = ?
+      AND w.week_index = 1
+      AND w.deleted_at IS NULL
+      AND d.deleted_at IS NULL
+    ORDER BY d.day_index ASC;
   `,
     [workoutPlanId],
   );
 }
 
-export function listDaysForWeek(weekId: string): WorkoutPlanDayRow[] {
-  return query<WorkoutPlanDayRow>(
-    `
-    SELECT id, day_index, name
-    FROM program_day
-    WHERE program_week_id = ? AND deleted_at IS NULL
-    ORDER BY day_index ASC;
-  `,
-    [weekId],
-  );
+export function addDayToWorkoutPlan(workoutPlanId: string): string {
+  return inTransaction(() => {
+    const weekId = getOrCreateWeek1Id(workoutPlanId);
+
+    // Important: normalize deleted rows so indices 1..N remain usable.
+    normalizeDeletedDayIndices(weekId);
+
+    const nextIndex =
+      query<{ next_index: number }>(
+        `
+        SELECT COALESCE(MAX(day_index), 0) + 1 AS next_index
+        FROM program_day
+        WHERE program_week_id = ?;
+      `,
+        [weekId],
+      )[0]?.next_index ?? 1;
+
+    const dayId = newId('day');
+    exec(
+      `
+      INSERT INTO program_day (id, program_week_id, day_index, name)
+      VALUES (?, ?, ?, ?);
+    `,
+      [dayId, weekId, nextIndex, `Day ${nextIndex}`],
+    );
+
+    return dayId;
+  });
 }
 
-// For older plans created before we added default week/day creation,
-// this can generate Week 1 + Day 1..7 if missing.
-export function ensureDefaultWeekAndDays(workoutPlanId: string) {
+export function reorderWorkoutPlanDays(workoutPlanId: string, orderedDayIds: string[]) {
   inTransaction(() => {
-    const existingWeek = query<{ id: string }>(
+    const week = query<{ id: string }>(
       `
       SELECT id
       FROM program_week
@@ -85,39 +149,82 @@ export function ensureDefaultWeekAndDays(workoutPlanId: string) {
       [workoutPlanId],
     )[0];
 
-    const weekId = existingWeek?.id ?? newId('week');
+    if (!week?.id) throw new Error('reorderWorkoutPlanDays: week not found');
 
-    if (!existingWeek) {
-      exec(
-        `
-        INSERT INTO program_week (id, program_id, week_index)
-        VALUES (?, ?, 1);
-      `,
-        [weekId, workoutPlanId],
-      );
+    // Fix old/legacy deleted rows that still have positive day_index values.
+    normalizeDeletedDayIndices(week.id);
+
+    const existing = query<{ id: string }>(
+      `
+      SELECT d.id
+      FROM program_day d
+      WHERE d.program_week_id = ? AND d.deleted_at IS NULL;
+    `,
+      [week.id],
+    ).map((r) => r.id);
+
+    const existingSet = new Set(existing);
+    for (const id of orderedDayIds) {
+      if (!existingSet.has(id)) throw new Error('reorderWorkoutPlanDays: invalid day id');
     }
 
-    for (let i = 1; i <= 7; i += 1) {
-      const existingDay = query<{ id: string }>(
-        `
-        SELECT id
-        FROM program_day
-        WHERE program_week_id = ? AND day_index = ? AND deleted_at IS NULL
-        LIMIT 1;
-      `,
-        [weekId, i],
-      )[0];
-
-      if (!existingDay) {
-        exec(
-          `
-          INSERT INTO program_day (id, program_week_id, day_index, name)
-          VALUES (?, ?, ?, ?);
-        `,
-          [newId('day'), weekId, i, `Day ${i}`],
-        );
-      }
+    for (let i = 0; i < orderedDayIds.length; i += 1) {
+      exec('UPDATE program_day SET day_index = ? WHERE id = ?', [-(i + 1), orderedDayIds[i]]);
     }
+
+    for (let i = 0; i < orderedDayIds.length; i += 1) {
+      exec("UPDATE program_day SET day_index = ?, updated_at = datetime('now') WHERE id = ?", [
+        i + 1,
+        orderedDayIds[i],
+      ]);
+    }
+  });
+}
+
+export function deleteWorkoutPlan(workoutPlanId: string) {
+  inTransaction(() => {
+    exec(
+      `
+      UPDATE program
+      SET deleted_at = datetime('now'), updated_at = datetime('now')
+      WHERE id = ? AND deleted_at IS NULL;
+    `,
+      [workoutPlanId],
+    );
+
+    exec(
+      `
+      UPDATE program_week
+      SET deleted_at = datetime('now'), updated_at = datetime('now')
+      WHERE program_id = ? AND deleted_at IS NULL;
+    `,
+      [workoutPlanId],
+    );
+
+    exec(
+      `
+      UPDATE program_day
+      SET deleted_at = datetime('now'), updated_at = datetime('now')
+      WHERE program_week_id IN (
+        SELECT id FROM program_week WHERE program_id = ?
+      ) AND deleted_at IS NULL;
+    `,
+      [workoutPlanId],
+    );
+
+    exec(
+      `
+      UPDATE program_day_exercise
+      SET deleted_at = datetime('now'), updated_at = datetime('now')
+      WHERE program_day_id IN (
+        SELECT d.id
+        FROM program_day d
+        JOIN program_week w ON w.id = d.program_week_id
+        WHERE w.program_id = ?
+      ) AND deleted_at IS NULL;
+    `,
+      [workoutPlanId],
+    );
   });
 }
 
@@ -136,25 +243,8 @@ export function createWorkoutPlan(input: { name: string; description?: string | 
       [workoutPlanId, name, input.description ?? null],
     );
 
-    // Default structure: Week 1 + Days 1..7
-    const weekId = newId('week');
-    exec(
-      `
-      INSERT INTO program_week (id, program_id, week_index)
-      VALUES (?, ?, 1);
-    `,
-      [weekId, workoutPlanId],
-    );
-
-    for (let i = 1; i <= 7; i += 1) {
-      exec(
-        `
-        INSERT INTO program_day (id, program_week_id, day_index, name)
-        VALUES (?, ?, ?, ?);
-      `,
-        [newId('day'), weekId, i, `Day ${i}`],
-      );
-    }
+    getOrCreateWeek1Id(workoutPlanId);
+    addDayToWorkoutPlan(workoutPlanId);
   });
 
   return workoutPlanId;
