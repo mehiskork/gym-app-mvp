@@ -1,6 +1,7 @@
 import * as SQLite from 'expo-sqlite';
 
 export const db = SQLite.openDatabaseSync('gym_app.db');
+db.execSync('PRAGMA foreign_keys = ON');
 
 // Split a SQL string into statements (simple, good enough for our migrations).
 function splitStatements(sql: string): string[] {
