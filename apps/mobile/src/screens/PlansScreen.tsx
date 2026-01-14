@@ -51,9 +51,7 @@ export function PlansScreen() {
             }}
           >
             <AppText variant="subtitle">{item.name}</AppText>
-            <AppText color="textSecondary">
-              {item.is_custom ? 'Custom' : 'Curated'} • id: {item.id}
-            </AppText>
+            <AppText color="textSecondary">{item.is_custom ? 'Custom' : 'Curated'}</AppText>
           </View>
         )}
       />
