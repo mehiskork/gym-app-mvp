@@ -107,22 +107,64 @@ export function listDaysForWorkoutPlan(workoutPlanId: string): WorkoutPlanDayRow
   );
 }
 
+function isDefaultDayName(name: string | null) {
+  return name === null || /^Day\s-?\d+$/.test(name);
+}
+
+function compactActiveDays(programWeekId: string) {
+  const rows = query<{ id: string; name: string | null }>(
+    `
+    SELECT id, name
+    FROM program_day
+    WHERE program_week_id = ? AND deleted_at IS NULL
+    ORDER BY day_index ASC;
+  `,
+    [programWeekId],
+  );
+
+  // temp negatives (safe)
+  for (let i = 0; i < rows.length; i += 1) {
+    exec('UPDATE program_day SET day_index = ? WHERE id = ?', [-(i + 1), rows[i].id]);
+  }
+
+  // final 1..N (+ fix default names)
+  for (let i = 0; i < rows.length; i += 1) {
+    const id = rows[i].id;
+    exec("UPDATE program_day SET day_index = ?, updated_at = datetime('now') WHERE id = ?", [
+      i + 1,
+      id,
+    ]);
+
+    if (isDefaultDayName(rows[i].name)) {
+      exec("UPDATE program_day SET name = ?, updated_at = datetime('now') WHERE id = ?", [
+        `Day ${i + 1}`,
+        id,
+      ]);
+    }
+  }
+}
+
 export function addDayToWorkoutPlan(workoutPlanId: string): string {
   return inTransaction(() => {
     const weekId = getOrCreateWeek1Id(workoutPlanId);
 
-    // Important: normalize deleted rows so indices 1..N remain usable.
+    // keep deleted days far-negative so UNIQUE doesn't block
     normalizeDeletedDayIndices(weekId);
 
-    const nextIndex =
-      query<{ next_index: number }>(
+    // IMPORTANT: repair active indices back to 1..N
+    compactActiveDays(weekId);
+
+    const count =
+      query<{ n: number }>(
         `
-        SELECT COALESCE(MAX(day_index), 0) + 1 AS next_index
+        SELECT COUNT(*) AS n
         FROM program_day
-        WHERE program_week_id = ?;
+        WHERE program_week_id = ? AND deleted_at IS NULL;
       `,
         [weekId],
-      )[0]?.next_index ?? 1;
+      )[0]?.n ?? 0;
+
+    const nextIndex = count + 1;
 
     const dayId = newId('day');
     exec(

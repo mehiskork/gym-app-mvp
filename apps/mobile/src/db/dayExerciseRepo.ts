@@ -17,10 +17,10 @@ export type DayExerciseRow = {
 };
 
 function normalizeDeletedDayIndices(programWeekId: string) {
-  // Move deleted rows out of the positive day_index range so UNIQUE(program_week_id, day_index) won’t block.
-  const deleted = query<{ id: string; day_index: number }>(
+  // Put deleted days into a far-negative "graveyard" so they never collide with temp -1..-N.
+  const deleted = query<{ id: string }>(
     `
-    SELECT id, day_index
+    SELECT id
     FROM program_day
     WHERE program_week_id = ? AND deleted_at IS NOT NULL
     ORDER BY day_index ASC;
@@ -28,20 +28,56 @@ function normalizeDeletedDayIndices(programWeekId: string) {
     [programWeekId],
   );
 
-  for (const d of deleted) {
-    // Ensure the deleted row has a unique negative index.
-    const minIdx =
-      query<{ min_idx: number }>(
-        `
-        SELECT COALESCE(MIN(day_index), 0) AS min_idx
-        FROM program_day
-        WHERE program_week_id = ?;
-      `,
-        [programWeekId],
-      )[0]?.min_idx ?? 0;
+  if (deleted.length === 0) return;
 
-    const newIdx = minIdx - 1;
-    exec('UPDATE program_day SET day_index = ? WHERE id = ?', [newIdx, d.id]);
+  const minIdx =
+    query<{ min_idx: number }>(
+      `
+      SELECT COALESCE(MIN(day_index), 0) AS min_idx
+      FROM program_day
+      WHERE program_week_id = ?;
+    `,
+      [programWeekId],
+    )[0]?.min_idx ?? 0;
+
+  const base = minIdx - 1000;
+
+  for (let i = 0; i < deleted.length; i += 1) {
+    exec('UPDATE program_day SET day_index = ? WHERE id = ?', [base - (i + 1), deleted[i].id]);
+  }
+}
+
+function normalizeDeletedExercisePositions(dayId: string) {
+  // Put deleted exercises into a far-negative "graveyard" so they never collide with temp -1..-N.
+  const deleted = query<{ id: string }>(
+    `
+    SELECT id
+    FROM program_day_exercise
+    WHERE program_day_id = ? AND deleted_at IS NOT NULL
+    ORDER BY position ASC;
+  `,
+    [dayId],
+  );
+
+  if (deleted.length === 0) return;
+
+  const minPos =
+    query<{ min_pos: number }>(
+      `
+      SELECT COALESCE(MIN(position), 0) AS min_pos
+      FROM program_day_exercise
+      WHERE program_day_id = ?;
+    `,
+      [dayId],
+    )[0]?.min_pos ?? 0;
+
+  const base = minPos - 1000;
+
+  for (let i = 0; i < deleted.length; i += 1) {
+    exec('UPDATE program_day_exercise SET position = ? WHERE id = ?', [
+      base - (i + 1),
+      deleted[i].id,
+    ]);
   }
 }
 
@@ -95,6 +131,8 @@ export function addExerciseToDay(input: { dayId: string; exerciseId: string }): 
   const { dayId, exerciseId } = input;
 
   return inTransaction(() => {
+    normalizeDeletedExercisePositions(dayId);
+
     const nextPos =
       query<{ next_pos: number }>(
         `
@@ -121,6 +159,8 @@ export function addExerciseToDay(input: { dayId: string; exerciseId: string }): 
 
 export function reorderDayExercises(dayId: string, orderedDayExerciseIds: string[]) {
   inTransaction(() => {
+    normalizeDeletedExercisePositions(dayId);
+
     const existing = query<{ id: string }>(
       `
       SELECT id
@@ -135,6 +175,7 @@ export function reorderDayExercises(dayId: string, orderedDayExerciseIds: string
       if (!existingSet.has(id)) throw new Error('reorderDayExercises: invalid item id');
     }
 
+    // Temp negative positions (safe because deleted are far more negative)
     for (let i = 0; i < orderedDayExerciseIds.length; i += 1) {
       exec('UPDATE program_day_exercise SET position = ? WHERE id = ?', [
         -(i + 1),
@@ -142,6 +183,7 @@ export function reorderDayExercises(dayId: string, orderedDayExerciseIds: string
       ]);
     }
 
+    // Final 1..N
     for (let i = 0; i < orderedDayExerciseIds.length; i += 1) {
       exec(
         "UPDATE program_day_exercise SET position = ?, updated_at = datetime('now') WHERE id = ?",
@@ -151,11 +193,77 @@ export function reorderDayExercises(dayId: string, orderedDayExerciseIds: string
   });
 }
 
+export function deleteDayExercise(dayExerciseId: string) {
+  inTransaction(() => {
+    const row = query<{ program_day_id: string; exercise_name: string }>(
+      `
+      SELECT pde.program_day_id AS program_day_id, e.name AS exercise_name
+      FROM program_day_exercise pde
+      JOIN exercise e ON e.id = pde.exercise_id
+      WHERE pde.id = ? AND pde.deleted_at IS NULL
+      LIMIT 1;
+    `,
+      [dayExerciseId],
+    )[0];
+
+    if (!row) throw new Error('deleteDayExercise: item not found');
+
+    const dayId = row.program_day_id;
+
+    normalizeDeletedExercisePositions(dayId);
+
+    // Move this row below the current minimum so it cannot collide with any temp negatives
+    const minPos =
+      query<{ min_pos: number }>(
+        `
+        SELECT COALESCE(MIN(position), 0) AS min_pos
+        FROM program_day_exercise
+        WHERE program_day_id = ?;
+      `,
+        [dayId],
+      )[0]?.min_pos ?? 0;
+
+    exec(
+      `
+      UPDATE program_day_exercise
+      SET position = ?, deleted_at = datetime('now'), updated_at = datetime('now')
+      WHERE id = ? AND deleted_at IS NULL;
+    `,
+      [minPos - 1, dayExerciseId],
+    );
+
+    // Compact remaining ACTIVE exercises to 1..N (safe now)
+    const remaining = query<{ id: string }>(
+      `
+      SELECT id
+      FROM program_day_exercise
+      WHERE program_day_id = ? AND deleted_at IS NULL
+      ORDER BY position ASC;
+    `,
+      [dayId],
+    );
+
+    for (let i = 0; i < remaining.length; i += 1) {
+      exec('UPDATE program_day_exercise SET position = ? WHERE id = ?', [
+        -(i + 1),
+        remaining[i].id,
+      ]);
+    }
+
+    for (let i = 0; i < remaining.length; i += 1) {
+      exec(
+        "UPDATE program_day_exercise SET position = ?, updated_at = datetime('now') WHERE id = ?",
+        [i + 1, remaining[i].id],
+      );
+    }
+  });
+}
+
 export function deleteDay(dayId: string) {
   inTransaction(() => {
-    const row = query<{ program_week_id: string; day_index: number }>(
+    const row = query<{ program_week_id: string }>(
       `
-      SELECT program_week_id, day_index
+      SELECT program_week_id
       FROM program_day
       WHERE id = ? AND deleted_at IS NULL
       LIMIT 1;
@@ -165,10 +273,8 @@ export function deleteDay(dayId: string) {
 
     if (!row) throw new Error('deleteDay: day not found');
 
-    // 1) Normalize existing deleted rows first (fixes old data too)
     normalizeDeletedDayIndices(row.program_week_id);
 
-    // 2) Soft-delete day exercises
     exec(
       `
       UPDATE program_day_exercise
@@ -178,7 +284,6 @@ export function deleteDay(dayId: string) {
       [dayId],
     );
 
-    // 3) Move THIS day to a unique negative index and soft-delete it
     const minIdx =
       query<{ min_idx: number }>(
         `
@@ -189,18 +294,15 @@ export function deleteDay(dayId: string) {
         [row.program_week_id],
       )[0]?.min_idx ?? 0;
 
-    const deletedIdx = minIdx - 1;
-
     exec(
       `
       UPDATE program_day
       SET day_index = ?, deleted_at = datetime('now'), updated_at = datetime('now')
       WHERE id = ? AND deleted_at IS NULL;
     `,
-      [deletedIdx, dayId],
+      [minIdx - 1, dayId],
     );
 
-    // 4) Compact remaining ACTIVE days to 1..N (safe now)
     const remaining = query<{ id: string }>(
       `
       SELECT id

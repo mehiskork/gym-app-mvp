@@ -4,6 +4,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
 import DraggableFlatList, { type RenderItemParams } from 'react-native-draggable-flatlist';
 import * as Haptics from 'expo-haptics';
+import { Ionicons } from '@expo/vector-icons';
 
 import type { RootStackParamList } from '../navigation/types';
 import { Screen } from '../components/Screen';
@@ -11,6 +12,7 @@ import { AppText } from '../components/AppText';
 import { PrimaryButton, SecondaryButton } from '../components/Buttons';
 import { tokens } from '../theme/tokens';
 import {
+  deleteDayExercise,
   getDayById,
   listDayExercises,
   renameDay,
@@ -60,6 +62,23 @@ export function DayDetailScreen({ route, navigation }: Props) {
     }
   };
 
+  const confirmDeleteExercise = useCallback(
+    (row: DayExerciseRow) => {
+      Alert.alert('Delete exercise?', `"${row.exercise_name}" will be removed from this day.`, [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            deleteDayExercise(row.id);
+            load();
+          },
+        },
+      ]);
+    },
+    [load],
+  );
+
   const renderItem = useCallback(
     ({ item, drag, isActive }: RenderItemParams<DayExerciseRow>) => (
       <View
@@ -91,6 +110,25 @@ export function DayDetailScreen({ route, navigation }: Props) {
         </View>
 
         <Pressable
+          onPress={() => confirmDeleteExercise(item)}
+          style={({ pressed }) => [
+            {
+              minHeight: tokens.touchTargetMin,
+              minWidth: tokens.touchTargetMin,
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderRadius: tokens.radius.sm,
+              borderWidth: 1,
+              borderColor: tokens.colors.border,
+            },
+            pressed ? { opacity: 0.85 } : null,
+          ]}
+          accessibilityLabel="Delete exercise"
+        >
+          <Ionicons name="trash-outline" size={20} color={tokens.colors.textSecondary} />
+        </Pressable>
+
+        <Pressable
           onLongPress={drag}
           delayLongPress={150}
           style={({ pressed }) => [
@@ -111,7 +149,7 @@ export function DayDetailScreen({ route, navigation }: Props) {
         </Pressable>
       </View>
     ),
-    [],
+    [confirmDeleteExercise],
   );
 
   return (
