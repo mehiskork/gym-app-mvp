@@ -38,3 +38,16 @@ export function createWorkoutPlan(input: { name: string; description?: string | 
 
   return id;
 }
+
+export function getWorkoutPlanById(id: string): WorkoutPlanRow | null {
+  const rows = query<WorkoutPlanRow>(
+    `
+    SELECT id, name, description, is_template
+    FROM program
+    WHERE id = ? AND deleted_at IS NULL
+    LIMIT 1;
+  `,
+    [id],
+  );
+  return rows[0] ?? null;
+}

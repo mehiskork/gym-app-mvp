@@ -1,14 +1,20 @@
 import React, { useCallback, useState } from 'react';
-import { Alert, FlatList, TextInput, View } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
+import { Alert, FlatList, Pressable, TextInput, View } from 'react-native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { Screen } from '../components/Screen';
 import { AppText } from '../components/AppText';
 import { PrimaryButton } from '../components/Buttons';
 import { tokens } from '../theme/tokens';
 import { createWorkoutPlan, listWorkoutPlans, type WorkoutPlanRow } from '../db/workoutPlanRepo';
+import type { RootStackParamList } from '../navigation/types';
+
+type Nav = NativeStackNavigationProp<RootStackParamList>;
 
 export function WorkoutPlansScreen() {
+  const navigation = useNavigation<Nav>();
+
   const [workoutPlans, setWorkoutPlans] = useState<WorkoutPlanRow[]>([]);
   const [name, setName] = useState('');
 
@@ -65,18 +71,22 @@ export function WorkoutPlansScreen() {
         ItemSeparatorComponent={() => <View style={{ height: tokens.spacing.sm }} />}
         ListEmptyComponent={<AppText color="textSecondary">No workout plans yet.</AppText>}
         renderItem={({ item }) => (
-          <View
-            style={{
-              padding: tokens.spacing.md,
-              backgroundColor: tokens.colors.surface,
-              borderRadius: tokens.radius.md,
-              borderWidth: 1,
-              borderColor: tokens.colors.border,
-            }}
+          <Pressable
+            onPress={() => navigation.navigate('WorkoutPlanDetail', { workoutPlanId: item.id })}
+            style={({ pressed }) => [
+              {
+                padding: tokens.spacing.md,
+                backgroundColor: tokens.colors.surface,
+                borderRadius: tokens.radius.md,
+                borderWidth: 1,
+                borderColor: tokens.colors.border,
+              },
+              pressed ? { opacity: 0.85 } : null,
+            ]}
           >
             <AppText variant="subtitle">{item.name}</AppText>
             {item.description ? <AppText color="textSecondary">{item.description}</AppText> : null}
-          </View>
+          </Pressable>
         )}
       />
     </Screen>

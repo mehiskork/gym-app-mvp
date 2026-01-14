@@ -2,6 +2,7 @@ export type RootStackParamList = {
   MainTabs: undefined;
   WorkoutSession: { sessionId: string };
   CreateExercise: undefined;
+  WorkoutPlanDetail: { workoutPlanId: string };
 };
 
 export type TabParamList = {
