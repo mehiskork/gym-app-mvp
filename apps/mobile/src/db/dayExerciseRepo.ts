@@ -11,9 +11,11 @@ export type DayRow = {
 
 export type DayExerciseRow = {
   id: string;
+  program_day_id: string;
   exercise_id: string;
   exercise_name: string;
   position: number;
+  notes: string | null;
 };
 
 function normalizeDeletedDayIndices(programWeekId: string) {
@@ -108,17 +110,18 @@ export function renameDay(dayId: string, name: string | null) {
 export function listDayExercises(dayId: string): DayExerciseRow[] {
   return query<DayExerciseRow>(
     `
-    SELECT
-      pde.id,
-      pde.exercise_id,
-      e.name AS exercise_name,
-      pde.position
-    FROM program_day_exercise pde
-    JOIN exercise e ON e.id = pde.exercise_id
-    WHERE pde.program_day_id = ?
-      AND pde.deleted_at IS NULL
-      AND e.deleted_at IS NULL
-    ORDER BY pde.position ASC;
+   SELECT
+  pde.id,
+  pde.program_day_id,
+  pde.exercise_id,         --
+  e.name AS exercise_name,
+  pde.position,
+  pde.notes
+FROM program_day_exercise pde
+JOIN exercise e ON e.id = pde.exercise_id
+WHERE pde.program_day_id = ? AND pde.deleted_at IS NULL
+ORDER BY pde.position ASC;
+
   `,
     [dayId],
   );

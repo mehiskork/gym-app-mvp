@@ -2,6 +2,7 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { FlatList, Pressable, TextInput, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 
 import type { RootStackParamList } from '../navigation/types';
 import { Screen } from '../components/Screen';
@@ -73,25 +74,53 @@ export function ExercisePickerScreen({ route, navigation }: Props) {
         keyboardShouldPersistTaps="handled"
         ItemSeparatorComponent={() => <View style={{ height: tokens.spacing.sm }} />}
         renderItem={({ item }) => (
-          <Pressable
-            onPress={() => {
-              addExerciseToDay({ dayId, exerciseId: item.id });
-              navigation.goBack();
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: tokens.spacing.sm,
+              padding: tokens.spacing.md,
+              backgroundColor: tokens.colors.surface,
+              borderRadius: tokens.radius.md,
+              borderWidth: 1,
+              borderColor: tokens.colors.border,
             }}
-            style={({ pressed }) => [
-              {
-                padding: tokens.spacing.md,
-                backgroundColor: tokens.colors.surface,
-                borderRadius: tokens.radius.md,
-                borderWidth: 1,
-                borderColor: tokens.colors.border,
-              },
-              pressed ? { opacity: 0.85 } : null,
-            ]}
           >
-            <AppText variant="subtitle">{item.name}</AppText>
-            <AppText color="textSecondary">{item.is_custom ? 'Custom' : 'Curated'}</AppText>
-          </Pressable>
+            <Pressable
+              onPress={() => {
+                addExerciseToDay({ dayId, exerciseId: item.id });
+                navigation.goBack();
+              }}
+              style={({ pressed }) => [{ flex: 1 }, pressed ? { opacity: 0.85 } : null]}
+              accessibilityLabel={`Add ${item.name}`}
+            >
+              <AppText variant="subtitle">{item.name}</AppText>
+              <AppText color="textSecondary">{item.is_custom ? 'Custom' : 'Curated'}</AppText>
+            </Pressable>
+
+            <Pressable
+              onPress={() => navigation.navigate('ExerciseDetail', { exerciseId: item.id })}
+              style={({ pressed }) => [
+                {
+                  minHeight: tokens.touchTargetMin,
+                  minWidth: tokens.touchTargetMin,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: tokens.radius.sm,
+                  borderWidth: 1,
+                  borderColor: tokens.colors.border,
+                },
+                pressed ? { opacity: 0.85 } : null,
+              ]}
+              accessibilityLabel={`Open details for ${item.name}`}
+            >
+              <Ionicons
+                name="information-circle-outline"
+                size={20}
+                color={tokens.colors.textSecondary}
+              />
+            </Pressable>
+          </View>
         )}
         ListEmptyComponent={
           <View style={{ marginTop: tokens.spacing.lg, gap: tokens.spacing.sm }}>

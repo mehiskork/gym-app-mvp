@@ -115,7 +115,13 @@ export function DayDetailScreen({ route, navigation }: Props) {
         ]}
       >
         <View style={{ flex: 1 }}>
-          <AppText variant="subtitle">{item.exercise_name}</AppText>
+          <Pressable
+            onPress={() => navigation.navigate('ExerciseDetail', { exerciseId: item.exercise_id })}
+            style={({ pressed }) => [pressed ? { opacity: 0.85 } : null]}
+            accessibilityLabel={`Open exercise details for ${item.exercise_name}`}
+          >
+            <AppText variant="subtitle">{item.exercise_name}</AppText>
+          </Pressable>
         </View>
 
         <Pressable

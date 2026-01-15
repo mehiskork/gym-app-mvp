@@ -327,7 +327,14 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
               }}
             >
               <View style={{ flex: 1 }}>
-                <AppText variant="subtitle">{ex.exercise_name}</AppText>
+                <Pressable
+                  onPress={() =>
+                    navigation.navigate('ExerciseDetail', { exerciseId: ex.exercise_id })
+                  }
+                  style={({ pressed }) => [pressed ? { opacity: 0.85 } : null]}
+                >
+                  <AppText variant="subtitle">{ex.exercise_name}</AppText>
+                </Pressable>
               </View>
 
               <SecondaryButton
