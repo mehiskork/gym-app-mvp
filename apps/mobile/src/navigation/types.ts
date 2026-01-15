@@ -15,6 +15,8 @@ export type RootStackParamList = {
 
   SessionDetail: { sessionId: string };
 
+  ExerciseDetail: { exerciseId: string };
+
   CreateExercise: undefined;
 
   WorkoutPlanDetail: { workoutPlanId: string };

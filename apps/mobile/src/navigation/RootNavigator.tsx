@@ -12,6 +12,7 @@ import { DayDetailScreen } from '../screens/DayDetailScreen';
 import { ExercisePickerScreen } from '../screens/ExercisePickerScreen';
 import { StartWorkoutScreen } from '../screens/StartWorkoutScreen';
 import { SessionDetailScreen } from '../screens/SessionDetailScreen';
+import { ExerciseDetailScreen } from '../screens/ExerciseDetailScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -30,7 +31,6 @@ export function RootNavigator() {
           component={StartWorkoutScreen}
           options={{ title: 'Start workout' }}
         />
-
         <Stack.Screen
           name="CreateExercise"
           component={CreateExerciseScreen}
@@ -51,6 +51,11 @@ export function RootNavigator() {
           name="SessionDetail"
           component={SessionDetailScreen}
           options={{ title: 'Session' }}
+        />
+        <Stack.Screen
+          name="ExerciseDetail"
+          component={ExerciseDetailScreen}
+          options={{ title: 'Exercise' }}
         />
       </Stack.Navigator>
     </NavigationContainer>

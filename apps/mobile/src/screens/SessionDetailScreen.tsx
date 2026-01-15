@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { ScrollView, View } from 'react-native';
+import { Pressable, ScrollView, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
 
@@ -115,7 +115,15 @@ export function SessionDetailScreen({ route, navigation }: Props) {
                 gap: tokens.spacing.sm,
               }}
             >
-              <AppText variant="subtitle">{ex.exercise_name}</AppText>
+              <Pressable
+                onPress={() =>
+                  navigation.navigate('ExerciseDetail', { exerciseId: ex.exercise_id })
+                }
+                style={({ pressed }) => [pressed ? { opacity: 0.85 } : null]}
+                accessibilityLabel={`Open exercise details for ${ex.exercise_name}`}
+              >
+                <AppText variant="subtitle">{ex.exercise_name}</AppText>
+              </Pressable>
 
               {exSets.length === 0 ? (
                 <AppText color="textSecondary">No sets logged.</AppText>

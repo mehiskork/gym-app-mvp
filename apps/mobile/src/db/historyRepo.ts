@@ -9,6 +9,7 @@ export type CompletedSessionRow = {
 
 export type SessionExerciseRow = {
   id: string;
+  exercise_id: string;
   exercise_name: string;
   position: number;
 };
@@ -134,7 +135,7 @@ export function getSessionDetail(sessionId: string): {
 
   const exercises = query<SessionExerciseRow>(
     `
-    SELECT id, exercise_name, position
+    SELECT id, exercise_id, exercise_name, position
     FROM workout_session_exercise
     WHERE workout_session_id = ? AND deleted_at IS NULL
     ORDER BY position ASC;
