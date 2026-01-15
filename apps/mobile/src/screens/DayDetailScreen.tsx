@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Alert, Pressable, TextInput, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
@@ -9,7 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import type { RootStackParamList } from '../navigation/types';
 import { Screen } from '../components/Screen';
 import { AppText } from '../components/AppText';
-import { PrimaryButton, SecondaryButton } from '../components/Buttons';
+import { PrimaryButton } from '../components/Buttons';
 import { tokens } from '../theme/tokens';
 import {
   deleteDayExercise,
@@ -25,13 +25,16 @@ type Props = NativeStackScreenProps<RootStackParamList, 'DayDetail'>;
 export function DayDetailScreen({ route, navigation }: Props) {
   const { dayId } = route.params;
 
-  const [dayName, setDayName] = useState<string>('');
+  const [dayNameInput, setDayNameInput] = useState<string>('');
+  const [savedName, setSavedName] = useState<string>('');
+
   const [items, setItems] = useState<DayExerciseRow[]>([]);
 
   const load = useCallback(() => {
     const day = getDayById(dayId);
-    const label = day?.name ?? (day ? `Day ${day.day_index}` : 'Day');
-    setDayName(label);
+    const input = day?.name ?? '';
+    setDayNameInput(input);
+    setSavedName(input);
 
     if (day) setItems(listDayExercises(dayId));
     else setItems([]);
@@ -49,19 +52,6 @@ export function DayDetailScreen({ route, navigation }: Props) {
     }, [navigation]),
   );
 
-  const canSaveName = useMemo(() => dayName.trim().length > 0, [dayName]);
-
-  const onSaveName = () => {
-    try {
-      renameDay(dayId, dayName);
-      load();
-      Alert.alert('Saved', 'Day name updated.');
-    } catch (e) {
-      const message = e instanceof Error ? e.message : 'Failed to rename day';
-      Alert.alert('Error', message);
-    }
-  };
-
   const confirmDeleteExercise = useCallback(
     (row: DayExerciseRow) => {
       Alert.alert('Delete exercise?', `"${row.exercise_name}" will be removed from this day.`, [
@@ -78,6 +68,25 @@ export function DayDetailScreen({ route, navigation }: Props) {
     },
     [load],
   );
+  const commitDayName = useCallback(() => {
+    const next = dayNameInput.trim();
+    const prev = savedName.trim();
+
+    // Normalize: empty string => null in DB
+    const nextDbValue = next.length === 0 ? null : next;
+
+    if (next === prev) return;
+
+    try {
+      renameDay(dayId, nextDbValue);
+      setSavedName(next); // keep state in sync without reloading
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Failed to rename day';
+      Alert.alert('Error', message);
+      // revert input back to last-saved value
+      setDayNameInput(savedName);
+    }
+  }, [dayId, dayNameInput, savedName]);
 
   const renderItem = useCallback(
     ({ item, drag, isActive }: RenderItemParams<DayExerciseRow>) => (
@@ -160,10 +169,14 @@ export function DayDetailScreen({ route, navigation }: Props) {
         <View style={{ gap: tokens.spacing.sm }}>
           <AppText color="textSecondary">Day name</AppText>
           <TextInput
-            value={dayName}
-            onChangeText={setDayName}
+            maxLength={50}
+            value={dayNameInput}
+            onChangeText={setDayNameInput}
             placeholder="e.g., Push"
             placeholderTextColor={tokens.colors.textSecondary}
+            returnKeyType="done"
+            onSubmitEditing={commitDayName}
+            onEndEditing={commitDayName}
             style={{
               minHeight: tokens.touchTargetMin,
               borderRadius: tokens.radius.md,
@@ -174,7 +187,6 @@ export function DayDetailScreen({ route, navigation }: Props) {
               backgroundColor: tokens.colors.surface,
             }}
           />
-          <SecondaryButton title="Save name" onPress={onSaveName} disabled={!canSaveName} />
         </View>
 
         <PrimaryButton

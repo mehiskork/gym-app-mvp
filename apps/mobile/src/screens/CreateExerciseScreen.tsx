@@ -34,6 +34,7 @@ export function CreateExerciseScreen({ navigation }: Props) {
       <View style={{ gap: tokens.spacing.sm }}>
         <AppText color="textSecondary">Name</AppText>
         <TextInput
+          maxLength={50}
           value={name}
           onChangeText={setName}
           placeholder="e.g., Cable Fly"

@@ -1,5 +1,14 @@
+import type { NavigatorScreenParams } from '@react-navigation/native';
+
+export type TabParamList = {
+  Today: undefined;
+  WorkoutPlans: undefined;
+  History: undefined;
+  Settings: undefined;
+};
+
 export type RootStackParamList = {
-  MainTabs: undefined;
+  MainTabs: NavigatorScreenParams<TabParamList>;
 
   StartWorkout: undefined;
   WorkoutSession: { sessionId: string };
@@ -9,11 +18,4 @@ export type RootStackParamList = {
   WorkoutPlanDetail: { workoutPlanId: string };
   DayDetail: { dayId: string };
   ExercisePicker: { dayId: string };
-};
-
-export type TabParamList = {
-  Today: undefined;
-  WorkoutPlans: undefined;
-  History: undefined;
-  Settings: undefined;
 };

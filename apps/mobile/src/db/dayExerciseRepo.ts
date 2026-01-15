@@ -94,17 +94,14 @@ export function getDayById(dayId: string): DayRow | null {
   return rows[0] ?? null;
 }
 
-export function renameDay(dayId: string, name: string) {
-  const trimmed = name.trim();
-  if (!trimmed) throw new Error('Day name is required');
-
+export function renameDay(dayId: string, name: string | null) {
   exec(
     `
     UPDATE program_day
     SET name = ?, updated_at = datetime('now')
     WHERE id = ? AND deleted_at IS NULL;
   `,
-    [trimmed, dayId],
+    [name, dayId],
   );
 }
 
