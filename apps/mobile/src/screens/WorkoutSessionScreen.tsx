@@ -39,11 +39,23 @@ function formatNumber(n: number | null, decimals = 2): string {
   return asStr;
 }
 
-function secondsRemaining(endAtIso: string | null): number {
-  if (!endAtIso) return 0;
-  const end = new Date(endAtIso).getTime();
-  const now = Date.now();
-  return Math.max(0, Math.floor((end - now) / 1000));
+function parseSqliteDateMs(input: string): number {
+  // SQLite: "YYYY-MM-DD HH:MM:SS" (UTC) -> "YYYY-MM-DDTHH:MM:SSZ"
+  const iso = input.includes('T') ? input : `${input.replace(' ', 'T')}Z`;
+  return Date.parse(iso);
+}
+
+function secondsElapsed(startAt: string | null): number {
+  if (!startAt) return 0;
+  const startMs = parseSqliteDateMs(startAt);
+  if (!Number.isFinite(startMs)) return 0;
+  return Math.max(0, Math.floor((Date.now() - startMs) / 1000));
+}
+
+function formatMMSS(totalSeconds: number): string {
+  const m = Math.floor(totalSeconds / 60);
+  const s = totalSeconds % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
 }
 
 export function WorkoutSessionScreen({ route, navigation }: Props) {
@@ -53,7 +65,7 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
   const [exercises, setExercises] = useState<LoggerExercise[]>([]);
   const [tick, setTick] = useState(0);
 
-  const tickRef = useRef<NodeJS.Timeout | null>(null);
+  const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const load = useCallback(() => {
     const data = getWorkoutLoggerData(sessionId);
@@ -83,10 +95,12 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
     }, [navigation, session?.title]),
   );
 
-  const remaining = useMemo(
-    () => secondsRemaining(session?.rest_timer_end_at ?? null),
+  const elapsed = useMemo(
+    () => secondsElapsed(session?.rest_timer_end_at ?? null),
     [session?.rest_timer_end_at, tick],
   );
+
+  const timerActive = (session?.rest_timer_end_at ?? null) !== null;
 
   const onFinish = () => {
     Alert.alert('Finish workout?', 'This will mark the session as completed.', [
@@ -249,61 +263,75 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
     );
   }
 
-  const timerActive = remaining > 0;
-
   return (
     <Screen style={{ flex: 1 }}>
+      {timerActive ? (
+        <View
+          style={{
+            padding: tokens.spacing.md,
+            backgroundColor: tokens.colors.surface,
+            borderRadius: tokens.radius.md,
+            borderWidth: 1,
+            borderColor: tokens.colors.border,
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: tokens.spacing.sm,
+            marginBottom: tokens.spacing.lg,
+
+            elevation: 6,
+            shadowColor: '#000',
+            shadowOpacity: 0.15,
+            shadowRadius: 10,
+            shadowOffset: { width: 0, height: 6 },
+          }}
+        >
+          <View style={{ flex: 1 }}>
+            <AppText variant="subtitle">Rest: {formatMMSS(elapsed)}</AppText>
+          </View>
+
+          <Pressable
+            onPress={() => {
+              // Hide immediately
+              setSession((prev) =>
+                prev
+                  ? {
+                      ...prev,
+                      rest_timer_end_at: null,
+                      rest_timer_label: null,
+                      rest_timer_seconds: null,
+                    }
+                  : prev,
+              );
+
+              // Persist
+              clearRestTimer(sessionId);
+            }}
+            style={({ pressed }) => [
+              {
+                minHeight: tokens.touchTargetMin,
+                minWidth: tokens.touchTargetMin,
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: tokens.radius.sm,
+                borderWidth: 1,
+                borderColor: tokens.colors.border,
+              },
+              pressed ? { opacity: 0.85 } : null,
+            ]}
+            accessibilityLabel="Clear rest timer"
+          >
+            <Ionicons name="trash-outline" size={18} color={tokens.colors.textSecondary} />
+          </Pressable>
+        </View>
+      ) : null}
+
       <ScrollView
         contentContainerStyle={{ gap: tokens.spacing.lg, paddingBottom: tokens.spacing.xl }}
         keyboardShouldPersistTaps="handled"
       >
-        {timerActive ? (
-          <View
-            style={{
-              padding: tokens.spacing.md,
-              backgroundColor: tokens.colors.surface,
-              borderRadius: tokens.radius.md,
-              borderWidth: 1,
-              borderColor: tokens.colors.border,
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: tokens.spacing.sm,
-            }}
-          >
-            <View style={{ flex: 1 }}>
-              <AppText variant="subtitle">Rest: {remaining}s</AppText>
-              <AppText color="textSecondary">{session.rest_timer_label ?? 'Rest timer'}</AppText>
-            </View>
-
-            <Pressable
-              onPress={() => {
-                clearRestTimer(sessionId);
-                load();
-              }}
-              style={({ pressed }) => [
-                {
-                  minHeight: tokens.touchTargetMin,
-                  minWidth: tokens.touchTargetMin,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  borderRadius: tokens.radius.sm,
-                  borderWidth: 1,
-                  borderColor: tokens.colors.border,
-                },
-                pressed ? { opacity: 0.85 } : null,
-              ]}
-              accessibilityLabel="Clear rest timer"
-            >
-              <Ionicons name="close" size={18} color={tokens.colors.textSecondary} />
-            </Pressable>
-          </View>
-        ) : null}
-
         <View style={{ gap: tokens.spacing.sm }}>
-          <AppText color="textSecondary">Session</AppText>
           <AppText variant="title">{session.title}</AppText>
-          <AppText color="textSecondary">Status: {session.status}</AppText>
         </View>
 
         {exercises.map((ex) => (

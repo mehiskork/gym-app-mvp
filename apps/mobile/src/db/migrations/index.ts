@@ -3,6 +3,7 @@ import { migration002_plans } from './migration002_plans';
 import { migration003_workout_sessions } from './003_workout_sessions';
 import { migration004_rest_timer } from './004_rest_timer';
 import { migration005_single_in_progress_session } from './005_single_in_progress_session';
+import { migration006_rest_timer_countup } from './006_rest_timer_countup';
 
 export type Migration = {
   id: number;
@@ -16,4 +17,5 @@ export const migrations: Migration[] = [
   migration003_workout_sessions,
   migration004_rest_timer,
   migration005_single_in_progress_session,
+  migration006_rest_timer_countup,
 ];

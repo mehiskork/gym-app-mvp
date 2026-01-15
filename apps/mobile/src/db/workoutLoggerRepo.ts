@@ -185,7 +185,7 @@ export function ensurePrefilledSetsForSession(sessionId: string) {
     );
 
     for (const ex of exercises) {
-      const count =
+      const activeCount =
         query<{ n: number }>(
           `
           SELECT COUNT(*) AS n
@@ -195,9 +195,22 @@ export function ensurePrefilledSetsForSession(sessionId: string) {
           [ex.id],
         )[0]?.n ?? 0;
 
-      if (count > 0) continue;
+      if (activeCount > 0) continue;
 
-      normalizeDeletedSetIndices(ex.id);
+      // IMPORTANT: if sets existed before (even deleted), do NOT prefill again.
+      const everCount =
+        query<{ n: number }>(
+          `
+          SELECT COUNT(*) AS n
+          FROM workout_set
+          WHERE workout_session_exercise_id = ?;
+        `,
+          [ex.id],
+        )[0]?.n ?? 0;
+
+      if (everCount > 0) continue;
+
+      // First time ever -> prefill
       prefillSetsFromLastCompleted(ex.id, ex.exercise_id);
       compactActiveSets(ex.id);
     }
@@ -359,57 +372,28 @@ export function updateWorkoutSet(
 }
 
 export function deleteWorkoutSet(setId: string) {
-  inTransaction(() => {
-    const row = query<{ wse_id: string }>(
-      `
-      SELECT workout_session_exercise_id AS wse_id
-      FROM workout_set
-      WHERE id = ? AND deleted_at IS NULL
-      LIMIT 1;
-    `,
-      [setId],
-    )[0];
-
-    if (!row) return;
-
-    normalizeDeletedSetIndices(row.wse_id);
-
-    const minIdx =
-      query<{ min_idx: number }>(
-        `
-        SELECT COALESCE(MIN(set_index), 0) AS min_idx
-        FROM workout_set
-        WHERE workout_session_exercise_id = ?;
-      `,
-        [row.wse_id],
-      )[0]?.min_idx ?? 0;
-
-    exec(
-      `
-      UPDATE workout_set
-      SET set_index = ?, deleted_at = datetime('now'), updated_at = datetime('now')
-      WHERE id = ? AND deleted_at IS NULL;
-    `,
-      [minIdx - 1, setId],
-    );
-
-    compactActiveSets(row.wse_id);
-  });
+  exec(
+    `
+    UPDATE workout_set
+    SET deleted_at = datetime('now'), updated_at = datetime('now')
+    WHERE id = ? AND deleted_at IS NULL;
+  `,
+    [setId],
+  );
 }
 
 export function startRestTimer(sessionId: string, seconds: number, label: string) {
-  const safeSeconds = Math.max(0, Math.floor(seconds));
   exec(
     `
     UPDATE workout_session
     SET
+      rest_timer_end_at = datetime('now'),
       rest_timer_seconds = ?,
       rest_timer_label = ?,
-      rest_timer_end_at = datetime('now', '+' || ? || ' seconds'),
       updated_at = datetime('now')
     WHERE id = ? AND deleted_at IS NULL;
   `,
-    [safeSeconds, label, safeSeconds, sessionId],
+    [seconds, label, sessionId],
   );
 }
 
@@ -417,7 +401,11 @@ export function clearRestTimer(sessionId: string) {
   exec(
     `
     UPDATE workout_session
-    SET rest_timer_seconds = NULL, rest_timer_label = NULL, rest_timer_end_at = NULL, updated_at = datetime('now')
+    SET
+      rest_timer_end_at = NULL,
+      rest_timer_seconds = NULL,
+      rest_timer_label = NULL,
+      updated_at = datetime('now')
     WHERE id = ? AND deleted_at IS NULL;
   `,
     [sessionId],
