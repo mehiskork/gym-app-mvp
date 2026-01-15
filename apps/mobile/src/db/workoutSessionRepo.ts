@@ -1,6 +1,7 @@
 import { exec, query } from './db';
 import { inTransaction } from './tx';
 import { newId } from '../utils/ids';
+import { detectAndStorePrsForSession } from './prRepo';
 
 export type WorkoutSessionRow = {
   id: string;
@@ -169,14 +170,19 @@ export function createSessionFromPlanDay(input: { workoutPlanId: string; dayId: 
 }
 
 export function completeSession(sessionId: string) {
-  exec(
-    `
-    UPDATE workout_session
-    SET status = 'completed', ended_at = datetime('now'), updated_at = datetime('now')
-    WHERE id = ? AND deleted_at IS NULL;
-  `,
-    [sessionId],
-  );
+  inTransaction(() => {
+    exec(
+      `
+      UPDATE workout_session
+      SET status = 'completed', ended_at = datetime('now'), updated_at = datetime('now')
+      WHERE id = ? AND deleted_at IS NULL;
+    `,
+      [sessionId],
+    );
+
+    // Run PR detection AFTER marking completed
+    detectAndStorePrsForSession(sessionId);
+  });
 }
 
 export function discardSession(sessionId: string) {

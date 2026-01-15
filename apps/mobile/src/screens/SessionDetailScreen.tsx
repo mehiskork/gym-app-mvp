@@ -7,6 +7,8 @@ import type { RootStackParamList } from '../navigation/types';
 import { Screen } from '../components/Screen';
 import { AppText } from '../components/AppText';
 import { tokens } from '../theme/tokens';
+import { listSessionPrEvents, type PrEventRow } from '../db/prRepo';
+
 import {
   getSessionDetail,
   type SessionExerciseRow,
@@ -35,6 +37,23 @@ function formatDuration(sec: number | null) {
   const s = sec % 60;
   return `${m}m ${s}s`;
 }
+function formatNumber(n: number) {
+  return n % 1 === 0 ? String(Math.trunc(n)) : n.toFixed(2);
+}
+
+function formatPr(e: PrEventRow): string {
+  if (e.pr_type === 'weight') return `Weight PR: ${formatNumber(e.value)} kg`;
+  if (e.pr_type === 'volume') return `Volume PR: ${Math.round(e.value)} kg·reps`;
+
+  // reps_at_weight: context like "w:60.00"
+  if (e.pr_type === 'reps_at_weight') {
+    const w = e.context.startsWith('w:') ? Number(e.context.slice(2)) : NaN;
+    const wText = Number.isFinite(w) ? `${formatNumber(w)} kg` : 'that weight';
+    return `Reps PR: ${Math.round(e.value)} reps @ ${wText}`;
+  }
+
+  return `PR: ${e.pr_type} ${e.value}`;
+}
 
 export function SessionDetailScreen({ route, navigation }: Props) {
   const { sessionId } = route.params;
@@ -42,6 +61,7 @@ export function SessionDetailScreen({ route, navigation }: Props) {
   const [session, setSession] = useState<CompletedSessionRow | null>(null);
   const [exercises, setExercises] = useState<SessionExerciseRow[]>([]);
   const [sets, setSets] = useState<SessionSetRow[]>([]);
+  const [prs, setPrs] = useState<PrEventRow[]>([]);
 
   const load = useCallback(() => {
     const data = getSessionDetail(sessionId);
@@ -49,11 +69,13 @@ export function SessionDetailScreen({ route, navigation }: Props) {
       setSession(null);
       setExercises([]);
       setSets([]);
+      setPrs([]);
       return;
     }
     setSession(data.session);
     setExercises(data.exercises);
     setSets(data.sets);
+    setPrs(listSessionPrEvents(sessionId));
   }, [sessionId]);
 
   useFocusEffect(
@@ -96,6 +118,24 @@ export function SessionDetailScreen({ route, navigation }: Props) {
         keyboardShouldPersistTaps="handled"
       >
         <View style={{ gap: tokens.spacing.xs }}>
+          {prs.length > 0 ? (
+            <View
+              style={{
+                padding: tokens.spacing.md,
+                backgroundColor: tokens.colors.surface,
+                borderRadius: tokens.radius.md,
+                borderWidth: 1,
+                borderColor: tokens.colors.border,
+                gap: tokens.spacing.sm,
+              }}
+            >
+              <AppText variant="subtitle">PRs</AppText>
+              {prs.map((p) => (
+                <AppText key={p.id}>{formatPr(p)}</AppText>
+              ))}
+            </View>
+          ) : null}
+
           <AppText variant="title">{session.title}</AppText>
           <AppText color="textSecondary">{formatDateTime(session.started_at)}</AppText>
           {dur ? <AppText color="textSecondary">Duration: {dur}</AppText> : null}
