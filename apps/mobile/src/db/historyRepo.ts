@@ -1,4 +1,4 @@
-import { query } from './db';
+import { exec, inTransaction, query } from './db'; // ensure exec + inTransaction are imported
 
 export type CompletedSessionRow = {
   id: string;
@@ -36,6 +36,83 @@ export function listCompletedSessions(limit = 50): CompletedSessionRow[] {
   `,
     [limit],
   );
+}
+
+export function deleteSession(sessionId: string): void {
+  inTransaction(() => {
+    // delete sets first
+    exec(
+      `
+      UPDATE workout_set
+      SET deleted_at = datetime('now'), updated_at = datetime('now')
+      WHERE deleted_at IS NULL
+        AND workout_session_exercise_id IN (
+          SELECT id FROM workout_session_exercise
+          WHERE workout_session_id = ?
+        );
+    `,
+      [sessionId],
+    );
+
+    // delete session exercises
+    exec(
+      `
+      UPDATE workout_session_exercise
+      SET deleted_at = datetime('now'), updated_at = datetime('now')
+      WHERE workout_session_id = ?
+        AND deleted_at IS NULL;
+    `,
+      [sessionId],
+    );
+
+    // delete session
+    exec(
+      `
+      UPDATE workout_session
+      SET deleted_at = datetime('now'), updated_at = datetime('now')
+      WHERE id = ?
+        AND deleted_at IS NULL;
+    `,
+      [sessionId],
+    );
+  });
+}
+
+export function deleteAllCompletedSessions(): void {
+  inTransaction(() => {
+    // delete sets for completed sessions
+    exec(`
+      UPDATE workout_set
+      SET deleted_at = datetime('now'), updated_at = datetime('now')
+      WHERE deleted_at IS NULL
+        AND workout_session_exercise_id IN (
+          SELECT wse.id
+          FROM workout_session_exercise wse
+          JOIN workout_session ws ON ws.id = wse.workout_session_id
+          WHERE ws.status = 'completed'
+            AND ws.deleted_at IS NULL
+            AND wse.deleted_at IS NULL
+        );
+    `);
+
+    // delete session exercises for completed sessions
+    exec(`
+      UPDATE workout_session_exercise
+      SET deleted_at = datetime('now'), updated_at = datetime('now')
+      WHERE deleted_at IS NULL
+        AND workout_session_id IN (
+          SELECT id FROM workout_session
+          WHERE status = 'completed' AND deleted_at IS NULL
+        );
+    `);
+
+    // delete completed sessions
+    exec(`
+      UPDATE workout_session
+      SET deleted_at = datetime('now'), updated_at = datetime('now')
+      WHERE status = 'completed' AND deleted_at IS NULL;
+    `);
+  });
 }
 
 export function getSessionDetail(sessionId: string): {
