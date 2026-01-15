@@ -3,12 +3,12 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { runMigrations } from './src/db/migrate';
-import { seedCuratedExercises } from './src/db/seed/seedCuratedExercises';
+// keep your other imports (appMetaRepo etc.)
 
 export default function App() {
   useEffect(() => {
     runMigrations();
-    seedCuratedExercises();
+    // your other startup calls...
   }, []);
 
   return (
@@ -17,3 +17,4 @@ export default function App() {
     </GestureHandlerRootView>
   );
 }
+

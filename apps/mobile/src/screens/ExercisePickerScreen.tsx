@@ -11,6 +11,7 @@ import { PrimaryButton, SecondaryButton } from '../components/Buttons';
 import { tokens } from '../theme/tokens';
 import { listExercises, type ExerciseRow } from '../db/exerciseRepo';
 import { addExerciseToDay } from '../db/dayExerciseRepo';
+import { getOrCreateLocalUserId } from '../db/appMetaRepo';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ExercisePicker'>;
 
@@ -21,7 +22,8 @@ export function ExercisePickerScreen({ route, navigation }: Props) {
   const [all, setAll] = useState<ExerciseRow[]>([]);
 
   const load = useCallback(() => {
-    setAll(listExercises());
+    const uid = getOrCreateLocalUserId();
+    setAll(listExercises(uid));
   }, []);
 
   useFocusEffect(

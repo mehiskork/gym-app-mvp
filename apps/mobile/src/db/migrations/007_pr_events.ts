@@ -28,4 +28,3 @@ export const migration007_pr_events: Migration = {
     CREATE INDEX IF NOT EXISTS idx_pr_event_deleted_at ON pr_event(deleted_at);
   `,
 };
-

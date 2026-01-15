@@ -4,6 +4,8 @@ import { migration003_workout_sessions } from './003_workout_sessions';
 import { migration004_rest_timer } from './004_rest_timer';
 import { migration005_single_in_progress_session } from './005_single_in_progress_session';
 import { migration006_rest_timer_countup } from './006_rest_timer_countup';
+import { migration007_pr_events } from './007_pr_events';
+import { migration008_app_meta } from './migration008_app_meta';
 
 export type Migration = {
   id: number;
@@ -18,4 +20,6 @@ export const migrations: Migration[] = [
   migration004_rest_timer,
   migration005_single_in_progress_session,
   migration006_rest_timer_countup,
+  migration007_pr_events,
+  migration008_app_meta,
 ];
