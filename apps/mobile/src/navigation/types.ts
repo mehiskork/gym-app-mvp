@@ -1,6 +1,9 @@
 export type RootStackParamList = {
   MainTabs: undefined;
+
+  StartWorkout: undefined;
   WorkoutSession: { sessionId: string };
+
   CreateExercise: undefined;
 
   WorkoutPlanDetail: { workoutPlanId: string };
