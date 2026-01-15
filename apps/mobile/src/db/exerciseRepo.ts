@@ -48,3 +48,7 @@ export function createCustomExercise(name: string): string {
 
   return id;
 }
+
+export function listExercisesForCurrentUser(): ExerciseRow[] {
+  return listExercises(getOrCreateLocalUserId());
+}

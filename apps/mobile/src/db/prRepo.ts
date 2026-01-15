@@ -47,6 +47,9 @@ export function detectAndStorePrsForSession(sessionId: string): number {
     );
 
     let inserted = 0;
+    const addChanges = () => {
+      inserted += query<{ n: number }>('SELECT changes() AS n;')[0]?.n ?? 0;
+    };
 
     for (const ex of exRows) {
       const sets = query<{
@@ -64,8 +67,7 @@ export function detectAndStorePrsForSession(sessionId: string): number {
         [ex.wse_id],
       );
 
-      const completed = sets.filter((s) => s.is_completed === 1);
-      const pool = completed.length > 0 ? completed : sets;
+      const pool = sets.filter((s) => s.is_completed === 1);
 
       const valid = pool.filter(
         (s) =>
@@ -137,7 +139,7 @@ export function detectAndStorePrsForSession(sessionId: string): number {
         `,
           [newId('pr'), sessionId, ex.exercise_id, maxWeight],
         );
-        inserted += 1;
+        addChanges();
       }
 
       // 2) Volume best (history)
@@ -173,7 +175,7 @@ export function detectAndStorePrsForSession(sessionId: string): number {
         `,
           [newId('pr'), sessionId, ex.exercise_id, volume],
         );
-        inserted += 1;
+        addChanges();
       }
 
       // 3) Reps-at-weight best (history) for each weightKey
@@ -207,7 +209,7 @@ export function detectAndStorePrsForSession(sessionId: string): number {
           `,
             [newId('pr'), sessionId, ex.exercise_id, contextForWeight(Number(wKey)), reps],
           );
-          inserted += 1;
+          addChanges();
         }
       }
     }

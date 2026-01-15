@@ -9,6 +9,7 @@ import { PrimaryButton } from '../components/Buttons';
 import { tokens } from '../theme/tokens';
 import { listExercises, type ExerciseRow } from '../db/exerciseRepo';
 import type { RootStackParamList } from '../navigation/types';
+import { getOrCreateLocalUserId } from '../db/appMetaRepo';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -17,7 +18,7 @@ export function PlansScreen() {
   const [exercises, setExercises] = useState<ExerciseRow[]>([]);
 
   const load = useCallback(() => {
-    setExercises(listExercises());
+    setExercises(listExercises(getOrCreateLocalUserId()));
   }, []);
 
   useFocusEffect(
