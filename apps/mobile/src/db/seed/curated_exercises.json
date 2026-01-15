@@ -202,5 +202,21 @@
   {
     "id": "ex_dumbbell_shrug",
     "name": "Dumbbell Shrug"
+  },
+  {
+    "id": "ex_hip_abduction_leaning_forward",
+    "name": "Leaning Forward Hip Abduction"
+  },
+  {
+    "id": "ex_belted_sumo_squat",
+    "name": "Belted (Sumo) Squat"
+  },
+  {
+    "id": "ex_reverse_hack_squat",
+    "name": "Reverse Hack Squat"
+  },
+  {
+    "id": "ex_cable_kickback_straight_leg",
+    "name": "Straight-Leg Cable Kickback"
   }
 ]

@@ -3,7 +3,7 @@ import { Alert, FlatList, Pressable, View } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
-
+import { listWeeklyVolume, type WeeklyVolumeRow } from '../db/metricsRepo';
 import type { RootStackParamList } from '../navigation/types';
 import { Screen } from '../components/Screen';
 import { AppText } from '../components/AppText';
@@ -21,6 +21,15 @@ function formatDate(iso: string) {
   const d = new Date(iso);
   return d.toLocaleString();
 }
+function formatVolume(n: number) {
+  return Math.round(n).toLocaleString();
+}
+
+function formatWeekLabel(weekStart: string) {
+  // weekStart is YYYY-MM-DD
+  const d = new Date(`${weekStart}T00:00:00Z`);
+  return `Week of ${d.toLocaleDateString()}`;
+}
 
 export function HistoryScreen() {
   const navigation = useNavigation<Nav>();
@@ -28,6 +37,7 @@ export function HistoryScreen() {
 
   const load = useCallback(() => {
     setSessions(listCompletedSessions(50));
+    setWeekly(listWeeklyVolume(8));
   }, []);
 
   useFocusEffect(
@@ -37,6 +47,7 @@ export function HistoryScreen() {
   );
 
   const canDeleteAll = sessions.length > 0;
+  const [weekly, setWeekly] = useState<WeeklyVolumeRow[]>([]);
 
   const confirmDeleteOne = useCallback(
     (s: CompletedSessionRow) => {
@@ -104,13 +115,47 @@ export function HistoryScreen() {
             <AppText color="textSecondary">Delete all</AppText>
           </Pressable>
         </View>
+        {weekly.length > 0 ? (
+          <View
+            style={{
+              padding: tokens.spacing.md,
+              backgroundColor: tokens.colors.surface,
+              borderRadius: tokens.radius.md,
+              borderWidth: 1,
+              borderColor: tokens.colors.border,
+              gap: tokens.spacing.sm,
+            }}
+          >
+            <AppText variant="subtitle">Weekly volume</AppText>
+
+            {weekly.map((w) => (
+              <View
+                key={w.week_start}
+                style={{
+                  flexDirection: 'row',
+                  justifyContent: 'space-between',
+                  gap: tokens.spacing.md,
+                }}
+              >
+                <View style={{ flex: 1 }}>
+                  <AppText>{formatWeekLabel(w.week_start)}</AppText>
+                  <AppText color="textSecondary">{w.sessions} sessions</AppText>
+                </View>
+
+                <View style={{ alignItems: 'flex-end' }}>
+                  <AppText>{formatVolume(w.volume)} kg·reps</AppText>
+                </View>
+              </View>
+            ))}
+          </View>
+        ) : null}
 
         {sessions.length === 0 ? (
           <AppText color="textSecondary">No completed workouts yet.</AppText>
         ) : null}
       </View>
     ),
-    [canDeleteAll, confirmDeleteAll, sessions.length],
+    [canDeleteAll, confirmDeleteAll, sessions.length, weekly],
   );
 
   return (

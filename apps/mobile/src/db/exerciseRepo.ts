@@ -1,6 +1,7 @@
 import { exec, query } from './db';
 import { newId } from '../utils/ids';
 import { getOrCreateLocalUserId } from './appMetaRepo';
+import { inTransaction } from './tx';
 
 export type ExerciseRow = {
   id: string;
@@ -51,4 +52,33 @@ export function createCustomExercise(name: string): string {
 
 export function listExercisesForCurrentUser(): ExerciseRow[] {
   return listExercises(getOrCreateLocalUserId());
+}
+export function claimLegacyCustomExercisesForDevice(ownerUserId: string): number {
+  return inTransaction(() => {
+    const before =
+      query<{ n: number }>(
+        `
+        SELECT COUNT(*) AS n
+        FROM exercise
+        WHERE is_custom = 1
+          AND owner_user_id IS NULL
+          AND deleted_at IS NULL;
+      `,
+      )[0]?.n ?? 0;
+
+    if (before === 0) return 0;
+
+    exec(
+      `
+      UPDATE exercise
+      SET owner_user_id = ?, updated_at = datetime('now')
+      WHERE is_custom = 1
+        AND owner_user_id IS NULL
+        AND deleted_at IS NULL;
+    `,
+      [ownerUserId],
+    );
+
+    return before;
+  });
 }
