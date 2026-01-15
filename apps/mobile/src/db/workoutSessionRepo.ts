@@ -80,6 +80,20 @@ export function listSessionExercises(sessionId: string): WorkoutSessionExerciseR
 }
 
 export function createSessionFromPlanDay(input: { workoutPlanId: string; dayId: string }): string {
+  const existing = query<{ id: string }>(
+    `
+  SELECT id
+  FROM workout_session
+  WHERE status = 'in_progress' AND deleted_at IS NULL
+  ORDER BY started_at DESC
+  LIMIT 1;
+`,
+  )[0];
+
+  if (existing) {
+    throw new Error(`WORKOUT_IN_PROGRESS:${existing.id}`);
+  }
+
   const { workoutPlanId, dayId } = input;
 
   return inTransaction(() => {
