@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, Pressable, TextInput, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
@@ -24,6 +24,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'DayDetail'>;
 
 export function DayDetailScreen({ route, navigation }: Props) {
   const { dayId } = route.params;
+  const refreshKey = route.params.refreshKey;
 
   const [dayNameInput, setDayNameInput] = useState<string>('');
   const [savedName, setSavedName] = useState<string>('');
@@ -44,6 +45,10 @@ export function DayDetailScreen({ route, navigation }: Props) {
       load();
     }, [load]),
   );
+
+  useEffect(() => {
+    if (refreshKey) load();
+  }, [load, refreshKey]);
 
   useFocusEffect(
     useCallback(() => {

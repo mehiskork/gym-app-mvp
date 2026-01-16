@@ -93,7 +93,12 @@ export function ExercisePickerScreen({ route, navigation }: Props) {
               onPress={() => {
                 try {
                   addExerciseToDay({ dayId, exerciseId: item.id });
-                  navigation.goBack();
+                  navigation.navigate({
+                    name: 'DayDetail',
+                    params: { dayId, refreshKey: Date.now() },
+                    merge: true,
+                  });
+                  navigation.navigate('DayDetail', { dayId, refreshKey: Date.now() });
                 } catch (e) {
                   const msg = e instanceof Error ? e.message : String(e);
                   Alert.alert('Failed to add exercise', msg);
