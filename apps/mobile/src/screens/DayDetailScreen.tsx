@@ -12,6 +12,7 @@ import { AppText } from '../components/AppText';
 import { PrimaryButton } from '../components/Buttons';
 import { tokens } from '../theme/tokens';
 import {
+  addExerciseToDay,
   deleteDayExercise,
   getDayById,
   listDayExercises,
@@ -25,6 +26,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'DayDetail'>;
 export function DayDetailScreen({ route, navigation }: Props) {
   const { dayId } = route.params;
   const refreshKey = route.params.refreshKey;
+  const addedExerciseId = route.params.addedExerciseId;
 
   const [dayNameInput, setDayNameInput] = useState<string>('');
   const [savedName, setSavedName] = useState<string>('');
@@ -47,8 +49,22 @@ export function DayDetailScreen({ route, navigation }: Props) {
   );
 
   useEffect(() => {
-    if (refreshKey) load();
+    if (refreshKey !== undefined) load();
   }, [load, refreshKey]);
+
+  useEffect(() => {
+    if (!addedExerciseId) return;
+
+    try {
+      addExerciseToDay({ dayId, exerciseId: addedExerciseId });
+      load();
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Failed to add exercise';
+      Alert.alert('Error', message);
+    } finally {
+      navigation.setParams({ addedExerciseId: undefined });
+    }
+  }, [addedExerciseId, dayId, load, navigation]);
 
   useFocusEffect(
     useCallback(() => {

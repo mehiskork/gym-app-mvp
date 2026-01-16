@@ -10,7 +10,7 @@ import { AppText } from '../components/AppText';
 import { PrimaryButton, SecondaryButton } from '../components/Buttons';
 import { tokens } from '../theme/tokens';
 import { listExercises, type ExerciseRow } from '../db/exerciseRepo';
-import { addExerciseToDay } from '../db/dayExerciseRepo';
+
 import { getOrCreateLocalUserId } from '../db/appMetaRepo';
 import { Alert } from 'react-native';
 
@@ -92,10 +92,9 @@ export function ExercisePickerScreen({ route, navigation }: Props) {
             <Pressable
               onPress={() => {
                 try {
-                  addExerciseToDay({ dayId, exerciseId: item.id });
                   navigation.navigate({
                     name: 'DayDetail',
-                    params: { dayId, refreshKey: Date.now() },
+                    params: { dayId, refreshKey: Date.now(), addedExerciseId: item.id },
                     merge: true,
                   });
                   navigation.navigate('DayDetail', { dayId, refreshKey: Date.now() });
