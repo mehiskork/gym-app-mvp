@@ -3,11 +3,12 @@ import { Alert, FlatList, Pressable, View } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
-import { listWeeklyVolume, type WeeklyVolumeRow } from '../db/metricsRepo';
+
 import type { RootStackParamList } from '../navigation/types';
 import { Screen } from '../components/Screen';
 import { AppText } from '../components/AppText';
 import { tokens } from '../theme/tokens';
+
 import {
   deleteAllCompletedSessions,
   deleteSession,
@@ -15,12 +16,20 @@ import {
   type CompletedSessionRow,
 } from '../db/historyRepo';
 
+import { listWeeklyVolume, type WeeklyVolumeRow } from '../db/metricsRepo';
+import {
+  getThisWeekSummary,
+  listThisWeekExerciseTotals,
+  type WeeklyExerciseRow,
+} from '../db/weeklyRepo';
+
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
 function formatDate(iso: string) {
   const d = new Date(iso);
   return d.toLocaleString();
 }
+
 function formatVolume(n: number) {
   return Math.round(n).toLocaleString();
 }
@@ -33,11 +42,19 @@ function formatWeekLabel(weekStart: string) {
 
 export function HistoryScreen() {
   const navigation = useNavigation<Nav>();
+
   const [sessions, setSessions] = useState<CompletedSessionRow[]>([]);
+  const [weekly, setWeekly] = useState<WeeklyVolumeRow[]>([]);
+  const [thisWeek, setThisWeek] = useState<ReturnType<typeof getThisWeekSummary> | null>(null);
+  const [weeklyExercises, setWeeklyExercises] = useState<WeeklyExerciseRow[]>([]);
 
   const load = useCallback(() => {
     setSessions(listCompletedSessions(50));
     setWeekly(listWeeklyVolume(8));
+
+    const w = getThisWeekSummary();
+    setThisWeek(w);
+    setWeeklyExercises(listThisWeekExerciseTotals(6));
   }, []);
 
   useFocusEffect(
@@ -47,7 +64,6 @@ export function HistoryScreen() {
   );
 
   const canDeleteAll = sessions.length > 0;
-  const [weekly, setWeekly] = useState<WeeklyVolumeRow[]>([]);
 
   const confirmDeleteOne = useCallback(
     (s: CompletedSessionRow) => {
@@ -115,6 +131,45 @@ export function HistoryScreen() {
             <AppText color="textSecondary">Delete all</AppText>
           </Pressable>
         </View>
+
+        {thisWeek ? (
+          <View
+            style={{
+              padding: tokens.spacing.md,
+              backgroundColor: tokens.colors.surface,
+              borderRadius: tokens.radius.md,
+              borderWidth: 1,
+              borderColor: tokens.colors.border,
+              gap: tokens.spacing.sm,
+            }}
+          >
+            <AppText variant="subtitle">
+              This week: {formatVolume(thisWeek.total_kg)} kg ({thisWeek.workouts} workouts)
+            </AppText>
+
+            {weeklyExercises.length > 0 ? (
+              <View style={{ gap: tokens.spacing.xs }}>
+                <AppText color="textSecondary">Top exercises</AppText>
+                {weeklyExercises.map((x) => (
+                  <View
+                    key={x.exercise_id}
+                    style={{
+                      flexDirection: 'row',
+                      justifyContent: 'space-between',
+                      gap: tokens.spacing.md,
+                    }}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <AppText color="textSecondary">{x.exercise_name}</AppText>
+                    </View>
+                    <AppText color="textSecondary">{formatVolume(x.total_kg)} kg</AppText>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+          </View>
+        ) : null}
+
         {weekly.length > 0 ? (
           <View
             style={{
@@ -155,7 +210,7 @@ export function HistoryScreen() {
         ) : null}
       </View>
     ),
-    [canDeleteAll, confirmDeleteAll, sessions.length, weekly],
+    [canDeleteAll, confirmDeleteAll, sessions.length, weekly, thisWeek, weeklyExercises],
   );
 
   return (

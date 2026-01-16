@@ -184,7 +184,7 @@ export function ExerciseDetailScreen({ route, navigation }: Props) {
               <View style={{ gap: tokens.spacing.xs }}>
                 <AppText color="textSecondary">Best set (by e1RM)</AppText>
                 <AppText>
-                  {formatKg(metrics.bestWeight)} × {metrics.bestReps} ·{' '}
+                  {formatKg(metrics.bestWeight) + ' kg'} × {metrics.bestReps} ·{' '}
                   <AppText color="textSecondary">{formatDateTime(metrics.bestWhen)}</AppText>
                 </AppText>
               </View>
@@ -195,8 +195,8 @@ export function ExerciseDetailScreen({ route, navigation }: Props) {
               </View>
 
               <View style={{ gap: tokens.spacing.xs }}>
-                <AppText color="textSecondary">Last session volume</AppText>
-                <AppText>{Math.round(metrics.lastVolume)} kg·reps</AppText>
+                <AppText color="textSecondary">Last workout volume</AppText>
+                <AppText>{Math.round(metrics.lastVolume)} kg</AppText>
               </View>
 
               <View style={{ gap: tokens.spacing.xs }}>

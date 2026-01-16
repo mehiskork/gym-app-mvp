@@ -21,6 +21,25 @@ function contextForWeight(weight: number): string {
   return `w:${weightKey(weight)}`;
 }
 
+function insertOrIgnorePrEvent(args: {
+  sessionId: string;
+  exerciseId: string;
+  prType: PrEventRow['pr_type'];
+  context: string;
+  value: number;
+}): number {
+  exec(
+    `
+    INSERT OR IGNORE INTO pr_event (id, session_id, exercise_id, pr_type, context, value, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, datetime('now'));
+  `,
+    [newId('pr'), args.sessionId, args.exerciseId, args.prType, args.context, args.value],
+  );
+
+  // SQLite: changes() returns number of rows changed by the most recent statement.
+  return query<{ n: number }>('SELECT changes() AS n;')[0]?.n ?? 0;
+}
+
 export function listSessionPrEvents(sessionId: string): PrEventRow[] {
   return query<PrEventRow>(
     `
@@ -38,9 +57,10 @@ export function listSessionPrEvents(sessionId: string): PrEventRow[] {
  * Call inside an existing inTransaction() if you need atomicity.
  *
  * Preference: completed sets only (no fallback).
+ *
+ * 8.5: Uses INSERT OR IGNORE + SELECT changes() to return accurate inserted count.
  */
 export function detectAndStorePrsForSession(sessionId: string): number {
-  // Get session exercises
   const exRows = query<{ wse_id: string; exercise_id: string }>(
     `
     SELECT id AS wse_id, exercise_id
@@ -52,9 +72,6 @@ export function detectAndStorePrsForSession(sessionId: string): number {
   );
 
   let inserted = 0;
-  const addChanges = () => {
-    inserted += query<{ n: number }>('SELECT changes() AS n;')[0]?.n ?? 0;
-  };
 
   for (const ex of exRows) {
     const sets = query<{
@@ -72,7 +89,7 @@ export function detectAndStorePrsForSession(sessionId: string): number {
       [ex.wse_id],
     );
 
-    // Completed sets only
+    // Completed sets only (per your requirement)
     const pool = sets.filter((s) => s.is_completed === 1);
 
     const valid = pool.filter(
@@ -88,10 +105,10 @@ export function detectAndStorePrsForSession(sessionId: string): number {
     if (valid.length === 0) continue;
 
     // ----- Candidate metrics for THIS session -----
-    // Weight PR candidate
+
+    // Weight PR candidate (max weight, tie-breaker reps)
     let maxWeight = valid[0].weight as number;
     let maxWeightReps = valid[0].reps as number;
-
     for (const s of valid) {
       const w = s.weight as number;
       const r = s.reps as number;
@@ -104,7 +121,7 @@ export function detectAndStorePrsForSession(sessionId: string): number {
     // Volume PR candidate
     const volume = valid.reduce((sum, s) => sum + (s.weight as number) * (s.reps as number), 0);
 
-    // Reps-at-weight candidates (per normalized weightKey)
+    // Reps-at-weight candidates (best reps per normalized weightKey)
     const repsByWeight = new Map<string, number>();
     for (const s of valid) {
       const w = s.weight as number;
@@ -138,14 +155,13 @@ export function detectAndStorePrsForSession(sessionId: string): number {
       )[0]?.v ?? null;
 
     if (histWeight === null || maxWeight > histWeight) {
-      exec(
-        `
-        INSERT OR IGNORE INTO pr_event (id, session_id, exercise_id, pr_type, context, value, updated_at)
-        VALUES (?, ?, ?, 'weight', '', ?, datetime('now'));
-      `,
-        [newId('pr'), sessionId, ex.exercise_id, maxWeight],
-      );
-      addChanges();
+      inserted += insertOrIgnorePrEvent({
+        sessionId,
+        exerciseId: ex.exercise_id,
+        prType: 'weight',
+        context: '',
+        value: maxWeight,
+      });
     }
 
     // 2) Volume best (history)
@@ -174,14 +190,13 @@ export function detectAndStorePrsForSession(sessionId: string): number {
       )[0]?.v ?? null;
 
     if (histVolume === null || volume > histVolume) {
-      exec(
-        `
-        INSERT OR IGNORE INTO pr_event (id, session_id, exercise_id, pr_type, context, value, updated_at)
-        VALUES (?, ?, ?, 'volume', '', ?, datetime('now'));
-      `,
-        [newId('pr'), sessionId, ex.exercise_id, volume],
-      );
-      addChanges();
+      inserted += insertOrIgnorePrEvent({
+        sessionId,
+        exerciseId: ex.exercise_id,
+        prType: 'volume',
+        context: '',
+        value: volume,
+      });
     }
 
     // 3) Reps-at-weight best (history) for each weightKey
@@ -208,14 +223,13 @@ export function detectAndStorePrsForSession(sessionId: string): number {
         )[0]?.v ?? null;
 
       if (histReps === null || reps > histReps) {
-        exec(
-          `
-          INSERT OR IGNORE INTO pr_event (id, session_id, exercise_id, pr_type, context, value, updated_at)
-          VALUES (?, ?, ?, 'reps_at_weight', ?, ?, datetime('now'));
-        `,
-          [newId('pr'), sessionId, ex.exercise_id, contextForWeight(Number(wKey)), reps],
-        );
-        addChanges();
+        inserted += insertOrIgnorePrEvent({
+          sessionId,
+          exerciseId: ex.exercise_id,
+          prType: 'reps_at_weight',
+          context: contextForWeight(Number(wKey)),
+          value: reps,
+        });
       }
     }
   }
@@ -225,8 +239,9 @@ export function detectAndStorePrsForSession(sessionId: string): number {
 
 /**
  * Step 8.4: Recompute PRs for a completed session if any set rows have been
- * updated since PRs were last computed. Uses hard-delete because pr_event is derived
- * and uq_pr_event_unique does not include deleted_at.
+ * updated since PRs were last computed.
+ *
+ * Uses hard-delete because pr_event is derived and uq_pr_event_unique does not include deleted_at.
  */
 export function recomputeSessionPrsIfNeeded(sessionId: string): number {
   return inTransaction(() => {

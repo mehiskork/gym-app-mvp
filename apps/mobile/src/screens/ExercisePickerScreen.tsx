@@ -12,6 +12,7 @@ import { tokens } from '../theme/tokens';
 import { listExercises, type ExerciseRow } from '../db/exerciseRepo';
 import { addExerciseToDay } from '../db/dayExerciseRepo';
 import { getOrCreateLocalUserId } from '../db/appMetaRepo';
+import { Alert } from 'react-native';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ExercisePicker'>;
 
@@ -90,8 +91,13 @@ export function ExercisePickerScreen({ route, navigation }: Props) {
           >
             <Pressable
               onPress={() => {
-                addExerciseToDay({ dayId, exerciseId: item.id });
-                navigation.goBack();
+                try {
+                  addExerciseToDay({ dayId, exerciseId: item.id });
+                  navigation.goBack();
+                } catch (e) {
+                  const msg = e instanceof Error ? e.message : String(e);
+                  Alert.alert('Failed to add exercise', msg);
+                }
               }}
               style={({ pressed }) => [{ flex: 1 }, pressed ? { opacity: 0.85 } : null]}
               accessibilityLabel={`Add ${item.name}`}

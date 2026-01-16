@@ -27,7 +27,6 @@ export function DayDetailScreen({ route, navigation }: Props) {
 
   const [dayNameInput, setDayNameInput] = useState<string>('');
   const [savedName, setSavedName] = useState<string>('');
-
   const [items, setItems] = useState<DayExerciseRow[]>([]);
 
   const load = useCallback(() => {
@@ -68,22 +67,20 @@ export function DayDetailScreen({ route, navigation }: Props) {
     },
     [load],
   );
+
   const commitDayName = useCallback(() => {
     const next = dayNameInput.trim();
     const prev = savedName.trim();
-
-    // Normalize: empty string => null in DB
     const nextDbValue = next.length === 0 ? null : next;
 
     if (next === prev) return;
 
     try {
       renameDay(dayId, nextDbValue);
-      setSavedName(next); // keep state in sync without reloading
+      setSavedName(next);
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Failed to rename day';
       Alert.alert('Error', message);
-      // revert input back to last-saved value
       setDayNameInput(savedName);
     }
   }, [dayId, dayNameInput, savedName]);
@@ -164,11 +161,12 @@ export function DayDetailScreen({ route, navigation }: Props) {
         </Pressable>
       </View>
     ),
-    [confirmDeleteExercise],
+    [confirmDeleteExercise, navigation],
   );
 
   return (
-    <Screen style={{ gap: tokens.spacing.lg }}>
+    <Screen style={{ flex: 1, gap: tokens.spacing.lg }}>
+      {/* Header always visible */}
       <View style={{ gap: tokens.spacing.sm }}>
         <AppText variant="title">Day</AppText>
 
@@ -203,24 +201,29 @@ export function DayDetailScreen({ route, navigation }: Props) {
         <AppText color="textSecondary">Hold ≡ and drag to reorder exercises.</AppText>
       </View>
 
-      <DraggableFlatList
-        data={items}
-        keyExtractor={(x) => x.id}
-        renderItem={renderItem}
-        ItemSeparatorComponent={() => <View style={{ height: tokens.spacing.sm }} />}
-        ListEmptyComponent={<AppText color="textSecondary">No exercises yet.</AppText>}
-        onDragBegin={() => {
-          void Haptics.selectionAsync();
-        }}
-        onDragEnd={({ data }) => {
-          setItems(data);
-          reorderDayExercises(
-            dayId,
-            data.map((x) => x.id),
-          );
-          load();
-        }}
-      />
+      {/* List gets real height and scrolls */}
+      <View style={{ flex: 1 }}>
+        <DraggableFlatList
+          style={{ flex: 1 }}
+          data={items}
+          keyExtractor={(x) => x.id}
+          renderItem={renderItem}
+          ItemSeparatorComponent={() => <View style={{ height: tokens.spacing.sm }} />}
+          contentContainerStyle={{ paddingBottom: tokens.spacing.xl }}
+          ListEmptyComponent={<AppText color="textSecondary">No exercises yet.</AppText>}
+          onDragBegin={() => {
+            void Haptics.selectionAsync();
+          }}
+          onDragEnd={({ data }) => {
+            setItems(data);
+            reorderDayExercises(
+              dayId,
+              data.map((x) => x.id),
+            );
+            load();
+          }}
+        />
+      </View>
     </Screen>
   );
 }
