@@ -33,88 +33,128 @@ export function listSessionPrEvents(sessionId: string): PrEventRow[] {
   );
 }
 
+/**
+ * Derivation function. Does NOT open a transaction itself.
+ * Call inside an existing inTransaction() if you need atomicity.
+ *
+ * Preference: completed sets only (no fallback).
+ */
 export function detectAndStorePrsForSession(sessionId: string): number {
-  return inTransaction(() => {
-    // Get session exercises
-    const exRows = query<{ wse_id: string; exercise_id: string }>(
+  // Get session exercises
+  const exRows = query<{ wse_id: string; exercise_id: string }>(
+    `
+    SELECT id AS wse_id, exercise_id
+    FROM workout_session_exercise
+    WHERE workout_session_id = ? AND deleted_at IS NULL
+    ORDER BY position ASC;
+  `,
+    [sessionId],
+  );
+
+  let inserted = 0;
+  const addChanges = () => {
+    inserted += query<{ n: number }>('SELECT changes() AS n;')[0]?.n ?? 0;
+  };
+
+  for (const ex of exRows) {
+    const sets = query<{
+      weight: number | null;
+      reps: number | null;
+      is_completed: number;
+    }>(
       `
-      SELECT id AS wse_id, exercise_id
-      FROM workout_session_exercise
-      WHERE workout_session_id = ? AND deleted_at IS NULL
-      ORDER BY position ASC;
+      SELECT weight, reps, is_completed
+      FROM workout_set
+      WHERE workout_session_exercise_id = ?
+        AND deleted_at IS NULL
+      ORDER BY set_index ASC;
     `,
-      [sessionId],
+      [ex.wse_id],
     );
 
-    let inserted = 0;
-    const addChanges = () => {
-      inserted += query<{ n: number }>('SELECT changes() AS n;')[0]?.n ?? 0;
-    };
+    // Completed sets only
+    const pool = sets.filter((s) => s.is_completed === 1);
 
-    for (const ex of exRows) {
-      const sets = query<{
-        weight: number | null;
-        reps: number | null;
-        is_completed: number;
-      }>(
+    const valid = pool.filter(
+      (s) =>
+        typeof s.weight === 'number' &&
+        Number.isFinite(s.weight) &&
+        (s.weight as number) > 0 &&
+        typeof s.reps === 'number' &&
+        Number.isFinite(s.reps) &&
+        (s.reps as number) > 0,
+    );
+
+    if (valid.length === 0) continue;
+
+    // ----- Candidate metrics for THIS session -----
+    // Weight PR candidate
+    let maxWeight = valid[0].weight as number;
+    let maxWeightReps = valid[0].reps as number;
+
+    for (const s of valid) {
+      const w = s.weight as number;
+      const r = s.reps as number;
+      if (w > maxWeight || (w === maxWeight && r > maxWeightReps)) {
+        maxWeight = w;
+        maxWeightReps = r;
+      }
+    }
+
+    // Volume PR candidate
+    const volume = valid.reduce((sum, s) => sum + (s.weight as number) * (s.reps as number), 0);
+
+    // Reps-at-weight candidates (per normalized weightKey)
+    const repsByWeight = new Map<string, number>();
+    for (const s of valid) {
+      const w = s.weight as number;
+      const r = s.reps as number;
+      const k = weightKey(w);
+      const cur = repsByWeight.get(k) ?? 0;
+      if (r > cur) repsByWeight.set(k, r);
+    }
+
+    // ----- Compare against HISTORY (completed sessions, excluding this session) -----
+
+    // 1) Weight best (history)
+    const histWeight =
+      query<{ v: number | null }>(
         `
-        SELECT weight, reps, is_completed
-        FROM workout_set
-        WHERE workout_session_exercise_id = ?
-          AND deleted_at IS NULL
-        ORDER BY set_index ASC;
+        SELECT MAX(ws.weight) AS v
+        FROM workout_set ws
+        JOIN workout_session_exercise wse ON wse.id = ws.workout_session_exercise_id
+        JOIN workout_session s ON s.id = wse.workout_session_id
+        WHERE wse.exercise_id = ?
+          AND s.status = 'completed'
+          AND s.id != ?
+          AND s.deleted_at IS NULL
+          AND wse.deleted_at IS NULL
+          AND ws.deleted_at IS NULL
+          AND ws.is_completed = 1
+          AND ws.weight IS NOT NULL
+          AND ws.reps IS NOT NULL;
       `,
-        [ex.wse_id],
+        [ex.exercise_id, sessionId],
+      )[0]?.v ?? null;
+
+    if (histWeight === null || maxWeight > histWeight) {
+      exec(
+        `
+        INSERT OR IGNORE INTO pr_event (id, session_id, exercise_id, pr_type, context, value, updated_at)
+        VALUES (?, ?, ?, 'weight', '', ?, datetime('now'));
+      `,
+        [newId('pr'), sessionId, ex.exercise_id, maxWeight],
       );
+      addChanges();
+    }
 
-      const pool = sets.filter((s) => s.is_completed === 1);
-
-      const valid = pool.filter(
-        (s) =>
-          typeof s.weight === 'number' &&
-          Number.isFinite(s.weight) &&
-          (s.weight as number) > 0 &&
-          typeof s.reps === 'number' &&
-          Number.isFinite(s.reps) &&
-          (s.reps as number) > 0,
-      );
-
-      if (valid.length === 0) continue;
-
-      // ----- Candidate metrics for THIS session -----
-      // Weight PR candidate
-      let maxWeight = valid[0].weight as number;
-      let maxWeightReps = valid[0].reps as number;
-
-      for (const s of valid) {
-        const w = s.weight as number;
-        const r = s.reps as number;
-        if (w > maxWeight || (w === maxWeight && r > maxWeightReps)) {
-          maxWeight = w;
-          maxWeightReps = r;
-        }
-      }
-
-      // Volume PR candidate
-      const volume = valid.reduce((sum, s) => sum + (s.weight as number) * (s.reps as number), 0);
-
-      // Reps-at-weight candidates (per normalized weightKey)
-      const repsByWeight = new Map<string, number>();
-      for (const s of valid) {
-        const w = s.weight as number;
-        const r = s.reps as number;
-        const k = weightKey(w);
-        const cur = repsByWeight.get(k) ?? 0;
-        if (r > cur) repsByWeight.set(k, r);
-      }
-
-      // ----- Compare against HISTORY (completed sessions, excluding this session) -----
-
-      // 1) Weight best (history)
-      const histWeight =
-        query<{ v: number | null }>(
-          `
-          SELECT MAX(ws.weight) AS v
+    // 2) Volume best (history)
+    const histVolume =
+      query<{ v: number | null }>(
+        `
+        SELECT MAX(v) AS v
+        FROM (
+          SELECT SUM(ws.weight * ws.reps) AS v
           FROM workout_set ws
           JOIN workout_session_exercise wse ON wse.id = ws.workout_session_exercise_id
           JOIN workout_session s ON s.id = wse.workout_session_id
@@ -126,94 +166,109 @@ export function detectAndStorePrsForSession(sessionId: string): number {
             AND ws.deleted_at IS NULL
             AND ws.is_completed = 1
             AND ws.weight IS NOT NULL
-            AND ws.reps IS NOT NULL;
-        `,
-          [ex.exercise_id, sessionId],
-        )[0]?.v ?? null;
-
-      if (histWeight === null || maxWeight > histWeight) {
-        exec(
-          `
-          INSERT OR IGNORE INTO pr_event (id, session_id, exercise_id, pr_type, context, value, updated_at)
-          VALUES (?, ?, ?, 'weight', '', ?, datetime('now'));
-        `,
-          [newId('pr'), sessionId, ex.exercise_id, maxWeight],
+            AND ws.reps IS NOT NULL
+          GROUP BY s.id
         );
-        addChanges();
-      }
+      `,
+        [ex.exercise_id, sessionId],
+      )[0]?.v ?? null;
 
-      // 2) Volume best (history)
-      const histVolume =
-        query<{ v: number | null }>(
-          `
-          SELECT MAX(v) AS v
-          FROM (
-            SELECT SUM(ws.weight * ws.reps) AS v
-            FROM workout_set ws
-            JOIN workout_session_exercise wse ON wse.id = ws.workout_session_exercise_id
-            JOIN workout_session s ON s.id = wse.workout_session_id
-            WHERE wse.exercise_id = ?
-              AND s.status = 'completed'
-              AND s.id != ?
-              AND s.deleted_at IS NULL
-              AND wse.deleted_at IS NULL
-              AND ws.deleted_at IS NULL
-              AND ws.is_completed = 1
-              AND ws.weight IS NOT NULL
-              AND ws.reps IS NOT NULL
-            GROUP BY s.id
-          );
-        `,
-          [ex.exercise_id, sessionId],
-        )[0]?.v ?? null;
-
-      if (histVolume === null || volume > histVolume) {
-        exec(
-          `
-          INSERT OR IGNORE INTO pr_event (id, session_id, exercise_id, pr_type, context, value, updated_at)
-          VALUES (?, ?, ?, 'volume', '', ?, datetime('now'));
-        `,
-          [newId('pr'), sessionId, ex.exercise_id, volume],
-        );
-        addChanges();
-      }
-
-      // 3) Reps-at-weight best (history) for each weightKey
-      for (const [wKey, reps] of repsByWeight.entries()) {
-        const histReps =
-          query<{ v: number | null }>(
-            `
-            SELECT MAX(ws.reps) AS v
-            FROM workout_set ws
-            JOIN workout_session_exercise wse ON wse.id = ws.workout_session_exercise_id
-            JOIN workout_session s ON s.id = wse.workout_session_id
-            WHERE wse.exercise_id = ?
-              AND s.status = 'completed'
-              AND s.id != ?
-              AND s.deleted_at IS NULL
-              AND wse.deleted_at IS NULL
-              AND ws.deleted_at IS NULL
-              AND ws.is_completed = 1
-              AND ws.reps IS NOT NULL
-              AND ws.weight IS NOT NULL
-              AND ROUND(ws.weight, 2) = ?;
-          `,
-            [ex.exercise_id, sessionId, Number(wKey)],
-          )[0]?.v ?? null;
-
-        if (histReps === null || reps > histReps) {
-          exec(
-            `
-            INSERT OR IGNORE INTO pr_event (id, session_id, exercise_id, pr_type, context, value, updated_at)
-            VALUES (?, ?, ?, 'reps_at_weight', ?, ?, datetime('now'));
-          `,
-            [newId('pr'), sessionId, ex.exercise_id, contextForWeight(Number(wKey)), reps],
-          );
-          addChanges();
-        }
-      }
+    if (histVolume === null || volume > histVolume) {
+      exec(
+        `
+        INSERT OR IGNORE INTO pr_event (id, session_id, exercise_id, pr_type, context, value, updated_at)
+        VALUES (?, ?, ?, 'volume', '', ?, datetime('now'));
+      `,
+        [newId('pr'), sessionId, ex.exercise_id, volume],
+      );
+      addChanges();
     }
 
-    return inserted;
+    // 3) Reps-at-weight best (history) for each weightKey
+    for (const [wKey, reps] of repsByWeight.entries()) {
+      const histReps =
+        query<{ v: number | null }>(
+          `
+          SELECT MAX(ws.reps) AS v
+          FROM workout_set ws
+          JOIN workout_session_exercise wse ON wse.id = ws.workout_session_exercise_id
+          JOIN workout_session s ON s.id = wse.workout_session_id
+          WHERE wse.exercise_id = ?
+            AND s.status = 'completed'
+            AND s.id != ?
+            AND s.deleted_at IS NULL
+            AND wse.deleted_at IS NULL
+            AND ws.deleted_at IS NULL
+            AND ws.is_completed = 1
+            AND ws.reps IS NOT NULL
+            AND ws.weight IS NOT NULL
+            AND ROUND(ws.weight, 2) = ?;
+        `,
+          [ex.exercise_id, sessionId, Number(wKey)],
+        )[0]?.v ?? null;
+
+      if (histReps === null || reps > histReps) {
+        exec(
+          `
+          INSERT OR IGNORE INTO pr_event (id, session_id, exercise_id, pr_type, context, value, updated_at)
+          VALUES (?, ?, ?, 'reps_at_weight', ?, ?, datetime('now'));
+        `,
+          [newId('pr'), sessionId, ex.exercise_id, contextForWeight(Number(wKey)), reps],
+        );
+        addChanges();
+      }
+    }
+  }
+
+  return inserted;
+}
+
+/**
+ * Step 8.4: Recompute PRs for a completed session if any set rows have been
+ * updated since PRs were last computed. Uses hard-delete because pr_event is derived
+ * and uq_pr_event_unique does not include deleted_at.
+ */
+export function recomputeSessionPrsIfNeeded(sessionId: string): number {
+  return inTransaction(() => {
+    const s =
+      query<{ status: 'in_progress' | 'completed' | 'discarded' }>(
+        `
+        SELECT status
+        FROM workout_session
+        WHERE id = ? AND deleted_at IS NULL
+        LIMIT 1;
+      `,
+        [sessionId],
+      )[0] ?? null;
+
+    if (!s || s.status !== 'completed') return 0;
+
+    const setTs =
+      query<{ ts: string | null }>(
+        `
+        SELECT MAX(ws.updated_at) AS ts
+        FROM workout_set ws
+        JOIN workout_session_exercise wse ON wse.id = ws.workout_session_exercise_id
+        WHERE wse.workout_session_id = ?
+          AND wse.deleted_at IS NULL;
+      `,
+        [sessionId],
+      )[0]?.ts ?? null;
+
+    const prTs =
+      query<{ ts: string | null }>(
+        `
+        SELECT MAX(updated_at) AS ts
+        FROM pr_event
+        WHERE session_id = ? AND deleted_at IS NULL;
+      `,
+        [sessionId],
+      )[0]?.ts ?? null;
+
+    // If PRs exist and sets haven't changed since, do nothing.
+    if (prTs && setTs && setTs <= prTs) return 0;
+
+    exec('DELETE FROM pr_event WHERE session_id = ?;', [sessionId]);
+    return detectAndStorePrsForSession(sessionId);
   });
 }

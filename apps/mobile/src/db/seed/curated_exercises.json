@@ -4,72 +4,16 @@
     "name": "Barbell Bench Press"
   },
   {
-    "id": "ex_squat_back_barbell",
-    "name": "Back Squat"
-  },
-  {
-    "id": "ex_deadlift_conventional",
-    "name": "Conventional Deadlift"
-  },
-  {
-    "id": "ex_overhead_press_barbell",
-    "name": "Barbell Overhead Press"
-  },
-  {
-    "id": "ex_pullup",
-    "name": "Pull-Up"
-  },
-  {
-    "id": "ex_bent_over_row_barbell",
-    "name": "Barbell Bent-Over Row"
-  },
-  {
-    "id": "ex_lat_pulldown",
-    "name": "Lat Pulldown"
-  },
-  {
-    "id": "ex_incline_db_press",
-    "name": "Incline Dumbbell Press"
-  },
-  {
-    "id": "ex_leg_press",
-    "name": "Leg Press"
-  },
-  {
-    "id": "ex_leg_curl",
-    "name": "Leg Curl"
-  },
-  {
-    "id": "ex_military_press",
-    "name": "Military Press"
-  },
-  {
-    "id": "ex_lateral_raises",
-    "name": "Lateral Raises"
-  },
-  {
-    "id": "ex_pec_deck",
-    "name": "Pec Deck"
-  },
-  {
-    "id": "ex_overhead_db_tricep_extension",
-    "name": "Overhead Dumbbell Tricep Extension"
-  },
-  {
-    "id": "ex_forearm_machine",
-    "name": "Forearm Machine"
-  },
-  {
-    "id": "ex_bb_rdl",
-    "name": "Barbell RDL"
-  },
-  {
     "id": "ex_dumbbell_bench_press",
     "name": "Dumbbell Bench Press"
   },
   {
     "id": "ex_incline_bench_press_barbell",
     "name": "Incline Barbell Bench Press"
+  },
+  {
+    "id": "ex_incline_db_press",
+    "name": "Incline Dumbbell Press"
   },
   {
     "id": "ex_decline_bench_press_barbell",
@@ -88,84 +32,60 @@
     "name": "Cable Chest Fly"
   },
   {
-    "id": "ex_front_squat_barbell",
-    "name": "Front Squat"
+    "id": "ex_pec_deck",
+    "name": "Pec Deck"
   },
   {
-    "id": "ex_goblet_squat",
-    "name": "Goblet Squat"
+    "id": "ex_chest_fly_machine",
+    "name": "Chest Fly (Machine)"
   },
   {
-    "id": "ex_lunge_dumbbell",
-    "name": "Dumbbell Lunge"
+    "id": "ex_chest_press_machine",
+    "name": "Chest Press Machine"
   },
   {
-    "id": "ex_split_squat_bulgarian",
-    "name": "Bulgarian Split Squat"
+    "id": "ex_overhead_press_barbell",
+    "name": "Barbell Overhead Press"
   },
   {
-    "id": "ex_leg_extension",
-    "name": "Leg Extension"
+    "id": "ex_military_press",
+    "name": "Military Press"
   },
   {
-    "id": "ex_calf_raise_standing",
-    "name": "Standing Calf Raise"
+    "id": "ex_shoulder_press_machine",
+    "name": "Shoulder Press Machine"
   },
   {
-    "id": "ex_calf_raise_seated",
-    "name": "Seated Calf Raise"
+    "id": "ex_lateral_raises",
+    "name": "Lateral Raises"
   },
   {
-    "id": "ex_hip_thrust_barbell",
-    "name": "Barbell Hip Thrust"
-  },
-  {
-    "id": "ex_glute_bridge",
-    "name": "Glute Bridge"
-  },
-  {
-    "id": "ex_romanian_deadlift_dumbbell",
-    "name": "Dumbbell RDL"
-  },
-  {
-    "id": "ex_deadlift_sumo",
-    "name": "Sumo Deadlift"
-  },
-  {
-    "id": "ex_trap_bar_deadlift",
-    "name": "Trap Bar Deadlift"
-  },
-  {
-    "id": "ex_seated_cable_row",
-    "name": "Seated Cable Row"
-  },
-  {
-    "id": "ex_one_arm_db_row",
-    "name": "One-Arm Dumbbell Row"
-  },
-  {
-    "id": "ex_t_bar_row",
-    "name": "T-Bar Row"
-  },
-  {
-    "id": "ex_face_pull",
-    "name": "Face Pull"
+    "id": "ex_front_raise_dumbbell",
+    "name": "Dumbbell Front Raise"
   },
   {
     "id": "ex_rear_delt_fly",
     "name": "Rear Delt Fly"
   },
   {
-    "id": "ex_bicep_curl_dumbbell",
-    "name": "Dumbbell Bicep Curl"
+    "id": "ex_reverse_fly_dumbbell",
+    "name": "Dumbbell Reverse Fly"
   },
   {
-    "id": "ex_hammer_curl_dumbbell",
-    "name": "Hammer Curl"
+    "id": "ex_dumbbell_shrug",
+    "name": "Dumbbell Shrug"
+  },
+  {
+    "id": "ex_overhead_db_tricep_extension",
+    "name": "Overhead Dumbbell Tricep Extension"
   },
   {
     "id": "ex_cable_tricep_pushdown",
     "name": "Cable Tricep Pushdown"
+  },
+  {
+    "id": "ex_triceps_pushdown",
+    "name": "Triceps Pushdown"
   },
   {
     "id": "ex_skull_crusher",
@@ -176,36 +96,76 @@
     "name": "Bench Dips"
   },
   {
-    "id": "ex_plank",
-    "name": "Plank"
+    "id": "ex_pullup",
+    "name": "Pull-Up"
   },
   {
-    "id": "ex_hanging_leg_raise",
-    "name": "Hanging Leg Raise"
+    "id": "ex_lat_pulldown",
+    "name": "Lat Pulldown"
   },
   {
-    "id": "ex_cable_crunch",
-    "name": "Cable Crunch"
+    "id": "ex_lat_pulldown_wide_grip",
+    "name": "Wide-Grip Lat Pulldown"
+  },
+  {
+    "id": "ex_bent_over_row_barbell",
+    "name": "Barbell Bent-Over Row"
+  },
+  {
+    "id": "ex_seated_cable_row",
+    "name": "Seated Cable Row"
   },
   {
     "id": "ex_close_grip_cable_row",
     "name": "Close-Grip Cable Row"
   },
   {
+    "id": "ex_one_arm_db_row",
+    "name": "One-Arm Dumbbell Row"
+  },
+  {
+    "id": "ex_single_arm_db_row_supported",
+    "name": "Single-Arm Dumbbell Row (Supported on Bench)"
+  },
+  {
+    "id": "ex_t_bar_row",
+    "name": "T-Bar Row"
+  },
+  {
+    "id": "ex_face_pull",
+    "name": "Face Pull"
+  },
+  {
+    "id": "ex_bicep_curl_dumbbell",
+    "name": "Dumbbell Bicep Curl"
+  },
+  {
     "id": "ex_seated_db_curl",
     "name": "Seated Dumbbell Curl"
   },
   {
-    "id": "ex_walking_lunge",
-    "name": "Walking Lunges"
+    "id": "ex_hammer_curl_dumbbell",
+    "name": "Hammer Curl"
   },
   {
-    "id": "ex_dumbbell_shrug",
-    "name": "Dumbbell Shrug"
+    "id": "ex_biceps_curls",
+    "name": "Biceps Curls"
   },
   {
-    "id": "ex_hip_abduction_leaning_forward",
-    "name": "Leaning Forward Hip Abduction"
+    "id": "ex_forearm_machine",
+    "name": "Forearm Machine"
+  },
+  {
+    "id": "ex_squat_back_barbell",
+    "name": "Back Squat"
+  },
+  {
+    "id": "ex_front_squat_barbell",
+    "name": "Front Squat"
+  },
+  {
+    "id": "ex_goblet_squat",
+    "name": "Goblet Squat"
   },
   {
     "id": "ex_belted_sumo_squat",
@@ -216,7 +176,111 @@
     "name": "Reverse Hack Squat"
   },
   {
+    "id": "ex_deadlift_conventional",
+    "name": "Conventional Deadlift"
+  },
+  {
+    "id": "ex_deadlift_sumo",
+    "name": "Sumo Deadlift"
+  },
+  {
+    "id": "ex_trap_bar_deadlift",
+    "name": "Trap Bar Deadlift"
+  },
+  {
+    "id": "ex_bb_rdl",
+    "name": "Barbell RDL"
+  },
+  {
+    "id": "ex_romanian_deadlift_dumbbell",
+    "name": "Dumbbell RDL"
+  },
+  {
+    "id": "ex_hack_squat_machine_rdl",
+    "name": "Hack Squat Machine Romanian Deadlift"
+  },
+  {
+    "id": "ex_leg_press",
+    "name": "Leg Press"
+  },
+  {
+    "id": "ex_split_squat_bulgarian",
+    "name": "Bulgarian Split Squat"
+  },
+  {
+    "id": "ex_lunge_dumbbell",
+    "name": "Dumbbell Lunge"
+  },
+  {
+    "id": "ex_walking_lunge",
+    "name": "Walking Lunges"
+  },
+  {
+    "id": "ex_walking_lunge_dumbbell",
+    "name": "Dumbbell Walking Lunges"
+  },
+  {
+    "id": "ex_leg_curl",
+    "name": "Leg Curl"
+  },
+  {
+    "id": "ex_leg_curl_lying",
+    "name": "Lying Leg Curl"
+  },
+  {
+    "id": "ex_leg_extension",
+    "name": "Leg Extension"
+  },
+  {
+    "id": "ex_hip_thrust_barbell",
+    "name": "Barbell Hip Thrust"
+  },
+  {
+    "id": "ex_hip_thrust",
+    "name": "Hip Thrust"
+  },
+  {
+    "id": "ex_glute_bridge",
+    "name": "Glute Bridge"
+  },
+  {
+    "id": "ex_hip_abduction_machine",
+    "name": "Hip Abduction (Machine)"
+  },
+  {
+    "id": "ex_hip_abduction_leaning_forward",
+    "name": "Leaning Forward Hip Abduction"
+  },
+  {
+    "id": "ex_cable_side_kick",
+    "name": "Cable Side Kick"
+  },
+  {
     "id": "ex_cable_kickback_straight_leg",
     "name": "Straight-Leg Cable Kickback"
+  },
+  {
+    "id": "ex_calf_raise_standing",
+    "name": "Standing Calf Raise"
+  },
+  {
+    "id": "ex_calf_raise_seated",
+    "name": "Seated Calf Raise"
+  },
+  {
+    "id": "ex_plank",
+    "name": "Plank"
+  },
+  {
+    "id": "ex_crunches",
+    "name": "Crunches"
+  },
+  {
+    "id": "ex_cable_crunch",
+    "name": "Cable Crunch"
+  },
+  {
+    "id": "ex_hanging_leg_raise",
+    "name": "Hanging Leg Raise"
   }
 ]

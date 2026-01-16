@@ -7,7 +7,7 @@ import type { RootStackParamList } from '../navigation/types';
 import { Screen } from '../components/Screen';
 import { AppText } from '../components/AppText';
 import { tokens } from '../theme/tokens';
-import { listSessionPrEvents, type PrEventRow } from '../db/prRepo';
+import { listSessionPrEvents, recomputeSessionPrsIfNeeded, type PrEventRow } from '../db/prRepo';
 
 import {
   getSessionDetail,
@@ -75,6 +75,7 @@ export function SessionDetailScreen({ route, navigation }: Props) {
     setSession(data.session);
     setExercises(data.exercises);
     setSets(data.sets);
+    recomputeSessionPrsIfNeeded(sessionId);
     setPrs(listSessionPrEvents(sessionId));
   }, [sessionId]);
 

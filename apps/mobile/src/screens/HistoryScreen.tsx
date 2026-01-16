@@ -139,11 +139,11 @@ export function HistoryScreen() {
               >
                 <View style={{ flex: 1 }}>
                   <AppText>{formatWeekLabel(w.week_start)}</AppText>
-                  <AppText color="textSecondary">{w.sessions} sessions</AppText>
+                  <AppText color="textSecondary">{w.sessions} workouts</AppText>
                 </View>
 
                 <View style={{ alignItems: 'flex-end' }}>
-                  <AppText>{formatVolume(w.volume)} kg·reps</AppText>
+                  <AppText>{formatVolume(w.volume)} kg</AppText>
                 </View>
               </View>
             ))}
