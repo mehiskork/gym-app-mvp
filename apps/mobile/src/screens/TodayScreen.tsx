@@ -36,7 +36,7 @@ export function TodayScreen() {
         <View style={{ gap: tokens.spacing.sm }}>
           <AppText color="textSecondary">You have an in-progress workout.</AppText>
           <PrimaryButton
-            title="Resume workout"
+            title=" Resume workout"
             onPress={() => navigation.navigate('WorkoutSession', { sessionId: inProgressId })}
           />
           <SecondaryButton
