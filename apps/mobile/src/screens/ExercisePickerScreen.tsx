@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { FlatList, Pressable, TextInput, View } from 'react-native';
+import { Alert, FlatList, Pressable, TextInput, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -12,7 +12,7 @@ import { tokens } from '../theme/tokens';
 import { listExercises, type ExerciseRow } from '../db/exerciseRepo';
 
 import { getOrCreateLocalUserId } from '../db/appMetaRepo';
-import { Alert } from 'react-native';
+import { addExerciseToDay } from '../db/dayExerciseRepo';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ExercisePicker'>;
 
@@ -92,12 +92,8 @@ export function ExercisePickerScreen({ route, navigation }: Props) {
             <Pressable
               onPress={() => {
                 try {
-                  navigation.navigate({
-                    name: 'DayDetail',
-                    params: { dayId, refreshKey: Date.now(), addedExerciseId: item.id },
-                    merge: true,
-                  });
-                  navigation.navigate('DayDetail', { dayId, refreshKey: Date.now() });
+                  addExerciseToDay({ dayId, exerciseId: item.id });
+                  navigation.goBack();
                 } catch (e) {
                   const msg = e instanceof Error ? e.message : String(e);
                   Alert.alert('Failed to add exercise', msg);

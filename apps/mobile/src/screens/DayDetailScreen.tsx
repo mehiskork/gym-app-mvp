@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Alert, Pressable, TextInput, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
@@ -12,7 +12,6 @@ import { AppText } from '../components/AppText';
 import { PrimaryButton } from '../components/Buttons';
 import { tokens } from '../theme/tokens';
 import {
-  addExerciseToDay,
   deleteDayExercise,
   getDayById,
   listDayExercises,
@@ -25,8 +24,6 @@ type Props = NativeStackScreenProps<RootStackParamList, 'DayDetail'>;
 
 export function DayDetailScreen({ route, navigation }: Props) {
   const { dayId } = route.params;
-  const refreshKey = route.params.refreshKey;
-  const addedExerciseId = route.params.addedExerciseId;
 
   const [dayNameInput, setDayNameInput] = useState<string>('');
   const [savedName, setSavedName] = useState<string>('');
@@ -34,12 +31,18 @@ export function DayDetailScreen({ route, navigation }: Props) {
 
   const load = useCallback(() => {
     const day = getDayById(dayId);
-    const input = day?.name ?? '';
+    if (!day) {
+      setDayNameInput('');
+      setSavedName('');
+      setItems([]);
+      return;
+    }
+
+    const input = day.name ?? '';
     setDayNameInput(input);
     setSavedName(input);
 
-    if (day) setItems(listDayExercises(dayId));
-    else setItems([]);
+    setItems(listDayExercises(dayId));
   }, [dayId]);
 
   useFocusEffect(
@@ -48,45 +51,10 @@ export function DayDetailScreen({ route, navigation }: Props) {
     }, [load]),
   );
 
-  useEffect(() => {
-    if (refreshKey !== undefined) load();
-  }, [load, refreshKey]);
-
-  useEffect(() => {
-    if (!addedExerciseId) return;
-
-    try {
-      addExerciseToDay({ dayId, exerciseId: addedExerciseId });
-      load();
-    } catch (e) {
-      const message = e instanceof Error ? e.message : 'Failed to add exercise';
-      Alert.alert('Error', message);
-    } finally {
-      navigation.setParams({ addedExerciseId: undefined });
-    }
-  }, [addedExerciseId, dayId, load, navigation]);
-
   useFocusEffect(
     useCallback(() => {
       navigation.setOptions({ title: 'Day' });
     }, [navigation]),
-  );
-
-  const confirmDeleteExercise = useCallback(
-    (row: DayExerciseRow) => {
-      Alert.alert('Delete exercise?', `"${row.exercise_name}" will be removed from this day.`, [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => {
-            deleteDayExercise(row.id);
-            load();
-          },
-        },
-      ]);
-    },
-    [load],
   );
 
   const commitDayName = useCallback(() => {
@@ -105,6 +73,23 @@ export function DayDetailScreen({ route, navigation }: Props) {
       setDayNameInput(savedName);
     }
   }, [dayId, dayNameInput, savedName]);
+
+  const confirmDeleteExercise = useCallback(
+    (row: DayExerciseRow) => {
+      Alert.alert('Delete exercise?', `"${row.exercise_name}" will be removed from this day.`, [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            deleteDayExercise(row.id);
+            load();
+          },
+        },
+      ]);
+    },
+    [load],
+  );
 
   const renderItem = useCallback(
     ({ item, drag, isActive }: RenderItemParams<DayExerciseRow>) => (
@@ -185,66 +170,68 @@ export function DayDetailScreen({ route, navigation }: Props) {
     [confirmDeleteExercise, navigation],
   );
 
-  return (
-    <Screen style={{ flex: 1, gap: tokens.spacing.lg }}>
-      {/* Header always visible */}
+  const header = (
+    <View style={{ gap: tokens.spacing.md, paddingBottom: tokens.spacing.md }}>
+      <AppText variant="title">Day</AppText>
+
       <View style={{ gap: tokens.spacing.sm }}>
-        <AppText variant="title">Day</AppText>
-
-        <View style={{ gap: tokens.spacing.sm }}>
-          <AppText color="textSecondary">Day name</AppText>
-          <TextInput
-            maxLength={50}
-            value={dayNameInput}
-            onChangeText={setDayNameInput}
-            placeholder="e.g., Push"
-            placeholderTextColor={tokens.colors.textSecondary}
-            returnKeyType="done"
-            onSubmitEditing={commitDayName}
-            onEndEditing={commitDayName}
-            style={{
-              minHeight: tokens.touchTargetMin,
-              borderRadius: tokens.radius.md,
-              borderWidth: 1,
-              borderColor: tokens.colors.border,
-              paddingHorizontal: tokens.spacing.md,
-              color: tokens.colors.text,
-              backgroundColor: tokens.colors.surface,
-            }}
-          />
-        </View>
-
-        <PrimaryButton
-          title="Add exercise"
-          onPress={() => navigation.navigate('ExercisePicker', { dayId })}
-        />
-
-        <AppText color="textSecondary">Hold ≡ and drag to reorder exercises.</AppText>
-      </View>
-
-      {/* List gets real height and scrolls */}
-      <View style={{ flex: 1 }}>
-        <DraggableFlatList
-          style={{ flex: 1 }}
-          data={items}
-          keyExtractor={(x) => x.id}
-          renderItem={renderItem}
-          ItemSeparatorComponent={() => <View style={{ height: tokens.spacing.sm }} />}
-          contentContainerStyle={{ paddingBottom: tokens.spacing.xl }}
-          ListEmptyComponent={<AppText color="textSecondary">No exercises yet.</AppText>}
-          onDragBegin={() => {
-            void Haptics.selectionAsync();
-          }}
-          onDragEnd={({ data }) => {
-            setItems(data);
-            reorderDayExercises(
-              dayId,
-              data.map((x) => x.id),
-            );
-            load();
+        <AppText color="textSecondary">Day name</AppText>
+        <TextInput
+          maxLength={50}
+          value={dayNameInput}
+          onChangeText={setDayNameInput}
+          placeholder="e.g., Push"
+          placeholderTextColor={tokens.colors.textSecondary}
+          returnKeyType="done"
+          onSubmitEditing={commitDayName}
+          onEndEditing={commitDayName}
+          style={{
+            minHeight: tokens.touchTargetMin,
+            borderRadius: tokens.radius.md,
+            borderWidth: 1,
+            borderColor: tokens.colors.border,
+            paddingHorizontal: tokens.spacing.md,
+            color: tokens.colors.text,
+            backgroundColor: tokens.colors.surface,
           }}
         />
       </View>
+
+      <PrimaryButton
+        title="Add exercise"
+        onPress={() => navigation.navigate('ExercisePicker', { dayId })}
+      />
+
+      <AppText color="textSecondary">Hold ≡ and drag to reorder exercises.</AppText>
+    </View>
+  );
+
+  return (
+    <Screen style={{ flex: 1 }}>
+      <DraggableFlatList
+        data={items}
+        keyExtractor={(x) => x.id}
+        renderItem={renderItem}
+        ListHeaderComponent={header}
+        ListEmptyComponent={<AppText color="textSecondary">No exercises yet.</AppText>}
+        ItemSeparatorComponent={() => <View style={{ height: tokens.spacing.sm }} />}
+        contentContainerStyle={{
+          padding: tokens.spacing.lg,
+          paddingBottom: tokens.spacing.xl,
+        }}
+        onDragBegin={() => {
+          void Haptics.selectionAsync();
+        }}
+        onDragEnd={({ data }) => {
+          setItems(data);
+          reorderDayExercises(
+            dayId,
+            data.map((x) => x.id),
+          );
+          load();
+        }}
+        keyboardShouldPersistTaps="handled"
+      />
     </Screen>
   );
 }
