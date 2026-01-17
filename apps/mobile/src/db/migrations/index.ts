@@ -6,6 +6,7 @@ import { migration005_single_in_progress_session } from './005_single_in_progres
 import { migration006_rest_timer_countup } from './006_rest_timer_countup';
 import { migration007_pr_events } from './007_pr_events';
 import { migration008_app_meta } from './migration008_app_meta';
+import { migration009_app_log } from './009_app_log';
 
 export type Migration = {
   id: number;
@@ -22,4 +23,5 @@ export const migrations: Migration[] = [
   migration006_rest_timer_countup,
   migration007_pr_events,
   migration008_app_meta,
+  migration009_app_log,
 ];
