@@ -99,77 +99,15 @@ function insertBlankSet(wseId: string, setIndex: number) {
     INSERT INTO workout_set (
       id, workout_session_exercise_id, set_index,
       weight, reps, rpe, rest_seconds, notes, is_completed
-    ) VALUES (?, ?, ?, NULL, NULL, NULL, ?, NULL, 0);
+     ) VALUES (?, ?, ?, 0, 0, NULL, ?, NULL, 0);
   `,
     [id, wseId, setIndex, DEFAULT_REST_SECONDS],
   );
 }
 
 function prefillSetsFromLastCompleted(wseId: string, exerciseId: string) {
-  // Find most recent completed session exercise for same exercise_id
-  const last = query<{ last_wse_id: string }>(
-    `
-    SELECT wse.id AS last_wse_id
-    FROM workout_session_exercise wse
-    JOIN workout_session ws ON ws.id = wse.workout_session_id
-    WHERE wse.exercise_id = ?
-      AND wse.deleted_at IS NULL
-      AND ws.deleted_at IS NULL
-      AND ws.status = 'completed'
-    ORDER BY COALESCE(ws.ended_at, ws.started_at) DESC
-    LIMIT 1;
-  `,
-    [exerciseId],
-  )[0];
-
-  if (!last?.last_wse_id) {
-    insertBlankSet(wseId, 1);
-    return;
-  }
-
-  const lastSets = query<{
-    weight: number | null;
-    reps: number | null;
-    rpe: number | null;
-    rest_seconds: number | null;
-  }>(
-    `
-    SELECT weight, reps, rpe, rest_seconds
-    FROM workout_set
-    WHERE workout_session_exercise_id = ?
-      AND deleted_at IS NULL
-    ORDER BY set_index ASC
-    LIMIT 10;
-  `,
-    [last.last_wse_id],
-  );
-
-  if (lastSets.length === 0) {
-    insertBlankSet(wseId, 1);
-    return;
-  }
-
-  for (let i = 0; i < lastSets.length; i += 1) {
-    const id = newId('set');
-    const s = lastSets[i];
-    exec(
-      `
-      INSERT INTO workout_set (
-        id, workout_session_exercise_id, set_index,
-        weight, reps, rpe, rest_seconds, notes, is_completed
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, 0);
-    `,
-      [
-        id,
-        wseId,
-        i + 1,
-        s.weight ?? null,
-        s.reps ?? null,
-        s.rpe ?? null,
-        s.rest_seconds ?? DEFAULT_REST_SECONDS,
-      ],
-    );
-  }
+  void exerciseId;
+  insertBlankSet(wseId, 1);
 }
 
 export function ensurePrefilledSetsForSession(sessionId: string) {
@@ -333,8 +271,8 @@ export function addWorkoutSet(wseId: string): string {
         id,
         wseId,
         nextIndex,
-        last?.weight ?? null,
-        last?.reps ?? null,
+        0,
+        last?.reps ?? 0,
         last?.rpe ?? null,
         last?.rest_seconds ?? DEFAULT_REST_SECONDS,
       ],

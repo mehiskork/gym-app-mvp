@@ -83,7 +83,14 @@ export function WorkoutPlansScreen() {
             backgroundColor: tokens.colors.surface,
           }}
         />
-        <PrimaryButton title="Create workout plan" onPress={onCreate} disabled={!name.trim()} />
+        <PrimaryButton title="Build workout plan" onPress={onCreate} disabled={!name.trim()} />
+      </View>
+
+      <View style={{ marginBottom: tokens.spacing.lg }}>
+        <PrimaryButton
+          title="Prebuilt workout plans"
+          onPress={() => navigation.navigate('PrebuiltPlans')}
+        />
       </View>
 
       <FlatList

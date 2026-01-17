@@ -20,8 +20,10 @@ export type RootStackParamList = {
   CreateExercise: undefined;
 
   WorkoutPlanDetail: { workoutPlanId: string };
+  PrebuiltPlans: undefined;
   DayDetail: { dayId: string; refreshKey?: number; addedExerciseId?: string };
-  ExercisePicker: { dayId: string };
+
+  ExercisePicker: { dayId?: string } | undefined;
 
   Debug: undefined;
 };

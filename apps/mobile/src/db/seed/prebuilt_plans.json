@@ -1,0 +1,607 @@
+[
+  {
+    "id": "prebuilt_beginner_full_body_3_day",
+    "name": "Beginner Full Body",
+    "description": "3-day full body plan",
+    "days": [
+      {
+        "name": "Day 1",
+        "exercises": [
+          {
+            "exercise_id": "ex_squat_back_barbell",
+            "sets": [
+              {
+                "reps": 8,
+                "rest_seconds": 120
+              },
+              {
+                "reps": 8,
+                "rest_seconds": 120
+              },
+              {
+                "reps": 8,
+                "rest_seconds": 120
+              }
+            ]
+          },
+          {
+            "exercise_id": "ex_bench_press_barbell",
+            "sets": [
+              {
+                "reps": 8,
+                "rest_seconds": 120
+              },
+              {
+                "reps": 8,
+                "rest_seconds": 120
+              },
+              {
+                "reps": 8,
+                "rest_seconds": 120
+              }
+            ]
+          },
+          {
+            "exercise_id": "ex_bent_over_row_barbell",
+            "sets": [
+              {
+                "reps": 10,
+                "rest_seconds": 90
+              },
+              {
+                "reps": 10,
+                "rest_seconds": 90
+              },
+              {
+                "reps": 10,
+                "rest_seconds": 90
+              }
+            ]
+          },
+          {
+            "exercise_id": "ex_plank",
+            "sets": [
+              {
+                "reps": 30,
+                "rest_seconds": 60
+              },
+              {
+                "reps": 30,
+                "rest_seconds": 60
+              },
+              {
+                "reps": 30,
+                "rest_seconds": 60
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Day 2",
+        "exercises": [
+          {
+            "exercise_id": "ex_deadlift_conventional",
+            "sets": [
+              {
+                "reps": 5,
+                "rest_seconds": 150
+              },
+              {
+                "reps": 5,
+                "rest_seconds": 150
+              },
+              {
+                "reps": 5,
+                "rest_seconds": 150
+              }
+            ]
+          },
+          {
+            "exercise_id": "ex_overhead_press_barbell",
+            "sets": [
+              {
+                "reps": 8,
+                "rest_seconds": 120
+              },
+              {
+                "reps": 8,
+                "rest_seconds": 120
+              },
+              {
+                "reps": 8,
+                "rest_seconds": 120
+              }
+            ]
+          },
+          {
+            "exercise_id": "ex_lat_pulldown",
+            "sets": [
+              {
+                "reps": 10,
+                "rest_seconds": 90
+              },
+              {
+                "reps": 10,
+                "rest_seconds": 90
+              },
+              {
+                "reps": 10,
+                "rest_seconds": 90
+              }
+            ]
+          },
+          {
+            "exercise_id": "ex_lunge_dumbbell",
+            "sets": [
+              {
+                "reps": 10,
+                "rest_seconds": 90
+              },
+              {
+                "reps": 10,
+                "rest_seconds": 90
+              },
+              {
+                "reps": 10,
+                "rest_seconds": 90
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Day 3",
+        "exercises": [
+          {
+            "exercise_id": "ex_leg_press",
+            "sets": [
+              {
+                "reps": 10,
+                "rest_seconds": 120
+              },
+              {
+                "reps": 10,
+                "rest_seconds": 120
+              },
+              {
+                "reps": 10,
+                "rest_seconds": 120
+              }
+            ]
+          },
+          {
+            "exercise_id": "ex_incline_db_press",
+            "sets": [
+              {
+                "reps": 10,
+                "rest_seconds": 120
+              },
+              {
+                "reps": 10,
+                "rest_seconds": 120
+              },
+              {
+                "reps": 10,
+                "rest_seconds": 120
+              }
+            ]
+          },
+          {
+            "exercise_id": "ex_seated_cable_row",
+            "sets": [
+              {
+                "reps": 10,
+                "rest_seconds": 90
+              },
+              {
+                "reps": 10,
+                "rest_seconds": 90
+              },
+              {
+                "reps": 10,
+                "rest_seconds": 90
+              }
+            ]
+          },
+          {
+            "exercise_id": "ex_bicep_curl_dumbbell",
+            "sets": [
+              {
+                "reps": 12,
+                "rest_seconds": 60
+              },
+              {
+                "reps": 12,
+                "rest_seconds": 60
+              },
+              {
+                "reps": 12,
+                "rest_seconds": 60
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "prebuilt_upper_lower_4_day",
+    "name": "Upper / Lower",
+    "description": "4-day upper/lower split",
+    "days": [
+      {
+        "name": "Upper 1",
+        "exercises": [
+          {
+            "exercise_id": "ex_bench_press_barbell",
+            "sets": [
+              {
+                "reps": 6,
+                "rest_seconds": 150
+              },
+              {
+                "reps": 6,
+                "rest_seconds": 150
+              },
+              {
+                "reps": 6,
+                "rest_seconds": 150
+              },
+              {
+                "reps": 6,
+                "rest_seconds": 150
+              }
+            ]
+          },
+          {
+            "exercise_id": "ex_bent_over_row_barbell",
+            "sets": [
+              {
+                "reps": 8,
+                "rest_seconds": 120
+              },
+              {
+                "reps": 8,
+                "rest_seconds": 120
+              },
+              {
+                "reps": 8,
+                "rest_seconds": 120
+              },
+              {
+                "reps": 8,
+                "rest_seconds": 120
+              }
+            ]
+          },
+          {
+            "exercise_id": "ex_overhead_press_barbell",
+            "sets": [
+              {
+                "reps": 8,
+                "rest_seconds": 120
+              },
+              {
+                "reps": 8,
+                "rest_seconds": 120
+              },
+              {
+                "reps": 8,
+                "rest_seconds": 120
+              }
+            ]
+          },
+          {
+            "exercise_id": "ex_cable_tricep_pushdown",
+            "sets": [
+              {
+                "reps": 12,
+                "rest_seconds": 60
+              },
+              {
+                "reps": 12,
+                "rest_seconds": 60
+              },
+              {
+                "reps": 12,
+                "rest_seconds": 60
+              }
+            ]
+          },
+          {
+            "exercise_id": "ex_bicep_curl_dumbbell",
+            "sets": [
+              {
+                "reps": 12,
+                "rest_seconds": 60
+              },
+              {
+                "reps": 12,
+                "rest_seconds": 60
+              },
+              {
+                "reps": 12,
+                "rest_seconds": 60
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Lower 1",
+        "exercises": [
+          {
+            "exercise_id": "ex_squat_back_barbell",
+            "sets": [
+              {
+                "reps": 6,
+                "rest_seconds": 150
+              },
+              {
+                "reps": 6,
+                "rest_seconds": 150
+              },
+              {
+                "reps": 6,
+                "rest_seconds": 150
+              },
+              {
+                "reps": 6,
+                "rest_seconds": 150
+              }
+            ]
+          },
+          {
+            "exercise_id": "ex_romanian_deadlift_dumbbell",
+            "sets": [
+              {
+                "reps": 8,
+                "rest_seconds": 120
+              },
+              {
+                "reps": 8,
+                "rest_seconds": 120
+              },
+              {
+                "reps": 8,
+                "rest_seconds": 120
+              }
+            ]
+          },
+          {
+            "exercise_id": "ex_leg_press",
+            "sets": [
+              {
+                "reps": 10,
+                "rest_seconds": 120
+              },
+              {
+                "reps": 10,
+                "rest_seconds": 120
+              },
+              {
+                "reps": 10,
+                "rest_seconds": 120
+              }
+            ]
+          },
+          {
+            "exercise_id": "ex_leg_curl",
+            "sets": [
+              {
+                "reps": 12,
+                "rest_seconds": 90
+              },
+              {
+                "reps": 12,
+                "rest_seconds": 90
+              },
+              {
+                "reps": 12,
+                "rest_seconds": 90
+              }
+            ]
+          },
+          {
+            "exercise_id": "ex_calf_raise_standing",
+            "sets": [
+              {
+                "reps": 15,
+                "rest_seconds": 60
+              },
+              {
+                "reps": 15,
+                "rest_seconds": 60
+              },
+              {
+                "reps": 15,
+                "rest_seconds": 60
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Upper 2",
+        "exercises": [
+          {
+            "exercise_id": "ex_incline_db_press",
+            "sets": [
+              {
+                "reps": 10,
+                "rest_seconds": 120
+              },
+              {
+                "reps": 10,
+                "rest_seconds": 120
+              },
+              {
+                "reps": 10,
+                "rest_seconds": 120
+              }
+            ]
+          },
+          {
+            "exercise_id": "ex_lat_pulldown",
+            "sets": [
+              {
+                "reps": 10,
+                "rest_seconds": 90
+              },
+              {
+                "reps": 10,
+                "rest_seconds": 90
+              },
+              {
+                "reps": 10,
+                "rest_seconds": 90
+              }
+            ]
+          },
+          {
+            "exercise_id": "ex_shoulder_press_machine",
+            "sets": [
+              {
+                "reps": 10,
+                "rest_seconds": 90
+              },
+              {
+                "reps": 10,
+                "rest_seconds": 90
+              },
+              {
+                "reps": 10,
+                "rest_seconds": 90
+              }
+            ]
+          },
+          {
+            "exercise_id": "ex_lateral_raises",
+            "sets": [
+              {
+                "reps": 15,
+                "rest_seconds": 60
+              },
+              {
+                "reps": 15,
+                "rest_seconds": 60
+              },
+              {
+                "reps": 15,
+                "rest_seconds": 60
+              }
+            ]
+          },
+          {
+            "exercise_id": "ex_hammer_curl_dumbbell",
+            "sets": [
+              {
+                "reps": 12,
+                "rest_seconds": 60
+              },
+              {
+                "reps": 12,
+                "rest_seconds": 60
+              },
+              {
+                "reps": 12,
+                "rest_seconds": 60
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Lower 2",
+        "exercises": [
+          {
+            "exercise_id": "ex_front_squat_barbell",
+            "sets": [
+              {
+                "reps": 8,
+                "rest_seconds": 120
+              },
+              {
+                "reps": 8,
+                "rest_seconds": 120
+              },
+              {
+                "reps": 8,
+                "rest_seconds": 120
+              }
+            ]
+          },
+          {
+            "exercise_id": "ex_trap_bar_deadlift",
+            "sets": [
+              {
+                "reps": 6,
+                "rest_seconds": 150
+              },
+              {
+                "reps": 6,
+                "rest_seconds": 150
+              },
+              {
+                "reps": 6,
+                "rest_seconds": 150
+              }
+            ]
+          },
+          {
+            "exercise_id": "ex_split_squat_bulgarian",
+            "sets": [
+              {
+                "reps": 10,
+                "rest_seconds": 90
+              },
+              {
+                "reps": 10,
+                "rest_seconds": 90
+              },
+              {
+                "reps": 10,
+                "rest_seconds": 90
+              }
+            ]
+          },
+          {
+            "exercise_id": "ex_leg_curl_lying",
+            "sets": [
+              {
+                "reps": 12,
+                "rest_seconds": 90
+              },
+              {
+                "reps": 12,
+                "rest_seconds": 90
+              },
+              {
+                "reps": 12,
+                "rest_seconds": 90
+              }
+            ]
+          },
+          {
+            "exercise_id": "ex_calf_raise_seated",
+            "sets": [
+              {
+                "reps": 15,
+                "rest_seconds": 60
+              },
+              {
+                "reps": 15,
+                "rest_seconds": 60
+              },
+              {
+                "reps": 15,
+                "rest_seconds": 60
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+]

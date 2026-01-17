@@ -10,7 +10,8 @@ const expoConfig = appConfig.expo as {
   android?: { versionCode?: number };
 };
 
-const buildNumber = expoConfig?.ios?.buildNumber ?? expoConfig?.android?.versionCode?.toString() ?? '0';
+const buildNumber =
+  expoConfig?.ios?.buildNumber ?? expoConfig?.android?.versionCode?.toString() ?? '0';
 
 type Props = {
   onUnlocked: () => void;

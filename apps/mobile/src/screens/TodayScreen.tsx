@@ -6,7 +6,7 @@ import { useNavigation } from '@react-navigation/native';
 
 import { Screen } from '../components/Screen';
 import { AppText } from '../components/AppText';
-import { PrimaryButton, SecondaryButton } from '../components/Buttons';
+import { PrimaryButton } from '../components/Buttons';
 import { tokens } from '../theme/tokens';
 import type { RootStackParamList } from '../navigation/types';
 import { getInProgressSession } from '../db/workoutSessionRepo';
@@ -36,10 +36,10 @@ export function TodayScreen() {
         <View style={{ gap: tokens.spacing.sm }}>
           <AppText color="textSecondary">You have an in-progress workout.</AppText>
           <PrimaryButton
-            title=" Resume workout"
+            title="Resume workout"
             onPress={() => navigation.navigate('WorkoutSession', { sessionId: inProgressId })}
           />
-          <SecondaryButton
+          <PrimaryButton
             title="Start new workout"
             onPress={() => navigation.navigate('StartWorkout')}
           />

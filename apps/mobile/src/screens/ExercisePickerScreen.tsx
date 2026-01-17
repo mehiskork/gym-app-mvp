@@ -17,7 +17,8 @@ import { addExerciseToDay } from '../db/dayExerciseRepo';
 type Props = NativeStackScreenProps<RootStackParamList, 'ExercisePicker'>;
 
 export function ExercisePickerScreen({ route, navigation }: Props) {
-  const { dayId } = route.params;
+  const dayId = route.params?.dayId ?? null;
+  const isBrowseOnly = !dayId;
 
   const [q, setQ] = useState('');
   const [all, setAll] = useState<ExerciseRow[]>([]);
@@ -41,7 +42,7 @@ export function ExercisePickerScreen({ route, navigation }: Props) {
 
   return (
     <Screen style={{ gap: tokens.spacing.md }}>
-      <AppText variant="title">Select exercise</AppText>
+      <AppText variant="title">Exercises</AppText>
 
       <View style={{ flexDirection: 'row', gap: tokens.spacing.md }}>
         <View style={{ flex: 1 }}>
@@ -91,6 +92,11 @@ export function ExercisePickerScreen({ route, navigation }: Props) {
           >
             <Pressable
               onPress={() => {
+                if (isBrowseOnly) {
+                  navigation.navigate('ExerciseDetail', { exerciseId: item.id });
+                  return;
+                }
+
                 try {
                   addExerciseToDay({ dayId, exerciseId: item.id });
                   navigation.goBack();
@@ -100,10 +106,13 @@ export function ExercisePickerScreen({ route, navigation }: Props) {
                 }
               }}
               style={({ pressed }) => [{ flex: 1 }, pressed ? { opacity: 0.85 } : null]}
-              accessibilityLabel={`Add ${item.name}`}
+              accessibilityLabel={`${isBrowseOnly ? 'View' : 'Add'} ${item.name}`}
             >
               <AppText variant="subtitle">{item.name}</AppText>
               <AppText color="textSecondary">{item.is_custom ? 'Custom' : 'Curated'}</AppText>
+              <AppText color="textSecondary">
+                {isBrowseOnly ? 'Tap to view details' : 'Tap to add to day'}
+              </AppText>
             </Pressable>
 
             <Pressable

@@ -5,6 +5,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { Screen } from '../components/Screen';
 import { AppText } from '../components/AppText';
+import { PrimaryButton } from '../components/Buttons';
 import { tokens } from '../theme/tokens';
 import { VersionTapUnlock } from '../components/VersionTapUnlock';
 import { isDebugUnlocked, setDebugUnlocked } from '../utils/debugUnlock';
@@ -40,12 +41,14 @@ export function SettingsScreen() {
   }, [navigation]);
 
   return (
-
     <Screen padded>
       <ScrollView contentContainerStyle={{ paddingBottom: tokens.spacing.xl }}>
         <AppText variant="title" style={{ marginBottom: tokens.spacing.lg }}>
           Settings
         </AppText>
+        <View style={{ marginBottom: tokens.spacing.lg }}>
+          <PrimaryButton title="Exercises" onPress={() => navigation.navigate('ExercisePicker')} />
+        </View>
 
         <View
           style={{

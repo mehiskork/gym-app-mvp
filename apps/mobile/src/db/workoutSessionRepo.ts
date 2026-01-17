@@ -3,6 +3,8 @@ import { inTransaction } from './tx';
 import { newId } from '../utils/ids';
 import { detectAndStorePrsForSession } from './prRepo';
 
+const DEFAULT_REST_SECONDS = 90;
+
 export type WorkoutSessionRow = {
   id: string;
   source_workout_plan_id: string | null;
@@ -114,9 +116,15 @@ export function createSessionFromPlanDay(input: { workoutPlanId: string; dayId: 
     const title = day.day_name ?? `Day ${day.day_index}`;
 
     // Read day exercises in order (snapshot exercise_name)
-    const exRows = query<{ exercise_id: string; exercise_name: string; position: number }>(
+    const exRows = query<{
+      day_exercise_id: string;
+      exercise_id: string;
+      exercise_name: string;
+      position: number;
+    }>(
       `
       SELECT
+      pde.id AS day_exercise_id,
         pde.exercise_id AS exercise_id,
         e.name AS exercise_name,
         pde.position AS position
@@ -161,8 +169,68 @@ export function createSessionFromPlanDay(input: { workoutPlanId: string; dayId: 
           notes
         ) VALUES (?, ?, ?, ?, ?, NULL);
       `,
-        [wseId, sessionId, row.exercise_id, row.exercise_name, i + 1],
+        [wseId, sessionId, row.exercise_id, row.exercise_name, row.position],
       );
+
+      const plannedSets = query<{
+        set_index: number;
+        target_reps_min: number | null;
+        rest_seconds: number | null;
+      }>(
+        `
+        SELECT set_index, target_reps_min, rest_seconds
+        FROM planned_set
+        WHERE program_day_exercise_id = ? AND deleted_at IS NULL
+        ORDER BY set_index ASC;
+      `,
+        [row.day_exercise_id],
+      );
+      if (plannedSets.length > 0) {
+        for (const plannedSet of plannedSets) {
+          const setId = newId('set');
+          exec(
+            `
+            INSERT INTO workout_set (
+              id,
+              workout_session_exercise_id,
+              set_index,
+              weight,
+              reps,
+              rpe,
+              rest_seconds,
+              notes,
+              is_completed
+            ) VALUES (?, ?, ?, ?, ?, NULL, ?, NULL, 0);
+          `,
+            [
+              setId,
+              wseId,
+              plannedSet.set_index,
+              0,
+              plannedSet.target_reps_min ?? 0,
+              plannedSet.rest_seconds ?? DEFAULT_REST_SECONDS,
+            ],
+          );
+        }
+      } else {
+        const setId = newId('set');
+        exec(
+          `
+          INSERT INTO workout_set (
+            id,
+            workout_session_exercise_id,
+            set_index,
+            weight,
+            reps,
+            rpe,
+            rest_seconds,
+            notes,
+            is_completed
+          ) VALUES (?, ?, ?, 0, 0, NULL, ?, NULL, 0);
+        `,
+          [setId, wseId, 1, DEFAULT_REST_SECONDS],
+        );
+      }
     }
 
     return sessionId;
