@@ -13,6 +13,7 @@ import {
   getInProgressWorkout,
   getTableCounts,
   resetInProgressWorkoutHardDelete,
+  repairSessionsMissingSets,
 } from '../../db/debugRepo';
 import { seedTestPlan } from '../../db/seed/seedTestPlan';
 import { query } from '../../db/db';
@@ -235,6 +236,25 @@ export function DebugScreen() {
         </Card>
 
         <Card title="Utilities">
+          <Pressable
+            disabled={!devOnly}
+            onPress={() => {
+              const repaired = repairSessionsMissingSets();
+              refresh();
+              Alert.alert('Done', `Inserted ${repaired} missing set(s).`);
+            }}
+            style={{
+              opacity: devOnly ? 1 : 0.4,
+              paddingVertical: tokens.spacing.md,
+              borderRadius: tokens.radius.md,
+              borderWidth: 1,
+              borderColor: tokens.colors.border,
+              alignItems: 'center',
+              marginBottom: tokens.spacing.md,
+            }}
+          >
+            <AppText style={{ fontWeight: '700' }}>Repair sessions missing sets (dev-only)</AppText>
+          </Pressable>
           <Pressable
             disabled={!devOnly}
             onPress={() => {

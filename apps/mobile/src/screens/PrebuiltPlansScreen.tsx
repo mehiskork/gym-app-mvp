@@ -79,9 +79,7 @@ export function PrebuiltPlansScreen() {
             ]}
           >
             <AppText variant="subtitle">{item.name}</AppText>
-            {item.description ? (
-              <AppText color="textSecondary">{item.description}</AppText>
-            ) : null}
+            {item.description ? <AppText color="textSecondary">{item.description}</AppText> : null}
             <AppText color="textSecondary">{item.dayCount} days</AppText>
             <View
               style={{

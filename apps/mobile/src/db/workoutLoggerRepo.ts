@@ -92,75 +92,10 @@ function compactActiveSets(wseId: string) {
   }
 }
 
-function insertBlankSet(wseId: string, setIndex: number) {
-  const id = newId('set');
-  exec(
-    `
-    INSERT INTO workout_set (
-      id, workout_session_exercise_id, set_index,
-      weight, reps, rpe, rest_seconds, notes, is_completed
-     ) VALUES (?, ?, ?, 0, 0, NULL, ?, NULL, 0);
-  `,
-    [id, wseId, setIndex, DEFAULT_REST_SECONDS],
-  );
-}
-
-function prefillSetsFromLastCompleted(wseId: string, exerciseId: string) {
-  void exerciseId;
-  insertBlankSet(wseId, 1);
-}
-
-export function ensurePrefilledSetsForSession(sessionId: string) {
-  inTransaction(() => {
-    const exercises = query<{ id: string; exercise_id: string }>(
-      `
-      SELECT id, exercise_id
-      FROM workout_session_exercise
-      WHERE workout_session_id = ? AND deleted_at IS NULL
-      ORDER BY position ASC;
-    `,
-      [sessionId],
-    );
-
-    for (const ex of exercises) {
-      const activeCount =
-        query<{ n: number }>(
-          `
-          SELECT COUNT(*) AS n
-          FROM workout_set
-          WHERE workout_session_exercise_id = ? AND deleted_at IS NULL;
-        `,
-          [ex.id],
-        )[0]?.n ?? 0;
-
-      if (activeCount > 0) continue;
-
-      // IMPORTANT: if sets existed before (even deleted), do NOT prefill again.
-      const everCount =
-        query<{ n: number }>(
-          `
-          SELECT COUNT(*) AS n
-          FROM workout_set
-          WHERE workout_session_exercise_id = ?;
-        `,
-          [ex.id],
-        )[0]?.n ?? 0;
-
-      if (everCount > 0) continue;
-
-      // First time ever -> prefill
-      prefillSetsFromLastCompleted(ex.id, ex.exercise_id);
-      compactActiveSets(ex.id);
-    }
-  });
-}
-
 export function getWorkoutLoggerData(sessionId: string): {
   session: LoggerSession;
   exercises: LoggerExercise[];
 } {
-  ensurePrefilledSetsForSession(sessionId);
-
   const session = query<LoggerSession>(
     `
     SELECT

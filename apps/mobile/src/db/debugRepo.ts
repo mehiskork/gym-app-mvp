@@ -1,5 +1,6 @@
 import { exec, query } from './db';
 import { inTransaction } from './tx';
+import { newId } from '../utils/ids';
 
 export type TableCounts = Record<string, number>;
 
@@ -67,7 +68,7 @@ export function getInProgressWorkout(): InProgressWorkout {
 }
 
 export function resetInProgressWorkoutHardDelete(): void {
-  inTransaction(() => {
+  inTransaction<void>(() => {
     const session = query<{ id: string }>(
       `
       SELECT id
@@ -91,5 +92,37 @@ export function resetInProgressWorkoutHardDelete(): void {
     );
     exec(`DELETE FROM workout_session_exercise WHERE workout_session_id = ?`, [session.id]);
     exec(`DELETE FROM workout_session WHERE id = ?`, [session.id]);
+  });
+}
+
+export function repairSessionsMissingSets(): number {
+  return inTransaction<number>(() => {
+    const missing = query<{ id: string }>(
+      `
+      SELECT wse.id
+      FROM workout_session_exercise wse
+      WHERE wse.deleted_at IS NULL
+        AND NOT EXISTS (
+          SELECT 1
+          FROM workout_set ws
+          WHERE ws.workout_session_exercise_id = wse.id
+            AND ws.deleted_at IS NULL
+        );
+    `,
+    );
+
+    for (const row of missing) {
+      exec(
+        `
+        INSERT INTO workout_set (
+          id, workout_session_exercise_id, set_index,
+          weight, reps, rpe, rest_seconds, notes, is_completed
+        ) VALUES (?, ?, 1, 0, 0, NULL, 90, NULL, 0);
+      `,
+        [newId('set'), row.id],
+      );
+    }
+
+    return missing.length;
   });
 }
