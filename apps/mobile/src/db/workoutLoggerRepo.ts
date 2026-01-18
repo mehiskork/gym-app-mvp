@@ -1,6 +1,7 @@
 import { exec, query } from './db';
 import { inTransaction } from './tx';
 import { newId } from '../utils/ids';
+import { enqueueOutboxOp } from './outboxRepo';
 
 const DEFAULT_REST_SECONDS = 90;
 
@@ -33,7 +34,7 @@ export type LoggerSet = {
   is_completed: number; // 0/1
 };
 
-function normalizeDeletedSetIndices(wseId: string) {
+function normalizeDeletedSetIndices(wseId: string): string[] {
   const deleted = query<{ id: string }>(
     `
     SELECT id
@@ -44,7 +45,9 @@ function normalizeDeletedSetIndices(wseId: string) {
     [wseId],
   );
 
-  if (deleted.length === 0) return;
+  if (deleted.length === 0) {
+    return [];
+  }
 
   const minIdx =
     query<{ min_idx: number }>(
@@ -61,10 +64,13 @@ function normalizeDeletedSetIndices(wseId: string) {
   for (let i = 0; i < deleted.length; i += 1) {
     exec('UPDATE workout_set SET set_index = ? WHERE id = ?', [base - (i + 1), deleted[i].id]);
   }
+
+  const deletedIds = deleted.map((row) => row.id);
+  return deletedIds;
 }
 
-function compactActiveSets(wseId: string) {
-  normalizeDeletedSetIndices(wseId);
+function compactActiveSets(wseId: string): string[] {
+  const mutatedIds = new Set<string>(normalizeDeletedSetIndices(wseId));
 
   const active = query<{ id: string }>(
     `
@@ -78,6 +84,7 @@ function compactActiveSets(wseId: string) {
 
   for (let i = 0; i < active.length; i += 1) {
     exec('UPDATE workout_set SET set_index = ? WHERE id = ?', [-(i + 1), active[i].id]);
+    mutatedIds.add(active[i].id);
   }
 
   for (let i = 0; i < active.length; i += 1) {
@@ -89,7 +96,30 @@ function compactActiveSets(wseId: string) {
     `,
       [i + 1, active[i].id],
     );
+    mutatedIds.add(active[i].id);
   }
+  return Array.from(mutatedIds);
+}
+
+function enqueueWorkoutSetSnapshot(setId: string, opType: 'upsert' | 'delete' = 'upsert') {
+  const row = query<Record<string, unknown>>(
+    `
+    SELECT *
+    FROM workout_set
+    WHERE id = ?
+    LIMIT 1;
+  `,
+    [setId],
+  )[0];
+
+  if (!row) return;
+
+  enqueueOutboxOp({
+    entityType: 'workout_set',
+    entityId: setId,
+    opType,
+    payloadJson: JSON.stringify(row),
+  });
 }
 
 export function getWorkoutLoggerData(sessionId: string): {
@@ -169,7 +199,7 @@ export function getWorkoutLoggerData(sessionId: string): {
 
 export function addWorkoutSet(wseId: string): string {
   return inTransaction(() => {
-    compactActiveSets(wseId);
+    const compactedIds = compactActiveSets(wseId);
 
     const last = query<Pick<LoggerSet, 'weight' | 'reps' | 'rpe' | 'rest_seconds'>>(
       `
@@ -213,6 +243,11 @@ export function addWorkoutSet(wseId: string): string {
       ],
     );
 
+    for (const setId of compactedIds) {
+      enqueueWorkoutSetSnapshot(setId);
+    }
+    enqueueWorkoutSetSnapshot(id);
+
     return id;
   });
 }
@@ -234,25 +269,33 @@ export function updateWorkoutSet(
   const cols = entries.map(([k]) => `${k} = ?`).join(', ');
   const params = entries.map(([, v]) => v);
 
-  exec(
-    `
-    UPDATE workout_set
-    SET ${cols}, updated_at = datetime('now')
-    WHERE id = ? AND deleted_at IS NULL;
-  `,
-    [...params, setId],
-  );
+  inTransaction(() => {
+    exec(
+      `
+      UPDATE workout_set
+      SET ${cols}, updated_at = datetime('now')
+      WHERE id = ? AND deleted_at IS NULL;
+    `,
+      [...params, setId],
+    );
+
+    enqueueWorkoutSetSnapshot(setId);
+  });
 }
 
 export function deleteWorkoutSet(setId: string) {
-  exec(
-    `
-    UPDATE workout_set
-    SET deleted_at = datetime('now'), updated_at = datetime('now')
-    WHERE id = ? AND deleted_at IS NULL;
-  `,
-    [setId],
-  );
+  inTransaction(() => {
+    exec(
+      `
+      UPDATE workout_set
+      SET deleted_at = datetime('now'), updated_at = datetime('now')
+      WHERE id = ? AND deleted_at IS NULL;
+    `,
+      [setId],
+    );
+
+    enqueueWorkoutSetSnapshot(setId, 'delete');
+  });
 }
 
 export function startRestTimer(sessionId: string, seconds: number, label: string) {

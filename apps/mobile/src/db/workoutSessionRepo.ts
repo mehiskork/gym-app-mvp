@@ -2,6 +2,7 @@ import { exec, query } from './db';
 import { inTransaction } from './tx';
 import { newId } from '../utils/ids';
 import { detectAndStorePrsForSession } from './prRepo';
+import { enqueueOutboxOp } from './outboxRepo';
 
 const DEFAULT_REST_SECONDS = 90;
 
@@ -23,6 +24,69 @@ export type WorkoutSessionExerciseRow = {
   position: number;
   notes: string | null;
 };
+
+function enqueueWorkoutSessionSnapshot(sessionId: string) {
+  const row = query<Record<string, unknown>>(
+    `
+    SELECT *
+    FROM workout_session
+    WHERE id = ?
+    LIMIT 1;
+  `,
+    [sessionId],
+  )[0];
+
+  if (!row) return;
+
+  enqueueOutboxOp({
+    entityType: 'workout_session',
+    entityId: sessionId,
+    opType: 'upsert',
+    payloadJson: JSON.stringify(row),
+  });
+}
+
+function enqueueWorkoutSessionExerciseSnapshot(wseId: string) {
+  const row = query<Record<string, unknown>>(
+    `
+    SELECT *
+    FROM workout_session_exercise
+    WHERE id = ?
+    LIMIT 1;
+  `,
+    [wseId],
+  )[0];
+
+  if (!row) return;
+
+  enqueueOutboxOp({
+    entityType: 'workout_session_exercise',
+    entityId: wseId,
+    opType: 'upsert',
+    payloadJson: JSON.stringify(row),
+  });
+}
+
+function enqueueWorkoutSetSnapshot(setId: string) {
+  const row = query<Record<string, unknown>>(
+    `
+    SELECT *
+    FROM workout_set
+    WHERE id = ?
+    LIMIT 1;
+  `,
+    [setId],
+  )[0];
+
+  if (!row) return;
+
+  enqueueOutboxOp({
+    entityType: 'workout_set',
+    entityId: setId,
+    opType: 'upsert',
+    payloadJson: JSON.stringify(row),
+  });
+}
 
 export function getInProgressSession(): WorkoutSessionRow | null {
   const rows = query<WorkoutSessionRow>(
@@ -154,6 +218,8 @@ export function createSessionFromPlanDay(input: { workoutPlanId: string; dayId: 
       [sessionId, workoutPlanId, dayId, title],
     );
 
+    enqueueWorkoutSessionSnapshot(sessionId);
+
     for (let i = 0; i < exRows.length; i += 1) {
       const row = exRows[i];
       const wseId = newId('wse');
@@ -171,6 +237,8 @@ export function createSessionFromPlanDay(input: { workoutPlanId: string; dayId: 
       `,
         [wseId, sessionId, row.exercise_id, row.exercise_name, row.position],
       );
+
+      enqueueWorkoutSessionExerciseSnapshot(wseId);
 
       const plannedSets = query<{
         set_index: number;
@@ -211,6 +279,7 @@ export function createSessionFromPlanDay(input: { workoutPlanId: string; dayId: 
               plannedSet.rest_seconds ?? DEFAULT_REST_SECONDS,
             ],
           );
+          enqueueWorkoutSetSnapshot(setId);
         }
       } else {
         const setId = newId('set');
@@ -230,6 +299,7 @@ export function createSessionFromPlanDay(input: { workoutPlanId: string; dayId: 
         `,
           [setId, wseId, 1, DEFAULT_REST_SECONDS],
         );
+        enqueueWorkoutSetSnapshot(setId);
       }
     }
 
@@ -247,6 +317,7 @@ export function completeSession(sessionId: string) {
     `,
       [sessionId],
     );
+    enqueueWorkoutSessionSnapshot(sessionId);
 
     // Run PR detection AFTER marking completed
     detectAndStorePrsForSession(sessionId);
@@ -254,12 +325,16 @@ export function completeSession(sessionId: string) {
 }
 
 export function discardSession(sessionId: string) {
-  exec(
-    `
-    UPDATE workout_session
-    SET status = 'discarded', ended_at = datetime('now'), updated_at = datetime('now')
-    WHERE id = ? AND deleted_at IS NULL;
-  `,
-    [sessionId],
-  );
+  inTransaction(() => {
+    exec(
+      `
+      UPDATE workout_session
+      SET status = 'discarded', ended_at = datetime('now'), updated_at = datetime('now')
+      WHERE id = ? AND deleted_at IS NULL;
+    `,
+      [sessionId],
+    );
+
+    enqueueWorkoutSessionSnapshot(sessionId);
+  });
 }

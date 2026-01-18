@@ -12,12 +12,14 @@ import { tokens } from '../../theme/tokens';
 import {
   getInProgressWorkout,
   getTableCounts,
+  getSyncDebugInfo,
   resetInProgressWorkoutHardDelete,
   repairSessionsMissingSets,
 } from '../../db/debugRepo';
 import { seedTestPlan } from '../../db/seed/seedTestPlan';
 import { query } from '../../db/db';
 import appConfig from '../../../app.json';
+import { registerDeviceIfNeeded, syncNow } from '../../sync/syncWorker';
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -68,12 +70,15 @@ function safeJsonParse(s: string) {
 export function DebugScreen() {
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [inProgress, setInProgress] = useState<ReturnType<typeof getInProgressWorkout>>(null);
+  const [syncInfo, setSyncInfo] = useState<ReturnType<typeof getSyncDebugInfo> | null>(null);
 
   const refresh = useCallback(() => {
     const c = getTableCounts();
     const ip = getInProgressWorkout();
+    const info = getSyncDebugInfo();
     setCounts(c);
     setInProgress(ip);
+    setSyncInfo(info);
   }, []);
 
   useFocusEffect(
@@ -291,6 +296,65 @@ export function DebugScreen() {
           <AppText color="textSecondary" style={{ marginTop: tokens.spacing.md }}>
             Export includes build info, DB counts, in-progress workout, and last 1000 log entries.
           </AppText>
+        </Card>
+
+        <Card title="Sync">
+          {syncInfo ? (
+            <>
+              <Row label="Device ID" value={syncInfo.deviceId} />
+              <Row label="Has token" value={syncInfo.hasDeviceToken ? 'true' : 'false'} />
+              <Row label="Guest user ID" value={syncInfo.guestUserId ?? '—'} />
+              <Row label="Pending ops" value={String(syncInfo.pendingOutboxCount)} />
+              <Row label="Cursor" value={syncInfo.syncState.cursor ?? '—'} />
+              <Row label="Last sync" value={syncInfo.syncState.last_sync_at ?? '—'} />
+              <Row
+                label="Last error"
+                value={
+                  syncInfo.syncState.last_error ? syncInfo.syncState.last_error.slice(0, 120) : '—'
+                }
+              />
+            </>
+          ) : (
+            <AppText color="textSecondary">Loading…</AppText>
+          )}
+
+          <Pressable
+            disabled={!devOnly}
+            onPress={async () => {
+              await registerDeviceIfNeeded();
+              refresh();
+            }}
+            style={{
+              opacity: devOnly ? 1 : 0.4,
+              marginTop: tokens.spacing.md,
+              paddingVertical: tokens.spacing.md,
+              borderRadius: tokens.radius.md,
+              borderWidth: 1,
+              borderColor: tokens.colors.border,
+              alignItems: 'center',
+              marginBottom: tokens.spacing.md,
+            }}
+          >
+            <AppText style={{ fontWeight: '700' }}>Register device (dev-only)</AppText>
+          </Pressable>
+
+          <Pressable
+            disabled={!devOnly}
+            onPress={async () => {
+              await syncNow();
+              refresh();
+            }}
+            style={{
+              opacity: devOnly ? 1 : 0.4,
+              paddingVertical: tokens.spacing.md,
+              borderRadius: tokens.radius.md,
+              borderWidth: 1,
+              borderColor: tokens.colors.border,
+              alignItems: 'center',
+            }}
+          >
+            <AppText style={{ fontWeight: '700' }}>Sync now (dev-only)</AppText>
+          </Pressable>
         </Card>
       </ScrollView>
     </Screen>

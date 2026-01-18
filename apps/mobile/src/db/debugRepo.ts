@@ -1,6 +1,8 @@
 import { exec, query } from './db';
 import { inTransaction } from './tx';
 import { newId } from '../utils/ids';
+import { getDeviceToken, getGuestUserId, getOrCreateDeviceId } from './appMetaRepo';
+import { getSyncState } from './syncStateRepo';
 
 export type TableCounts = Record<string, number>;
 
@@ -125,4 +127,33 @@ export function repairSessionsMissingSets(): number {
 
     return missing.length;
   });
+}
+export type SyncDebugInfo = {
+  deviceId: string;
+  hasDeviceToken: boolean;
+  guestUserId: string | null;
+  pendingOutboxCount: number;
+  syncState: ReturnType<typeof getSyncState>;
+};
+
+export function getSyncDebugInfo(): SyncDebugInfo {
+  const deviceId = getOrCreateDeviceId();
+  const hasDeviceToken = Boolean(getDeviceToken());
+  const guestUserId = getGuestUserId();
+  const pendingRow = query<{ c: number }>(
+    `
+    SELECT COUNT(*) AS c
+    FROM outbox_op
+    WHERE status IN ('pending', 'failed')
+      AND (next_attempt_at IS NULL OR datetime(next_attempt_at) <= datetime('now'));
+  `,
+  )[0];
+
+  return {
+    deviceId,
+    hasDeviceToken,
+    guestUserId,
+    pendingOutboxCount: pendingRow?.c ?? 0,
+    syncState: getSyncState(),
+  };
 }

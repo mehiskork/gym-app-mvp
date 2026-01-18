@@ -27,6 +27,15 @@ export function setMeta(key: string, value: string) {
   );
 }
 
+function clearMeta(key: string) {
+  exec(
+    `
+    DELETE FROM app_meta
+    WHERE key = ?;
+  `,
+    [key],
+  );
+}
 /**
  * Device-local user id, used as owner_user_id for custom exercises until sign-in exists.
  */
@@ -37,6 +46,50 @@ export function getOrCreateLocalUserId(): string {
   const id = newId('usr'); // e.g. usr_xxx
   setMeta('local_user_id', id);
   return id;
+}
+
+export function getOrCreateDeviceId(): string {
+  const existing = getMeta('device_id');
+  if (existing) return existing;
+
+  const id = newId('dev');
+  setMeta('device_id', id);
+  return id;
+}
+
+export function getOrCreateDeviceSecret(): string {
+  const existing = getMeta('device_secret');
+  if (existing) return existing;
+
+  const secret = newId('sec');
+  setMeta('device_secret', secret);
+  return secret;
+}
+
+export function getDeviceToken(): string | null {
+  return getMeta('device_token');
+}
+
+export function setDeviceToken(token: string | null) {
+  if (!token) {
+    clearMeta('device_token');
+    return;
+  }
+
+  setMeta('device_token', token);
+}
+
+export function getGuestUserId(): string | null {
+  return getMeta('guest_user_id');
+}
+
+export function setGuestUserId(id: string | null) {
+  if (!id) {
+    clearMeta('guest_user_id');
+    return;
+  }
+
+  setMeta('guest_user_id', id);
 }
 
 /**
