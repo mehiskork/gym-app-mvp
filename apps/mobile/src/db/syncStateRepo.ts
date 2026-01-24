@@ -7,6 +7,7 @@ export type SyncState = {
   last_error: string | null;
   backoff_until: string | null;
   consecutive_failures: number;
+  last_delta_count: number;
 };
 
 export function getSyncState(): SyncState {
@@ -19,6 +20,7 @@ export function getSyncState(): SyncState {
       last_error,
       backoff_until,
       consecutive_failures
+      last_delta_count
     FROM sync_state
     WHERE id = 1
     LIMIT 1;
@@ -34,6 +36,7 @@ export function getSyncState(): SyncState {
       last_error: null,
       backoff_until: null,
       consecutive_failures: 0,
+      last_delta_count: 0,
     };
   }
 

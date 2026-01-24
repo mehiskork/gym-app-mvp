@@ -137,6 +137,20 @@ export function repairStaleInFlightOpsForDebug(maxAgeSeconds: number): number {
 export function clearOutboxForDebug(): void {
   clearOutboxAndSyncState();
 }
+
+
+export function resetSyncCursorForDebug(): void {
+  exec(
+    `
+    UPDATE sync_state
+    SET cursor = '0',
+        last_sync_at = NULL,
+        last_error = NULL,
+        last_delta_count = 0
+    WHERE id = 1;
+  `,
+  );
+}
 export type SyncDebugInfo = {
   deviceId: string;
   hasDeviceToken: boolean;

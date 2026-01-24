@@ -14,6 +14,8 @@ import {
 } from '../db/outboxRepo';
 import { getSyncState, updateSyncState } from '../db/syncStateRepo';
 import { inTransaction } from '../db/tx';
+import { logEvent } from '../utils/logger';
+import { applyDeltas, type SyncDelta } from './applyDeltas';
 
 const DEFAULT_BATCH_LIMIT = 50;
 
@@ -79,8 +81,8 @@ export async function registerDeviceIfNeeded(): Promise<void> {
 }
 
 export async function syncNow(): Promise<void>;
-export async function syncNow(options?: { force?: boolean }): Promise<void>;
-export async function syncNow(options: { force?: boolean } = {}): Promise<void> {
+export async function syncNow(options?: { force?: boolean; pullOnly?: boolean }): Promise<void>;
+export async function syncNow(options: { force?: boolean; pullOnly?: boolean } = {}): Promise<void> {
   // Offline-first invariants:
   // - Domain writes + outbox enqueue happen in the SAME SQLite transaction.
   // - We never ack unless the backend explicitly acks opIds.
@@ -107,7 +109,7 @@ export async function syncNow(options: { force?: boolean } = {}): Promise<void> 
   }
 
   repairStaleInFlightOps(120);
-  const ops = claimOutboxOps(DEFAULT_BATCH_LIMIT);
+  const ops = options.pullOnly ? [] : claimOutboxOps(DEFAULT_BATCH_LIMIT);
   const cursor = syncState.cursor;
 
   try {
@@ -138,31 +140,35 @@ export async function syncNow(options: { force?: boolean } = {}): Promise<void> 
     const data = (await response.json()) as {
       acks: Array<{ opId: string }>;
       cursor?: string;
-      deltas?: Array<{
-        entityType: string;
-        entityId: string;
-        opType: string;
-        payload: unknown;
-      }>;
+      deltas?: SyncDelta[];
     };
 
     const ackIds = data.acks?.map((ack) => ack.opId) ?? [];
     const acked = new Set(ackIds);
     const unacked = ops.filter((op) => !acked.has(op.op_id));
+    let deltaSummary = { applied: 0, skipped: 0, total: 0 };
 
     inTransaction(() => {
-      markOutboxOpsAcked(ackIds);
+      if (!options.pullOnly) {
+        markOutboxOpsAcked(ackIds);
+      }
+
+      deltaSummary = applyDeltas(data.deltas ?? []);
       updateSyncState({
         cursor: data.cursor ?? cursor,
         last_sync_at: new Date().toISOString(),
         last_error: null,
         backoff_until: null,
         consecutive_failures: 0,
+        last_delta_count: deltaSummary.applied,
       });
 
-      if (data.deltas && data.deltas.length > 0) {
-        console.warn('Sync delta apply not implemented yet.', data.deltas.length);
-      }
+    });
+    logEvent('info', 'sync', 'Sync response processed', {
+      ackCount: ackIds.length,
+      deltaApplied: deltaSummary.applied,
+      deltaSkipped: deltaSummary.skipped,
+      deltaTotal: deltaSummary.total,
     });
     if (unacked.length > 0) {
       const message = 'sync response missing opId ack';

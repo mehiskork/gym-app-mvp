@@ -16,6 +16,7 @@ import {
   clearOutboxForDebug,
   repairStaleInFlightOpsForDebug,
   resetInProgressWorkoutHardDelete,
+  resetSyncCursorForDebug,
   repairSessionsMissingSets,
 } from '../../db/debugRepo';
 import { seedTestPlan } from '../../db/seed/seedTestPlan';
@@ -332,6 +333,7 @@ export function DebugScreen() {
               <Row label="Cursor" value={syncInfo.syncState.cursor ?? '—'} />
               <Row label="Last sync" value={syncInfo.syncState.last_sync_at ?? '—'} />
               <Row label="Last error" value={truncate(syncInfo.syncState.last_error)} />
+              <Row label="Last delta count" value={String(syncInfo.syncState.last_delta_count ?? 0)} />
 
               <AppText variant="subtitle" style={{ marginTop: tokens.spacing.md }}>
                 Recent ops
@@ -395,6 +397,23 @@ export function DebugScreen() {
           </Pressable>
 
           <Pressable
+            onPress={async () => {
+              await syncNow({ force: true, pullOnly: true });
+              refresh();
+            }}
+            style={{
+              paddingVertical: tokens.spacing.md,
+              borderRadius: tokens.radius.md,
+              borderWidth: 1,
+              borderColor: tokens.colors.border,
+              alignItems: 'center',
+              marginTop: tokens.spacing.md,
+            }}
+          >
+            <AppText style={{ fontWeight: '700' }}>Pull only</AppText>
+          </Pressable>
+
+          <Pressable
             onPress={() => {
               const repaired = repairStaleInFlightOpsForDebug(120);
               refresh();
@@ -411,6 +430,40 @@ export function DebugScreen() {
           >
             <AppText style={{ fontWeight: '700' }}>Repair stale in-flight</AppText>
           </Pressable>
+
+          <Pressable
+            disabled={!devOnly}
+            onPress={() => {
+              Alert.alert(
+                'Reset cursor',
+                'This will reset the sync cursor to 0 and re-download deltas. Continue?',
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  {
+                    text: 'Reset',
+                    style: 'destructive',
+                    onPress: () => {
+                      resetSyncCursorForDebug();
+                      refresh();
+                      Alert.alert('Done', 'Sync cursor reset to 0.');
+                    },
+                  },
+                ],
+              );
+            }}
+            style={{
+              opacity: devOnly ? 1 : 0.4,
+              paddingVertical: tokens.spacing.md,
+              borderRadius: tokens.radius.md,
+              borderWidth: 1,
+              borderColor: tokens.colors.border,
+              alignItems: 'center',
+              marginTop: tokens.spacing.md,
+            }}
+          >
+            <AppText style={{ fontWeight: '700' }}>Reset cursor to 0 (dev-only)</AppText>
+          </Pressable>
+
 
           <Pressable
             disabled={!devOnly}
