@@ -9,6 +9,7 @@ import * as Clipboard from 'expo-clipboard';
 import { Screen } from '../../components/Screen';
 import { AppText } from '../../components/AppText';
 import { tokens } from '../../theme/tokens';
+import { safeJsonParse } from '../../utils/json';
 import {
   getInProgressWorkout,
   getTableCounts,
@@ -21,6 +22,7 @@ import {
   testNestedTransactionRollback,
   validateStatusEnums,
   verifySyncState,
+  getWeekStartDebugInfo,
 } from '../../db/debugRepo';
 
 import { seedTestPlan } from '../../db/seed/seedTestPlan';
@@ -75,14 +77,6 @@ function StackedRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function safeJsonParse(s: string) {
-  try {
-    return JSON.parse(s);
-  } catch {
-    return { _parseError: true, raw: s };
-  }
-}
-
 function truncate(value: string | null | undefined, max = 120): string {
   if (!value) return '—';
   if (value.length <= max) return value;
@@ -96,6 +90,9 @@ export function DebugScreen() {
   const [syncStateHealth, setSyncStateHealth] = useState<ReturnType<typeof verifySyncState> | null>(
     null,
   );
+  const [weekStartDebug, setWeekStartDebug] = useState<
+    ReturnType<typeof getWeekStartDebugInfo> | null
+  >(null);
 
   const refresh = useCallback(() => {
     const c = getTableCounts();
@@ -106,6 +103,7 @@ export function DebugScreen() {
     setSyncInfo(info);
     if (__DEV__) {
       setSyncStateHealth(verifySyncState());
+      setWeekStartDebug(getWeekStartDebugInfo());
     }
   }, []);
 
@@ -200,6 +198,13 @@ export function DebugScreen() {
           <Row label="Channel" value={buildInfo.channel ?? '—'} />
         </Card>
 
+        {devOnly && syncInfo ? (
+          <Card title="Sync identity">
+            <StackedRow label="Guest user id" value={syncInfo.guestUserId ?? '—'} />
+            <StackedRow label="Effective user id" value={syncInfo.effectiveUserId} />
+          </Card>
+        ) : null}
+
         <Card title="Database counts">
           {Object.keys(counts).length === 0 ? (
             <AppText color="textSecondary">Loading…</AppText>
@@ -220,6 +225,24 @@ export function DebugScreen() {
             <AppText style={{ fontWeight: '700' }}>Refresh</AppText>
           </Pressable>
         </Card>
+
+        {devOnly && weekStartDebug ? (
+          <Card title="Week start debug">
+            <StackedRow label="Week start (now)" value={weekStartDebug.weekStartNow || '—'} />
+            {weekStartDebug.recentWeekBuckets.length === 0 ? (
+              <AppText color="textSecondary">No completed sessions.</AppText>
+            ) : (
+              weekStartDebug.recentWeekBuckets.map((bucket) => (
+                <Row
+                  key={bucket.week_start}
+                  label={bucket.week_start}
+                  value={`${bucket.sessions} sessions`}
+                />
+              ))
+            )}
+          </Card>
+        ) : null}
+
 
         <Card title="In-progress workout">
           {inProgress ? (

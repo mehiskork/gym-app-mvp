@@ -83,6 +83,14 @@ export function getGuestUserId(): string | null {
   return getMeta('guest_user_id');
 }
 
+/**
+ * Canonical user identity for sync attribution until real sign-in exists.
+ * Prefer guest_user_id, otherwise fall back to local_user_id.
+ */
+export function getEffectiveUserId(): string {
+  return getGuestUserId() ?? getOrCreateLocalUserId();
+}
+
 export function setGuestUserId(id: string | null) {
   if (!id) {
     clearMeta('guest_user_id');

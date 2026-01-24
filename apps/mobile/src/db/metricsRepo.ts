@@ -1,5 +1,6 @@
 import { query } from './db';
 import { WORKOUT_SESSION_STATUS } from './constants';
+import { weekStartExpression } from './dateSql';
 
 export type WeeklyVolumeRow = {
   week_start: string; // YYYY-MM-DD
@@ -8,10 +9,9 @@ export type WeeklyVolumeRow = {
 };
 
 export function listWeeklyVolume(weeksBack = 8): WeeklyVolumeRow[] {
-  // SQLite: compute Monday week start in UTC-like date space
-  // week_start = date(started_at, '-' || ((strftime('%w', started_at)+6)%7) || ' days')
+  // SQLite: compute Monday week start in UTC-like date space.
   // %w: 0=Sun..6=Sat. This converts to Monday-based weeks.
-
+  const weekStartExpr = weekStartExpression('cs.started_at');
   return query<WeeklyVolumeRow>(
     `
     WITH completed_sessions AS (
@@ -23,7 +23,7 @@ export function listWeeklyVolume(weeksBack = 8): WeeklyVolumeRow[] {
     session_volume AS (
       SELECT
         cs.id AS session_id,
-        date(cs.started_at, '-' || ((CAST(strftime('%w', cs.started_at) AS INTEGER) + 6) % 7) || ' days') AS week_start,
+        ${weekStartExpr} AS week_start,
         SUM(ws.weight * ws.reps) AS volume
       FROM completed_sessions cs
       JOIN workout_session_exercise wse ON wse.workout_session_id = cs.id AND wse.deleted_at IS NULL

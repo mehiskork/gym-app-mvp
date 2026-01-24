@@ -1,7 +1,7 @@
 import { exec, query } from './db';
 import { inTransaction } from './tx';
 import { newId } from '../utils/ids';
-import { getGuestUserId, getOrCreateDeviceId, getOrCreateLocalUserId } from './appMetaRepo';
+import { getEffectiveUserId, getOrCreateDeviceId } from './appMetaRepo';
 import { OUTBOX_STATUS, type OutboxStatus } from './constants';
 
 export type OutboxOp = {
@@ -32,7 +32,7 @@ export function enqueueOutboxOp(input: EnqueueOutboxInput): string {
   const id = newId('outbox');
   const opId = newId('op');
   const deviceId = getOrCreateDeviceId();
-  const userId = getGuestUserId() ?? getOrCreateLocalUserId();
+  const userId = getEffectiveUserId();
 
   exec(
     `

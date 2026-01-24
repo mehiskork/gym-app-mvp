@@ -1,6 +1,7 @@
 import { exec, query } from './db';
 import { inTransaction } from './tx';
 import { WORKOUT_SESSION_STATUS } from './constants';
+import { fetchSessionDetail } from './sessionDetailRepo';
 
 export type CompletedSessionRow = {
   id: string;
@@ -123,50 +124,25 @@ export function getSessionDetail(sessionId: string): {
   exercises: SessionExerciseRow[];
   sets: SessionSetRow[];
 } | null {
-  const session = query<CompletedSessionRow>(
-    `
-    SELECT id, title, started_at, ended_at
-    FROM workout_session
-    WHERE id = ? AND deleted_at IS NULL
-    LIMIT 1;
-  `,
-    [sessionId],
-  )[0];
+  const detail = fetchSessionDetail(sessionId);
+  if (!detail) return null;
 
-  if (!session) return null;
+  const session: CompletedSessionRow = {
+    id: detail.session.id,
+    title: detail.session.title,
+    started_at: detail.session.started_at,
+    ended_at: detail.session.ended_at,
+  };
 
-  const exercises = query<SessionExerciseRow>(
-    `
-    SELECT id, exercise_id, exercise_name, position
-    FROM workout_session_exercise
-    WHERE workout_session_id = ? AND deleted_at IS NULL
-    ORDER BY position ASC;
-  `,
-    [sessionId],
-  );
+  const exercises: SessionExerciseRow[] = detail.exercises.map((exercise) => ({
+    id: exercise.id,
+    exercise_id: exercise.exercise_id,
+    exercise_name: exercise.exercise_name,
+    position: exercise.position,
+  }));
 
-  const sets = query<SessionSetRow>(
-    `
-    SELECT
-      id,
-      workout_session_exercise_id,
-      set_index,
-      weight,
-      reps,
-      rpe,
-      rest_seconds,
-      notes,
-      is_completed
-    FROM workout_set
-    WHERE workout_session_exercise_id IN (
-      SELECT id FROM workout_session_exercise
-      WHERE workout_session_id = ? AND deleted_at IS NULL
-    )
-      AND deleted_at IS NULL
-    ORDER BY workout_session_exercise_id ASC, set_index ASC;
-  `,
-    [sessionId],
-  );
+
+  const sets: SessionSetRow[] = detail.exercises.flatMap((exercise) => exercise.sets);
 
   return { session, exercises, sets };
 }

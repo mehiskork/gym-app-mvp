@@ -1,5 +1,6 @@
 import {
   getDeviceToken,
+  getEffectiveUserId,
   getGuestUserId,
   getOrCreateDeviceId,
   getOrCreateDeviceSecret,
@@ -14,6 +15,7 @@ import {
 } from '../db/outboxRepo';
 import { getSyncState, normalizeCursor, updateSyncState } from '../db/syncStateRepo';
 import { inTransaction } from '../db/tx';
+import { safeJsonParse } from '../utils/json';
 import { logEvent } from '../utils/logger';
 import { applyDeltas, type SyncDelta } from './applyDeltas';
 
@@ -33,13 +35,7 @@ function computeBackoffSeconds(attemptCount: number): number {
   return Math.min(base, 300);
 }
 
-function safeJsonParse(value: string): unknown {
-  try {
-    return JSON.parse(value);
-  } catch {
-    return { _parseError: true, raw: value };
-  }
-}
+
 
 export async function registerDeviceIfNeeded(): Promise<void> {
   const baseUrl = getBaseUrl();
@@ -124,7 +120,7 @@ export async function syncNow(options: { force?: boolean; pullOnly?: boolean } =
         ops: ops.map((op) => ({
           opId: op.op_id,
           deviceId: op.device_id,
-          userId: op.user_id ?? getGuestUserId(),
+          userId: op.user_id ?? getEffectiveUserId(),
           entityType: op.entity_type,
           entityId: op.entity_id,
           opType: op.op_type,

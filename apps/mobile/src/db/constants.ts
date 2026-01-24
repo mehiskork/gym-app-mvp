@@ -14,3 +14,5 @@ export const OUTBOX_STATUS = {
 } as const;
 
 export type OutboxStatus = (typeof OUTBOX_STATUS)[keyof typeof OUTBOX_STATUS];
+
+export const DEFAULT_REST_SECONDS = 90;

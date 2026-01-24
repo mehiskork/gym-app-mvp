@@ -3,9 +3,8 @@ import { inTransaction } from './tx';
 import { newId } from '../utils/ids';
 import { detectAndStorePrsForSession } from './prRepo';
 import { enqueueOutboxOp } from './outboxRepo';
-import { WORKOUT_SESSION_STATUS, type WorkoutSessionStatus } from './constants';
+import { DEFAULT_REST_SECONDS, WORKOUT_SESSION_STATUS, type WorkoutSessionStatus } from './constants';
 
-const DEFAULT_REST_SECONDS = 90;
 
 export type WorkoutSessionRow = {
   id: string;

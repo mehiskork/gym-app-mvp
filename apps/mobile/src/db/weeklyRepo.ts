@@ -1,5 +1,6 @@
 import { query } from './db';
 import { WORKOUT_SESSION_STATUS } from './constants';
+import { weekStartExpression } from './dateSql';
 
 export type WeeklySummary = {
   week_start: string; // YYYY-MM-DD (UTC-based in SQLite)
@@ -23,10 +24,11 @@ function num(v: number | null | undefined): number {
  * Completed sets only.
  */
 export function getThisWeekSummary(): WeeklySummary {
+  const weekStartExpr = weekStartExpression("date('now')");
   const row = query<{ week_start: string; workouts: number | null; total_kg: number | null }>(
     `
       SELECT
-        date('now','weekday 1','-7 days') AS week_start,
+         ${weekStartExpr} AS week_start,
         COUNT(DISTINCT ws.id) AS workouts,
         COALESCE(SUM(wset.weight * wset.reps), 0) AS total_kg
       FROM workout_session ws
@@ -39,7 +41,7 @@ export function getThisWeekSummary(): WeeklySummary {
       WHERE ws.deleted_at IS NULL
         AND ws.status = '${WORKOUT_SESSION_STATUS.COMPLETED}'
         AND ws.ended_at IS NOT NULL
-        AND ws.ended_at >= date('now','weekday 1','-7 days')
+        AND ws.ended_at >= ${weekStartExpr}
         AND wset.is_completed = 1
         AND wset.weight IS NOT NULL
         AND wset.reps IS NOT NULL;
@@ -54,6 +56,7 @@ export function getThisWeekSummary(): WeeklySummary {
 }
 
 export function listThisWeekExerciseTotals(limit = 8): WeeklyExerciseRow[] {
+  const weekStartExpr = weekStartExpression("date('now')");
   return query<WeeklyExerciseRow>(
     `
     SELECT
@@ -71,7 +74,7 @@ export function listThisWeekExerciseTotals(limit = 8): WeeklyExerciseRow[] {
     WHERE ws.deleted_at IS NULL
       AND ws.status = '${WORKOUT_SESSION_STATUS.COMPLETED}'
       AND ws.ended_at IS NOT NULL
-      AND ws.ended_at >= date('now','weekday 1','-7 days')
+       AND ws.ended_at >= ${weekStartExpr}
       AND wset.is_completed = 1
       AND wset.weight IS NOT NULL
       AND wset.reps IS NOT NULL

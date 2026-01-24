@@ -1,10 +1,11 @@
 import { exec, query } from './db';
 import { inTransaction } from './tx';
 import { newId } from '../utils/ids';
-import { getDeviceToken, getGuestUserId, getOrCreateDeviceId } from './appMetaRepo';
+import { getDeviceToken, getEffectiveUserId, getGuestUserId, getOrCreateDeviceId } from './appMetaRepo';
 import { clearOutboxAndSyncState, repairStaleInFlightOps } from './outboxRepo';
 import { getSyncState } from './syncStateRepo';
-import { OUTBOX_STATUS, WORKOUT_SESSION_STATUS } from './constants';
+import { DEFAULT_REST_SECONDS, OUTBOX_STATUS, WORKOUT_SESSION_STATUS } from './constants';
+import { weekStartExpression } from './dateSql';
 
 export type TableCounts = Record<string, number>;
 
@@ -121,9 +122,9 @@ export function repairSessionsMissingSets(): number {
         INSERT INTO workout_set (
           id, workout_session_exercise_id, set_index,
           weight, reps, rpe, rest_seconds, notes, is_completed
-        ) VALUES (?, ?, 1, 0, 0, NULL, 90, NULL, 0);
+        ) VALUES (?, ?, 1, 0, 0, NULL, ?, NULL, 0);
       `,
-        [newId('set'), row.id],
+        [newId('set'), row.id, DEFAULT_REST_SECONDS],
       );
     }
 
@@ -263,6 +264,7 @@ export type SyncDebugInfo = {
   deviceId: string;
   hasDeviceToken: boolean;
   guestUserId: string | null;
+  effectiveUserId: string;
   outboxTotalCount: number;
   outboxStatusCounts: Record<string, number>;
   dueNowCount: number;
@@ -277,10 +279,46 @@ export type SyncDebugInfo = {
   syncState: ReturnType<typeof getSyncState>;
 };
 
+export type WeekStartDebugInfo = {
+  weekStartNow: string;
+  recentWeekBuckets: Array<{ week_start: string; sessions: number }>;
+};
+
+export function getWeekStartDebugInfo(): WeekStartDebugInfo {
+  const weekStartNowExpr = weekStartExpression("date('now')");
+  const weekStartNowRow = query<{ week_start: string }>(
+    `
+    SELECT ${weekStartNowExpr} AS week_start;
+  `,
+  )[0];
+
+  const weekStartBySessionExpr = weekStartExpression('ws.started_at');
+  const recentWeekBuckets = query<{ week_start: string; sessions: number }>(
+    `
+    SELECT
+      ${weekStartBySessionExpr} AS week_start,
+      COUNT(*) AS sessions
+    FROM workout_session ws
+    WHERE ws.deleted_at IS NULL
+      AND ws.status = '${WORKOUT_SESSION_STATUS.COMPLETED}'
+    GROUP BY week_start
+    ORDER BY week_start DESC
+    LIMIT 6;
+  `,
+  );
+
+  return {
+    weekStartNow: weekStartNowRow?.week_start ?? '',
+    recentWeekBuckets,
+  };
+}
+
+
 export function getSyncDebugInfo(): SyncDebugInfo {
   const deviceId = getOrCreateDeviceId();
   const hasDeviceToken = Boolean(getDeviceToken());
   const guestUserId = getGuestUserId();
+  const effectiveUserId = getEffectiveUserId();
   const totalRow = query<{ c: number }>(
     `
     SELECT COUNT(*) AS c
@@ -347,6 +385,7 @@ export function getSyncDebugInfo(): SyncDebugInfo {
     deviceId,
     hasDeviceToken,
     guestUserId,
+    effectiveUserId,
     outboxTotalCount: totalRow?.c ?? 0,
     outboxStatusCounts,
     dueNowCount: dueRow?.c ?? 0,

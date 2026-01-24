@@ -2,9 +2,8 @@ import { exec, query } from './db';
 import { inTransaction } from './tx';
 import { newId } from '../utils/ids';
 import { enqueueOutboxOp } from './outboxRepo';
-import { type WorkoutSessionStatus } from './constants';
-
-const DEFAULT_REST_SECONDS = 90;
+import { DEFAULT_REST_SECONDS, type WorkoutSessionStatus } from './constants';
+import { fetchSessionDetail } from './sessionDetailRepo';
 
 export type LoggerSession = {
   id: string;
@@ -127,72 +126,24 @@ export function getWorkoutLoggerData(sessionId: string): {
   session: LoggerSession;
   exercises: LoggerExercise[];
 } {
-  const session = query<LoggerSession>(
-    `
-    SELECT
-      id, title, status,
-      rest_timer_end_at, rest_timer_seconds, rest_timer_label
-    FROM workout_session
-    WHERE id = ? AND deleted_at IS NULL
-    LIMIT 1;
-  `,
-    [sessionId],
-  )[0];
+  const detail = fetchSessionDetail(sessionId);
+  if (!detail) throw new Error('Session not found');
 
-  if (!session) throw new Error('Session not found');
+  const session: LoggerSession = {
+    id: detail.session.id,
+    title: detail.session.title,
+    status: detail.session.status as WorkoutSessionStatus,
+    rest_timer_end_at: detail.session.rest_timer_end_at,
+    rest_timer_seconds: detail.session.rest_timer_seconds,
+    rest_timer_label: detail.session.rest_timer_label,
+  };
 
-  const exRows = query<{
-    id: string;
-    exercise_id: string;
-    exercise_name: string;
-    position: number;
-  }>(
-    `
-    SELECT id, exercise_id, exercise_name, position
-    FROM workout_session_exercise
-    WHERE workout_session_id = ? AND deleted_at IS NULL
-    ORDER BY position ASC;
-  `,
-    [sessionId],
-  );
-
-  const setRows = query<LoggerSet>(
-    `
-    SELECT
-      id,
-      workout_session_exercise_id,
-      set_index,
-      weight,
-      reps,
-      rpe,
-      rest_seconds,
-      notes,
-      is_completed
-    FROM workout_set
-    WHERE workout_session_exercise_id IN (
-      SELECT id
-      FROM workout_session_exercise
-      WHERE workout_session_id = ? AND deleted_at IS NULL
-    )
-      AND deleted_at IS NULL
-    ORDER BY workout_session_exercise_id ASC, set_index ASC;
-  `,
-    [sessionId],
-  );
-
-  const setsByWse = new Map<string, LoggerSet[]>();
-  for (const s of setRows) {
-    const arr = setsByWse.get(s.workout_session_exercise_id) ?? [];
-    arr.push(s);
-    setsByWse.set(s.workout_session_exercise_id, arr);
-  }
-
-  const exercises: LoggerExercise[] = exRows.map((e) => ({
-    id: e.id,
-    exercise_id: e.exercise_id,
-    exercise_name: e.exercise_name,
-    position: e.position,
-    sets: setsByWse.get(e.id) ?? [],
+  const exercises: LoggerExercise[] = detail.exercises.map((exercise) => ({
+    id: exercise.id,
+    exercise_id: exercise.exercise_id,
+    exercise_name: exercise.exercise_name,
+    position: exercise.position,
+    sets: exercise.sets,
   }));
 
   return { session, exercises };
