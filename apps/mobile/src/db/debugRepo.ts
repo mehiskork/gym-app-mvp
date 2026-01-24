@@ -211,6 +211,42 @@ export function validateStatusEnums(): { ok: boolean; message: string } {
   return { ok, message };
 }
 
+export function verifySyncState(): { ok: boolean; message: string; missingColumns: string[] } {
+  const columns = query<{ name: string }>(`PRAGMA table_info(sync_state);`).map((row) => row.name);
+  const required = [
+    'id',
+    'cursor',
+    'last_sync_at',
+    'last_error',
+    'backoff_until',
+    'consecutive_failures',
+    'last_delta_count',
+  ];
+
+  const missingColumns = required.filter((name) => !columns.includes(name));
+
+  const cursorRow = query<{ cursor: string | null }>(
+    `
+    SELECT cursor
+    FROM sync_state
+    WHERE id = 1
+    LIMIT 1;
+  `,
+  )[0];
+
+  const cursor = cursorRow?.cursor ?? null;
+  const cursorValid = cursor === null || cursor === '' || /^\d+$/.test(cursor);
+
+  const ok = missingColumns.length === 0 && cursorValid;
+  const message = ok
+    ? 'sync_state schema ok.'
+    : `sync_state issue: missing [${missingColumns.join(', ') || 'none'}], cursor="${cursor ?? 'null'
+    }"`;
+
+  return { ok, message, missingColumns };
+}
+
+
 export function resetSyncCursorForDebug(): void {
   exec(
     `

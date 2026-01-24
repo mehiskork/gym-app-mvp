@@ -20,6 +20,7 @@ import {
   repairSessionsMissingSets,
   testNestedTransactionRollback,
   validateStatusEnums,
+  verifySyncState,
 } from '../../db/debugRepo';
 
 import { seedTestPlan } from '../../db/seed/seedTestPlan';
@@ -92,6 +93,9 @@ export function DebugScreen() {
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [inProgress, setInProgress] = useState<ReturnType<typeof getInProgressWorkout>>(null);
   const [syncInfo, setSyncInfo] = useState<ReturnType<typeof getSyncDebugInfo> | null>(null);
+  const [syncStateHealth, setSyncStateHealth] = useState<ReturnType<typeof verifySyncState> | null>(
+    null,
+  );
 
   const refresh = useCallback(() => {
     const c = getTableCounts();
@@ -100,6 +104,9 @@ export function DebugScreen() {
     setCounts(c);
     setInProgress(ip);
     setSyncInfo(info);
+    if (__DEV__) {
+      setSyncStateHealth(verifySyncState());
+    }
   }, []);
 
   useFocusEffect(
@@ -301,7 +308,6 @@ export function DebugScreen() {
           >
             <AppText style={{ fontWeight: '700' }}>Seed test plan (dev-only)</AppText>
           </Pressable>
-
           <Pressable
             disabled={!devOnly}
             onPress={() => {
@@ -342,8 +348,6 @@ export function DebugScreen() {
             <AppText style={{ fontWeight: '700' }}>Validate status enums (dev-only)</AppText>
           </Pressable>
 
-
-
           <Pressable
             onPress={exportLogs}
             style={{
@@ -366,6 +370,15 @@ export function DebugScreen() {
           {syncInfo ? (
             <>
               <Row label="API Base URL" value={baseUrl} />
+              {devOnly && syncStateHealth ? (
+                <Row
+                  label="Sync state schema"
+                  value={syncStateHealth.ok ? 'ok' : 'issue'}
+                />
+              ) : null}
+              {devOnly && syncStateHealth && !syncStateHealth.ok ? (
+                <AppText color="textSecondary">{syncStateHealth.message}</AppText>
+              ) : null}
               <Row label="Device ID" value={syncInfo.deviceId} />
               <Row label="Has token" value={syncInfo.hasDeviceToken ? 'true' : 'false'} />
               <StackedRow label="Guest user ID" value={syncInfo.guestUserId ?? '—'} />

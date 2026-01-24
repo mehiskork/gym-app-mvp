@@ -10,6 +10,14 @@ export type SyncState = {
   last_delta_count: number;
 };
 
+export function normalizeCursor(value?: string | number | null): string | null {
+  if (value === null || value === undefined || value === '') return null;
+  const asNumber = Number(value);
+  if (!Number.isFinite(asNumber) || asNumber < 0) return null;
+  return String(Math.trunc(asNumber));
+}
+
+
 export function getSyncState(): SyncState {
   const row = query<SyncState>(
     `
@@ -19,7 +27,7 @@ export function getSyncState(): SyncState {
       last_sync_at,
       last_error,
       backoff_until,
-      consecutive_failures
+      consecutive_failures,
       last_delta_count
     FROM sync_state
     WHERE id = 1

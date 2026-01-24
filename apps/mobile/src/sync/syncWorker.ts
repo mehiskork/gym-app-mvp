@@ -12,7 +12,7 @@ import {
   markOutboxOpsFailed,
   repairStaleInFlightOps,
 } from '../db/outboxRepo';
-import { getSyncState, updateSyncState } from '../db/syncStateRepo';
+import { getSyncState, normalizeCursor, updateSyncState } from '../db/syncStateRepo';
 import { inTransaction } from '../db/tx';
 import { logEvent } from '../utils/logger';
 import { applyDeltas, type SyncDelta } from './applyDeltas';
@@ -155,7 +155,7 @@ export async function syncNow(options: { force?: boolean; pullOnly?: boolean } =
 
       deltaSummary = applyDeltas(data.deltas ?? []);
       updateSyncState({
-        cursor: data.cursor ?? cursor,
+        cursor: normalizeCursor(data.cursor ?? cursor),
         last_sync_at: new Date().toISOString(),
         last_error: null,
         backoff_until: null,

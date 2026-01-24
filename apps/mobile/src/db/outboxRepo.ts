@@ -193,7 +193,7 @@ export function clearOutboxAndSyncState(): void {
           last_sync_at = NULL,
           last_error = NULL,
           backoff_until = NULL,
-          consecutive_failures = 0
+          consecutive_failures = 0,
           last_delta_count = 0
       WHERE id = 1;
     `,
