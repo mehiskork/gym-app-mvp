@@ -1,4 +1,6 @@
-import { exec, inTransaction, query } from './db'; // ensure exec + inTransaction are imported
+import { exec, query } from './db';
+import { inTransaction } from './tx';
+import { WORKOUT_SESSION_STATUS } from './constants';
 
 export type CompletedSessionRow = {
   id: string;
@@ -31,7 +33,7 @@ export function listCompletedSessions(limit = 50): CompletedSessionRow[] {
     `
     SELECT id, title, started_at, ended_at
     FROM workout_session
-    WHERE status = 'completed' AND deleted_at IS NULL
+    WHERE status = '${WORKOUT_SESSION_STATUS.COMPLETED}' AND deleted_at IS NULL
     ORDER BY COALESCE(ended_at, started_at) DESC
     LIMIT ?;
   `,
@@ -90,7 +92,7 @@ export function deleteAllCompletedSessions(): void {
           SELECT wse.id
           FROM workout_session_exercise wse
           JOIN workout_session ws ON ws.id = wse.workout_session_id
-          WHERE ws.status = 'completed'
+          WHERE ws.status = '${WORKOUT_SESSION_STATUS.COMPLETED}'
             AND ws.deleted_at IS NULL
             AND wse.deleted_at IS NULL
         );
@@ -103,7 +105,7 @@ export function deleteAllCompletedSessions(): void {
       WHERE deleted_at IS NULL
         AND workout_session_id IN (
           SELECT id FROM workout_session
-          WHERE status = 'completed' AND deleted_at IS NULL
+          WHERE status = '${WORKOUT_SESSION_STATUS.COMPLETED}' AND deleted_at IS NULL
         );
     `);
 
@@ -111,7 +113,7 @@ export function deleteAllCompletedSessions(): void {
     exec(`
       UPDATE workout_session
       SET deleted_at = datetime('now'), updated_at = datetime('now')
-      WHERE status = 'completed' AND deleted_at IS NULL;
+      WHERE status = '${WORKOUT_SESSION_STATUS.COMPLETED}' AND deleted_at IS NULL;
     `);
   });
 }

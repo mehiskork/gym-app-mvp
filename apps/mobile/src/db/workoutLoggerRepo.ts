@@ -2,13 +2,14 @@ import { exec, query } from './db';
 import { inTransaction } from './tx';
 import { newId } from '../utils/ids';
 import { enqueueOutboxOp } from './outboxRepo';
+import { type WorkoutSessionStatus } from './constants';
 
 const DEFAULT_REST_SECONDS = 90;
 
 export type LoggerSession = {
   id: string;
   title: string;
-  status: 'in_progress' | 'completed' | 'discarded';
+  status: WorkoutSessionStatus;
   rest_timer_end_at: string | null;
   rest_timer_seconds: number | null;
   rest_timer_label: string | null;

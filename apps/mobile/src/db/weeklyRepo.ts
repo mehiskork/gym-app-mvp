@@ -1,4 +1,5 @@
 import { query } from './db';
+import { WORKOUT_SESSION_STATUS } from './constants';
 
 export type WeeklySummary = {
   week_start: string; // YYYY-MM-DD (UTC-based in SQLite)
@@ -36,7 +37,7 @@ export function getThisWeekSummary(): WeeklySummary {
         ON wset.workout_session_exercise_id = wse.id
        AND wset.deleted_at IS NULL
       WHERE ws.deleted_at IS NULL
-        AND ws.status = 'completed'
+        AND ws.status = '${WORKOUT_SESSION_STATUS.COMPLETED}'
         AND ws.ended_at IS NOT NULL
         AND ws.ended_at >= date('now','weekday 1','-7 days')
         AND wset.is_completed = 1
@@ -68,7 +69,7 @@ export function listThisWeekExerciseTotals(limit = 8): WeeklyExerciseRow[] {
       ON wset.workout_session_exercise_id = wse.id
      AND wset.deleted_at IS NULL
     WHERE ws.deleted_at IS NULL
-      AND ws.status = 'completed'
+      AND ws.status = '${WORKOUT_SESSION_STATUS.COMPLETED}'
       AND ws.ended_at IS NOT NULL
       AND ws.ended_at >= date('now','weekday 1','-7 days')
       AND wset.is_completed = 1

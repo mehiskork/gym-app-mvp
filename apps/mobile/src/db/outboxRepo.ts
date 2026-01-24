@@ -2,6 +2,7 @@ import { exec, query } from './db';
 import { inTransaction } from './tx';
 import { newId } from '../utils/ids';
 import { getGuestUserId, getOrCreateDeviceId, getOrCreateLocalUserId } from './appMetaRepo';
+import { OUTBOX_STATUS, type OutboxStatus } from './constants';
 
 export type OutboxOp = {
   id: string;
@@ -12,7 +13,7 @@ export type OutboxOp = {
   entity_id: string;
   op_type: 'upsert' | 'delete';
   payload_json: string;
-  status: 'pending' | 'in_flight' | 'failed' | 'acked';
+  status: OutboxStatus;
   attempt_count: number;
   last_error: string | null;
   next_attempt_at: string | null;
@@ -47,7 +48,7 @@ export function enqueueOutboxOp(input: EnqueueOutboxInput): string {
       status,
       created_at,
       updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', datetime('now'), datetime('now'));
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, '${OUTBOX_STATUS.PENDING}', datetime('now'), datetime('now'));
   `,
     [id, opId, deviceId, userId, input.entityType, input.entityId, input.opType, input.payloadJson],
   );
@@ -75,7 +76,7 @@ export function listPendingOutboxOps(limit: number): OutboxOp[] {
       created_at,
       updated_at
     FROM outbox_op
-    WHERE status IN ('pending', 'failed')
+    WHERE status IN ('${OUTBOX_STATUS.PENDING}', '${OUTBOX_STATUS.FAILED}')
       AND (next_attempt_at IS NULL OR datetime(next_attempt_at) <= datetime('now'))
     ORDER BY created_at ASC
     LIMIT ?;
@@ -94,7 +95,7 @@ export function claimOutboxOps(limit: number): OutboxOp[] {
     exec(
       `
       UPDATE outbox_op
-      SET status = 'in_flight',
+      SET status = '${OUTBOX_STATUS.IN_FLIGHT}',
           last_attempt_at = datetime('now'),
           updated_at = datetime('now')
       WHERE op_id IN (${placeholders});
@@ -114,7 +115,7 @@ export function markOutboxOpsAcked(opIds: string[]) {
   exec(
     `
     UPDATE outbox_op
-    SET status = 'acked', updated_at = datetime('now')
+    SET status = '${OUTBOX_STATUS.ACKED}', updated_at = datetime('now')
     WHERE op_id IN (${placeholders});
   `,
     opIds,
@@ -126,7 +127,7 @@ export function markOutboxOpFailed(opId: string, error: string, nextAttemptAt: s
     `
     UPDATE outbox_op
     SET
-      status = 'failed',
+      status = '${OUTBOX_STATUS.FAILED}',
       attempt_count = attempt_count + 1,
       last_error = ?,
       next_attempt_at = ?,
@@ -156,7 +157,7 @@ export function repairStaleInFlightOps(maxAgeSeconds: number): number {
     `
     SELECT COUNT(*) AS c
     FROM outbox_op
-    WHERE status = 'in_flight'
+    WHERE status = '${OUTBOX_STATUS.IN_FLIGHT}'
       AND last_attempt_at IS NOT NULL
       AND datetime(last_attempt_at) <= datetime('now', ?);
   `,
@@ -167,12 +168,12 @@ export function repairStaleInFlightOps(maxAgeSeconds: number): number {
     `
     UPDATE outbox_op
     SET
-      status = 'failed',
+      status = '${OUTBOX_STATUS.FAILED}',
       attempt_count = attempt_count + 1,
       last_error = ?,
       next_attempt_at = datetime('now'),
       updated_at = datetime('now')
-    WHERE status = 'in_flight'
+    WHERE status = '${OUTBOX_STATUS.IN_FLIGHT}'
       AND last_attempt_at IS NOT NULL
       AND datetime(last_attempt_at) <= datetime('now', ?);
   `,

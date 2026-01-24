@@ -4,6 +4,7 @@ import { newId } from '../utils/ids';
 import { getDeviceToken, getGuestUserId, getOrCreateDeviceId } from './appMetaRepo';
 import { clearOutboxAndSyncState, repairStaleInFlightOps } from './outboxRepo';
 import { getSyncState } from './syncStateRepo';
+import { OUTBOX_STATUS, WORKOUT_SESSION_STATUS } from './constants';
 
 export type TableCounts = Record<string, number>;
 
@@ -45,7 +46,7 @@ export function getInProgressWorkout(): InProgressWorkout {
     `
     SELECT id, started_at
     FROM workout_session
-    WHERE status = 'in_progress' AND deleted_at IS NULL
+    WHERE status = '${WORKOUT_SESSION_STATUS.IN_PROGRESS}' AND deleted_at IS NULL
     ORDER BY started_at DESC
     LIMIT 1;
   `,
@@ -76,7 +77,7 @@ export function resetInProgressWorkoutHardDelete(): void {
       `
       SELECT id
       FROM workout_session
-      WHERE status = 'in_progress' AND deleted_at IS NULL
+      WHERE status = '${WORKOUT_SESSION_STATUS.IN_PROGRESS}' AND deleted_at IS NULL
       ORDER BY started_at DESC
       LIMIT 1;
     `,
@@ -138,6 +139,79 @@ export function clearOutboxForDebug(): void {
   clearOutboxAndSyncState();
 }
 
+export function testNestedTransactionRollback(): { ok: boolean; message: string } {
+  const key = `__tx_sanity_${Date.now()}`;
+  let caught = false;
+
+  try {
+    inTransaction(() => {
+      exec(
+        `
+        INSERT INTO app_meta (key, value, created_at, updated_at)
+        VALUES (?, ?, datetime('now'), datetime('now'));
+      `,
+        [key, 'outer'],
+      );
+
+      inTransaction(() => {
+        exec(`UPDATE app_meta SET value = ? WHERE key = ?`, ['inner', key]);
+        throw new Error('nested transaction sanity check');
+      });
+    });
+  } catch {
+    caught = true;
+  }
+
+  const row = query<{ c: number }>(`SELECT COUNT(*) AS c FROM app_meta WHERE key = ?`, [key])[0];
+  const exists = (row?.c ?? 0) > 0;
+
+  if (exists) {
+    exec(`DELETE FROM app_meta WHERE key = ?`, [key]);
+  }
+
+  const ok = caught && !exists;
+  const message = ok
+    ? 'Nested transaction rollback succeeded.'
+    : `Nested transaction rollback failed (caught=${caught}, exists=${exists}).`;
+
+  return { ok, message };
+}
+
+export function validateStatusEnums(): { ok: boolean; message: string } {
+  const workoutStatuses = query<{ status: string }>(
+    `
+    SELECT DISTINCT status
+    FROM workout_session
+    WHERE status IS NOT NULL
+    LIMIT 20;
+  `,
+  ).map((row) => row.status);
+
+  const outboxStatuses = query<{ status: string }>(
+    `
+    SELECT DISTINCT status
+    FROM outbox_op
+    WHERE status IS NOT NULL
+    LIMIT 20;
+  `,
+  ).map((row) => row.status);
+
+  const allowedWorkout = new Set<string>(Object.values(WORKOUT_SESSION_STATUS));
+  const allowedOutbox = new Set<string>(Object.values(OUTBOX_STATUS));
+
+  const invalidWorkout = workoutStatuses.filter((status) => !allowedWorkout.has(status));
+  const invalidOutbox = outboxStatuses.filter((status) => !allowedOutbox.has(status));
+
+  const ok = invalidWorkout.length === 0 && invalidOutbox.length === 0;
+  const message = ok
+    ? 'Status enums validated.'
+    : `Invalid statuses found. workout_session: ${invalidWorkout.join(', ') || 'none'}, outbox_op: ${
+        invalidOutbox.join(', ') || 'none'
+      }`;
+
+  return { ok, message };
+}
+
 
 export function resetSyncCursorForDebug(): void {
   exec(
@@ -177,7 +251,12 @@ export function getSyncDebugInfo(): SyncDebugInfo {
     `
     SELECT COUNT(*) AS c
     FROM outbox_op
-    WHERE status IN ('pending', 'failed', 'in_flight', 'acked');
+    WHERE status IN (
+      '${OUTBOX_STATUS.PENDING}',
+      '${OUTBOX_STATUS.FAILED}',
+      '${OUTBOX_STATUS.IN_FLIGHT}',
+      '${OUTBOX_STATUS.ACKED}'
+    );
   `,
   )[0];
 
@@ -193,7 +272,7 @@ export function getSyncDebugInfo(): SyncDebugInfo {
     `
     SELECT COUNT(*) AS c
     FROM outbox_op
-    WHERE status IN ('pending', 'failed');
+    WHERE status IN ('${OUTBOX_STATUS.PENDING}', '${OUTBOX_STATUS.FAILED}');
   `,
   )[0];
 
@@ -220,10 +299,10 @@ export function getSyncDebugInfo(): SyncDebugInfo {
   );
 
   const outboxStatusCounts: Record<string, number> = {
-    pending: 0,
-    failed: 0,
-    in_flight: 0,
-    acked: 0,
+    [OUTBOX_STATUS.PENDING]: 0,
+    [OUTBOX_STATUS.FAILED]: 0,
+    [OUTBOX_STATUS.IN_FLIGHT]: 0,
+    [OUTBOX_STATUS.ACKED]: 0,
   };
   for (const row of statusRows) {
     outboxStatusCounts[row.status] = row.c;

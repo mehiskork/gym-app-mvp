@@ -1,6 +1,7 @@
 import { exec, query } from './db';
 import { inTransaction } from './tx';
 import { newId } from '../utils/ids';
+import { WORKOUT_SESSION_STATUS, type WorkoutSessionStatus } from './constants';
 
 export type PrEventRow = {
   id: string;
@@ -142,7 +143,7 @@ export function detectAndStorePrsForSession(sessionId: string): number {
         JOIN workout_session_exercise wse ON wse.id = ws.workout_session_exercise_id
         JOIN workout_session s ON s.id = wse.workout_session_id
         WHERE wse.exercise_id = ?
-          AND s.status = 'completed'
+          AND s.status = '${WORKOUT_SESSION_STATUS.COMPLETED}'
           AND s.id != ?
           AND s.deleted_at IS NULL
           AND wse.deleted_at IS NULL
@@ -175,7 +176,7 @@ export function detectAndStorePrsForSession(sessionId: string): number {
           JOIN workout_session_exercise wse ON wse.id = ws.workout_session_exercise_id
           JOIN workout_session s ON s.id = wse.workout_session_id
           WHERE wse.exercise_id = ?
-            AND s.status = 'completed'
+            AND s.status = '${WORKOUT_SESSION_STATUS.COMPLETED}'
             AND s.id != ?
             AND s.deleted_at IS NULL
             AND wse.deleted_at IS NULL
@@ -209,7 +210,7 @@ export function detectAndStorePrsForSession(sessionId: string): number {
           JOIN workout_session_exercise wse ON wse.id = ws.workout_session_exercise_id
           JOIN workout_session s ON s.id = wse.workout_session_id
           WHERE wse.exercise_id = ?
-            AND s.status = 'completed'
+            AND s.status = '${WORKOUT_SESSION_STATUS.COMPLETED}'
             AND s.id != ?
             AND s.deleted_at IS NULL
             AND wse.deleted_at IS NULL
@@ -246,7 +247,7 @@ export function detectAndStorePrsForSession(sessionId: string): number {
 export function recomputeSessionPrsIfNeeded(sessionId: string): number {
   return inTransaction(() => {
     const s =
-      query<{ status: 'in_progress' | 'completed' | 'discarded' }>(
+      query<{ status: WorkoutSessionStatus }>(
         `
         SELECT status
         FROM workout_session
@@ -256,7 +257,7 @@ export function recomputeSessionPrsIfNeeded(sessionId: string): number {
         [sessionId],
       )[0] ?? null;
 
-    if (!s || s.status !== 'completed') return 0;
+    if (!s || s.status !== WORKOUT_SESSION_STATUS.COMPLETED) return 0;
 
     const setTs =
       query<{ ts: string | null }>(

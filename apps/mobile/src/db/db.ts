@@ -51,18 +51,3 @@ export function query<T extends Record<string, unknown>>(
     stmt.finalizeSync();
   }
 }
-export function inTransaction<T>(fn: () => T): T {
-  exec('BEGIN');
-  try {
-    const result = fn();
-    exec('COMMIT');
-    return result;
-  } catch (e) {
-    try {
-      exec('ROLLBACK');
-    } catch {
-      // ignore rollback failures
-    }
-    throw e;
-  }
-}
