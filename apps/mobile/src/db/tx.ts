@@ -1,4 +1,4 @@
-import { db } from './db';
+import { exec } from './db';
 
 let txDepth = 0;
 
@@ -6,7 +6,7 @@ export function inTransaction<T>(fn: () => T): T {
   const isOuter = txDepth === 0;
 
   if (isOuter) {
-    db.execSync('BEGIN');
+    exec('BEGIN');
   }
 
   txDepth += 1;
@@ -16,7 +16,7 @@ export function inTransaction<T>(fn: () => T): T {
     txDepth -= 1;
 
     if (isOuter) {
-      db.execSync('COMMIT');
+      exec('COMMIT');
     }
 
     return result;
@@ -24,7 +24,7 @@ export function inTransaction<T>(fn: () => T): T {
     txDepth -= 1;
 
     if (isOuter) {
-      db.execSync('ROLLBACK');
+      exec('ROLLBACK');
     }
 
     throw e;

@@ -18,6 +18,9 @@ function normalizeName(name: string) {
   return name.trim().toLowerCase();
 }
 
+// Curated seeding upserts curated entries so app updates can refresh metadata.
+// User edits should not override curated entries; curated rows are treated as source-of-truth.
+
 export function seedCuratedExercises() {
   inTransaction(() => {
     for (const ex of curated) {

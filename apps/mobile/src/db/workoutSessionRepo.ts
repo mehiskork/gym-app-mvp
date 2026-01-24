@@ -3,6 +3,7 @@ import { inTransaction } from './tx';
 import { newId } from '../utils/ids';
 import { detectAndStorePrsForSession } from './prRepo';
 import { enqueueOutboxOp } from './outboxRepo';
+import { WORKOUT_SESSION_STATUS, type WorkoutSessionStatus } from './constants';
 
 const DEFAULT_REST_SECONDS = 90;
 
@@ -11,7 +12,7 @@ export type WorkoutSessionRow = {
   source_workout_plan_id: string | null;
   source_program_day_id: string | null;
   title: string;
-  status: 'in_progress' | 'completed' | 'discarded';
+  status: WorkoutSessionStatus;
   started_at: string;
   ended_at: string | null;
 };
@@ -100,7 +101,7 @@ export function getInProgressSession(): WorkoutSessionRow | null {
       started_at,
       ended_at
     FROM workout_session
-    WHERE status = 'in_progress' AND deleted_at IS NULL
+    WHERE status = '${WORKOUT_SESSION_STATUS.IN_PROGRESS}' AND deleted_at IS NULL
     ORDER BY started_at DESC
     LIMIT 1;
   `,
@@ -151,7 +152,7 @@ export function createSessionFromPlanDay(input: { workoutPlanId: string; dayId: 
     `
   SELECT id
   FROM workout_session
-  WHERE status = 'in_progress' AND deleted_at IS NULL
+  WHERE status = '${WORKOUT_SESSION_STATUS.IN_PROGRESS}' AND deleted_at IS NULL
   ORDER BY started_at DESC
   LIMIT 1;
 `,
@@ -213,7 +214,7 @@ export function createSessionFromPlanDay(input: { workoutPlanId: string; dayId: 
         title,
         status,
         started_at
-      ) VALUES (?, ?, ?, ?, 'in_progress', datetime('now'));
+       ) VALUES (?, ?, ?, ?, '${WORKOUT_SESSION_STATUS.IN_PROGRESS}', datetime('now'));
     `,
       [sessionId, workoutPlanId, dayId, title],
     );
@@ -312,7 +313,7 @@ export function completeSession(sessionId: string) {
     exec(
       `
       UPDATE workout_session
-      SET status = 'completed', ended_at = datetime('now'), updated_at = datetime('now')
+       SET status = '${WORKOUT_SESSION_STATUS.COMPLETED}', ended_at = datetime('now'), updated_at = datetime('now')
       WHERE id = ? AND deleted_at IS NULL;
     `,
       [sessionId],
@@ -329,7 +330,7 @@ export function discardSession(sessionId: string) {
     exec(
       `
       UPDATE workout_session
-      SET status = 'discarded', ended_at = datetime('now'), updated_at = datetime('now')
+      SET status = '${WORKOUT_SESSION_STATUS.DISCARDED}', ended_at = datetime('now'), updated_at = datetime('now')
       WHERE id = ? AND deleted_at IS NULL;
     `,
       [sessionId],

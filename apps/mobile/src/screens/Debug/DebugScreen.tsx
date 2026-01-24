@@ -18,7 +18,10 @@ import {
   resetInProgressWorkoutHardDelete,
   resetSyncCursorForDebug,
   repairSessionsMissingSets,
+  testNestedTransactionRollback,
+  validateStatusEnums,
 } from '../../db/debugRepo';
+
 import { seedTestPlan } from '../../db/seed/seedTestPlan';
 import { query } from '../../db/db';
 import appConfig from '../../../app.json';
@@ -298,6 +301,48 @@ export function DebugScreen() {
           >
             <AppText style={{ fontWeight: '700' }}>Seed test plan (dev-only)</AppText>
           </Pressable>
+
+          <Pressable
+            disabled={!devOnly}
+            onPress={() => {
+              const result = testNestedTransactionRollback();
+              Alert.alert(result.ok ? 'Success' : 'Failure', result.message);
+            }}
+            style={{
+              opacity: devOnly ? 1 : 0.4,
+              paddingVertical: tokens.spacing.md,
+              borderRadius: tokens.radius.md,
+              borderWidth: 1,
+              borderColor: tokens.colors.border,
+              alignItems: 'center',
+              marginBottom: tokens.spacing.md,
+            }}
+          >
+            <AppText style={{ fontWeight: '700' }}>
+              Test nested transaction rollback (dev-only)
+            </AppText>
+          </Pressable>
+
+          <Pressable
+            disabled={!devOnly}
+            onPress={() => {
+              const result = validateStatusEnums();
+              Alert.alert(result.ok ? 'Success' : 'Failure', result.message);
+            }}
+            style={{
+              opacity: devOnly ? 1 : 0.4,
+              paddingVertical: tokens.spacing.md,
+              borderRadius: tokens.radius.md,
+              borderWidth: 1,
+              borderColor: tokens.colors.border,
+              alignItems: 'center',
+              marginBottom: tokens.spacing.md,
+            }}
+          >
+            <AppText style={{ fontWeight: '700' }}>Validate status enums (dev-only)</AppText>
+          </Pressable>
+
+
 
           <Pressable
             onPress={exportLogs}

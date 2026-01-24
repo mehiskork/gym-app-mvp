@@ -1,4 +1,5 @@
 import { query } from './db';
+import { WORKOUT_SESSION_STATUS } from './constants';
 
 export type ExerciseRow = { id: string; name: string };
 
@@ -62,7 +63,7 @@ export function listExerciseSessionsWithSets(
     WHERE wse.exercise_id = ?
       AND wse.deleted_at IS NULL
       AND ws.deleted_at IS NULL
-      AND ws.status = 'completed'
+      AND ws.status = '${WORKOUT_SESSION_STATUS.COMPLETED}'
     ORDER BY COALESCE(ws.ended_at, ws.started_at) DESC
     LIMIT ?;
   `,

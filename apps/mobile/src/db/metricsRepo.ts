@@ -1,4 +1,5 @@
 import { query } from './db';
+import { WORKOUT_SESSION_STATUS } from './constants';
 
 export type WeeklyVolumeRow = {
   week_start: string; // YYYY-MM-DD
@@ -16,7 +17,7 @@ export function listWeeklyVolume(weeksBack = 8): WeeklyVolumeRow[] {
     WITH completed_sessions AS (
       SELECT id, started_at
       FROM workout_session
-      WHERE status = 'completed'
+       WHERE status = '${WORKOUT_SESSION_STATUS.COMPLETED}'
         AND deleted_at IS NULL
     ),
     session_volume AS (
