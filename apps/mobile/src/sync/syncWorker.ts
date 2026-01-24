@@ -6,7 +6,12 @@ import {
   setDeviceToken,
   setGuestUserId,
 } from '../db/appMetaRepo';
-import { listPendingOutboxOps, markOutboxOpFailed, markOutboxOpsAcked } from '../db/outboxRepo';
+import {
+  claimOutboxOps,
+  markOutboxOpsAcked,
+  markOutboxOpsFailed,
+  repairStaleInFlightOps,
+} from '../db/outboxRepo';
 import { getSyncState, updateSyncState } from '../db/syncStateRepo';
 import { inTransaction } from '../db/tx';
 
@@ -73,7 +78,13 @@ export async function registerDeviceIfNeeded(): Promise<void> {
   }
 }
 
-export async function syncNow(): Promise<void> {
+export async function syncNow(): Promise<void>;
+export async function syncNow(options?: { force?: boolean }): Promise<void>;
+export async function syncNow(options: { force?: boolean } = {}): Promise<void> {
+  // Offline-first invariants:
+  // - Domain writes + outbox enqueue happen in the SAME SQLite transaction.
+  // - We never ack unless the backend explicitly acks opIds.
+  // - On network errors (airplane mode, timeout, DNS, 5xx), ops stay pending/failed and visible.
   const baseUrl = getBaseUrl();
   const syncState = getSyncState();
 
@@ -82,7 +93,7 @@ export async function syncNow(): Promise<void> {
     return;
   }
 
-  if (syncState.backoff_until) {
+  if (!options.force && syncState.backoff_until) {
     const backoffTime = Date.parse(syncState.backoff_until);
     if (!Number.isNaN(backoffTime) && backoffTime > Date.now()) {
       return;
@@ -95,7 +106,8 @@ export async function syncNow(): Promise<void> {
     return;
   }
 
-  const ops = listPendingOutboxOps(DEFAULT_BATCH_LIMIT);
+  repairStaleInFlightOps(120);
+  const ops = claimOutboxOps(DEFAULT_BATCH_LIMIT);
   const cursor = syncState.cursor;
 
   try {
@@ -135,6 +147,8 @@ export async function syncNow(): Promise<void> {
     };
 
     const ackIds = data.acks?.map((ack) => ack.opId) ?? [];
+    const acked = new Set(ackIds);
+    const unacked = ops.filter((op) => !acked.has(op.op_id));
 
     inTransaction(() => {
       markOutboxOpsAcked(ackIds);
@@ -150,6 +164,15 @@ export async function syncNow(): Promise<void> {
         console.warn('Sync delta apply not implemented yet.', data.deltas.length);
       }
     });
+    if (unacked.length > 0) {
+      const message = 'sync response missing opId ack';
+      inTransaction(() => {
+        markOutboxOpsFailed(unacked, message, (attemptCount) =>
+          nextAttemptAtFromNow(computeBackoffSeconds(attemptCount)),
+        );
+        updateSyncState({ last_error: message });
+      });
+    }
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     const nextFailureCount = (syncState.consecutive_failures ?? 0) + 1;
@@ -163,11 +186,9 @@ export async function syncNow(): Promise<void> {
         consecutive_failures: nextFailureCount,
       });
 
-      for (const op of ops) {
-        const opBackoff = computeBackoffSeconds(op.attempt_count + 1);
-        const opNextAttempt = nextAttemptAtFromNow(opBackoff);
-        markOutboxOpFailed(op.op_id, message, opNextAttempt);
-      }
+      markOutboxOpsFailed(ops, message, (attemptCount) =>
+        nextAttemptAtFromNow(computeBackoffSeconds(attemptCount)),
+      );
     });
   }
 }

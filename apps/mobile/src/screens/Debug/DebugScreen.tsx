@@ -13,6 +13,8 @@ import {
   getInProgressWorkout,
   getTableCounts,
   getSyncDebugInfo,
+  clearOutboxForDebug,
+  repairStaleInFlightOpsForDebug,
   resetInProgressWorkoutHardDelete,
   repairSessionsMissingSets,
 } from '../../db/debugRepo';
@@ -59,12 +61,27 @@ function Row({ label, value }: { label: string; value: string }) {
   );
 }
 
+function StackedRow({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={{ marginBottom: 8 }}>
+      <AppText color="textSecondary">{label}</AppText>
+      <AppText style={{ fontWeight: '600', marginTop: 2 }}>{value}</AppText>
+    </View>
+  );
+}
+
 function safeJsonParse(s: string) {
   try {
     return JSON.parse(s);
   } catch {
     return { _parseError: true, raw: s };
   }
+}
+
+function truncate(value: string | null | undefined, max = 120): string {
+  if (!value) return '—';
+  if (value.length <= max) return value;
+  return `${value.slice(0, max)}…`;
 }
 
 export function DebugScreen() {
@@ -84,7 +101,7 @@ export function DebugScreen() {
   useFocusEffect(
     useCallback(() => {
       refresh();
-      return () => {};
+      return () => { };
     }, [refresh]),
   );
 
@@ -156,6 +173,7 @@ export function DebugScreen() {
   }, [buildInfo, counts, inProgress]);
 
   const devOnly = __DEV__;
+  const baseUrl = process.env.EXPO_PUBLIC_API_BASE_URL ?? '—';
 
   return (
     <Screen padded style={{ flex: 1 }}>
@@ -301,18 +319,39 @@ export function DebugScreen() {
         <Card title="Sync">
           {syncInfo ? (
             <>
+              <Row label="API Base URL" value={baseUrl} />
               <Row label="Device ID" value={syncInfo.deviceId} />
               <Row label="Has token" value={syncInfo.hasDeviceToken ? 'true' : 'false'} />
-              <Row label="Guest user ID" value={syncInfo.guestUserId ?? '—'} />
-              <Row label="Pending ops" value={String(syncInfo.pendingOutboxCount)} />
+              <StackedRow label="Guest user ID" value={syncInfo.guestUserId ?? '—'} />
+              <Row label="Outbox total" value={String(syncInfo.outboxTotalCount)} />
+              <StackedRow
+                label="By status"
+                value={`pending ${syncInfo.outboxStatusCounts.pending} • failed ${syncInfo.outboxStatusCounts.failed} • in_flight ${syncInfo.outboxStatusCounts.in_flight} • acked ${syncInfo.outboxStatusCounts.acked}`}
+              />
+              <Row label="Due now" value={String(syncInfo.dueNowCount)} />
               <Row label="Cursor" value={syncInfo.syncState.cursor ?? '—'} />
               <Row label="Last sync" value={syncInfo.syncState.last_sync_at ?? '—'} />
-              <Row
-                label="Last error"
-                value={
-                  syncInfo.syncState.last_error ? syncInfo.syncState.last_error.slice(0, 120) : '—'
-                }
-              />
+              <Row label="Last error" value={truncate(syncInfo.syncState.last_error)} />
+
+              <AppText variant="subtitle" style={{ marginTop: tokens.spacing.md }}>
+                Recent ops
+              </AppText>
+              {syncInfo.recentOutboxOps.length === 0 ? (
+                <AppText color="textSecondary">No outbox ops yet.</AppText>
+              ) : (
+                syncInfo.recentOutboxOps.map((op) => (
+                  <View key={op.op_id} style={{ marginTop: tokens.spacing.sm }}>
+                    <AppText style={{ fontWeight: '600' }}>{op.op_id}</AppText>
+                    <AppText color="textSecondary">
+                      {`${op.status} • attempts ${op.attempt_count} • next ${op.next_attempt_at ?? '—'
+                        }`}
+                    </AppText>
+                    <AppText color="textSecondary">
+                      {`created ${op.created_at} • error ${truncate(op.last_error, 80)}`}
+                    </AppText>
+                  </View>
+                ))
+              )}
             </>
           ) : (
             <AppText color="textSecondary">Loading…</AppText>
@@ -339,10 +378,59 @@ export function DebugScreen() {
           </Pressable>
 
           <Pressable
-            disabled={!devOnly}
             onPress={async () => {
-              await syncNow();
+              await syncNow({ force: true });
               refresh();
+            }}
+            style={{
+              paddingVertical: tokens.spacing.md,
+              borderRadius: tokens.radius.md,
+              borderWidth: 1,
+              borderColor: tokens.colors.border,
+              alignItems: 'center',
+              marginTop: tokens.spacing.md,
+            }}
+          >
+            <AppText style={{ fontWeight: '700' }}>Sync now</AppText>
+          </Pressable>
+
+          <Pressable
+            onPress={() => {
+              const repaired = repairStaleInFlightOpsForDebug(120);
+              refresh();
+              Alert.alert('Repair complete', `Returned ${repaired} op(s) to failed.`);
+            }}
+            style={{
+              paddingVertical: tokens.spacing.md,
+              borderRadius: tokens.radius.md,
+              borderWidth: 1,
+              borderColor: tokens.colors.border,
+              alignItems: 'center',
+              marginTop: tokens.spacing.md,
+            }}
+          >
+            <AppText style={{ fontWeight: '700' }}>Repair stale in-flight</AppText>
+          </Pressable>
+
+          <Pressable
+            disabled={!devOnly}
+            onPress={() => {
+              Alert.alert(
+                'Clear outbox',
+                'This will delete all outbox ops and reset sync state. Continue?',
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  {
+                    text: 'Clear',
+                    style: 'destructive',
+                    onPress: () => {
+                      clearOutboxForDebug();
+                      refresh();
+                      Alert.alert('Done', 'Outbox cleared.');
+                    },
+                  },
+                ],
+              );
             }}
             style={{
               opacity: devOnly ? 1 : 0.4,
@@ -351,9 +439,10 @@ export function DebugScreen() {
               borderWidth: 1,
               borderColor: tokens.colors.border,
               alignItems: 'center',
+              marginTop: tokens.spacing.md,
             }}
           >
-            <AppText style={{ fontWeight: '700' }}>Sync now (dev-only)</AppText>
+            <AppText style={{ fontWeight: '700' }}>Clear outbox (dev-only)</AppText>
           </Pressable>
         </Card>
       </ScrollView>

@@ -2,6 +2,7 @@ import { exec, query } from './db';
 import { inTransaction } from './tx';
 import { newId } from '../utils/ids';
 import { getDeviceToken, getGuestUserId, getOrCreateDeviceId } from './appMetaRepo';
+import { clearOutboxAndSyncState, repairStaleInFlightOps } from './outboxRepo';
 import { getSyncState } from './syncStateRepo';
 
 export type TableCounts = Record<string, number>;
@@ -128,11 +129,29 @@ export function repairSessionsMissingSets(): number {
     return missing.length;
   });
 }
+
+export function repairStaleInFlightOpsForDebug(maxAgeSeconds: number): number {
+  return repairStaleInFlightOps(maxAgeSeconds);
+}
+
+export function clearOutboxForDebug(): void {
+  clearOutboxAndSyncState();
+}
 export type SyncDebugInfo = {
   deviceId: string;
   hasDeviceToken: boolean;
   guestUserId: string | null;
-  pendingOutboxCount: number;
+  outboxTotalCount: number;
+  outboxStatusCounts: Record<string, number>;
+  dueNowCount: number;
+  recentOutboxOps: Array<{
+    op_id: string;
+    status: string;
+    attempt_count: number;
+    next_attempt_at: string | null;
+    created_at: string;
+    last_error: string | null;
+  }>;
   syncState: ReturnType<typeof getSyncState>;
 };
 
@@ -140,20 +159,71 @@ export function getSyncDebugInfo(): SyncDebugInfo {
   const deviceId = getOrCreateDeviceId();
   const hasDeviceToken = Boolean(getDeviceToken());
   const guestUserId = getGuestUserId();
-  const pendingRow = query<{ c: number }>(
+  const totalRow = query<{ c: number }>(
     `
     SELECT COUNT(*) AS c
     FROM outbox_op
-    WHERE status IN ('pending', 'failed')
-      AND (next_attempt_at IS NULL OR datetime(next_attempt_at) <= datetime('now'));
+    WHERE status IN ('pending', 'failed', 'in_flight', 'acked');
   `,
   )[0];
+
+  const statusRows = query<{ status: string; c: number }>(
+    `
+    SELECT status, COUNT(*) AS c
+    FROM outbox_op
+    GROUP BY status;
+  `,
+  );
+
+  const dueRow = query<{ c: number }>(
+    `
+    SELECT COUNT(*) AS c
+    FROM outbox_op
+    WHERE status IN ('pending', 'failed');
+  `,
+  )[0];
+
+  const recentOps = query<{
+    op_id: string;
+    status: string;
+    attempt_count: number;
+    next_attempt_at: string | null;
+    created_at: string;
+    last_error: string | null;
+  }>(
+    `
+    SELECT
+      op_id,
+      status,
+      attempt_count,
+      next_attempt_at,
+      created_at,
+      last_error
+    FROM outbox_op
+    ORDER BY created_at DESC
+    LIMIT 10;
+  `,
+  );
+
+  const outboxStatusCounts: Record<string, number> = {
+    pending: 0,
+    failed: 0,
+    in_flight: 0,
+    acked: 0,
+  };
+  for (const row of statusRows) {
+    outboxStatusCounts[row.status] = row.c;
+  }
+
 
   return {
     deviceId,
     hasDeviceToken,
     guestUserId,
-    pendingOutboxCount: pendingRow?.c ?? 0,
+    outboxTotalCount: totalRow?.c ?? 0,
+    outboxStatusCounts,
+    dueNowCount: dueRow?.c ?? 0,
+    recentOutboxOps: recentOps,
     syncState: getSyncState(),
   };
 }
