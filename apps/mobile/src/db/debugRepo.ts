@@ -236,7 +236,7 @@ export function verifySyncState(): { ok: boolean; message: string; missingColumn
   )[0];
 
   const cursor = cursorRow?.cursor ?? null;
-  const cursorValid = cursor === null || cursor === '' || /^\d+$/.test(cursor);
+  const cursorValid = cursor !== null && /^\d+$/.test(cursor);
 
   const ok = missingColumns.length === 0 && cursorValid;
   const message = ok

@@ -189,7 +189,7 @@ export function clearOutboxAndSyncState(): void {
     exec(
       `
       UPDATE sync_state
-      SET cursor = NULL,
+       SET cursor = '0',
           last_sync_at = NULL,
           last_error = NULL,
           backoff_until = NULL,

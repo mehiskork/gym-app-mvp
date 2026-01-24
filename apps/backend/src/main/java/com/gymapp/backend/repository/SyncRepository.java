@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gymapp.backend.model.SyncDelta;
 import java.util.List;
+import java.util.StringJoiner;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -80,23 +81,38 @@ public class SyncRepository {
                 toJson(payload));
     }
 
-    public List<SyncDelta> fetchDeltas(String guestUserId, long cursor, int limit) {
-        return jdbcTemplate.query(
+    public List<SyncDelta> fetchDeltas(String guestUserId, long cursor, int limit, List<String> allowedEntityTypes) {
+        StringJoiner placeholders = new StringJoiner(", ");
+        for (int i = 0; i < allowedEntityTypes.size(); i += 1) {
+            placeholders.add("?");
+        }
+        String inClause = placeholders.toString();
+        Object[] params = new Object[allowedEntityTypes.size() + 3];
+        params[0] = guestUserId;
+        params[1] = cursor;
+        for (int i = 0; i < allowedEntityTypes.size(); i += 1) {
+            params[i + 2] = allowedEntityTypes.get(i);
+        }
+        params[allowedEntityTypes.size() + 2] = limit;
+        String sql = String.format(
                 """
-                        SELECT entity_type, entity_id, op_type, row_json
+                        SELECT change_id, entity_type, entity_id, op_type, row_json
                         FROM change_log
                         WHERE guest_user_id = ? AND change_id > ?
+                         AND entity_type IN (%s)
                         ORDER BY change_id ASC
                         LIMIT ?
                         """,
+                inClause);
+        return jdbcTemplate.query(
+                sql,
                 (rs, rowNum) -> new SyncDelta(
+                        rs.getLong("change_id"),
                         rs.getString("entity_type"),
                         rs.getString("entity_id"),
                         rs.getString("op_type"),
                         parseJson(rs.getString("row_json"))),
-                guestUserId,
-                cursor,
-                limit);
+                params);
     }
 
     public long fetchMaxChangeId(String guestUserId, long cursor, int limit) {

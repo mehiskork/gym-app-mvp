@@ -7,6 +7,7 @@ export type SyncDelta = {
     entityId: string;
     opType: string;
     payload: unknown;
+    changeId?: number;
 };
 
 type TableConfig = {
@@ -380,7 +381,12 @@ function isForeignKeyError(err: unknown): boolean {
 function applyDelta(delta: SyncDelta): DeltaOutcome {
     const config = tableConfigs[delta.entityType];
     if (!config) {
-        throw new Error(`Unknown sync entity type: ${delta.entityType}`);
+        logEvent('warn', 'sync', 'Skipped delta with unknown entity type', {
+            entityType: delta.entityType,
+            entityId: delta.entityId,
+            changeId: delta.changeId ?? null,
+        });
+        return 'skipped';
     }
 
     const payload = normalizePayload(delta.payload, delta.entityId, config);
@@ -397,6 +403,16 @@ function applyDelta(delta: SyncDelta): DeltaOutcome {
 
     const opType = delta.opType.toLowerCase();
     if (opType === 'delete') {
+        const incomingDeletedAt =
+            (payload.deleted_at as string | undefined) ?? (payload.deletedAt as string | undefined) ?? null;
+        if (!incomingDeletedAt) {
+            logEvent('warn', 'sync', 'Skipped delete delta without deleted_at', {
+                entityType: delta.entityType,
+                entityId: delta.entityId,
+                changeId: delta.changeId ?? null,
+            });
+            return 'skipped';
+        }
         applyDelete(config, payload);
         return 'applied';
     }

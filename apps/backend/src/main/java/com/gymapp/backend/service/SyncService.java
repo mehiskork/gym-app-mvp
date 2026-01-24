@@ -10,6 +10,7 @@ import com.gymapp.backend.model.SyncResponse;
 import com.gymapp.backend.repository.DeviceRepository;
 import com.gymapp.backend.repository.DeviceTokenRepository;
 import com.gymapp.backend.repository.SyncRepository;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.stereotype.Service;
@@ -39,6 +40,13 @@ public class SyncService {
                 .orElseThrow(() -> new ForbiddenException("Unknown device"));
 
         List<SyncAck> acks = new ArrayList<>();
+        List<String> allowedEntityTypes = List.copyOf(SyncEntityTypes.ALLOWED_TYPES);
+
+        for (SyncOp op : ops) {
+            if (!allowedEntityTypes.contains(op.entityType())) {
+                throw new IllegalArgumentException("Unsupported entityType: " + op.entityType());
+            }
+        }
 
         for (SyncOp op : ops) {
             if (syncRepository.opExists(op.opId())) {
@@ -50,16 +58,18 @@ public class SyncService {
             if (!opType.equals("upsert") && !opType.equals("delete")) {
                 throw new IllegalArgumentException("Invalid opType: " + op.opType());
             }
-
+            JsonNode payload;
             if (opType.equals("upsert")) {
                 syncRepository.upsertEntityState(guestUserId, op.entityType(), op.entityId(), op.payload());
+                payload = op.payload();
+
             } else {
                 syncRepository.deleteEntityState(guestUserId, op.entityType(), op.entityId());
+                Instant now = Instant.now();
+                payload = JsonNodeFactory.instance.objectNode()
+                        .put("deleted_at", now.toString())
+                        .put("updated_at", now.toString());
             }
-
-            JsonNode payload = opType.equals("delete")
-                    ? JsonNodeFactory.instance.objectNode()
-                    : op.payload();
 
             syncRepository.insertOpLedger(op.opId(), deviceId, guestUserId);
             syncRepository.insertChangeLog(guestUserId, op.entityType(), op.entityId(), opType, payload);
@@ -67,10 +77,9 @@ public class SyncService {
         }
 
         long parsedCursor = parseCursor(cursor);
-        List<SyncDelta> deltas = syncRepository.fetchDeltas(guestUserId, parsedCursor, DELTA_LIMIT);
-        long newCursor = deltas.isEmpty()
-                ? parsedCursor
-                : syncRepository.fetchMaxChangeId(guestUserId, parsedCursor, DELTA_LIMIT);
+
+        List<SyncDelta> deltas = syncRepository.fetchDeltas(guestUserId, parsedCursor, DELTA_LIMIT, allowedEntityTypes);
+        long newCursor = syncRepository.fetchMaxChangeId(guestUserId, parsedCursor, DELTA_LIMIT);
 
         return new SyncResponse(acks, String.valueOf(newCursor), deltas);
     }
@@ -82,7 +91,7 @@ public class SyncService {
         try {
             return Long.parseLong(cursor);
         } catch (NumberFormatException ex) {
-            throw new IllegalArgumentException("Cursor must be a number");
+            return 0L;
         }
     }
 }

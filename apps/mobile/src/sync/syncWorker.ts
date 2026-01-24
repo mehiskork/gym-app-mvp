@@ -19,7 +19,12 @@ import { safeJsonParse } from '../utils/json';
 import { logEvent } from '../utils/logger';
 import { applyDeltas, type SyncDelta } from './applyDeltas';
 
-const DEFAULT_BATCH_LIMIT = 50;
+import {
+  OUTBOX_STALE_IN_FLIGHT_SECONDS,
+  SYNC_BACKOFF_BASE_SECONDS,
+  SYNC_BACKOFF_MAX_SECONDS,
+  SYNC_BATCH_LIMIT,
+} from './constants';
 
 function getBaseUrl(): string | null {
   return process.env.EXPO_PUBLIC_API_BASE_URL ?? null;
@@ -31,8 +36,8 @@ function nextAttemptAtFromNow(seconds: number): string {
 }
 
 function computeBackoffSeconds(attemptCount: number): number {
-  const base = 5 * Math.pow(2, attemptCount);
-  return Math.min(base, 300);
+  const base = SYNC_BACKOFF_BASE_SECONDS * Math.pow(2, attemptCount);
+  return Math.min(base, SYNC_BACKOFF_MAX_SECONDS);
 }
 
 
@@ -104,8 +109,8 @@ export async function syncNow(options: { force?: boolean; pullOnly?: boolean } =
     return;
   }
 
-  repairStaleInFlightOps(120);
-  const ops = options.pullOnly ? [] : claimOutboxOps(DEFAULT_BATCH_LIMIT);
+  repairStaleInFlightOps(OUTBOX_STALE_IN_FLIGHT_SECONDS);
+  const ops = options.pullOnly ? [] : claimOutboxOps(SYNC_BATCH_LIMIT);
   const cursor = syncState.cursor;
 
   try {
