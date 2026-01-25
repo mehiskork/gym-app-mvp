@@ -415,6 +415,14 @@ export function DebugScreen() {
               <Row label="Last sync" value={syncInfo.syncState.last_sync_at ?? '—'} />
               <Row label="Last error" value={truncate(syncInfo.syncState.last_error)} />
               <Row label="Last delta count" value={String(syncInfo.syncState.last_delta_count ?? 0)} />
+              <Row
+                label="Last ack summary"
+                value={
+                  syncInfo.lastSyncAckSummary
+                    ? `applied ${syncInfo.lastSyncAckSummary.applied} • noop ${syncInfo.lastSyncAckSummary.noop} • rejected ${syncInfo.lastSyncAckSummary.rejected}`
+                    : '—'
+                }
+              />
 
               <AppText variant="subtitle" style={{ marginTop: tokens.spacing.md }}>
                 Recent ops

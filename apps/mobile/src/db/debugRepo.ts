@@ -1,7 +1,13 @@
 import { exec, query } from './db';
 import { inTransaction } from './tx';
 import { newId } from '../utils/ids';
-import { getDeviceToken, getEffectiveUserId, getGuestUserId, getOrCreateDeviceId } from './appMetaRepo';
+import {
+  getDeviceToken,
+  getEffectiveUserId,
+  getGuestUserId,
+  getLastSyncAckSummary,
+  getOrCreateDeviceId,
+} from './appMetaRepo';
 import { clearOutboxAndSyncState, repairStaleInFlightOps } from './outboxRepo';
 import { getSyncState } from './syncStateRepo';
 import { DEFAULT_REST_SECONDS, OUTBOX_STATUS, WORKOUT_SESSION_STATUS } from './constants';
@@ -265,6 +271,7 @@ export type SyncDebugInfo = {
   hasDeviceToken: boolean;
   guestUserId: string | null;
   effectiveUserId: string;
+  lastSyncAckSummary: ReturnType<typeof getLastSyncAckSummary>;
   outboxTotalCount: number;
   outboxStatusCounts: Record<string, number>;
   dueNowCount: number;
@@ -386,6 +393,7 @@ export function getSyncDebugInfo(): SyncDebugInfo {
     hasDeviceToken,
     guestUserId,
     effectiveUserId,
+    lastSyncAckSummary: getLastSyncAckSummary(),
     outboxTotalCount: totalRow?.c ?? 0,
     outboxStatusCounts,
     dueNowCount: dueRow?.c ?? 0,

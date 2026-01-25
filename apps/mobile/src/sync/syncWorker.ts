@@ -4,6 +4,7 @@ import {
   getGuestUserId,
   getOrCreateDeviceId,
   getOrCreateDeviceSecret,
+  setLastSyncAckSummary,
   setDeviceToken,
   setGuestUserId,
 } from '../db/appMetaRepo';
@@ -139,12 +140,30 @@ export async function syncNow(options: { force?: boolean; pullOnly?: boolean } =
     }
 
     const data = (await response.json()) as {
-      acks: Array<{ opId: string }>;
+      acks: Array<{ opId: string; status?: string; reason?: string | null }>;
       cursor?: string;
       deltas?: SyncDelta[];
     };
 
-    const ackIds = data.acks?.map((ack) => ack.opId) ?? [];
+    const opsById = new Map(ops.map((op) => [op.op_id, op]));
+    const ackCounts = { applied: 0, noop: 0, rejected: 0 };
+    const ackIds =
+      data.acks?.map((ack) => {
+        const status = ack.status ?? 'applied';
+        if (status === 'applied') ackCounts.applied += 1;
+        else if (status === 'noop') ackCounts.noop += 1;
+        else if (status === 'rejected') ackCounts.rejected += 1;
+        if (status === 'rejected') {
+          const op = opsById.get(ack.opId);
+          logEvent('warn', 'sync', 'Sync op rejected', {
+            opId: ack.opId,
+            entityType: op?.entity_type ?? null,
+            entityId: op?.entity_id ?? null,
+            reason: ack.reason ?? null,
+          });
+        }
+        return ack.opId;
+      }) ?? [];
     const acked = new Set(ackIds);
     const unacked = ops.filter((op) => !acked.has(op.op_id));
     let deltaSummary = { applied: 0, skipped: 0, total: 0 };
@@ -163,10 +182,13 @@ export async function syncNow(options: { force?: boolean; pullOnly?: boolean } =
         consecutive_failures: 0,
         last_delta_count: deltaSummary.applied,
       });
-
+      setLastSyncAckSummary(ackCounts);
     });
     logEvent('info', 'sync', 'Sync response processed', {
       ackCount: ackIds.length,
+      ackApplied: ackCounts.applied,
+      ackNoop: ackCounts.noop,
+      ackRejected: ackCounts.rejected,
       deltaApplied: deltaSummary.applied,
       deltaSkipped: deltaSummary.skipped,
       deltaTotal: deltaSummary.total,

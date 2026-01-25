@@ -1,5 +1,6 @@
 import { exec, query } from './db';
 import { newId } from '../utils/ids';
+import { safeJsonParse } from '../utils/json';
 
 export function getMeta(key: string): string | null {
   const row = query<{ value: string }>(
@@ -25,6 +26,28 @@ export function setMeta(key: string, value: string) {
   `,
     [key, value],
   );
+}
+
+export type SyncAckSummary = {
+  applied: number;
+  noop: number;
+  rejected: number;
+};
+
+export function setLastSyncAckSummary(summary: SyncAckSummary) {
+  setMeta('last_sync_ack_summary', JSON.stringify(summary));
+}
+
+export function getLastSyncAckSummary(): SyncAckSummary | null {
+  const raw = getMeta('last_sync_ack_summary');
+  if (!raw) return null;
+  const parsed = safeJsonParse(raw) as Partial<SyncAckSummary> | null;
+  if (!parsed || typeof parsed !== 'object') return null;
+  return {
+    applied: typeof parsed.applied === 'number' ? parsed.applied : 0,
+    noop: typeof parsed.noop === 'number' ? parsed.noop : 0,
+    rejected: typeof parsed.rejected === 'number' ? parsed.rejected : 0,
+  };
 }
 
 function clearMeta(key: string) {

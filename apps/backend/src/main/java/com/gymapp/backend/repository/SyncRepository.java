@@ -4,6 +4,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gymapp.backend.model.SyncDelta;
+import java.time.Instant;
+import java.util.Optional;
 import java.util.List;
 import java.util.StringJoiner;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -56,15 +58,18 @@ public class SyncRepository {
                 toJson(payload));
     }
 
-    public void deleteEntityState(String guestUserId, String entityType, String entityId) {
+    public void deleteEntityState(String guestUserId, String entityType, String entityId, JsonNode payload) {
         jdbcTemplate.update(
                 """
-                        DELETE FROM entity_state
-                        WHERE guest_user_id = ? AND entity_type = ? AND entity_id = ?
+                        INSERT INTO entity_state (guest_user_id, entity_type, entity_id, row_json)
+                        VALUES (?, ?, ?, ?::jsonb)
+                        ON CONFLICT (guest_user_id, entity_type, entity_id)
+                        DO UPDATE SET row_json = EXCLUDED.row_json, updated_at = now()
                         """,
                 guestUserId,
                 entityType,
-                entityId);
+                entityId,
+                toJson(payload));
     }
 
     public void insertChangeLog(String guestUserId, String entityType, String entityId, String opType,
@@ -79,6 +84,35 @@ public class SyncRepository {
                 entityId,
                 opType,
                 toJson(payload));
+    }
+
+    public Optional<JsonNode> findEntityState(String guestUserId, String entityType, String entityId) {
+        return jdbcTemplate.query(
+                """
+                        SELECT row_json
+                        FROM entity_state
+                        WHERE guest_user_id = ? AND entity_type = ? AND entity_id = ?
+                        """,
+                (rs, rowNum) -> parseJson(rs.getString("row_json")),
+                guestUserId,
+                entityType,
+                entityId).stream().findFirst();
+    }
+
+    public Optional<Instant> findLatestChangeLogTimestamp(String guestUserId, String entityType, String entityId) {
+        return jdbcTemplate.query(
+                """
+                        SELECT MAX(created_at) AS latest
+                        FROM change_log
+                        WHERE guest_user_id = ? AND entity_type = ? AND entity_id = ?
+                        """,
+                (rs, rowNum) -> {
+                    java.sql.Timestamp ts = rs.getTimestamp("latest");
+                    return ts == null ? null : ts.toInstant();
+                },
+                guestUserId,
+                entityType,
+                entityId).stream().findFirst().flatMap(Optional::ofNullable);
     }
 
     public List<SyncDelta> fetchDeltas(String guestUserId, long cursor, int limit, List<String> allowedEntityTypes) {
