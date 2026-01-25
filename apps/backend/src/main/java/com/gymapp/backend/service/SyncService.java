@@ -63,28 +63,29 @@ public class SyncService {
                         }
 
                         Instant receivedAt = Instant.now();
-                        Optional<JsonNode> existingState = syncRepository.findEntityState(
-                                        guestUserId,
-                                        op.entityType(),
-                                        op.entityId());
-                        Optional<Instant> existingReceivedAt = syncRepository.findLatestChangeLogTimestamp(
-                                        guestUserId,
-                                        op.entityType(),
-                                        op.entityId());
+                        Optional<SyncRepository.EntityStateRecord> existingState = syncRepository
+                                        .findEntityStateWithReceivedAt(
+                                                        guestUserId,
+                                                        op.entityType(),
+                                                        op.entityId());
+                        JsonNode existingPayload = existingState.map(SyncRepository.EntityStateRecord::payload)
+                                        .orElse(null);
+                        Instant existingReceivedAt = existingState.map(SyncRepository.EntityStateRecord::lastReceivedAt)
+                                        .orElse(null);
 
                         ResolutionResult resolution = resolveConflict(
                                         guestUserId,
                                         op,
                                         opType,
-                                        existingState.orElse(null),
-                                        existingReceivedAt.orElse(null),
+                                        existingPayload,
+                                        existingReceivedAt,
                                         receivedAt);
 
-                        syncRepository.insertOpLedger(op.opId(), deviceId, guestUserId);
+                        syncRepository.insertOpLedger(op.opId(), deviceId, guestUserId, receivedAt);
 
                         if (resolution.status().equals("applied")) {
                                 syncRepository.upsertEntityState(guestUserId, op.entityType(), op.entityId(),
-                                                resolution.payload());
+                                                resolution.payload(), receivedAt);
                                 syncRepository.insertChangeLog(guestUserId, op.entityType(), op.entityId(), opType,
                                                 resolution.payload());
                         }
@@ -174,9 +175,13 @@ public class SyncService {
                         return new ResolutionResult("noop", "delete already applied", null);
                 }
 
-                ResolutionResult immutability = enforceImmutability(guestUserId, op, existingPayload, deletePayload);
-                if (immutability != null) {
-                        return immutability;
+                Instant incomingUpdatedAt = parseInstant(deletePayload, "updated_at", "updatedAt");
+                int compare = compareByLww(existingPayload, deletePayload, existingUpdatedAt, incomingUpdatedAt,
+                                existingReceivedAt, incomingReceivedAt);
+                if (compare <= 0) {
+                        return new ResolutionResult("noop",
+                                        compare == 0 ? "conflict tie resolved to existing" : "stale delete",
+                                        null);
                 }
 
                 return new ResolutionResult("applied", null, mergeDelete(existingPayload, deletePayload));

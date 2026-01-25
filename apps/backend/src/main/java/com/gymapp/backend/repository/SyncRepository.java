@@ -33,43 +33,50 @@ public class SyncRepository {
         return count != null && count > 0;
     }
 
-    public void insertOpLedger(String opId, String deviceId, String guestUserId) {
+    public void insertOpLedger(String opId, String deviceId, String guestUserId, Instant receivedAt) {
         jdbcTemplate.update(
                 """
-                        INSERT INTO op_ledger (op_id, device_id, guest_user_id)
-                        VALUES (?, ?, ?)
+                          INSERT INTO op_ledger (op_id, device_id, guest_user_id, received_at)
+                        VALUES (?, ?, ?, ?)
                         """,
                 opId,
                 deviceId,
-                guestUserId);
+                guestUserId,
+                receivedAt);
     }
 
-    public void upsertEntityState(String guestUserId, String entityType, String entityId, JsonNode payload) {
+    public void upsertEntityState(String guestUserId, String entityType, String entityId, JsonNode payload,
+            Instant receivedAt) {
         jdbcTemplate.update(
                 """
-                        INSERT INTO entity_state (guest_user_id, entity_type, entity_id, row_json)
-                        VALUES (?, ?, ?, ?::jsonb)
+                        INSERT INTO entity_state (guest_user_id, entity_type, entity_id, row_json, last_received_at)
+                        VALUES (?, ?, ?, ?::jsonb, ?)
                         ON CONFLICT (guest_user_id, entity_type, entity_id)
-                        DO UPDATE SET row_json = EXCLUDED.row_json, updated_at = now()
+                        DO UPDATE SET row_json = EXCLUDED.row_json, updated_at = now(),
+                          last_received_at = EXCLUDED.last_received_at
                         """,
                 guestUserId,
                 entityType,
                 entityId,
-                toJson(payload));
+                toJson(payload),
+                receivedAt);
     }
 
-    public void deleteEntityState(String guestUserId, String entityType, String entityId, JsonNode payload) {
+    public void deleteEntityState(String guestUserId, String entityType, String entityId, JsonNode payload,
+            Instant receivedAt) {
         jdbcTemplate.update(
                 """
-                        INSERT INTO entity_state (guest_user_id, entity_type, entity_id, row_json)
-                        VALUES (?, ?, ?, ?::jsonb)
+                         INSERT INTO entity_state (guest_user_id, entity_type, entity_id, row_json, last_received_at)
+                        VALUES (?, ?, ?, ?::jsonb, ?)
                         ON CONFLICT (guest_user_id, entity_type, entity_id)
-                        DO UPDATE SET row_json = EXCLUDED.row_json, updated_at = now()
+                          DO UPDATE SET row_json = EXCLUDED.row_json, updated_at = now(),
+                          last_received_at = EXCLUDED.last_received_at
                         """,
                 guestUserId,
                 entityType,
                 entityId,
-                toJson(payload));
+                toJson(payload),
+                receivedAt);
     }
 
     public void insertChangeLog(String guestUserId, String entityType, String entityId, String opType,
@@ -99,20 +106,23 @@ public class SyncRepository {
                 entityId).stream().findFirst();
     }
 
-    public Optional<Instant> findLatestChangeLogTimestamp(String guestUserId, String entityType, String entityId) {
+    public Optional<EntityStateRecord> findEntityStateWithReceivedAt(String guestUserId, String entityType,
+            String entityId) {
         return jdbcTemplate.query(
                 """
-                        SELECT MAX(created_at) AS latest
-                        FROM change_log
+                        SELECT row_json, last_received_at
+                        FROM entity_state
                         WHERE guest_user_id = ? AND entity_type = ? AND entity_id = ?
                         """,
-                (rs, rowNum) -> {
-                    java.sql.Timestamp ts = rs.getTimestamp("latest");
-                    return ts == null ? null : ts.toInstant();
-                },
+
+                (rs, rowNum) -> new EntityStateRecord(
+                        parseJson(rs.getString("row_json")),
+                        rs.getTimestamp("last_received_at").toInstant()),
                 guestUserId,
                 entityType,
-                entityId).stream().findFirst().flatMap(Optional::ofNullable);
+
+                entityId).stream().findFirst();
+
     }
 
     public List<SyncDelta> fetchDeltas(String guestUserId, long cursor, int limit, List<String> allowedEntityTypes) {
@@ -182,5 +192,8 @@ public class SyncRepository {
         } catch (JsonProcessingException ex) {
             throw new IllegalArgumentException("Unable to parse stored JSON", ex);
         }
+    }
+
+    public record EntityStateRecord(JsonNode payload, Instant lastReceivedAt) {
     }
 }
