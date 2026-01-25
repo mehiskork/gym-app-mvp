@@ -7,9 +7,11 @@ import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
+@RequestMapping("/device")
 public class DeviceController {
     private final DeviceService deviceService;
 
@@ -17,7 +19,7 @@ public class DeviceController {
         this.deviceService = deviceService;
     }
 
-    @PostMapping("/device/register")
+    @PostMapping("/register")
     public ResponseEntity<DeviceRegisterResponse> registerDevice(@Valid @RequestBody DeviceRegisterRequest request) {
         return ResponseEntity.ok(deviceService.registerDevice(request.deviceId(), request.deviceSecret()));
     }
