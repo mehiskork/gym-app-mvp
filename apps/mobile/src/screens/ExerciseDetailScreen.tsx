@@ -12,32 +12,16 @@ import {
   listExerciseSessionsWithSets,
   type SessionWithSets,
 } from '../db/exerciseDetailRepo';
+import {
+  durationSeconds,
+  formatDateTime,
+  formatDurationSeconds,
+  formatKg,
+} from '../utils/format';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ExerciseDetail'>;
 
-function formatDateTime(iso: string) {
-  const d = new Date(iso);
-  return d.toLocaleString();
-}
 
-function durationSeconds(startIso: string, endIso: string | null) {
-  if (!endIso) return null;
-  const s = new Date(startIso).getTime();
-  const e = new Date(endIso).getTime();
-  const sec = Math.max(0, Math.floor((e - s) / 1000));
-  return sec;
-}
-
-function formatDuration(sec: number | null) {
-  if (sec === null) return '';
-  const m = Math.floor(sec / 60);
-  const s = sec % 60;
-  return `${m}m ${s}s`;
-}
-
-function formatKg(n: number) {
-  return n % 1 === 0 ? String(Math.trunc(n)) : n.toFixed(1);
-}
 
 function formatSetLine(weight: number | null, reps: number | null) {
   const w = weight ?? 0;
@@ -98,7 +82,7 @@ export function ExerciseDetailScreen({ route, navigation }: Props) {
 
   const lastDuration = useMemo(() => {
     if (!last) return '';
-    return formatDuration(durationSeconds(last.started_at, last.ended_at));
+    return formatDurationSeconds(durationSeconds(last.started_at, last.ended_at));
   }, [last]);
 
   const metrics = useMemo(() => {

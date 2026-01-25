@@ -29,6 +29,7 @@ import { seedTestPlan } from '../../db/seed/seedTestPlan';
 import { query } from '../../db/db';
 import appConfig from '../../../app.json';
 import { registerDeviceIfNeeded, syncNow } from '../../sync/syncWorker';
+import { OUTBOX_STALE_IN_FLIGHT_SECONDS } from '../../sync/constants';
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -504,7 +505,7 @@ export function DebugScreen() {
 
           <Pressable
             onPress={() => {
-              const repaired = repairStaleInFlightOpsForDebug(120);
+              const repaired = repairStaleInFlightOpsForDebug(OUTBOX_STALE_IN_FLIGHT_SECONDS);
               refresh();
               Alert.alert('Repair complete', `Returned ${repaired} op(s) to failed.`);
             }}

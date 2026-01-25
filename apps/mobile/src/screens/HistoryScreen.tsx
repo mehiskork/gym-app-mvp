@@ -8,6 +8,7 @@ import type { RootStackParamList } from '../navigation/types';
 import { Screen } from '../components/Screen';
 import { AppText } from '../components/AppText';
 import { tokens } from '../theme/tokens';
+import { formatDateTime, formatVolume, formatWeekLabel } from '../utils/format';
 
 import {
   deleteAllCompletedSessions,
@@ -25,20 +26,7 @@ import {
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
-function formatDate(iso: string) {
-  const d = new Date(iso);
-  return d.toLocaleString();
-}
 
-function formatVolume(n: number) {
-  return Math.round(n).toLocaleString();
-}
-
-function formatWeekLabel(weekStart: string) {
-  // weekStart is YYYY-MM-DD
-  const d = new Date(`${weekStart}T00:00:00Z`);
-  return `Week of ${d.toLocaleDateString()}`;
-}
 
 export function HistoryScreen() {
   const navigation = useNavigation<Nav>();
@@ -239,7 +227,7 @@ export function HistoryScreen() {
             >
               <AppText variant="subtitle">{item.title}</AppText>
               <AppText color="textSecondary">
-                {formatDate(item.ended_at ?? item.started_at)}
+                {formatDateTime(item.ended_at ?? item.started_at)}
               </AppText>
             </Pressable>
 

@@ -11,6 +11,7 @@ import { AppText } from '../components/AppText';
 import { PrimaryButton, SecondaryButton } from '../components/Buttons';
 import { tokens } from '../theme/tokens';
 import { completeSession } from '../db/workoutSessionRepo';
+import { DEFAULT_REST_SECONDS } from '../db/constants';
 import {
   addWorkoutSet,
   clearRestTimer,
@@ -22,6 +23,7 @@ import {
   type LoggerSession,
   type LoggerSet,
 } from '../db/workoutLoggerRepo';
+import { formatMMSS, formatOptionalNumber, secondsElapsed } from '../utils/format';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'WorkoutSession'>;
 
@@ -32,31 +34,6 @@ function parseNumber(input: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-function formatNumber(n: number | null, decimals = 2): string {
-  if (n === null) return '';
-  // avoid trailing .00 if integer-ish
-  const asStr = n % 1 === 0 ? String(Math.trunc(n)) : n.toFixed(decimals);
-  return asStr;
-}
-
-function parseSqliteDateMs(input: string): number {
-  // SQLite: "YYYY-MM-DD HH:MM:SS" (UTC) -> "YYYY-MM-DDTHH:MM:SSZ"
-  const iso = input.includes('T') ? input : `${input.replace(' ', 'T')}Z`;
-  return Date.parse(iso);
-}
-
-function secondsElapsed(startAt: string | null): number {
-  if (!startAt) return 0;
-  const startMs = parseSqliteDateMs(startAt);
-  if (!Number.isFinite(startMs)) return 0;
-  return Math.max(0, Math.floor((Date.now() - startMs) / 1000));
-}
-
-function formatMMSS(totalSeconds: number): string {
-  const m = Math.floor(totalSeconds / 60);
-  const s = totalSeconds % 60;
-  return `${m}:${String(s).padStart(2, '0')}`;
-}
 
 export function WorkoutSessionScreen({ route, navigation }: Props) {
   const { sessionId } = route.params;
@@ -142,7 +119,7 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
           <View style={{ flex: 1 }}>
             <AppText color="textSecondary">kg</AppText>
             <TextInput
-              defaultValue={formatNumber(set.weight, 2)}
+              defaultValue={formatOptionalNumber(set.weight, 2)}
               keyboardType="decimal-pad"
               placeholder="0"
               placeholderTextColor={tokens.colors.textSecondary}
@@ -194,7 +171,7 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
 
             // Start rest timer when marking done
             if (!done) {
-              const seconds = set.rest_seconds ?? 90;
+              const seconds = set.rest_seconds ?? DEFAULT_REST_SECONDS;
               startRestTimer(sessionId, seconds, wse.exercise_name);
             }
             load();
@@ -296,11 +273,11 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
               setSession((prev) =>
                 prev
                   ? {
-                      ...prev,
-                      rest_timer_end_at: null,
-                      rest_timer_label: null,
-                      rest_timer_seconds: null,
-                    }
+                    ...prev,
+                    rest_timer_end_at: null,
+                    rest_timer_label: null,
+                    rest_timer_seconds: null,
+                  }
                   : prev,
               );
 

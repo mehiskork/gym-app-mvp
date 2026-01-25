@@ -8,7 +8,12 @@ import { Screen } from '../components/Screen';
 import { AppText } from '../components/AppText';
 import { tokens } from '../theme/tokens';
 import { listSessionPrEvents, recomputeSessionPrsIfNeeded, type PrEventRow } from '../db/prRepo';
-
+import {
+  durationSeconds,
+  formatDateTime,
+  formatDurationSeconds,
+  formatNumber,
+} from '../utils/format';
 import {
   getSessionDetail,
   type SessionExerciseRow,
@@ -18,28 +23,7 @@ import {
 
 type Props = NativeStackScreenProps<RootStackParamList, 'SessionDetail'>;
 
-function formatDateTime(iso: string) {
-  const d = new Date(iso);
-  return d.toLocaleString();
-}
 
-function durationSeconds(startIso: string, endIso: string | null) {
-  if (!endIso) return null;
-  const s = new Date(startIso).getTime();
-  const e = new Date(endIso).getTime();
-  const sec = Math.max(0, Math.floor((e - s) / 1000));
-  return sec;
-}
-
-function formatDuration(sec: number | null) {
-  if (sec === null) return '';
-  const m = Math.floor(sec / 60);
-  const s = sec % 60;
-  return `${m}m ${s}s`;
-}
-function formatNumber(n: number) {
-  return n % 1 === 0 ? String(Math.trunc(n)) : n.toFixed(2);
-}
 
 function formatPr(e: PrEventRow): string {
   if (e.pr_type === 'weight') return `Weight PR: ${formatNumber(e.value)} kg`;
@@ -110,7 +94,7 @@ export function SessionDetailScreen({ route, navigation }: Props) {
     );
   }
 
-  const dur = formatDuration(durationSeconds(session.started_at, session.ended_at));
+  const dur = formatDurationSeconds(durationSeconds(session.started_at, session.ended_at));
 
   return (
     <Screen style={{ flex: 1 }}>
