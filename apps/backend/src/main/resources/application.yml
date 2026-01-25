@@ -3,9 +3,6 @@ spring:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/gymapp}
     username: ${SPRING_DATASOURCE_USERNAME:gymapp}
     password: ${SPRING_DATASOURCE_PASSWORD:gymapp}
-  jackson:
-    serialization:
-      WRITE_DATES_AS_TIMESTAMPS: false
   flyway:
     enabled: true
 
