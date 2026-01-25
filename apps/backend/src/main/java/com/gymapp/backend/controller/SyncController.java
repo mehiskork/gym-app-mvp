@@ -4,6 +4,7 @@ import com.gymapp.backend.model.SyncRequest;
 import com.gymapp.backend.model.SyncResponse;
 import com.gymapp.backend.service.SyncService;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -11,12 +12,9 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
+@RequiredArgsConstructor
 public class SyncController {
     private final SyncService syncService;
-
-    public SyncController(SyncService syncService) {
-        this.syncService = syncService;
-    }
 
     @PostMapping("/sync")
     public ResponseEntity<SyncResponse> sync(

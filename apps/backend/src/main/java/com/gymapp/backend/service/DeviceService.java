@@ -6,23 +6,17 @@ import com.gymapp.backend.repository.DeviceRepository;
 import com.gymapp.backend.repository.DeviceTokenRepository;
 import java.util.Optional;
 import java.util.UUID;
+import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
+@RequiredArgsConstructor
 public class DeviceService {
     private final DeviceRepository deviceRepository;
     private final DeviceTokenRepository deviceTokenRepository;
     private final PasswordEncoder passwordEncoder;
-
-    public DeviceService(DeviceRepository deviceRepository,
-            DeviceTokenRepository deviceTokenRepository,
-            PasswordEncoder passwordEncoder) {
-        this.deviceRepository = deviceRepository;
-        this.deviceTokenRepository = deviceTokenRepository;
-        this.passwordEncoder = passwordEncoder;
-    }
 
     @Transactional
     public DeviceRegisterResponse registerDevice(String deviceId, String deviceSecret) {

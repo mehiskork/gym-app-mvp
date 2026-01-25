@@ -15,24 +15,18 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
+@RequiredArgsConstructor
 public class SyncService {
         private static final int DELTA_LIMIT = 1000;
 
         private final DeviceTokenRepository deviceTokenRepository;
         private final DeviceRepository deviceRepository;
         private final SyncRepository syncRepository;
-
-        public SyncService(DeviceTokenRepository deviceTokenRepository,
-                        DeviceRepository deviceRepository,
-                        SyncRepository syncRepository) {
-                this.deviceTokenRepository = deviceTokenRepository;
-                this.deviceRepository = deviceRepository;
-                this.syncRepository = syncRepository;
-        }
 
         @Transactional
         public SyncResponse sync(String deviceToken, String cursor, List<SyncOp> ops) {
