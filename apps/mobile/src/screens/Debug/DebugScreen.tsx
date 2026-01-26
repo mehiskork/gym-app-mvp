@@ -23,7 +23,9 @@ import {
   validateStatusEnums,
   verifySyncState,
   getWeekStartDebugInfo,
+  getSupportBundle,
 } from '../../db/debugRepo';
+import { listSyncRuns } from '../../db/syncRunRepo';
 
 import { seedTestPlan } from '../../db/seed/seedTestPlan';
 import { query } from '../../db/db';
@@ -94,14 +96,17 @@ export function DebugScreen() {
   const [weekStartDebug, setWeekStartDebug] = useState<
     ReturnType<typeof getWeekStartDebugInfo> | null
   >(null);
+  const [syncRuns, setSyncRuns] = useState<ReturnType<typeof listSyncRuns>>([]);
 
   const refresh = useCallback(() => {
     const c = getTableCounts();
     const ip = getInProgressWorkout();
     const info = getSyncDebugInfo();
+    const runs = listSyncRuns(10);
     setCounts(c);
     setInProgress(ip);
     setSyncInfo(info);
+    setSyncRuns(runs);
     if (__DEV__) {
       setSyncStateHealth(verifySyncState());
       setWeekStartDebug(getWeekStartDebugInfo());
@@ -181,6 +186,49 @@ export function DebugScreen() {
     await Clipboard.setStringAsync(json);
     Alert.alert('Copied', 'Debug JSON copied to clipboard.');
   }, [buildInfo, counts, inProgress]);
+
+  const exportSupportBundle = useCallback(async () => {
+    const bundle = getSupportBundle();
+    const json = JSON.stringify(bundle, null, 2);
+
+    const timestamp = new Date();
+    const pad = (value: number) => value.toString().padStart(2, '0');
+    const fileName = `gymapp_support_${timestamp.getFullYear()}${pad(
+      timestamp.getMonth() + 1,
+    )}${pad(timestamp.getDate())}_${pad(timestamp.getHours())}${pad(
+      timestamp.getMinutes(),
+    )}${pad(timestamp.getSeconds())}.json`;
+
+    const copyToClipboard = async () => {
+      await Clipboard.setStringAsync(json);
+      Alert.alert('Copied', 'Support bundle JSON copied to clipboard.');
+    };
+
+    try {
+      const baseDir = FileSystem.cacheDirectory ?? FileSystem.documentDirectory;
+      if (baseDir) {
+        const path = `${baseDir}${fileName}`;
+        await FileSystem.writeAsStringAsync(path, json, {
+          encoding: FileSystem.EncodingType.UTF8,
+        });
+
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(path, { mimeType: 'application/json' });
+          return;
+        }
+
+        Alert.alert('Sharing unavailable', 'Support bundle saved locally.', [
+          { text: 'Copy to clipboard', onPress: copyToClipboard },
+          { text: 'OK' },
+        ]);
+        return;
+      }
+    } catch {
+      // fall through to clipboard
+    }
+
+    await copyToClipboard();
+  }, []);
 
   const devOnly = __DEV__;
   const baseUrl = process.env.EXPO_PUBLIC_API_BASE_URL ?? '—';
@@ -390,6 +438,24 @@ export function DebugScreen() {
           </AppText>
         </Card>
 
+        <Card title="Support">
+          <Pressable
+            onPress={exportSupportBundle}
+            style={{
+              paddingVertical: tokens.spacing.md,
+              borderRadius: tokens.radius.md,
+              borderWidth: 1,
+              borderColor: tokens.colors.border,
+              alignItems: 'center',
+            }}
+          >
+            <AppText style={{ fontWeight: '700' }}>Export support bundle</AppText>
+          </Pressable>
+          <AppText color="textSecondary" style={{ marginTop: tokens.spacing.md }}>
+            Export includes sync state, outbox stats, recent sync runs, and table counts.
+          </AppText>
+        </Card>
+
         <Card title="Sync">
           {syncInfo ? (
             <>
@@ -587,6 +653,28 @@ export function DebugScreen() {
           >
             <AppText style={{ fontWeight: '700' }}>Clear outbox (dev-only)</AppText>
           </Pressable>
+        </Card>
+        <Card title="Sync Runs">
+          {syncRuns.length === 0 ? (
+            <AppText color="textSecondary">No sync runs yet.</AppText>
+          ) : (
+            syncRuns.map((run) => (
+              <View key={run.id} style={{ marginBottom: tokens.spacing.md }}>
+                <AppText style={{ fontWeight: '600' }}>
+                  {`${new Date(run.started_at).toLocaleString()} • ${run.status}`}
+                </AppText>
+                <AppText color="textSecondary">
+                  {`ops ${run.ops_sent} • deltas ${run.deltas_applied}`}
+                </AppText>
+                <AppText color="textSecondary">
+                  {`cursor ${run.cursor_before ?? '—'} → ${run.cursor_after ?? '—'}`}
+                </AppText>
+                <AppText color="textSecondary">
+                  {`error ${run.error_code ?? '—'}`}
+                </AppText>
+              </View>
+            ))
+          )}
         </Card>
       </ScrollView>
     </Screen>

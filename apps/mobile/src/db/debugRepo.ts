@@ -1,3 +1,4 @@
+import * as Application from 'expo-application';
 import { exec, query } from './db';
 import { inTransaction } from './tx';
 import { newId } from '../utils/ids';
@@ -5,6 +6,7 @@ import {
   getDeviceToken,
   getEffectiveUserId,
   getGuestUserId,
+  getMeta,
   getLastSyncAckSummary,
   getOrCreateDeviceId,
 } from './appMetaRepo';
@@ -12,6 +14,7 @@ import { clearOutboxAndSyncState, repairStaleInFlightOps } from './outboxRepo';
 import { getSyncState } from './syncStateRepo';
 import { DEFAULT_REST_SECONDS, OUTBOX_STATUS, WORKOUT_SESSION_STATUS } from './constants';
 import { weekStartExpression } from './dateSql';
+import { listSyncRuns, type SyncRun } from './syncRunRepo';
 
 export type TableCounts = Record<string, number>;
 
@@ -28,6 +31,7 @@ export function getTableCounts(): TableCounts {
     'workout_set',
     'pr_event',
     'app_log',
+    'sync_run',
   ];
 
   const counts: TableCounts = {};
@@ -286,6 +290,40 @@ export type SyncDebugInfo = {
   syncState: ReturnType<typeof getSyncState>;
 };
 
+export type SupportBundle = {
+  exportedAt: string;
+  app: {
+    applicationId: string | null;
+    applicationName: string | null;
+    nativeApplicationVersion: string | null;
+    nativeBuildVersion: string | null;
+  };
+  device: {
+    deviceId: string;
+    guestUserId: string | null;
+    localUserId: string | null;
+  };
+  syncState: ReturnType<typeof getSyncState>;
+  outbox: {
+    totalCount: number;
+    byStatus: Record<string, number>;
+    dueNowCount: number;
+    recentOps: Array<{
+      opId: string;
+      entityType: string;
+      entityId: string;
+      opType: string;
+      status: string;
+      attemptCount: number;
+      lastError: string | null;
+      createdAt: string;
+      updatedAt: string;
+    }>;
+  };
+  syncRuns: SyncRun[];
+  tableCounts: TableCounts;
+};
+
 export type WeekStartDebugInfo = {
   weekStartNow: string;
   recentWeekBuckets: Array<{ week_start: string; sessions: number }>;
@@ -401,3 +439,92 @@ export function getSyncDebugInfo(): SyncDebugInfo {
     syncState: getSyncState(),
   };
 }
+export function getSupportBundle(): SupportBundle {
+  const deviceId = getOrCreateDeviceId();
+  const guestUserId = getMeta('guest_user_id');
+  const localUserId = getMeta('local_user_id');
+
+  const totalRow = query<{ c: number }>(`SELECT COUNT(*) AS c FROM outbox_op;`)[0];
+  const statusRows = query<{ status: string; c: number }>(
+    `
+    SELECT status, COUNT(*) AS c
+    FROM outbox_op
+    GROUP BY status;
+  `,
+  );
+  const dueRow = query<{ c: number }>(
+    `
+    SELECT COUNT(*) AS c
+    FROM outbox_op
+    WHERE status IN ('${OUTBOX_STATUS.PENDING}', '${OUTBOX_STATUS.FAILED}')
+      AND (next_attempt_at IS NULL OR datetime(next_attempt_at) <= datetime('now'));
+  `,
+  )[0];
+  const recentOps = query<{
+    op_id: string;
+    entity_type: string;
+    entity_id: string;
+    op_type: string;
+    status: string;
+    attempt_count: number;
+    last_error: string | null;
+    created_at: string;
+    updated_at: string;
+  }>(
+    `
+    SELECT
+      op_id,
+      entity_type,
+      entity_id,
+      op_type,
+      status,
+      attempt_count,
+      last_error,
+      created_at,
+      updated_at
+    FROM outbox_op
+    ORDER BY created_at DESC
+    LIMIT 50;
+  `,
+  );
+
+  const outboxStatusCounts: Record<string, number> = {};
+  for (const row of statusRows) {
+    outboxStatusCounts[row.status] = row.c;
+  }
+
+  return {
+    exportedAt: new Date().toISOString(),
+    app: {
+      applicationId: Application.applicationId ?? null,
+      applicationName: Application.applicationName ?? null,
+      nativeApplicationVersion: Application.nativeApplicationVersion ?? null,
+      nativeBuildVersion: Application.nativeBuildVersion ?? null,
+    },
+    device: {
+      deviceId,
+      guestUserId,
+      localUserId,
+    },
+    syncState: getSyncState(),
+    outbox: {
+      totalCount: totalRow?.c ?? 0,
+      byStatus: outboxStatusCounts,
+      dueNowCount: dueRow?.c ?? 0,
+      recentOps: recentOps.map((op) => ({
+        opId: op.op_id,
+        entityType: op.entity_type,
+        entityId: op.entity_id,
+        opType: op.op_type,
+        status: op.status,
+        attemptCount: op.attempt_count,
+        lastError: op.last_error,
+        createdAt: op.created_at,
+        updatedAt: op.updated_at,
+      })),
+    },
+    syncRuns: listSyncRuns(20),
+    tableCounts: getTableCounts(),
+  };
+}
+

@@ -10,6 +10,7 @@ import { migration009_app_log } from './009_app_log';
 import { migration010_sync_foundations } from './010_sync_foundations';
 import { migration011_outbox_inflight } from './011_outbox_inflight';
 import { migration012_sync_state_delta_count } from './012_sync_state_delta_count';
+import { migration013_sync_run } from './013_sync_run';
 
 export type Migration = {
   id: number;
@@ -30,4 +31,5 @@ export const migrations: Migration[] = [
   migration010_sync_foundations,
   migration011_outbox_inflight,
   migration012_sync_state_delta_count,
+  migration013_sync_run,
 ];

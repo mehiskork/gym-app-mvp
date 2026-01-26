@@ -15,6 +15,7 @@ import {
   repairStaleInFlightOps,
 } from '../db/outboxRepo';
 import { getSyncState, normalizeCursor, updateSyncState } from '../db/syncStateRepo';
+import { createSyncRun, finishSyncRun } from '../db/syncRunRepo';
 import { inTransaction } from '../db/tx';
 import { safeJsonParse } from '../utils/json';
 import { logEvent } from '../utils/logger';
@@ -39,6 +40,19 @@ function nextAttemptAtFromNow(seconds: number): string {
 function computeBackoffSeconds(attemptCount: number): number {
   const base = SYNC_BACKOFF_BASE_SECONDS * Math.pow(2, attemptCount);
   return Math.min(base, SYNC_BACKOFF_MAX_SECONDS);
+}
+function classifyErrorCode(err: unknown, httpStatus?: number | null): string {
+  if (httpStatus === 401) return 'http_401';
+  if (httpStatus === 403) return 'http_403';
+  if (httpStatus === 429) return 'http_429';
+  if (typeof httpStatus === 'number' && httpStatus >= 500) return 'server_error';
+
+  const message = err instanceof Error ? err.message : String(err ?? '');
+  if (/network/i.test(message)) return 'network';
+  if (/timeout/i.test(message)) return 'network';
+  if (/offline/i.test(message)) return 'network';
+
+  return 'unknown';
 }
 
 
@@ -113,6 +127,17 @@ export async function syncNow(options: { force?: boolean; pullOnly?: boolean } =
   repairStaleInFlightOps(OUTBOX_STALE_IN_FLIGHT_SECONDS);
   const ops = options.pullOnly ? [] : claimOutboxOps(SYNC_BATCH_LIMIT);
   const cursor = syncState.cursor;
+  const runId = createSyncRun({ cursorBefore: cursor });
+  const opsSent = ops.length;
+  let ackCounts = { applied: 0, noop: 0, rejected: 0 };
+  let deltasReceived = 0;
+  let deltasApplied = 0;
+  let cursorAfter = cursor;
+  let httpStatus: number | null = null;
+  let errorCode: string | null = null;
+  let errorMessage: string | null = null;
+  let backoffSeconds: number | null = null;
+  let status: 'success' | 'failed' = 'failed';
 
   try {
     const response = await fetch(`${baseUrl}/sync`, {
@@ -135,7 +160,10 @@ export async function syncNow(options: { force?: boolean; pullOnly?: boolean } =
       }),
     });
 
+    httpStatus = response.status;
+
     if (!response.ok) {
+      errorCode = classifyErrorCode(null, response.status);
       throw new Error(`sync failed: ${response.status}`);
     }
 
@@ -146,7 +174,7 @@ export async function syncNow(options: { force?: boolean; pullOnly?: boolean } =
     };
 
     const opsById = new Map(ops.map((op) => [op.op_id, op]));
-    const ackCounts = { applied: 0, noop: 0, rejected: 0 };
+    ackCounts = { applied: 0, noop: 0, rejected: 0 };
     const ackIds =
       data.acks?.map((ack) => {
         const status = ack.status ?? 'applied';
@@ -167,6 +195,8 @@ export async function syncNow(options: { force?: boolean; pullOnly?: boolean } =
     const acked = new Set(ackIds);
     const unacked = ops.filter((op) => !acked.has(op.op_id));
     let deltaSummary = { applied: 0, skipped: 0, total: 0 };
+    deltasReceived = data.deltas?.length ?? 0;
+    cursorAfter = normalizeCursor(data.cursor ?? cursor);
 
     inTransaction(() => {
       if (!options.pullOnly) {
@@ -174,8 +204,9 @@ export async function syncNow(options: { force?: boolean; pullOnly?: boolean } =
       }
 
       deltaSummary = applyDeltas(data.deltas ?? []);
+      deltasApplied = deltaSummary.applied;
       updateSyncState({
-        cursor: normalizeCursor(data.cursor ?? cursor),
+        cursor: cursorAfter,
         last_sync_at: new Date().toISOString(),
         last_error: null,
         backoff_until: null,
@@ -183,6 +214,7 @@ export async function syncNow(options: { force?: boolean; pullOnly?: boolean } =
         last_delta_count: deltaSummary.applied,
       });
       setLastSyncAckSummary(ackCounts);
+      status = 'success';
     });
     logEvent('info', 'sync', 'Sync response processed', {
       ackCount: ackIds.length,
@@ -205,8 +237,10 @@ export async function syncNow(options: { force?: boolean; pullOnly?: boolean } =
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     const nextFailureCount = (syncState.consecutive_failures ?? 0) + 1;
-    const backoffSeconds = computeBackoffSeconds(nextFailureCount);
+    backoffSeconds = computeBackoffSeconds(nextFailureCount);
     const nextAttempt = nextAttemptAtFromNow(backoffSeconds);
+    errorMessage = message;
+    errorCode = errorCode ?? classifyErrorCode(err, httpStatus);
 
     inTransaction(() => {
       updateSyncState({
@@ -218,6 +252,21 @@ export async function syncNow(options: { force?: boolean; pullOnly?: boolean } =
       markOutboxOpsFailed(ops, message, (attemptCount) =>
         nextAttemptAtFromNow(computeBackoffSeconds(attemptCount)),
       );
+    });
+  } finally {
+    finishSyncRun(runId, {
+      status,
+      cursorAfter,
+      opsSent,
+      acksApplied: ackCounts.applied,
+      acksNoop: ackCounts.noop,
+      acksRejected: ackCounts.rejected,
+      deltasReceived,
+      deltasApplied,
+      httpStatus,
+      errorCode,
+      errorMessage,
+      backoffSeconds,
     });
   }
 }
