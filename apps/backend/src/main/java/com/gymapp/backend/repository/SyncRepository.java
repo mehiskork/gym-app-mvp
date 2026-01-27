@@ -4,6 +4,7 @@ import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 import com.gymapp.backend.model.SyncDelta;
 import java.time.Instant;
+import java.sql.Timestamp;
 import java.util.LinkedHashMap;
 import java.util.Optional;
 import java.util.List;
@@ -40,7 +41,7 @@ public class SyncRepository {
                                 opId,
                                 deviceId,
                                 guestUserId,
-                                receivedAt);
+                                toTimestamp(receivedAt));
         }
 
         public void upsertEntityState(String guestUserId, String entityType, String entityId,
@@ -58,7 +59,7 @@ public class SyncRepository {
                                 entityType,
                                 entityId,
                                 toJson(payload),
-                                receivedAt);
+                                toTimestamp(receivedAt));
         }
 
         public void deleteEntityState(String guestUserId, String entityType, String entityId,
@@ -76,7 +77,7 @@ public class SyncRepository {
                                 entityType,
                                 entityId,
                                 toJson(payload),
-                                receivedAt);
+                                toTimestamp(receivedAt));
         }
 
         public void insertChangeLog(String guestUserId, String entityType, String entityId, String opType,
@@ -197,6 +198,10 @@ public class SyncRepository {
                 } catch (Exception ex) {
                         throw new IllegalArgumentException("Unable to parse stored JSON", ex);
                 }
+        }
+
+        private Timestamp toTimestamp(Instant instant) {
+                return instant == null ? null : Timestamp.from(instant);
         }
 
         public record EntityStateRecord(Map<String, Object> payload, Instant lastReceivedAt) {
