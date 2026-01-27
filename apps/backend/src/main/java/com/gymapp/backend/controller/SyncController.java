@@ -6,9 +6,9 @@ import com.gymapp.backend.service.SyncService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -18,19 +18,9 @@ public class SyncController {
 
     @PostMapping("/sync")
     public ResponseEntity<SyncResponse> sync(
-            @RequestHeader(value = "Authorization", required = false) String authorization,
+            Authentication authentication,
             @Valid @RequestBody SyncRequest request) {
-        String token = extractBearerToken(authorization);
-        return ResponseEntity.ok(syncService.sync(token, request.cursor(), request.ops()));
-    }
-
-    private String extractBearerToken(String authorization) {
-        if (authorization == null || authorization.isBlank()) {
-            throw new UnauthorizedException("Missing Authorization header");
-        }
-        if (!authorization.startsWith("Bearer ")) {
-            throw new UnauthorizedException("Authorization header must use Bearer token");
-        }
-        return authorization.substring("Bearer ".length()).trim();
+        String deviceId = authentication.getName();
+        return ResponseEntity.ok(syncService.sync(deviceId, request.cursor(), request.ops()));
     }
 }

@@ -7,7 +7,6 @@ import com.gymapp.backend.model.SyncDelta;
 import com.gymapp.backend.model.SyncOp;
 import com.gymapp.backend.model.SyncResponse;
 import com.gymapp.backend.repository.DeviceRepository;
-import com.gymapp.backend.repository.DeviceTokenRepository;
 import com.gymapp.backend.repository.SyncRepository;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -25,14 +24,12 @@ import org.springframework.transaction.annotation.Transactional;
 public class SyncService {
         private static final int DELTA_LIMIT = 1000;
 
-        private final DeviceTokenRepository deviceTokenRepository;
         private final DeviceRepository deviceRepository;
         private final SyncRepository syncRepository;
 
         @Transactional
-        public SyncResponse sync(String deviceToken, String cursor, List<SyncOp> ops) {
-                String deviceId = deviceTokenRepository.findDeviceIdByToken(deviceToken)
-                                .orElseThrow(() -> new ForbiddenException("Invalid device token"));
+        public SyncResponse sync(String deviceId, String cursor, List<SyncOp> ops) {
+
                 String guestUserId = deviceRepository.findGuestUserId(deviceId)
                                 .orElseThrow(() -> new ForbiddenException("Unknown device"));
 

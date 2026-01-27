@@ -1,0 +1,81 @@
+package com.gymapp.backend.config;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.gymapp.backend.model.ErrorResponse;
+import com.gymapp.backend.repository.DeviceTokenRepository;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.util.List;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.filter.OncePerRequestFilter;
+
+@Slf4j
+@RequiredArgsConstructor
+public class BearerDeviceAuthFilter extends OncePerRequestFilter {
+
+    private final DeviceTokenRepository deviceTokenRepository;
+    private final ObjectMapper objectMapper;
+
+    @Override
+    protected void doFilterInternal(
+            HttpServletRequest request,
+            HttpServletResponse response,
+            FilterChain filterChain) throws ServletException, IOException {
+
+        // Only enforce on /sync (keep register + health public)
+        if (!"/sync".equals(request.getRequestURI())) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+        String auth = request.getHeader("Authorization");
+
+        // Missing / non-bearer: let Spring Security entrypoint produce the 401
+        if (auth == null || !auth.startsWith("Bearer ")) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+        String token = auth.substring("Bearer ".length()).trim();
+        if (token.isEmpty()) {
+            writeUnauthorized(response, "AUTH_UNAUTHORIZED", "Missing Bearer token");
+            return;
+        }
+
+        var deviceIdOpt = deviceTokenRepository.findDeviceIdByToken(token);
+        if (deviceIdOpt.isEmpty()) {
+            writeUnauthorized(response, "AUTH_UNAUTHORIZED", "Invalid token");
+            return;
+        }
+
+        var authn = new UsernamePasswordAuthenticationToken(
+                deviceIdOpt.get(),
+                null,
+                List.of(new SimpleGrantedAuthority("ROLE_DEVICE")));
+        SecurityContextHolder.getContext().setAuthentication(authn);
+
+        filterChain.doFilter(request, response);
+    }
+
+    private void writeUnauthorized(HttpServletResponse response, String code, String message) throws IOException {
+        String requestId = MDC.get("requestId");
+        if (requestId == null || requestId.isBlank())
+            requestId = "unknown";
+
+        response.setStatus(HttpStatus.UNAUTHORIZED.value());
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        response.setHeader(RequestIdFilter.REQUEST_ID_HEADER, requestId);
+
+        objectMapper.writeValue(response.getWriter(), new ErrorResponse(code, message, requestId, null));
+    }
+}
