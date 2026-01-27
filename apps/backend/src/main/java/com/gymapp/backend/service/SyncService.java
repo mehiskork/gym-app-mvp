@@ -1,6 +1,7 @@
 package com.gymapp.backend.service;
 
 import com.gymapp.backend.controller.ForbiddenException;
+import com.gymapp.backend.controller.ValidationException;
 import com.gymapp.backend.model.SyncAck;
 import com.gymapp.backend.model.SyncDelta;
 import com.gymapp.backend.model.SyncOp;
@@ -40,7 +41,9 @@ public class SyncService {
 
                 for (SyncOp op : ops) {
                         if (!allowedEntityTypes.contains(op.entityType())) {
-                                throw new IllegalArgumentException("Unsupported entityType: " + op.entityType());
+                                throw new ValidationException(
+                                                "Unsupported entityType: " + op.entityType(),
+                                                Map.of("entityType", op.entityType()));
                         }
                 }
 
@@ -53,7 +56,9 @@ public class SyncService {
 
                         String opType = op.opType().toLowerCase();
                         if (!opType.equals("upsert") && !opType.equals("delete")) {
-                                throw new IllegalArgumentException("Invalid opType: " + op.opType());
+                                throw new ValidationException(
+                                                "Invalid opType: " + op.opType(),
+                                                Map.of("opType", op.opType()));
                         }
 
                         Instant receivedAt = Instant.now();

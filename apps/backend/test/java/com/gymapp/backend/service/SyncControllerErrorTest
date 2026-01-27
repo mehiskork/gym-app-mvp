@@ -1,0 +1,65 @@
+package com.gymapp.backend.controller;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.gymapp.backend.config.RequestIdFilter;
+import com.gymapp.backend.service.SyncService;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+
+@WebMvcTest(controllers = SyncController.class)
+@Import({ApiExceptionHandler.class, RequestIdFilter.class})
+class SyncControllerErrorTest {
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @MockBean
+    private SyncService syncService;
+
+    @Test
+    void missingRequestIdHeaderGeneratesOneOnBadJson() throws Exception {
+        MvcResult result = mockMvc.perform(post("/sync")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{bad"))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().exists(RequestIdFilter.REQUEST_ID_HEADER))
+                .andExpect(jsonPath("$.code").value("BAD_REQUEST"))
+                .andReturn();
+
+        String requestId = result.getResponse().getHeader(RequestIdFilter.REQUEST_ID_HEADER);
+        JsonNode body = objectMapper.readTree(result.getResponse().getContentAsString());
+        assertThat(body.get("requestId").asText()).isEqualTo(requestId);
+    }
+
+    @Test
+    void providedRequestIdIsEchoedOnUnauthorized() throws Exception {
+        String requestId = "req-123";
+
+        MvcResult result = mockMvc.perform(post("/sync")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header(RequestIdFilter.REQUEST_ID_HEADER, requestId)
+                        .content("{\"cursor\":null,\"ops\":[]}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string(RequestIdFilter.REQUEST_ID_HEADER, requestId))
+                .andExpect(jsonPath("$.code").value("AUTH_UNAUTHORIZED"))
+                .andReturn();
+
+        JsonNode body = objectMapper.readTree(result.getResponse().getContentAsString());
+        assertThat(body.get("requestId").asText()).isEqualTo(requestId);
+    }
+}

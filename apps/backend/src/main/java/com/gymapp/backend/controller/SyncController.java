@@ -26,10 +26,10 @@ public class SyncController {
 
     private String extractBearerToken(String authorization) {
         if (authorization == null || authorization.isBlank()) {
-            throw new IllegalArgumentException("Missing Authorization header");
+            throw new UnauthorizedException("Missing Authorization header");
         }
         if (!authorization.startsWith("Bearer ")) {
-            throw new IllegalArgumentException("Authorization header must use Bearer token");
+            throw new UnauthorizedException("Authorization header must use Bearer token");
         }
         return authorization.substring("Bearer ".length()).trim();
     }
