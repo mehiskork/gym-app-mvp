@@ -1,8 +1,5 @@
 package com.gymapp.backend.service;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.gymapp.backend.controller.ForbiddenException;
 import com.gymapp.backend.model.SyncAck;
 import com.gymapp.backend.model.SyncDelta;
@@ -13,7 +10,10 @@ import com.gymapp.backend.repository.DeviceTokenRepository;
 import com.gymapp.backend.repository.SyncRepository;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -62,7 +62,8 @@ public class SyncService {
                                                         guestUserId,
                                                         op.entityType(),
                                                         op.entityId());
-                        JsonNode existingPayload = existingState.map(SyncRepository.EntityStateRecord::payload)
+                        Map<String, Object> existingPayload = existingState
+                                        .map(SyncRepository.EntityStateRecord::payload)
                                         .orElse(null);
                         Instant existingReceivedAt = existingState.map(SyncRepository.EntityStateRecord::lastReceivedAt)
                                         .orElse(null);
@@ -100,10 +101,10 @@ public class SyncService {
                         String guestUserId,
                         SyncOp op,
                         String opType,
-                        JsonNode existingPayload,
+                        Map<String, Object> existingPayload,
                         Instant existingReceivedAt,
                         Instant incomingReceivedAt) {
-                JsonNode incomingPayload = ensureEntityId(op.payload(), op.entityId());
+                Map<String, Object> incomingPayload = ensureEntityId(op.payload(), op.entityId());
 
                 Instant incomingUpdatedAt = parseInstant(incomingPayload, "updated_at", "updatedAt");
                 Instant incomingDeletedAt = parseInstant(incomingPayload, "deleted_at", "deletedAt");
@@ -111,7 +112,7 @@ public class SyncService {
                 Instant existingDeletedAt = parseInstant(existingPayload, "deleted_at", "deletedAt");
 
                 if (opType.equals("delete")) {
-                        ObjectNode deletePayload = ensureDeletePayload(incomingPayload, incomingDeletedAt,
+                        Map<String, Object> deletePayload = ensureDeletePayload(incomingPayload, incomingDeletedAt,
                                         incomingUpdatedAt);
                         return resolveDelete(guestUserId, op, existingPayload, existingDeletedAt, existingUpdatedAt,
                                         existingReceivedAt,
@@ -148,12 +149,12 @@ public class SyncService {
         private ResolutionResult resolveDelete(
                         String guestUserId,
                         SyncOp op,
-                        JsonNode existingPayload,
+                        Map<String, Object> existingPayload,
                         Instant existingDeletedAt,
                         Instant existingUpdatedAt,
                         Instant existingReceivedAt,
                         Instant incomingReceivedAt,
-                        ObjectNode deletePayload) {
+                        Map<String, Object> deletePayload) {
                 if (existingPayload == null) {
                         return new ResolutionResult("applied", null, deletePayload);
                 }
@@ -184,8 +185,8 @@ public class SyncService {
         private ResolutionResult enforceImmutability(
                         String guestUserId,
                         SyncOp op,
-                        JsonNode existingPayload,
-                        JsonNode incomingPayload) {
+                        Map<String, Object> existingPayload,
+                        Map<String, Object> incomingPayload) {
                 if ("delete".equals(op.opType().toLowerCase())) {
                         return null;
                 }
@@ -202,7 +203,7 @@ public class SyncService {
                 if (op.entityType().equals("workout_set")) {
                         String sessionId = resolveWorkoutSessionId(guestUserId, existingPayload, incomingPayload);
                         if (sessionId != null) {
-                                Optional<JsonNode> sessionPayload = syncRepository.findEntityState(
+                                Optional<Map<String, Object>> sessionPayload = syncRepository.findEntityState(
                                                 guestUserId,
                                                 "workout_session",
                                                 sessionId);
@@ -222,8 +223,8 @@ public class SyncService {
 
         private String resolveWorkoutSessionId(
                         String guestUserId,
-                        JsonNode existingPayload,
-                        JsonNode incomingPayload) {
+                        Map<String, Object> existingPayload,
+                        Map<String, Object> incomingPayload) {
                 String wseId = getText(incomingPayload, "workout_session_exercise_id");
                 if (wseId == null) {
                         wseId = getText(existingPayload, "workout_session_exercise_id");
@@ -231,29 +232,28 @@ public class SyncService {
                 if (wseId == null) {
                         return null;
                 }
-                Optional<JsonNode> wsePayload = syncRepository.findEntityState(
+                Optional<Map<String, Object>> wsePayload = syncRepository.findEntityState(
                                 guestUserId,
                                 "workout_session_exercise",
                                 wseId);
                 return wsePayload.map(node -> getText(node, "workout_session_id")).orElse(null);
         }
 
-        private boolean hasMutableChanges(JsonNode existingPayload, JsonNode incomingPayload) {
+        private boolean hasMutableChanges(Map<String, Object> existingPayload,
+                        Map<String, Object> incomingPayload) {
                 if (incomingPayload == null) {
                         return false;
                 }
                 if (existingPayload == null) {
                         return true;
                 }
-                var fields = incomingPayload.fieldNames();
-                while (fields.hasNext()) {
-                        String field = fields.next();
+                for (String field : incomingPayload.keySet()) {
                         if ("deleted_at".equals(field) || "deletedAt".equals(field)) {
                                 continue;
                         }
-                        JsonNode incomingValue = incomingPayload.get(field);
-                        JsonNode existingValue = existingPayload.get(field);
-                        if (existingValue == null || !existingValue.equals(incomingValue)) {
+                        Object incomingValue = incomingPayload.get(field);
+                        Object existingValue = existingPayload.get(field);
+                        if (!Objects.equals(existingValue, incomingValue)) {
                                 return true;
                         }
                 }
@@ -261,8 +261,8 @@ public class SyncService {
         }
 
         private int compareByLww(
-                        JsonNode existingPayload,
-                        JsonNode incomingPayload,
+                        Map<String, Object> existingPayload,
+                        Map<String, Object> incomingPayload,
                         Instant existingUpdatedAt,
                         Instant incomingUpdatedAt,
                         Instant existingReceivedAt,
@@ -290,8 +290,8 @@ public class SyncService {
         }
 
         private int compareDelete(
-                        JsonNode existingPayload,
-                        JsonNode incomingPayload,
+                        Map<String, Object> existingPayload,
+                        Map<String, Object> incomingPayload,
                         Instant existingDeletedAt,
                         Instant incomingDeletedAt,
                         Instant existingReceivedAt,
@@ -318,24 +318,26 @@ public class SyncService {
                 return incomingTie.compareTo(existingTie);
         }
 
-        private JsonNode ensureEntityId(JsonNode payload, String entityId) {
-                if (payload == null || payload.isNull()) {
-                        ObjectNode node = JsonNodeFactory.instance.objectNode();
+        private Map<String, Object> ensureEntityId(Map<String, Object> payload, String entityId) {
+                if (payload == null) {
+                        Map<String, Object> node = new LinkedHashMap<>();
                         node.put("id", entityId);
                         return node;
                 }
-                if (payload.hasNonNull("id")) {
+                Object existingId = payload.get("id");
+                if (existingId != null) {
                         return payload;
                 }
-                ObjectNode copy = payload.deepCopy();
+                Map<String, Object> copy = new LinkedHashMap<>(payload);
                 copy.put("id", entityId);
                 return copy;
         }
 
-        private ObjectNode ensureDeletePayload(JsonNode payload, Instant deletedAt, Instant updatedAt) {
-                ObjectNode copy = payload == null || payload.isNull()
-                                ? JsonNodeFactory.instance.objectNode()
-                                : payload.deepCopy();
+        private Map<String, Object> ensureDeletePayload(Map<String, Object> payload, Instant deletedAt,
+                        Instant updatedAt) {
+                Map<String, Object> copy = payload == null
+                                ? new LinkedHashMap<>()
+                                : new LinkedHashMap<>(payload);
                 Instant now = Instant.now();
                 Instant finalDeletedAt = deletedAt != null ? deletedAt : now;
                 Instant finalUpdatedAt = updatedAt != null ? updatedAt : finalDeletedAt;
@@ -344,28 +346,29 @@ public class SyncService {
                 return copy;
         }
 
-        private JsonNode mergeDelete(JsonNode existingPayload, ObjectNode deletePayload) {
-                if (existingPayload == null || existingPayload.isNull()) {
+        private Map<String, Object> mergeDelete(Map<String, Object> existingPayload,
+                        Map<String, Object> deletePayload) {
+                if (existingPayload == null) {
                         return deletePayload;
                 }
-                ObjectNode merged = existingPayload.deepCopy();
-                merged.set("deleted_at", deletePayload.get("deleted_at"));
-                merged.set("updated_at", deletePayload.get("updated_at"));
+                Map<String, Object> merged = new LinkedHashMap<>(existingPayload);
+                merged.put("deleted_at", deletePayload.get("deleted_at"));
+                merged.put("updated_at", deletePayload.get("updated_at"));
                 return merged;
         }
 
-        private Instant parseInstant(JsonNode payload, String field, String altField) {
-                if (payload == null || payload.isNull()) {
+        private Instant parseInstant(Map<String, Object> payload, String field, String altField) {
+                if (payload == null) {
                         return null;
                 }
-                JsonNode node = payload.get(field);
-                if (node == null && altField != null) {
-                        node = payload.get(altField);
+                Object valueObj = payload.get(field);
+                if (valueObj == null && altField != null) {
+                        valueObj = payload.get(altField);
                 }
-                if (node == null || node.isNull()) {
+                if (valueObj == null) {
                         return null;
                 }
-                String value = node.asText(null);
+                String value = valueObj.toString();
                 if (value == null || value.isBlank()) {
                         return null;
                 }
@@ -383,19 +386,19 @@ public class SyncService {
                 }
         }
 
-        private String getText(JsonNode payload, String field) {
-                if (payload == null || payload.isNull()) {
+        private String getText(Map<String, Object> payload, String field) {
+                if (payload == null) {
                         return null;
                 }
-                JsonNode node = payload.get(field);
-                if (node == null || node.isNull()) {
+                Object valueObj = payload.get(field);
+                if (valueObj == null) {
                         return null;
                 }
-                String value = node.asText();
+                String value = valueObj.toString();
                 return value == null || value.isBlank() ? null : value;
         }
 
-        private record ResolutionResult(String status, String reason, JsonNode payload) {
+        private record ResolutionResult(String status, String reason, Map<String, Object> payload) {
         }
 
         private long parseCursor(String cursor) {

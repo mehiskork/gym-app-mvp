@@ -1,11 +1,12 @@
 package com.gymapp.backend.model;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
+import java.util.Map;
 
 public record SyncDelta(
         long changeId,
         String entityType,
         String entityId,
         String opType,
-        JsonNode payload) {
+        Map<String, Object> payload) {
 }

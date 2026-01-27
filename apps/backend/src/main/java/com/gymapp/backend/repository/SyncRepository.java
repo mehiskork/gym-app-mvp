@@ -1,12 +1,13 @@
 package com.gymapp.backend.repository;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 import com.gymapp.backend.model.SyncDelta;
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.Optional;
 import java.util.List;
+import java.util.Map;
 import java.util.StringJoiner;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -42,7 +43,8 @@ public class SyncRepository {
                                 receivedAt);
         }
 
-        public void upsertEntityState(String guestUserId, String entityType, String entityId, JsonNode payload,
+        public void upsertEntityState(String guestUserId, String entityType, String entityId,
+                        Map<String, Object> payload,
                         Instant receivedAt) {
                 jdbcTemplate.update(
                                 """
@@ -59,7 +61,8 @@ public class SyncRepository {
                                 receivedAt);
         }
 
-        public void deleteEntityState(String guestUserId, String entityType, String entityId, JsonNode payload,
+        public void deleteEntityState(String guestUserId, String entityType, String entityId,
+                        Map<String, Object> payload,
                         Instant receivedAt) {
                 jdbcTemplate.update(
                                 """
@@ -77,7 +80,7 @@ public class SyncRepository {
         }
 
         public void insertChangeLog(String guestUserId, String entityType, String entityId, String opType,
-                        JsonNode payload) {
+                        Map<String, Object> payload) {
                 jdbcTemplate.update(
                                 """
                                                 INSERT INTO change_log (guest_user_id, entity_type, entity_id, op_type, row_json)
@@ -90,7 +93,7 @@ public class SyncRepository {
                                 toJson(payload));
         }
 
-        public Optional<JsonNode> findEntityState(String guestUserId, String entityType, String entityId) {
+        public Optional<Map<String, Object>> findEntityState(String guestUserId, String entityType, String entityId) {
                 return jdbcTemplate.query(
                                 """
                                                 SELECT row_json
@@ -176,22 +179,26 @@ public class SyncRepository {
                 return maxChangeId == null ? cursor : maxChangeId;
         }
 
-        private String toJson(JsonNode payload) {
+        private String toJson(Map<String, Object> payload) {
                 try {
                         return objectMapper.writeValueAsString(payload);
-                } catch (JsonProcessingException ex) {
+                } catch (Exception ex) {
                         throw new IllegalArgumentException("Invalid payload JSON", ex);
                 }
         }
 
-        private JsonNode parseJson(String json) {
+        private Map<String, Object> parseJson(String json) {
                 try {
-                        return objectMapper.readTree(json);
-                } catch (JsonProcessingException ex) {
+                        if (json == null || json.isBlank()) {
+                                return new LinkedHashMap<>();
+                        }
+                        return objectMapper.readValue(json, new TypeReference<>() {
+                        });
+                } catch (Exception ex) {
                         throw new IllegalArgumentException("Unable to parse stored JSON", ex);
                 }
         }
 
-        public record EntityStateRecord(JsonNode payload, Instant lastReceivedAt) {
+        public record EntityStateRecord(Map<String, Object> payload, Instant lastReceivedAt) {
         }
 }
