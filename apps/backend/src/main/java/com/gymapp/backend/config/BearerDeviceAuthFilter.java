@@ -1,6 +1,6 @@
 package com.gymapp.backend.config;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.gymapp.backend.model.ErrorResponse;
 import com.gymapp.backend.repository.DeviceTokenRepository;
 import jakarta.servlet.FilterChain;

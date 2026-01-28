@@ -1,0 +1,187 @@
+package com.gymapp.backend.controller;
+
+import com.gymapp.backend.model.SyncOp;
+import com.gymapp.backend.model.SyncRequest;
+import com.gymapp.backend.model.SyncResponse;
+import com.gymapp.backend.model.SyncAck;
+import com.gymapp.backend.model.SyncDelta;
+import com.gymapp.backend.service.SyncService;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.test.web.servlet.MockMvc;
+
+import java.util.List;
+import java.util.Map;
+
+import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+
+/**
+ * Fast unit tests for SyncController using MockMvc
+ * These tests run without starting a full Spring context or database
+ */
+@WebMvcTest(SyncController.class)
+class SyncControllerTest {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @MockitoBean
+    private SyncService syncService;
+
+    @Test
+    @WithMockUser(username = "device-123", roles = { "DEVICE" })
+    void sync_withValidRequest_shouldReturn200WithAcks() throws Exception {
+        // Arrange
+        SyncResponse mockResponse = new SyncResponse(
+                List.of(new SyncAck("op-1", "applied", null)),
+                "100",
+                List.of(),
+                false // hasMore
+        );
+        when(syncService.sync(eq("device-123"), eq("0"), any()))
+                .thenReturn(mockResponse);
+
+        // Act & Assert
+        mockMvc.perform(post("/sync")
+                .with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                            "cursor": "0",
+                            "ops": [{
+                                "opId": "op-1",
+                                "entityType": "workout",
+                                "entityId": "workout-1",
+                                "opType": "upsert",
+                                "payload": {"name": "Bench Press"}
+                            }]
+                        }
+                        """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.acks[0].opId").value("op-1"))
+                .andExpect(jsonPath("$.acks[0].status").value("applied"))
+                .andExpect(jsonPath("$.cursor").value("100"))
+                .andExpect(jsonPath("$.hasMore").value(false));
+    }
+
+    @Test
+    void sync_withoutAuth_shouldReturn401() throws Exception {
+        mockMvc.perform(post("/sync")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                            "cursor": "0",
+                            "ops": []
+                        }
+                        """))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("AUTH_UNAUTHORIZED"));
+    }
+
+    @Test
+    @WithMockUser(username = "device-456", roles = { "DEVICE" })
+    void sync_withMalformedJSON_shouldReturn400WithRequestId() throws Exception {
+        mockMvc.perform(post("/sync")
+                .with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("X-Request-Id", "client-request-123")
+                .content("{ invalid json }"))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string("X-Request-Id", notNullValue()))
+                .andExpect(jsonPath("$.code").value("BAD_REQUEST"))
+                .andExpect(jsonPath("$.requestId").value(notNullValue()));
+    }
+
+    @Test
+    @WithMockUser(username = "device-789", roles = { "DEVICE" })
+    void sync_withLargeResultSet_shouldReturnHasMoreTrue() throws Exception {
+        // Arrange: Mock 1000 deltas (exactly at limit)
+        List<SyncDelta> deltas = new java.util.ArrayList<>();
+        for (int i = 0; i < 1000; i++) {
+            deltas.add(new SyncDelta(i, "workout", "w-" + i, "upsert", Map.of("name", "Exercise " + i)));
+        }
+
+        SyncResponse mockResponse = new SyncResponse(
+                List.of(),
+                "1000",
+                deltas,
+                true // hasMore = true
+        );
+        when(syncService.sync(any(), any(), any()))
+                .thenReturn(mockResponse);
+
+        // Act & Assert
+        mockMvc.perform(post("/sync")
+                .with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                            "cursor": "0",
+                            "ops": []
+                        }
+                        """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.hasMore").value(true))
+                .andExpect(jsonPath("$.deltas.length()").value(1000));
+    }
+
+    @Test
+    @WithMockUser(username = "device-abc", roles = { "DEVICE" })
+    void sync_withInvalidOpType_shouldReturn400() throws Exception {
+        // Act & Assert
+        mockMvc.perform(post("/sync")
+                .with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                            "cursor": "0",
+                            "ops": [{
+                                "opId": "op-1",
+                                "entityType": "workout",
+                                "entityId": "w-1",
+                                "opType": "INVALID",
+                                "payload": {}
+                            }]
+                        }
+                        """))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @WithMockUser(username = "device-def", roles = { "DEVICE" })
+    void sync_withEmptyOps_shouldReturnOnlyDeltas() throws Exception {
+        // Arrange
+        SyncResponse mockResponse = new SyncResponse(
+                List.of(),
+                "50",
+                List.of(new SyncDelta(45L, "workout", "w-45", "upsert", Map.of("name", "Pull-ups"))),
+                false);
+        when(syncService.sync(eq("device-def"), eq("0"), any()))
+                .thenReturn(mockResponse);
+
+        // Act & Assert
+        mockMvc.perform(post("/sync")
+                .with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                            "cursor": "0",
+                            "ops": []
+                        }
+                        """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.acks.length()").value(0))
+                .andExpect(jsonPath("$.deltas.length()").value(1))
+                .andExpect(jsonPath("$.deltas[0].entityId").value("w-45"));
+    }
+}
