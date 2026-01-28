@@ -20,18 +20,6 @@ public class SyncRepository {
         private final JdbcTemplate jdbcTemplate;
         private final ObjectMapper objectMapper;
 
-        public boolean opExists(String opId) {
-                Integer count = jdbcTemplate.queryForObject(
-                                """
-                                                SELECT COUNT(*)
-                                                FROM op_ledger
-                                                WHERE op_id = ?
-                                                """,
-                                Integer.class,
-                                opId);
-                return count != null && count > 0;
-        }
-
         public void insertOpLedger(String opId, String deviceId, String guestUserId, Instant receivedAt) {
                 jdbcTemplate.update(
                                 """
@@ -115,15 +103,15 @@ public class SyncRepository {
                                                 FROM entity_state
                                                 WHERE guest_user_id = ? AND entity_type = ? AND entity_id = ?
                                                 """,
-
-                                (rs, rowNum) -> new EntityStateRecord(
-                                                parseJson(rs.getString("row_json")),
-                                                rs.getTimestamp("last_received_at").toInstant()),
+                                (rs, rowNum) -> {
+                                        var ts = rs.getTimestamp("last_received_at");
+                                        return new EntityStateRecord(
+                                                        parseJson(rs.getString("row_json")),
+                                                        ts == null ? null : ts.toInstant());
+                                },
                                 guestUserId,
                                 entityType,
-
                                 entityId).stream().findFirst();
-
         }
 
         public List<SyncDelta> fetchDeltas(String guestUserId, long cursor, int limit,
@@ -206,4 +194,19 @@ public class SyncRepository {
 
         public record EntityStateRecord(Map<String, Object> payload, Instant lastReceivedAt) {
         }
+
+        public boolean insertOpLedgerIfAbsent(String opId, String deviceId, String guestUserId, Instant receivedAt) {
+                int updated = jdbcTemplate.update(
+                                """
+                                                INSERT INTO op_ledger (op_id, device_id, guest_user_id, received_at)
+                                                VALUES (?, ?, ?, ?)
+                                                ON CONFLICT (op_id) DO NOTHING
+                                                """,
+                                opId,
+                                deviceId,
+                                guestUserId,
+                                toTimestamp(receivedAt));
+                return updated == 1;
+        }
+
 }

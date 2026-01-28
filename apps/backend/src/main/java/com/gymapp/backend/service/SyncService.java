@@ -43,14 +43,9 @@ public class SyncService {
                                                 Map.of("entityType", op.entityType()));
                         }
                 }
+                Instant requestReceivedAt = Instant.now();
 
                 for (SyncOp op : ops) {
-                        if (syncRepository.opExists(op.opId())) {
-
-                                acks.add(new SyncAck(op.opId(), "noop", "duplicate op"));
-                                continue;
-                        }
-
                         String opType = op.opType().toLowerCase();
                         if (!opType.equals("upsert") && !opType.equals("delete")) {
                                 throw new ValidationException(
@@ -58,16 +53,28 @@ public class SyncService {
                                                 Map.of("opType", op.opType()));
                         }
 
-                        Instant receivedAt = Instant.now();
+                        Instant receivedAt = requestReceivedAt;
+
+                        // Atomic dedupe: insert ledger row if absent
+                        boolean inserted = syncRepository.insertOpLedgerIfAbsent(op.opId(), deviceId, guestUserId,
+                                        receivedAt);
+                        if (!inserted) {
+                                acks.add(new SyncAck(op.opId(), "noop", "duplicate op"));
+                                continue;
+                        }
+
                         Optional<SyncRepository.EntityStateRecord> existingState = syncRepository
                                         .findEntityStateWithReceivedAt(
                                                         guestUserId,
                                                         op.entityType(),
                                                         op.entityId());
+
                         Map<String, Object> existingPayload = existingState
                                         .map(SyncRepository.EntityStateRecord::payload)
                                         .orElse(null);
-                        Instant existingReceivedAt = existingState.map(SyncRepository.EntityStateRecord::lastReceivedAt)
+
+                        Instant existingReceivedAt = existingState
+                                        .map(SyncRepository.EntityStateRecord::lastReceivedAt)
                                         .orElse(null);
 
                         ResolutionResult resolution = resolveConflict(
@@ -78,12 +85,19 @@ public class SyncService {
                                         existingReceivedAt,
                                         receivedAt);
 
-                        syncRepository.insertOpLedger(op.opId(), deviceId, guestUserId, receivedAt);
-
                         if (resolution.status().equals("applied")) {
-                                syncRepository.upsertEntityState(guestUserId, op.entityType(), op.entityId(),
-                                                resolution.payload(), receivedAt);
-                                syncRepository.insertChangeLog(guestUserId, op.entityType(), op.entityId(), opType,
+                                syncRepository.upsertEntityState(
+                                                guestUserId,
+                                                op.entityType(),
+                                                op.entityId(),
+                                                resolution.payload(),
+                                                receivedAt);
+
+                                syncRepository.insertChangeLog(
+                                                guestUserId,
+                                                op.entityType(),
+                                                op.entityId(),
+                                                opType,
                                                 resolution.payload());
                         }
 
