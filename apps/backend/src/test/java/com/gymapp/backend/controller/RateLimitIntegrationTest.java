@@ -100,7 +100,7 @@ class RateLimitIntegrationTest {
     void syncIsRateLimitedByDeviceId() throws Exception {
         String deviceId = "rate-limit-device-sync";
         String token = seedDeviceAndToken(deviceId);
-        when(syncService.sync(eq(deviceId), any(), any()))
+        when(syncService.sync(eq(deviceId), eq("guest-" + deviceId), any(), any()))
                 .thenReturn(new SyncResponse(List.of(), null, List.of(), false));
 
         MockHttpServletRequestBuilder request = post("/sync")

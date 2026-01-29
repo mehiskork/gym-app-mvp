@@ -1,5 +1,6 @@
 package com.gymapp.backend.controller;
 
+import com.gymapp.backend.config.DevicePrincipal;
 import com.gymapp.backend.model.SyncRequest;
 import com.gymapp.backend.model.SyncResponse;
 import com.gymapp.backend.service.SyncService;
@@ -20,7 +21,11 @@ public class SyncController {
     public ResponseEntity<SyncResponse> sync(
             Authentication authentication,
             @Valid @RequestBody SyncRequest request) {
-        String deviceId = authentication.getName();
-        return ResponseEntity.ok(syncService.sync(deviceId, request.cursor(), request.ops()));
+        DevicePrincipal principal = (DevicePrincipal) authentication.getPrincipal();
+        return ResponseEntity.ok(syncService.sync(
+                principal.getDeviceId(),
+                principal.getGuestUserId(),
+                request.cursor(),
+                request.ops()));
     }
 }

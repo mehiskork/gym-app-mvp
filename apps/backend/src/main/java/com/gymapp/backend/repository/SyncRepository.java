@@ -95,6 +95,19 @@ public class SyncRepository {
                                 entityId).stream().findFirst();
         }
 
+        public Optional<String> findEntityOwnerId(String guestUserId, String entityType, String entityId) {
+                return jdbcTemplate.query(
+                                """
+                                                SELECT guest_user_id
+                                                FROM entity_state
+                                                WHERE entity_type = ? AND entity_id = ? AND guest_user_id <> ?
+                                                """,
+                                (rs, rowNum) -> rs.getString("guest_user_id"),
+                                entityType,
+                                entityId,
+                                guestUserId).stream().findFirst();
+        }
+
         public Optional<EntityStateRecord> findEntityStateWithReceivedAt(String guestUserId, String entityType,
                         String entityId) {
                 return jdbcTemplate.query(

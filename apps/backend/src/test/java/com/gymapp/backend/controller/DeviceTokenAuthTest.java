@@ -106,7 +106,7 @@ class DeviceTokenAuthTest {
         String rawToken = "valid-token";
         insertDevice(deviceId, guestUserId);
         insertToken(rawToken, deviceId, Instant.now().plusSeconds(3600));
-        when(syncService.sync(eq(deviceId), any(), any()))
+        when(syncService.sync(eq(deviceId), eq(guestUserId), any(), any()))
                 .thenReturn(new SyncResponse(List.of(), null, List.of(), false));
 
         mockMvc.perform(post("/sync")

@@ -89,6 +89,9 @@ public class RateLimitFilter extends OncePerRequestFilter {
             return null;
         }
         Object principal = authentication.getPrincipal();
+        if (principal instanceof DevicePrincipal devicePrincipal) {
+            return devicePrincipal.getDeviceId();
+        }
         if (principal instanceof String deviceId) {
             return deviceId;
         }

@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @RestControllerAdvice
 // Error code taxonomy:
 // - AUTH_UNAUTHORIZED / AUTH_TOKEN_EXPIRED: authentication failures (401)
-// - AUTH_FORBIDDEN: authorization failures (403)
+// - AUTH_FORBIDDEN / SYNC_FORBIDDEN: authorization failures (403)
 // - BAD_REQUEST: malformed/invalid request bodies (400)
 // - SYNC_VALIDATION_ERROR: sync validation issues (400)
 // - IMMUTABLE_ENTITY: conflict/immutability violations (409)

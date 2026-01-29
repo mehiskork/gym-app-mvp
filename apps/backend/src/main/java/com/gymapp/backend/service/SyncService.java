@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,20 +24,24 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class SyncService {
         private static final int DELTA_LIMIT = 1000;
+        private static final Set<String> APP_META_DENYLIST = Set.of(
+                        "access_token",
+                        "auth_token",
+                        "device_token",
+                        "refresh_token",
+                        "secret",
+                        "token");
 
-        private final DeviceRepository deviceRepository;
         private final SyncRepository syncRepository;
 
         @Transactional
-        public SyncResponse sync(String deviceId, String cursor, List<SyncOp> ops) {
-
-                String guestUserId = deviceRepository.findGuestUserId(deviceId)
-                                .orElseThrow(() -> new ForbiddenException("Unknown device"));
+        public SyncResponse sync(String deviceId, String guestUserId, String cursor, List<SyncOp> ops) {
 
                 List<SyncAck> acks = new ArrayList<>();
                 List<String> allowedEntityTypes = List.copyOf(SyncEntityTypes.ALLOWED_TYPES);
 
                 long parsedCursor = parseCursorOrThrow(cursor);
+
                 validateOps(ops, allowedEntityTypes);
                 Instant requestReceivedAt = Instant.now();
 
@@ -44,6 +49,8 @@ public class SyncService {
                         String opType = op.opType().toLowerCase();
 
                         Instant receivedAt = requestReceivedAt;
+
+                        enforceOwnership(guestUserId, op);
 
                         // Atomic dedupe: insert ledger row if absent
                         boolean inserted = syncRepository.insertOpLedgerIfAbsent(op.opId(), deviceId, guestUserId,
@@ -100,15 +107,55 @@ public class SyncService {
                                 DELTA_LIMIT + 1,
                                 allowedEntityTypes);
                 boolean hasMore = fetchedDeltas.size() > DELTA_LIMIT;
-                List<SyncDelta> deltas = hasMore
+                List<SyncDelta> deltas = sanitizeDeltas(hasMore
                                 ? fetchedDeltas.subList(0, DELTA_LIMIT)
-                                : fetchedDeltas;
+                                : fetchedDeltas);
                 String responseCursor = cursor;
                 if (!deltas.isEmpty()) {
                         responseCursor = String.valueOf(deltas.get(deltas.size() - 1).changeId());
                 }
 
                 return new SyncResponse(acks, responseCursor, deltas, hasMore);
+        }
+
+        private void enforceOwnership(String guestUserId, SyncOp op) {
+                Optional<String> ownerId = syncRepository.findEntityOwnerId(guestUserId, op.entityType(),
+                                op.entityId());
+                if (ownerId.isPresent()) {
+                        throw new ForbiddenException(
+                                        "SYNC_FORBIDDEN",
+                                        "Entity ownership mismatch",
+                                        Map.of(
+                                                        "entityType", op.entityType(),
+                                                        "entityId", op.entityId()));
+                }
+        }
+
+        private List<SyncDelta> sanitizeDeltas(List<SyncDelta> deltas) {
+                List<SyncDelta> sanitized = new ArrayList<>(deltas.size());
+                for (SyncDelta delta : deltas) {
+                        if ("device_token".equals(delta.entityType())) {
+                                continue;
+                        }
+                        if (!"app_meta".equals(delta.entityType())) {
+                                sanitized.add(delta);
+                                continue;
+                        }
+                        Map<String, Object> payload = delta.payload();
+                        if (payload == null || payload.isEmpty()) {
+                                sanitized.add(delta);
+                                continue;
+                        }
+                        Map<String, Object> filtered = new LinkedHashMap<>(payload);
+                        APP_META_DENYLIST.forEach(filtered::remove);
+                        sanitized.add(new SyncDelta(
+                                        delta.changeId(),
+                                        delta.entityType(),
+                                        delta.entityId(),
+                                        delta.opType(),
+                                        filtered));
+                }
+                return sanitized;
         }
 
         private ResolutionResult resolveConflict(

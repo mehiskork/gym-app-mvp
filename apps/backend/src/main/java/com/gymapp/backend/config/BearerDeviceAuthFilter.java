@@ -64,7 +64,7 @@ public class BearerDeviceAuthFilter extends OncePerRequestFilter {
         }
 
         var authn = new UsernamePasswordAuthenticationToken(
-                lookup.deviceId(),
+                new DevicePrincipal(lookup.deviceId(), lookup.guestUserId()),
                 null,
                 List.of(new SimpleGrantedAuthority("ROLE_DEVICE")));
         SecurityContextHolder.getContext().setAuthentication(authn);

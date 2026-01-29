@@ -1,10 +1,13 @@
 package com.gymapp.backend.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.gymapp.backend.controller.ForbiddenException;
+import com.gymapp.backend.model.SyncOp;
 import com.gymapp.backend.model.SyncResponse;
-import com.gymapp.backend.repository.DeviceRepository;
 import com.gymapp.backend.repository.SyncRepository;
+import java.time.Instant;
 import java.lang.reflect.Field;
 import java.util.List;
 import java.util.Map;
@@ -46,9 +49,6 @@ class SyncServiceIT {
     private SyncRepository syncRepository;
 
     @Autowired
-    private DeviceRepository deviceRepository;
-
-    @Autowired
     private JdbcTemplate jdbcTemplate;
 
     @Autowired
@@ -65,14 +65,13 @@ class SyncServiceIT {
                 .migrate();
         guestUserId = "guest-" + System.currentTimeMillis();
         deviceId = "device-" + System.currentTimeMillis();
-        deviceRepository.insertDevice(deviceId, "secret-hash", guestUserId);
     }
 
     @Test
     void syncReturnsCursorFromLastDelta_whenWithinLimit() {
         insertChanges(3);
 
-        SyncResponse response = syncService.sync(deviceId, "0", List.of());
+        SyncResponse response = syncService.sync(deviceId, guestUserId, "0", List.of());
 
         assertThat(response.getDeltas()).hasSize(3);
         assertThat(response.getHasMore()).isFalse();
@@ -85,7 +84,7 @@ class SyncServiceIT {
         int limit = deltaLimit();
         insertChanges(limit + 1);
 
-        SyncResponse response = syncService.sync(deviceId, "0", List.of());
+        SyncResponse response = syncService.sync(deviceId, guestUserId, "0", List.of());
 
         assertThat(response.getHasMore()).isTrue();
         assertThat(response.getDeltas()).hasSize(limit);
@@ -103,11 +102,57 @@ class SyncServiceIT {
 
     @Test
     void syncReturnsCursorUnchanged_whenNoDeltas() {
-        SyncResponse response = syncService.sync(deviceId, "42", List.of());
+        SyncResponse response = syncService.sync(deviceId, guestUserId, "42", List.of());
 
         assertThat(response.getDeltas()).isEmpty();
         assertThat(response.getHasMore()).isFalse();
         assertThat(response.getCursor()).isEqualTo("42");
+    }
+
+    @Test
+    void syncRejectsWriteWhenEntityOwnedByAnotherGuest() {
+        String otherGuestUserId = "guest-other-" + System.currentTimeMillis();
+        Instant now = Instant.now();
+        syncRepository.upsertEntityState(
+                otherGuestUserId,
+                "program",
+                "program-foreign",
+                Map.of("id", "program-foreign"),
+                now);
+
+        SyncOp op = new SyncOp(
+                "op-foreign",
+                "program",
+                "program-foreign",
+                "upsert",
+                Map.of("id", "program-foreign"),
+                null);
+
+        assertThatThrownBy(() -> syncService.sync(deviceId, guestUserId, "0", List.of(op)))
+                .isInstanceOf(ForbiddenException.class)
+                .satisfies(ex -> assertThat(((ForbiddenException) ex).getCode()).isEqualTo("SYNC_FORBIDDEN"));
+    }
+
+    @Test
+    void syncReturnsOnlyAuthenticatedGuestDeltas() {
+        syncRepository.insertChangeLog(
+                guestUserId,
+                "program",
+                "program-owned",
+                "upsert",
+                Map.of("name", "Owned"));
+        syncRepository.insertChangeLog(
+                "guest-other",
+                "program",
+                "program-other",
+                "upsert",
+                Map.of("name", "Other"));
+
+        SyncResponse response = syncService.sync(deviceId, guestUserId, "0", List.of());
+
+        assertThat(response.getDeltas())
+                .extracting(delta -> delta.entityId())
+                .containsExactly("program-owned");
     }
 
     private void insertChanges(int count) {

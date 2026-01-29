@@ -10,4 +10,8 @@ public class ForbiddenException extends ApiException {
     public ForbiddenException(String message, Map<String, Object> details) {
         super("AUTH_FORBIDDEN", message, details);
     }
+
+    public ForbiddenException(String code, String message, Map<String, Object> details) {
+        super(code, message, details);
+    }
 }
