@@ -1,6 +1,7 @@
 package com.gymapp.backend.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -12,7 +13,6 @@ import tools.jackson.databind.ObjectMapper;
 import com.gymapp.backend.config.RequestIdFilter;
 import com.gymapp.backend.repository.DeviceTokenRepository;
 import com.gymapp.backend.service.SyncService;
-import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -39,7 +39,8 @@ class SyncControllerErrorTest {
     @Test
     void missingRequestIdHeaderGeneratesOneOnBadJson_whenAuthorized() throws Exception {
         // Arrange: pass security so we can test JSON parsing behavior
-        when(deviceTokenRepository.findDeviceIdByToken("good-token")).thenReturn(Optional.of("device-1"));
+        when(deviceTokenRepository.findToken(any(), any()))
+                .thenReturn(DeviceTokenRepository.DeviceTokenLookupResult.valid("device-1", "guest-1"));
 
         MvcResult result = mockMvc.perform(post("/sync")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -52,7 +53,7 @@ class SyncControllerErrorTest {
 
         String requestId = result.getResponse().getHeader(RequestIdFilter.REQUEST_ID_HEADER);
         JsonNode body = objectMapper.readTree(result.getResponse().getContentAsString());
-        assertThat(body.get("requestId").asText()).isEqualTo(requestId);
+        assertThat(body.get("requestId").asString()).isEqualTo(requestId);
     }
 
     @Test
@@ -69,13 +70,14 @@ class SyncControllerErrorTest {
                 .andReturn();
 
         JsonNode body = objectMapper.readTree(result.getResponse().getContentAsString());
-        assertThat(body.get("requestId").asText()).isEqualTo(requestId);
+        assertThat(body.get("requestId").asString()).isEqualTo(requestId);
     }
 
     @Test
     void invalidBearerReturnsUnauthorized_withStructuredError() throws Exception {
         String requestId = "req-456";
-        when(deviceTokenRepository.findDeviceIdByToken("bad-token")).thenReturn(Optional.empty());
+        when(deviceTokenRepository.findToken(any(), any()))
+                .thenReturn(DeviceTokenRepository.DeviceTokenLookupResult.notFound());
 
         mockMvc.perform(post("/sync")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -84,7 +86,7 @@ class SyncControllerErrorTest {
                 .content("{\"cursor\":null,\"ops\":[]}"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(header().string(RequestIdFilter.REQUEST_ID_HEADER, requestId))
-                .andExpect(jsonPath("$.code").value("AUTH_UNAUTHORIZED"))
+                .andExpect(jsonPath("$.code").value("AUTH_INVALID_TOKEN"))
                 .andExpect(jsonPath("$.requestId").value(requestId));
     }
 }

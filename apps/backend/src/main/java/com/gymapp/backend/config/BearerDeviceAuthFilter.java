@@ -8,6 +8,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.time.Instant;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -52,14 +53,18 @@ public class BearerDeviceAuthFilter extends OncePerRequestFilter {
             return;
         }
 
-        var deviceIdOpt = deviceTokenRepository.findDeviceIdByToken(token);
-        if (deviceIdOpt.isEmpty()) {
-            writeUnauthorized(response, "AUTH_UNAUTHORIZED", "Invalid token");
+        var lookup = deviceTokenRepository.findToken(token, Instant.now());
+        if (lookup.status() == DeviceTokenRepository.DeviceTokenStatus.NOT_FOUND) {
+            writeUnauthorized(response, "AUTH_INVALID_TOKEN", "Invalid token");
+            return;
+        }
+        if (lookup.status() == DeviceTokenRepository.DeviceTokenStatus.EXPIRED) {
+            writeUnauthorized(response, "AUTH_TOKEN_EXPIRED", "Expired token");
             return;
         }
 
         var authn = new UsernamePasswordAuthenticationToken(
-                deviceIdOpt.get(),
+                lookup.deviceId(),
                 null,
                 List.of(new SimpleGrantedAuthority("ROLE_DEVICE")));
         SecurityContextHolder.getContext().setAuthentication(authn);

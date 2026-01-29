@@ -4,6 +4,8 @@ import com.gymapp.backend.controller.ForbiddenException;
 import com.gymapp.backend.model.DeviceRegisterResponse;
 import com.gymapp.backend.repository.DeviceRepository;
 import com.gymapp.backend.repository.DeviceTokenRepository;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -14,6 +16,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 public class DeviceService {
+    private static final Duration TOKEN_TTL = Duration.ofDays(30);
+
     private final DeviceRepository deviceRepository;
     private final DeviceTokenRepository deviceTokenRepository;
     private final PasswordEncoder passwordEncoder;
@@ -37,7 +41,8 @@ public class DeviceService {
 
         String deviceToken = UUID.randomUUID().toString();
         String tokenHash = passwordEncoder.encode(deviceToken);
-        deviceTokenRepository.insertToken(tokenHash, deviceId);
+        Instant expiresAt = Instant.now().plus(TOKEN_TTL);
+        deviceTokenRepository.insertToken(tokenHash, deviceId, expiresAt);
 
         return new DeviceRegisterResponse(deviceToken, guestUserId);
     }
