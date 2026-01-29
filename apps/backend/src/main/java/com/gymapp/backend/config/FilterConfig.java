@@ -1,5 +1,6 @@
 package com.gymapp.backend.config;
 
+import tools.jackson.databind.ObjectMapper;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -11,6 +12,19 @@ public class FilterConfig {
     public FilterRegistrationBean<RequestIdFilter> requestIdFilterRegistration(RequestIdFilter filter) {
         FilterRegistrationBean<RequestIdFilter> reg = new FilterRegistrationBean<>(filter);
         reg.setOrder(Ordered.HIGHEST_PRECEDENCE);
+        return reg;
+    }
+
+    @Bean
+    public com.gymapp.backend.config.RateLimitFilter rateLimitFilter(ObjectMapper objectMapper) {
+        return new com.gymapp.backend.config.RateLimitFilter(objectMapper);
+    }
+
+    @Bean
+    public FilterRegistrationBean<com.gymapp.backend.config.RateLimitFilter> rateLimitFilterRegistration(
+            com.gymapp.backend.config.RateLimitFilter filter) {
+        FilterRegistrationBean<com.gymapp.backend.config.RateLimitFilter> reg = new FilterRegistrationBean<>(filter);
+        reg.setEnabled(false);
         return reg;
     }
 }

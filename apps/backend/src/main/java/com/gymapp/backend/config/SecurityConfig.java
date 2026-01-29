@@ -23,6 +23,7 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http,
             DeviceTokenRepository deviceTokenRepository,
+            RateLimitFilter rateLimitFilter,
             ObjectMapper objectMapper) throws Exception {
 
         var bearerFilter = new BearerDeviceAuthFilter(deviceTokenRepository, objectMapper);
@@ -38,6 +39,7 @@ public class SecurityConfig {
                         .requestMatchers("/sync").hasRole("DEVICE")
                         .anyRequest().denyAll())
                 .addFilterBefore(bearerFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterAfter(rateLimitFilter, BearerDeviceAuthFilter.class)
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint((req, res, e) -> writeError(res, objectMapper,
                                 HttpStatus.UNAUTHORIZED, "AUTH_UNAUTHORIZED", "Unauthorized"))
