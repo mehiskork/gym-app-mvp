@@ -15,9 +15,10 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 // Error code taxonomy:
 // - AUTH_UNAUTHORIZED / AUTH_TOKEN_EXPIRED: authentication failures (401)
 // - AUTH_FORBIDDEN / SYNC_FORBIDDEN: authorization failures (403)
-// - BAD_REQUEST: malformed/invalid request bodies (400)
+// - BAD_REQUEST / CLAIM_INVALID / CLAIM_EXPIRED: malformed/invalid request
 // - SYNC_VALIDATION_ERROR: sync validation issues (400)
-// - IMMUTABLE_ENTITY: conflict/immutability violations (409)
+// - IMMUTABLE_ENTITY / CLAIM_CONFLICT: conflict/immutability violations (409)
+// - AUTH_NOT_CONFIGURED: MVP auth not configured (501)
 // - RATE_LIMITED: throttling (429)
 // - INTERNAL_ERROR: unexpected server errors (500)
 public class ApiExceptionHandler {
@@ -55,14 +56,29 @@ public class ApiExceptionHandler {
         return buildResponse(HttpStatus.BAD_REQUEST, ex.getCode(), ex.getMessage(), ex.getDetails());
     }
 
+    @ExceptionHandler(BadRequestException.class)
+    public ResponseEntity<ErrorResponse> handleBadRequest(BadRequestException ex) {
+        return buildResponse(HttpStatus.BAD_REQUEST, ex.getCode(), ex.getMessage(), ex.getDetails());
+    }
+
     @ExceptionHandler(ConflictException.class)
     public ResponseEntity<ErrorResponse> handleConflict(ConflictException ex) {
+        return buildResponse(HttpStatus.CONFLICT, ex.getCode(), ex.getMessage(), ex.getDetails());
+    }
+
+    @ExceptionHandler(ConflictCodeException.class)
+    public ResponseEntity<ErrorResponse> handleConflictCode(ConflictCodeException ex) {
         return buildResponse(HttpStatus.CONFLICT, ex.getCode(), ex.getMessage(), ex.getDetails());
     }
 
     @ExceptionHandler(RateLimitedException.class)
     public ResponseEntity<ErrorResponse> handleRateLimited(RateLimitedException ex) {
         return buildResponse(HttpStatus.TOO_MANY_REQUESTS, ex.getCode(), ex.getMessage(), ex.getDetails());
+    }
+
+    @ExceptionHandler(NotImplementedException.class)
+    public ResponseEntity<ErrorResponse> handleNotImplemented(NotImplementedException ex) {
+        return buildResponse(HttpStatus.NOT_IMPLEMENTED, ex.getCode(), ex.getMessage(), ex.getDetails());
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)

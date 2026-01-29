@@ -6,7 +6,6 @@ import com.gymapp.backend.model.SyncAck;
 import com.gymapp.backend.model.SyncDelta;
 import com.gymapp.backend.model.SyncOp;
 import com.gymapp.backend.model.SyncResponse;
-import com.gymapp.backend.repository.DeviceRepository;
 import com.gymapp.backend.repository.SyncRepository;
 import java.time.Instant;
 import java.util.ArrayList;

@@ -33,8 +33,8 @@ public class BearerDeviceAuthFilter extends OncePerRequestFilter {
             HttpServletResponse response,
             FilterChain filterChain) throws ServletException, IOException {
 
-        // Only enforce on /sync (keep register + health public)
-        if (!"/sync".equals(request.getRequestURI())) {
+        // Only enforce on device-auth endpoints (keep register + health public)
+        if (!isDeviceProtectedPath(request.getRequestURI())) {
             filterChain.doFilter(request, response);
             return;
         }
@@ -70,6 +70,10 @@ public class BearerDeviceAuthFilter extends OncePerRequestFilter {
         SecurityContextHolder.getContext().setAuthentication(authn);
 
         filterChain.doFilter(request, response);
+    }
+
+    private boolean isDeviceProtectedPath(String requestUri) {
+        return "/sync".equals(requestUri) || "/claim/start".equals(requestUri);
     }
 
     private void writeUnauthorized(HttpServletResponse response, String code, String message) throws IOException {

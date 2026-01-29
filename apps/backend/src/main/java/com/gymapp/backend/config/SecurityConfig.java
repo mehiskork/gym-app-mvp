@@ -36,7 +36,9 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/health").permitAll()
                         .requestMatchers("/device/register").permitAll()
+                        .requestMatchers("/claim/confirm").permitAll()
                         .requestMatchers("/sync").hasRole("DEVICE")
+                        .requestMatchers("/claim/start").hasRole("DEVICE")
                         .anyRequest().denyAll())
                 .addFilterBefore(bearerFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterAfter(rateLimitFilter, BearerDeviceAuthFilter.class)
