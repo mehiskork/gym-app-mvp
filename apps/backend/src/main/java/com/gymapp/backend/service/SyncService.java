@@ -106,11 +106,21 @@ public class SyncService {
 
                 long parsedCursor = parseCursor(cursor);
 
-                List<SyncDelta> deltas = syncRepository.fetchDeltas(guestUserId, parsedCursor, DELTA_LIMIT,
+                List<SyncDelta> fetchedDeltas = syncRepository.fetchDeltas(
+                                guestUserId,
+                                parsedCursor,
+                                DELTA_LIMIT + 1,
                                 allowedEntityTypes);
-                long newCursor = syncRepository.fetchMaxChangeId(guestUserId, parsedCursor, DELTA_LIMIT);
+                boolean hasMore = fetchedDeltas.size() > DELTA_LIMIT;
+                List<SyncDelta> deltas = hasMore
+                                ? fetchedDeltas.subList(0, DELTA_LIMIT)
+                                : fetchedDeltas;
+                String responseCursor = cursor;
+                if (!deltas.isEmpty()) {
+                        responseCursor = String.valueOf(deltas.get(deltas.size() - 1).changeId());
+                }
 
-                return new SyncResponse(acks, String.valueOf(newCursor), deltas);
+                return new SyncResponse(acks, responseCursor, deltas, hasMore);
         }
 
         private ResolutionResult resolveConflict(

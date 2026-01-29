@@ -149,25 +149,6 @@ public class SyncRepository {
                                 params);
         }
 
-        public long fetchMaxChangeId(String guestUserId, long cursor, int limit) {
-                Long maxChangeId = jdbcTemplate.queryForObject(
-                                """
-                                                SELECT MAX(change_id) AS max_id
-                                                FROM (
-                                                    SELECT change_id
-                                                    FROM change_log
-                                                    WHERE guest_user_id = ? AND change_id > ?
-                                                    ORDER BY change_id ASC
-                                                    LIMIT ?
-                                                ) AS limited_changes
-                                                """,
-                                Long.class,
-                                guestUserId,
-                                cursor,
-                                limit);
-                return maxChangeId == null ? cursor : maxChangeId;
-        }
-
         private String toJson(Map<String, Object> payload) {
                 try {
                         return objectMapper.writeValueAsString(payload);
