@@ -96,9 +96,19 @@ export async function registerDeviceIfNeeded(): Promise<void> {
   }
 }
 
+const MAX_CONTINUATION_PAGES = 10;
+const CONTINUATION_DELAY_MS = 0;
+
+type SyncNowOptions = {
+  force?: boolean;
+  pullOnly?: boolean;
+  continuationDepth?: number;
+};
+
 export async function syncNow(): Promise<void>;
-export async function syncNow(options?: { force?: boolean; pullOnly?: boolean }): Promise<void>;
-export async function syncNow(options: { force?: boolean; pullOnly?: boolean } = {}): Promise<void> {
+export async function syncNow(options?: SyncNowOptions): Promise<void>;
+export async function syncNow(options: SyncNowOptions = {}): Promise<void> {
+
   // Offline-first invariants:
   // - Domain writes + outbox enqueue happen in the SAME SQLite transaction.
   // - We never ack unless the backend explicitly acks opIds.
@@ -125,6 +135,7 @@ export async function syncNow(options: { force?: boolean; pullOnly?: boolean } =
   }
 
   repairStaleInFlightOps(OUTBOX_STALE_IN_FLIGHT_SECONDS);
+  const continuationDepth = options.continuationDepth ?? 0;
   const ops = options.pullOnly ? [] : claimOutboxOps(SYNC_BATCH_LIMIT);
   const cursor = syncState.cursor;
   const runId = createSyncRun({ cursorBefore: cursor });
@@ -171,6 +182,7 @@ export async function syncNow(options: { force?: boolean; pullOnly?: boolean } =
       acks: Array<{ opId: string; status?: string; reason?: string | null }>;
       cursor?: string;
       deltas?: SyncDelta[];
+      hasMore?: boolean;
     };
 
     const opsById = new Map(ops.map((op) => [op.op_id, op]));
@@ -233,6 +245,27 @@ export async function syncNow(options: { force?: boolean; pullOnly?: boolean } =
         );
         updateSyncState({ last_error: message });
       });
+    }
+
+    if (data.hasMore === true) {
+      if (continuationDepth >= MAX_CONTINUATION_PAGES) {
+        logEvent('warn', 'sync', 'Sync continuation limit reached', {
+          continuationDepth,
+          maxContinuationPages: MAX_CONTINUATION_PAGES,
+        });
+      } else {
+        logEvent('info', 'sync', 'Sync continuation scheduled', {
+          continuationDepth: continuationDepth + 1,
+          cursorAfter,
+        });
+        setTimeout(() => {
+          void syncNow({
+            force: true,
+            pullOnly: true,
+            continuationDepth: continuationDepth + 1,
+          });
+        }, CONTINUATION_DELAY_MS);
+      }
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
