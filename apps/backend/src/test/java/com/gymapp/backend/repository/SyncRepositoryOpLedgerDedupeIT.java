@@ -3,6 +3,9 @@ package com.gymapp.backend.repository;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Instant;
+import javax.sql.DataSource;
+import org.flywaydb.core.Flyway;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -32,6 +35,17 @@ class SyncRepositoryOpLedgerDedupeIT {
 
     @Autowired
     private SyncRepository syncRepository;
+
+    @Autowired
+    private DataSource dataSource;
+
+    @BeforeEach
+    void migrateSchema() {
+        Flyway.configure()
+                .dataSource(dataSource)
+                .load()
+                .migrate();
+    }
 
     @Test
     void insertOpLedgerIfAbsent_isIdempotent() {

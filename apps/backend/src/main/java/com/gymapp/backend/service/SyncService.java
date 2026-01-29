@@ -36,22 +36,12 @@ public class SyncService {
                 List<SyncAck> acks = new ArrayList<>();
                 List<String> allowedEntityTypes = List.copyOf(SyncEntityTypes.ALLOWED_TYPES);
 
-                for (SyncOp op : ops) {
-                        if (!allowedEntityTypes.contains(op.entityType())) {
-                                throw new ValidationException(
-                                                "Unsupported entityType: " + op.entityType(),
-                                                Map.of("entityType", op.entityType()));
-                        }
-                }
+                long parsedCursor = parseCursorOrThrow(cursor);
+                validateOps(ops, allowedEntityTypes);
                 Instant requestReceivedAt = Instant.now();
 
                 for (SyncOp op : ops) {
                         String opType = op.opType().toLowerCase();
-                        if (!opType.equals("upsert") && !opType.equals("delete")) {
-                                throw new ValidationException(
-                                                "Invalid opType: " + op.opType(),
-                                                Map.of("opType", op.opType()));
-                        }
 
                         Instant receivedAt = requestReceivedAt;
 
@@ -103,8 +93,6 @@ public class SyncService {
 
                         acks.add(new SyncAck(op.opId(), resolution.status(), resolution.reason()));
                 }
-
-                long parsedCursor = parseCursor(cursor);
 
                 List<SyncDelta> fetchedDeltas = syncRepository.fetchDeltas(
                                 guestUserId,
@@ -427,14 +415,124 @@ public class SyncService {
         private record ResolutionResult(String status, String reason, Map<String, Object> payload) {
         }
 
-        private long parseCursor(String cursor) {
+        private long parseCursorOrThrow(String cursor) {
                 if (cursor == null || cursor.isBlank()) {
                         return 0L;
                 }
                 try {
                         return Long.parseLong(cursor);
                 } catch (NumberFormatException ex) {
-                        return 0L;
+                        throw new ValidationException(
+                                        "Invalid cursor value",
+                                        Map.of(
+                                                        "opId", "unknown",
+                                                        "field", "cursor",
+                                                        "reason", "cursor must be a numeric value"));
                 }
+        }
+
+        private void validateOps(List<SyncOp> ops, List<String> allowedEntityTypes) {
+                if (ops == null) {
+                        throw new ValidationException(
+                                        "Invalid sync request",
+                                        Map.of(
+                                                        "opId", "unknown",
+                                                        "field", "ops",
+                                                        "reason", "ops must not be null"));
+                }
+                for (SyncOp op : ops) {
+                        validateOp(op, allowedEntityTypes);
+                }
+        }
+
+        private void validateOp(SyncOp op, List<String> allowedEntityTypes) {
+                if (op == null) {
+                        throw new ValidationException(
+                                        "Invalid sync operation",
+                                        Map.of(
+                                                        "opId", "unknown",
+                                                        "reason", "op must not be null"));
+                }
+                String opId = normalizeValue(op.opId());
+                if (opId == null) {
+                        throw new ValidationException(
+                                        "Invalid sync operation",
+                                        buildDetails(op, "op_id", "op_id must not be blank"));
+                }
+                String entityType = normalizeValue(op.entityType());
+                if (entityType == null) {
+                        throw new ValidationException(
+                                        "Invalid sync operation",
+                                        buildDetails(op, "entity_type", "entity_type must not be blank"));
+                }
+                if (!allowedEntityTypes.contains(entityType)) {
+                        throw new ValidationException(
+                                        "Invalid sync operation",
+                                        buildDetails(op, "entity_type", "unsupported entity type"));
+                }
+                String opType = normalizeValue(op.opType());
+                if (opType == null) {
+                        throw new ValidationException(
+                                        "Invalid sync operation",
+                                        buildDetails(op, "op_type", "op_type must not be blank"));
+                }
+                String normalizedOpType = opType.toLowerCase();
+                if (!normalizedOpType.equals("upsert") && !normalizedOpType.equals("delete")) {
+                        throw new ValidationException(
+                                        "Invalid sync operation",
+                                        buildDetails(op, "op_type", "unsupported op type"));
+                }
+                if (op.payload() == null) {
+                        throw new ValidationException(
+                                        "Invalid sync operation",
+                                        buildDetails(op, "payload", "payload must not be null"));
+                }
+                if (normalizedOpType.equals("delete")) {
+                        validateDeletePayload(op);
+                }
+        }
+
+        private void validateDeletePayload(SyncOp op) {
+                Object deletedAt = op.payload().get("deleted_at");
+                if (deletedAt == null) {
+                        deletedAt = op.payload().get("deletedAt");
+                }
+                if (deletedAt == null || deletedAt.toString().isBlank()) {
+                        throw new ValidationException(
+                                        "Invalid sync operation",
+                                        buildDetails(op, "deleted_at", "deleted_at is required for delete"));
+                }
+                try {
+                        Instant.parse(deletedAt.toString());
+                } catch (Exception ex) {
+                        throw new ValidationException(
+                                        "Invalid sync operation",
+                                        buildDetails(op, "deleted_at", "deleted_at must be ISO-8601"));
+                }
+        }
+
+        private Map<String, Object> buildDetails(SyncOp op, String field, String reason) {
+                Map<String, Object> details = new LinkedHashMap<>();
+                String opId = normalizeValue(op.opId());
+                details.put("opId", opId == null ? "unknown" : opId);
+                String entityType = normalizeValue(op.entityType());
+                if (entityType != null) {
+                        details.put("entityType", entityType);
+                }
+                String opType = normalizeValue(op.opType());
+                if (opType != null) {
+                        details.put("opType", opType);
+                }
+                details.put("field", field);
+                details.put("reason", reason);
+                return details;
+        }
+
+        private String normalizeValue(String value) {
+                if (value == null) {
+                        return null;
+                }
+                String trimmed = value.trim();
+                return trimmed.isEmpty() ? null : trimmed;
         }
 }

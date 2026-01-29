@@ -8,6 +8,8 @@ import com.gymapp.backend.repository.SyncRepository;
 import java.lang.reflect.Field;
 import java.util.List;
 import java.util.Map;
+import javax.sql.DataSource;
+import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -49,11 +51,18 @@ class SyncServiceIT {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    @Autowired
+    private DataSource dataSource;
+
     private String guestUserId;
     private String deviceId;
 
     @BeforeEach
     void setUp() {
+        Flyway.configure()
+                .dataSource(dataSource)
+                .load()
+                .migrate();
         guestUserId = "guest-" + System.currentTimeMillis();
         deviceId = "device-" + System.currentTimeMillis();
         deviceRepository.insertDevice(deviceId, "secret-hash", guestUserId);
