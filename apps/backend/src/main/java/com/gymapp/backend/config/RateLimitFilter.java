@@ -37,6 +37,12 @@ public class RateLimitFilter extends OncePerRequestFilter {
     @Value("${rateLimit.register.refillPerSecond:5}")
     private double registerRefillPerSecond;
 
+    @Value("${rateLimit.claimConfirm.capacity:5}")
+    private int claimConfirmCapacity;
+
+    @Value("${rateLimit.claimConfirm.refillPerSecond:0.1}")
+    private double claimConfirmRefillPerSecond;
+
     @Override
     protected void doFilterInternal(
             HttpServletRequest request,
@@ -57,6 +63,17 @@ public class RateLimitFilter extends OncePerRequestFilter {
             if (remoteAddr != null && !remoteAddr.isBlank()) {
                 key = "register:" + remoteAddr;
                 config = new RateLimitConfig(registerCapacity, registerRefillPerSecond);
+            }
+        } else if (isClaimConfirmRequest(request)) {
+            String remoteAddr = request.getRemoteAddr();
+            if (remoteAddr != null && !remoteAddr.isBlank()) {
+                String userId = request.getHeader("X-User-Id");
+                if (userId != null && !userId.isBlank()) {
+                    key = "claimConfirm:" + remoteAddr + ":" + userId.trim();
+                } else {
+                    key = "claimConfirm:" + remoteAddr;
+                }
+                config = new RateLimitConfig(claimConfirmCapacity, claimConfirmRefillPerSecond);
             }
         }
 
@@ -81,6 +98,10 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
     private boolean isRegisterRequest(HttpServletRequest request) {
         return "POST".equalsIgnoreCase(request.getMethod()) && "/device/register".equals(request.getRequestURI());
+    }
+
+    private boolean isClaimConfirmRequest(HttpServletRequest request) {
+        return "POST".equalsIgnoreCase(request.getMethod()) && "/claim/confirm".equals(request.getRequestURI());
     }
 
     private String resolveDeviceId() {

@@ -12,3 +12,14 @@ server:
 logging:
   level:
     org.springframework.web.filter.CommonsRequestLoggingFilter: INFO
+
+rateLimit:
+  sync:
+    capacity: 30
+    refillPerSecond: 10
+  register:
+    capacity: 20
+    refillPerSecond: 5
+  claimConfirm:
+    capacity: 5
+    refillPerSecond: 0.1
