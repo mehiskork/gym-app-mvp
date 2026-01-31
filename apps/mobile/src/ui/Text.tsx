@@ -4,7 +4,7 @@ import { Platform, Text as RNText } from 'react-native';
 
 import { tokens } from '../theme/tokens';
 
-type Variant = 'title' | 'h2' | 'body' | 'muted' | 'label' | 'mono';
+type Variant = 'title' | 'h2' | 'subtitle' | 'body' | 'muted' | 'label' | 'mono';
 
 type AppTextProps = TextProps & {
     variant?: Variant;

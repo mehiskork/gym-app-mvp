@@ -7,4 +7,6 @@ module.exports = {
         'node_modules/(?!(expo|@expo|react-native|react-native-.*|expo-.*)/)',
     ],
     moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json'],
+
+    setupFiles: ['<rootDir>/jest.setup.js'],
 };

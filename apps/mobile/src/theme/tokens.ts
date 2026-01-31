@@ -49,4 +49,7 @@ export const tokens = {
     primaryText: '#1B1208',
   },
   touchTargetMin: 44,
+  layout: {
+    tabBarHeight: 72,
+  },
 } as const;

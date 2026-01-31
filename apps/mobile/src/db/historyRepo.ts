@@ -10,6 +10,15 @@ export type CompletedSessionRow = {
   ended_at: string | null;
 };
 
+export type RecentSessionSummaryRow = {
+  id: string;
+  title: string;
+  started_at: string;
+  ended_at: string | null;
+  volume: number;
+  prs: number;
+};
+
 export type SessionExerciseRow = {
   id: string;
   exercise_id: string;
@@ -39,6 +48,52 @@ export function listCompletedSessions(limit = 50): CompletedSessionRow[] {
     LIMIT ?;
   `,
     [limit],
+  );
+}
+
+export function listRecentSessionSummaries(limit = 3): RecentSessionSummaryRow[] {
+  return query<RecentSessionSummaryRow>(
+    `
+    WITH completed_sessions AS (
+      SELECT id, title, started_at, ended_at
+      FROM workout_session
+      WHERE status = '${WORKOUT_SESSION_STATUS.COMPLETED}' AND deleted_at IS NULL
+      ORDER BY COALESCE(ended_at, started_at) DESC
+      LIMIT ?
+    ),
+    session_volume AS (
+      SELECT
+        cs.id AS session_id,
+        COALESCE(SUM(wset.weight * wset.reps), 0) AS volume
+      FROM completed_sessions cs
+      JOIN workout_session_exercise wse ON wse.workout_session_id = cs.id AND wse.deleted_at IS NULL
+      JOIN workout_set wset ON wset.workout_session_exercise_id = wse.id
+      WHERE wset.deleted_at IS NULL
+        AND wset.is_completed = 1
+        AND wset.weight IS NOT NULL
+        AND wset.reps IS NOT NULL
+      GROUP BY cs.id
+    ),
+    session_prs AS (
+      SELECT session_id, COUNT(*) AS prs
+      FROM pr_event
+      WHERE deleted_at IS NULL
+      GROUP BY session_id
+    )
+    SELECT
+      cs.id AS id,
+      cs.title AS title,
+      cs.started_at AS started_at,
+      cs.ended_at AS ended_at,
+      COALESCE(sv.volume, 0) AS volume,
+      COALESCE(sp.prs, 0) AS prs
+    FROM completed_sessions cs
+    LEFT JOIN session_volume sv ON sv.session_id = cs.id
+    LEFT JOIN session_prs sp ON sp.session_id = cs.id
+    ORDER BY COALESCE(cs.ended_at, cs.started_at) DESC
+    LIMIT ?;
+  `,
+    [limit, limit],
   );
 }
 
