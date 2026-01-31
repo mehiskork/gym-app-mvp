@@ -1,5 +1,7 @@
 import React, { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+
 
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { runMigrations } from './src/db/migrate';
@@ -15,8 +17,10 @@ export default function App() {
   }, []);
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <RootNavigator />
-    </GestureHandlerRootView>
+    <SafeAreaProvider>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <RootNavigator />
+      </GestureHandlerRootView>
+    </SafeAreaProvider>
   );
 }
