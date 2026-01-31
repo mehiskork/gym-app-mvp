@@ -59,6 +59,45 @@ function clearMeta(key: string) {
     [key],
   );
 }
+
+export type SyncPauseReason = 'claim';
+
+const SYNC_PAUSED_REASON_KEY = 'sync_paused_reason';
+const CLAIMED_KEY = 'claimed';
+const CLAIMED_USER_ID_KEY = 'claimed_user_id';
+
+export function pauseSync(reason: SyncPauseReason) {
+  setMeta(SYNC_PAUSED_REASON_KEY, reason);
+}
+
+export function resumeSync() {
+  clearMeta(SYNC_PAUSED_REASON_KEY);
+}
+
+export function isSyncPaused(): boolean {
+  return getMeta(SYNC_PAUSED_REASON_KEY) !== null;
+}
+
+export function setClaimed(value: boolean) {
+  setMeta(CLAIMED_KEY, value ? '1' : '0');
+}
+
+export function getClaimed(): boolean {
+  return getMeta(CLAIMED_KEY) === '1';
+}
+
+export function setClaimedUserId(userId: string | null) {
+  if (!userId) {
+    clearMeta(CLAIMED_USER_ID_KEY);
+    return;
+  }
+
+  setMeta(CLAIMED_USER_ID_KEY, userId);
+}
+
+export function getClaimedUserId(): string | null {
+  return getMeta(CLAIMED_USER_ID_KEY);
+}
 /**
  * Device-local user id, used as owner_user_id for custom exercises until sign-in exists.
  */

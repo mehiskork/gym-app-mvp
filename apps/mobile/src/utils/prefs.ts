@@ -9,3 +9,11 @@ export async function getBool(key: string, defaultValue: boolean): Promise<boole
 export async function setBool(key: string, value: boolean): Promise<void> {
   await AsyncStorage.setItem(key, value ? '1' : '0');
 }
+
+export async function getString(key: string): Promise<string | null> {
+  return AsyncStorage.getItem(key);
+}
+
+export async function setString(key: string, value: string): Promise<void> {
+  await AsyncStorage.setItem(key, value);
+}

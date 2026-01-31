@@ -15,6 +15,8 @@ import { SessionDetailScreen } from '../screens/SessionDetailScreen';
 import { ExerciseDetailScreen } from '../screens/ExerciseDetailScreen';
 import { DebugScreen } from '../screens/Debug/DebugScreen';
 import { PrebuiltPlansScreen } from '../screens/PrebuiltPlansScreen';
+import { ClaimStartScreen } from '../screens/ClaimStartScreen';
+import { ClaimConfirmScreen } from '../screens/ClaimConfirmScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -63,6 +65,16 @@ export function RootNavigator() {
           name="ExerciseDetail"
           component={ExerciseDetailScreen}
           options={{ title: 'Exercise' }}
+        />
+        <Stack.Screen
+          name="ClaimStart"
+          component={ClaimStartScreen}
+          options={{ title: 'Link account' }}
+        />
+        <Stack.Screen
+          name="ClaimConfirm"
+          component={ClaimConfirmScreen}
+          options={{ title: 'Confirm claim' }}
         />
         <Stack.Screen name="Debug" component={DebugScreen} options={{ title: 'Debug' }} />
       </Stack.Navigator>

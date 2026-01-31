@@ -25,5 +25,9 @@ export type RootStackParamList = {
 
   ExercisePicker: { dayId?: string } | undefined;
 
+  ClaimStart: undefined;
+  ClaimConfirm: undefined;
+
+
   Debug: undefined;
 };

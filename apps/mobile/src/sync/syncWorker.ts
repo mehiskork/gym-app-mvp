@@ -4,6 +4,7 @@ import {
   getGuestUserId,
   getOrCreateDeviceId,
   getOrCreateDeviceSecret,
+  isSyncPaused,
   setLastSyncAckSummary,
   setDeviceToken,
   setGuestUserId,
@@ -108,6 +109,10 @@ type SyncNowOptions = {
 export async function syncNow(): Promise<void>;
 export async function syncNow(options?: SyncNowOptions): Promise<void>;
 export async function syncNow(options: SyncNowOptions = {}): Promise<void> {
+  if (isSyncPaused()) {
+    logEvent('info', 'sync', 'Sync paused', { reason: 'claim' });
+    return;
+  }
 
   // Offline-first invariants:
   // - Domain writes + outbox enqueue happen in the SAME SQLite transaction.

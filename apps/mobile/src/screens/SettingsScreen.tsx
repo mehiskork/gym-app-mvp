@@ -1,19 +1,21 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { Screen } from '../components/Screen';
 import { AppText } from '../components/AppText';
-import { PrimaryButton } from '../components/Buttons';
+import { PrimaryButton, SecondaryButton } from '../components/Buttons';
 import { tokens } from '../theme/tokens';
 import { VersionTapUnlock } from '../components/VersionTapUnlock';
 import { isDebugUnlocked, setDebugUnlocked } from '../utils/debugUnlock';
 import type { RootStackParamList } from '../navigation/types';
+import { getClaimed } from '../db/appMetaRepo';
 
 export function SettingsScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [debugUnlocked, setDebugUnlockedState] = useState(false);
+  const [claimed, setClaimedState] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -25,6 +27,13 @@ export function SettingsScreen() {
       active = false;
     };
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      setClaimedState(getClaimed());
+    }, []),
+  );
+
 
   const handleUnlocked = useCallback(() => {
     setDebugUnlockedState(true);
@@ -48,6 +57,30 @@ export function SettingsScreen() {
         </AppText>
         <View style={{ marginBottom: tokens.spacing.lg }}>
           <PrimaryButton title="Exercises" onPress={() => navigation.navigate('ExercisePicker')} />
+        </View>
+
+        <View
+          style={{
+            backgroundColor: tokens.colors.surface,
+            borderColor: tokens.colors.border,
+            borderWidth: 1,
+            borderRadius: tokens.radius.lg,
+            padding: tokens.spacing.lg,
+            marginBottom: tokens.spacing.lg,
+            gap: tokens.spacing.sm,
+          }}
+        >
+          <AppText variant="subtitle">Account</AppText>
+          <AppText color="textSecondary">
+            Account: {claimed ? 'Linked' : 'Guest'}
+          </AppText>
+          <PrimaryButton title="Link to account" onPress={() => navigation.navigate('ClaimStart')} />
+          {debugUnlocked ? (
+            <SecondaryButton
+              title="Dev: Confirm claim"
+              onPress={() => navigation.navigate('ClaimConfirm')}
+            />
+          ) : null}
         </View>
 
         <View

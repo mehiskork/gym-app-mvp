@@ -10,6 +10,7 @@ jest.mock('../../db/appMetaRepo', () => ({
     getGuestUserId: jest.fn(() => null),
     getOrCreateDeviceId: jest.fn(() => 'device-1'),
     getOrCreateDeviceSecret: jest.fn(() => 'secret-1'),
+    isSyncPaused: jest.fn(() => false),
     setLastSyncAckSummary: jest.fn(),
     setDeviceToken: jest.fn(),
     setGuestUserId: jest.fn(),
