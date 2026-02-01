@@ -3,9 +3,8 @@ import { Alert, FlatList, Pressable, TextInput, View } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Screen, Header, SectionHeader, ListRow, IconChip, Button, Text } from '../ui';
+import { Screen, Card, EmptyState, ListRow, IconChip, Button, Text } from '../ui';
 import { tokens } from '../theme/tokens';
 import {
   createWorkoutPlan,
@@ -19,7 +18,7 @@ type Nav = NativeStackNavigationProp<RootStackParamList>;
 
 export function WorkoutPlansScreen() {
   const navigation = useNavigation<Nav>();
-  const insets = useSafeAreaInsets();
+
 
   const [workoutPlans, setWorkoutPlans] = useState<WorkoutPlanRow[]>([]);
   const [name, setName] = useState('');
@@ -62,15 +61,13 @@ export function WorkoutPlansScreen() {
   return (
     <Screen
       scroll
+      bottomInset="tabBar"
       contentStyle={{
         gap: tokens.spacing.lg,
-        paddingBottom: tokens.spacing.lg + insets.bottom + tokens.layout.tabBarHeight,
+
       }}
     >
-      <Header title="Plans" subtitle="Workout plans" />
-
-      <View style={{ gap: tokens.spacing.sm }}>
-        <SectionHeader title="Create Plan" />
+      <Card>
         <View style={{ gap: tokens.spacing.sm }}>
           <Text variant="muted">New workout plan name</Text>
           <TextInput
@@ -92,25 +89,30 @@ export function WorkoutPlansScreen() {
           />
           <Button title="Build workout plan" onPress={onCreate} disabled={!name.trim()} />
         </View>
-      </View>
+      </Card>
+
+      <ListRow
+        title="Browse templates"
+        subtitle="Prebuilt plans to customize"
+        onPress={() => navigation.navigate('PrebuiltPlans')}
+      />
 
       <View style={{ gap: tokens.spacing.sm }}>
-        <SectionHeader title="Templates" />
-        <Button
-          title="Browse prebuilt plans"
-          variant="secondary"
-          onPress={() => navigation.navigate('PrebuiltPlans')}
-        />
-      </View>
 
-      <View style={{ gap: tokens.spacing.sm }}>
-        <SectionHeader title="Your Plans" />
         <FlatList
           data={workoutPlans}
           keyExtractor={(p) => p.id}
           scrollEnabled={false}
           ItemSeparatorComponent={() => <View style={{ height: tokens.spacing.sm }} />}
-          ListEmptyComponent={<Text variant="muted">No workout plans yet.</Text>}
+          ListEmptyComponent={(
+            <Card>
+              <EmptyState
+                icon={<Ionicons name="barbell-outline" size={24} color={tokens.colors.mutedText} />}
+                title="No workout plans yet"
+                description="Create a plan or browse templates to get started."
+              />
+            </Card>
+          )}
           renderItem={({ item }) => (
             <ListRow
               title={item.name}

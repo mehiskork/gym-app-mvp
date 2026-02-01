@@ -1,6 +1,7 @@
 import React from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { TodayScreen } from '../screens/TodayScreen';
 import { WorkoutPlansScreen } from '../screens/WorkoutPlansScreen';
@@ -11,6 +12,8 @@ import { tokens } from '../theme/tokens';
 const Tab = createBottomTabNavigator();
 
 export function MainTabs() {
+  const insets = useSafeAreaInsets();
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -27,9 +30,9 @@ export function MainTabs() {
         tabBarStyle: {
           backgroundColor: tokens.colors.surface,
           borderTopColor: tokens.colors.border,
-          height: tokens.layout.tabBarHeight,
+          height: tokens.layout.tabBarHeight + insets.bottom,
           paddingTop: tokens.spacing.xs,
-          paddingBottom: tokens.spacing.sm,
+          paddingBottom: Math.max(insets.bottom, tokens.spacing.sm),
         },
         tabBarLabelStyle: {
           fontSize: 11,

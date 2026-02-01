@@ -3,7 +3,7 @@ import { View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
 
 
 import type { RootStackParamList } from '../navigation/types';
@@ -14,7 +14,7 @@ import { getWorkoutPlanById, type WorkoutPlanRow } from '../db/workoutPlanRepo';
 type Props = NativeStackScreenProps<RootStackParamList, 'WorkoutPlanDetail'>;
 
 export function WorkoutPlanDetailScreen({ route, navigation }: Props) {
-  const insets = useSafeAreaInsets();
+
   const { workoutPlanId } = route.params;
   const [plan, setPlan] = useState<WorkoutPlanRow | null>(null);
 
@@ -32,9 +32,10 @@ export function WorkoutPlanDetailScreen({ route, navigation }: Props) {
   return (
     <Screen
       scroll
+      bottomInset="none"
       contentStyle={{
         gap: tokens.spacing.lg,
-        paddingBottom: tokens.spacing.lg + insets.bottom + tokens.layout.tabBarHeight,
+
       }}
     >
       <Header title={plan?.name ?? 'Plan'} subtitle="Workout plan" showBack onBack={navigation.goBack} />

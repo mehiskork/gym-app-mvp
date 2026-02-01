@@ -5,7 +5,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 
 import type { RootStackParamList } from '../navigation/types';
-import { Screen } from '../components/Screen';
+import { Screen } from '../ui';
 import { AppText } from '../components/AppText';
 import { tokens } from '../theme/tokens';
 import { formatDateTime, formatVolume, formatWeekLabel } from '../utils/format';
@@ -91,11 +91,7 @@ export function HistoryScreen() {
   const header = useMemo(
     () => (
       <View style={{ gap: tokens.spacing.md }}>
-        <View
-          style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
-        >
-          <AppText variant="title">History</AppText>
-
+        <View style={{ alignItems: 'flex-end' }}>
           <Pressable
             onPress={confirmDeleteAll}
             disabled={!canDeleteAll}
@@ -202,12 +198,12 @@ export function HistoryScreen() {
   );
 
   return (
-    <Screen style={{ flex: 1 }}>
+    <Screen style={{ flex: 1 }} bottomInset="tabBar">
       <FlatList
         data={sessions}
         keyExtractor={(s) => s.id}
         ListHeaderComponent={header}
-        contentContainerStyle={{ paddingBottom: tokens.spacing.xl, gap: tokens.spacing.sm }}
+        contentContainerStyle={{ gap: tokens.spacing.sm }}
         renderItem={({ item }) => (
           <View
             style={{

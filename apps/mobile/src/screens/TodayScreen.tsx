@@ -3,9 +3,8 @@ import { View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Header, Screen } from '../ui';
+import { Screen } from '../ui';
 import { tokens } from '../theme/tokens';
 import type { RootStackParamList } from '../navigation/types';
 import { getInProgressSession } from '../db/workoutSessionRepo';
@@ -21,7 +20,6 @@ type Nav = NativeStackNavigationProp<RootStackParamList>;
 
 export function TodayScreen() {
   const navigation = useNavigation<Nav>();
-  const insets = useSafeAreaInsets();
   const [inProgressId, setInProgressId] = useState<string | null>(null);
   const [inProgressTitle, setInProgressTitle] = useState<string | null>(null);
   const [inProgressPlan, setInProgressPlan] = useState<string | null>(null);
@@ -53,11 +51,9 @@ export function TodayScreen() {
     <Screen
       scroll
       padded={false}
-      contentStyle={{
-        paddingBottom: tokens.spacing.lg + insets.bottom + tokens.layout.tabBarHeight,
-      }}
+      bottomInset="tabBar"
     >
-      <Header title="Pro Training Log" subtitle="FORGE" />
+
       <View style={{ paddingHorizontal: tokens.spacing.lg, paddingTop: tokens.spacing.lg, gap: tokens.spacing.lg }}>
         <TodayHero
           hasActiveWorkout={Boolean(inProgressId)}
