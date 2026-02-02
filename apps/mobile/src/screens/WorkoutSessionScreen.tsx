@@ -30,6 +30,8 @@ import { WorkoutSessionHeaderCard } from '../features/workoutSession/WorkoutSess
 
 type Props = NativeStackScreenProps<RootStackParamList, 'WorkoutSession'>;
 
+const REST_TIMER_HEIGHT = 92;
+
 function parseNumber(input: string): number | null {
   const trimmed = input.trim();
   if (!trimmed) return null;
@@ -120,8 +122,11 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
       null
     );
   }, [exercises]);
-  const footerPaddingBottom = insets.bottom + tokens.spacing.md;
+  const footerPaddingBottom = Math.max(insets.bottom, tokens.spacing.sm);
   const footerHeight = tokens.touchTargetMin + tokens.spacing.sm + footerPaddingBottom;
+  const scrollPaddingTop = timerActive
+    ? tokens.spacing.lg + REST_TIMER_HEIGHT + tokens.spacing.md
+    : tokens.spacing.lg;
   if (!session) {
     return (
       <Screen style={{ justifyContent: 'center' }}>
@@ -144,7 +149,7 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
         <ScrollView
           contentContainerStyle={{
             paddingHorizontal: tokens.spacing.lg,
-            paddingTop: tokens.spacing.lg,
+            paddingTop: scrollPaddingTop,
             paddingBottom: footerHeight + tokens.spacing.lg,
             gap: tokens.spacing.md,
           }}
@@ -232,54 +237,54 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {
-        timerActive ? (
-          <Card
-            style={{
-              position: 'absolute',
-              left: tokens.spacing.lg,
-              right: tokens.spacing.lg,
-              bottom: footerHeight + tokens.spacing.md,
-              gap: tokens.spacing.md,
-            }}
-          >
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.md }}>
-              <IconChip variant="primaryTint" size={40}>
-                <Ionicons name="timer-outline" size={20} color={tokens.colors.primary} />
-              </IconChip>
-              <View style={{ flex: 1, gap: tokens.spacing.xs }}>
-                <Text variant="label" color={tokens.colors.mutedText}>
-                  Rest
-                </Text>
-                <Text variant="mono">{formatMMSS(elapsed)}</Text>
-                {session.rest_timer_label ? (
-                  <Text variant="muted">{session.rest_timer_label}</Text>
-                ) : null}
-              </View>
-              <Button
-                title="Clear"
-                variant="ghost"
-                size="sm"
-                leftIcon={<Ionicons name="trash-outline" size={16} color={tokens.colors.text} />}
-                onPress={() => {
-                  setSession((prev) =>
-                    prev
-                      ? {
-                        ...prev,
-                        rest_timer_end_at: null,
-                        rest_timer_label: null,
-                        rest_timer_seconds: null,
-                      }
-                      : prev,
-                  );
-
-                  clearRestTimer(sessionId);
-                }}
-              />
+      {timerActive ? (
+        <Card
+          style={{
+            position: 'absolute',
+            top: insets.top + tokens.spacing.sm,
+            left: tokens.spacing.lg,
+            right: tokens.spacing.lg,
+            zIndex: 50,
+            elevation: 50,
+            gap: tokens.spacing.md,
+          }}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.md }}>
+            <IconChip variant="primaryTint" size={40}>
+              <Ionicons name="timer-outline" size={20} color={tokens.colors.primary} />
+            </IconChip>
+            <View style={{ flex: 1, gap: tokens.spacing.xs }}>
+              <Text variant="label" color={tokens.colors.mutedText}>
+                Rest
+              </Text>
+              <Text variant="mono">{formatMMSS(elapsed)}</Text>
+              {session.rest_timer_label ? (
+                <Text variant="muted">{session.rest_timer_label}</Text>
+              ) : null}
             </View>
-          </Card>
-        ) : null
-      }
+            <Button
+              title="Clear"
+              variant="ghost"
+              size="sm"
+              leftIcon={<Ionicons name="trash-outline" size={16} color={tokens.colors.text} />}
+              onPress={() => {
+                setSession((prev) =>
+                  prev
+                    ? {
+                      ...prev,
+                      rest_timer_end_at: null,
+                      rest_timer_label: null,
+                      rest_timer_seconds: null,
+                    }
+                    : prev,
+                );
+
+                clearRestTimer(sessionId);
+              }}
+            />
+          </View>
+        </Card>
+      ) : null}
       <View
         style={{
           position: 'absolute',
