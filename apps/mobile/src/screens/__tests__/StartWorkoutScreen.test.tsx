@@ -63,26 +63,23 @@ type Nav = {
     navigate: jest.Mock;
 };
 
-type TreeNode =
-    | React.ReactElement
-    | React.ReactElement[]
-    | string
-    | number
-    | null
-    | undefined;
-
-const findElementByType = (node: TreeNode, type: unknown): React.ReactElement | null => {
+const findElementByType = <P,>(
+    node: React.ReactNode,
+    type: React.ElementType,
+): React.ReactElement<P> | null => {
     if (!node) return null;
     if (Array.isArray(node)) {
         for (const child of node) {
-            const found = findElementByType(child, type);
+            const found = findElementByType<P>(child, type);
             if (found) return found;
         }
         return null;
     }
-    if (typeof node === 'string' || typeof node === 'number') return null;
-    if (node.type === type) return node;
-    return findElementByType(node.props?.children, type);
+    if (React.isValidElement<React.PropsWithChildren<P>>(node)) {
+        if (node.type === type) return node as React.ReactElement<P>;
+        return findElementByType<P>(node.props.children, type);
+    }
+    return null;
 };
 
 describe('StartWorkoutScreen', () => {
@@ -102,7 +99,8 @@ describe('StartWorkoutScreen', () => {
             route: { key: 'StartWorkout', name: 'StartWorkout' },
         } as never);
 
-        const emptyState = findElementByType(element, EmptyState);
+        type EmptyStateProps = React.ComponentProps<typeof EmptyState>;
+        const emptyState = findElementByType<EmptyStateProps>(element, EmptyState);
 
         expect(emptyState?.props.title).toBe('No plans yet');
     });
@@ -120,10 +118,29 @@ describe('StartWorkoutScreen', () => {
             route: { key: 'StartWorkout', name: 'StartWorkout' },
         } as never);
 
-        const list = findElementByType(element, FlatList);
+        type FlatListProps = React.ComponentProps<typeof FlatList>;
+        const list = findElementByType<FlatListProps>(element, FlatList);
 
-        expect(list).not.toBeNull();
-        const row = list?.props.renderItem({ item: plans[0] });
+        if (!list) {
+            throw new Error('Expected FlatList to be rendered.');
+        }
+        const renderItem = list.props.renderItem;
+        if (!renderItem) {
+            throw new Error('Expected FlatList renderItem to be defined.');
+        }
+        const rowNode = renderItem({
+            item: plans[0],
+            index: 0,
+            separators: {
+                highlight: jest.fn(),
+                unhighlight: jest.fn(),
+                updateProps: jest.fn(),
+            },
+        });
+        if (!React.isValidElement(rowNode)) {
+            throw new Error('Expected plan row to be a React element.');
+        }
+        const row = rowNode as React.ReactElement<{ title: string; onPress: () => void }>;
 
         expect(row.props.title).toBe('Strength Plan');
 

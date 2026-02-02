@@ -80,23 +80,21 @@ type Nav = {
     setOptions: jest.Mock;
 };
 
-type TreeNode =
-    | React.ReactElement
-    | React.ReactElement[]
-    | string
-    | number
-    | null
-    | undefined;
-
-const findElementsByType = (node: TreeNode, type: unknown, acc: React.ReactElement[] = []) => {
+const findElementsByType = <P,>(
+    node: React.ReactNode,
+    type: React.ElementType,
+    acc: Array<React.ReactElement<P>> = [],
+) => {
     if (!node) return acc;
     if (Array.isArray(node)) {
-        node.forEach((child) => findElementsByType(child, type, acc));
+        node.forEach((child) => findElementsByType<P>(child, type, acc));
         return acc;
     }
-    if (typeof node === 'string' || typeof node === 'number') return acc;
-    if (node.type === type) acc.push(node);
-    return findElementsByType(node.props?.children, type, acc);
+    if (React.isValidElement<React.PropsWithChildren<P>>(node)) {
+        if (node.type === type) acc.push(node as React.ReactElement<P>);
+        return findElementsByType<P>(node.props.children, type, acc);
+    }
+    return acc;
 };
 
 describe('WorkoutSessionScreen', () => {
@@ -163,10 +161,12 @@ describe('WorkoutSessionScreen', () => {
             route: { key: 'WorkoutSession', name: 'WorkoutSession', params: { sessionId: 'session-1' } },
         } as never);
 
-        const exerciseCards = findElementsByType(element, ExerciseCard);
+        type ExerciseCardProps = React.ComponentProps<typeof ExerciseCard>;
+        const exerciseCards = findElementsByType<ExerciseCardProps>(element, ExerciseCard);
         expect(exerciseCards[0]?.props.name).toBe('Bench Press');
 
-        const setRows = findElementsByType(element, SetRow);
+        type SetRowProps = React.ComponentProps<typeof SetRow>;
+        const setRows = findElementsByType<SetRowProps>(element, SetRow);
         expect(setRows).toHaveLength(2);
 
         setRows[0]?.props.onToggleComplete();
