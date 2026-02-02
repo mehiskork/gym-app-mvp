@@ -7,9 +7,7 @@ import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 
 import type { RootStackParamList } from '../navigation/types';
-import { Screen } from '../components/Screen';
-import { AppText } from '../components/AppText';
-import { PrimaryButton } from '../components/Buttons';
+import { Button, Card, EmptyState, IconChip, ListRow, Screen, Text } from '../ui';
 import { tokens } from '../theme/tokens';
 import {
   deleteDayExercise,
@@ -57,6 +55,10 @@ export function DayDetailScreen({ route, navigation }: Props) {
     }, [navigation]),
   );
 
+  const handleAddExercise = useCallback(() => {
+    navigation.navigate('ExercisePicker', { dayId });
+  }, [dayId, navigation]);
+
   const commitDayName = useCallback(() => {
     const next = dayNameInput.trim();
     const prev = savedName.trim();
@@ -93,127 +95,131 @@ export function DayDetailScreen({ route, navigation }: Props) {
 
   const renderItem = useCallback(
     ({ item, drag, isActive }: RenderItemParams<DayExerciseRow>) => (
-      <View
-        style={[
-          {
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: tokens.spacing.sm,
-            padding: tokens.spacing.md,
-            backgroundColor: tokens.colors.surface,
-            borderRadius: tokens.radius.md,
-            borderWidth: 1,
-            borderColor: tokens.colors.border,
-          },
+      <ListRow
+        title={item.exercise_name}
+        subtitle="Tap to view"
+        left={
+          <IconChip variant="muted" size={40}>
+            <Ionicons name="barbell-outline" size={18} color={tokens.colors.mutedText} />
+          </IconChip>
+        }
+        onPress={() => navigation.navigate('ExerciseDetail', { exerciseId: item.exercise_id })}
+        showChevron
+        right={
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.xs }}>
+            <Pressable
+              onPress={() => confirmDeleteExercise(item)}
+              style={({ pressed }) => [
+                {
+                  minHeight: tokens.touchTargetMin,
+                  minWidth: tokens.touchTargetMin,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: tokens.radius.sm,
+                  borderWidth: 1,
+                  borderColor: tokens.colors.border,
+                },
+                pressed ? { opacity: 0.85 } : null,
+              ]}
+              accessibilityLabel="Delete exercise"
+            >
+              <Ionicons name="trash-outline" size={18} color={tokens.colors.mutedText} />
+            </Pressable>
+            <Pressable
+              onLongPress={drag}
+              delayLongPress={150}
+              style={({ pressed }) => [
+                {
+                  minHeight: tokens.touchTargetMin,
+                  minWidth: tokens.touchTargetMin,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: tokens.radius.sm,
+                  borderWidth: 1,
+                  borderColor: tokens.colors.border,
+                },
+                pressed ? { opacity: 0.85 } : null,
+              ]}
+              accessibilityLabel="Reorder exercise"
+            >
+              <Ionicons name="reorder-three-outline" size={18} color={tokens.colors.mutedText} />
+            </Pressable>
+          </View>
+        }
+        style={
           isActive
             ? {
-                elevation: 6,
-                shadowColor: '#000',
-                shadowOpacity: 0.18,
-                shadowRadius: 10,
-                shadowOffset: { width: 0, height: 6 },
-                opacity: 0.98,
-              }
-            : null,
-        ]}
-      >
-        <View style={{ flex: 1 }}>
-          <Pressable
-            onPress={() => navigation.navigate('ExerciseDetail', { exerciseId: item.exercise_id })}
-            style={({ pressed }) => [pressed ? { opacity: 0.85 } : null]}
-            accessibilityLabel={`Open exercise details for ${item.exercise_name}`}
-          >
-            <AppText variant="subtitle">{item.exercise_name}</AppText>
-          </Pressable>
-        </View>
+              backgroundColor: tokens.colors.surface2,
+              borderColor: tokens.colors.primary,
+              shadowColor: '#000',
+              shadowOpacity: 0.18,
+              shadowRadius: 10,
+              shadowOffset: { width: 0, height: 6 },
 
-        <Pressable
-          onPress={() => confirmDeleteExercise(item)}
-          style={({ pressed }) => [
-            {
-              minHeight: tokens.touchTargetMin,
-              minWidth: tokens.touchTargetMin,
-              alignItems: 'center',
-              justifyContent: 'center',
-              borderRadius: tokens.radius.sm,
-              borderWidth: 1,
-              borderColor: tokens.colors.border,
-            },
-            pressed ? { opacity: 0.85 } : null,
-          ]}
-          accessibilityLabel="Delete exercise"
-        >
-          <Ionicons name="trash-outline" size={20} color={tokens.colors.textSecondary} />
-        </Pressable>
+            }
+            : undefined
+        }
+      />
 
-        <Pressable
-          onLongPress={drag}
-          delayLongPress={150}
-          style={({ pressed }) => [
-            {
-              minHeight: tokens.touchTargetMin,
-              minWidth: tokens.touchTargetMin,
-              alignItems: 'center',
-              justifyContent: 'center',
-              borderRadius: tokens.radius.sm,
-              borderWidth: 1,
-              borderColor: tokens.colors.border,
-            },
-            pressed ? { opacity: 0.85 } : null,
-          ]}
-          accessibilityLabel="Reorder exercise"
-        >
-          <AppText color="textSecondary">≡</AppText>
-        </Pressable>
-      </View>
     ),
     [confirmDeleteExercise, navigation],
   );
 
   const header = (
-    <View style={{ gap: tokens.spacing.md, paddingBottom: tokens.spacing.md }}>
-      <AppText variant="title">Day</AppText>
-
-      <View style={{ gap: tokens.spacing.sm }}>
-        <AppText color="textSecondary">Day name</AppText>
-        <TextInput
-          maxLength={50}
-          value={dayNameInput}
-          onChangeText={setDayNameInput}
-          placeholder="e.g., Push"
-          placeholderTextColor={tokens.colors.textSecondary}
-          returnKeyType="done"
-          onSubmitEditing={commitDayName}
-          onEndEditing={commitDayName}
-          style={{
-            minHeight: tokens.touchTargetMin,
-            borderRadius: tokens.radius.md,
-            borderWidth: 1,
-            borderColor: tokens.colors.border,
-            paddingHorizontal: tokens.spacing.md,
-            color: tokens.colors.text,
-            backgroundColor: tokens.colors.surface,
-          }}
-        />
-      </View>
-
-      <PrimaryButton
-        title="Add exercise"
-        onPress={() => navigation.navigate('ExercisePicker', { dayId })}
-      />
-
-      <AppText color="textSecondary">Hold ≡ and drag to reorder exercises.</AppText>
+    <View style={{ marginBottom: tokens.spacing.md }}>
+      <Card>
+        <View style={{ gap: tokens.spacing.md }}>
+          <View style={{ gap: tokens.spacing.xs }}>
+            <Text variant="label" color={tokens.colors.mutedText}>
+              Day name
+            </Text>
+            <TextInput
+              maxLength={50}
+              value={dayNameInput}
+              onChangeText={setDayNameInput}
+              placeholder="e.g., Push"
+              placeholderTextColor={tokens.colors.mutedText}
+              returnKeyType="done"
+              onSubmitEditing={commitDayName}
+              onEndEditing={commitDayName}
+              style={{
+                minHeight: tokens.touchTargetMin,
+                borderRadius: tokens.radius.md,
+                borderWidth: 1,
+                borderColor: tokens.colors.border,
+                paddingHorizontal: tokens.spacing.md,
+                color: tokens.colors.text,
+                backgroundColor: tokens.colors.surface,
+              }}
+            />
+          </View>
+          <Text variant="muted">
+            {items.length} exercise{items.length === 1 ? '' : 's'}
+          </Text>
+          <Button title="Add exercise" onPress={handleAddExercise} />
+          <Text variant="muted">Hold the reorder handle to move exercises.</Text>
+        </View>
+      </Card>
     </View>
   );
 
   return (
-    <Screen style={{ flex: 1 }}>
+    <Screen padded={false} bottomInset="tabBar" style={{ flex: 1 }}>
       <DraggableFlatList
         data={items}
         keyExtractor={(x) => x.id}
         renderItem={renderItem}
         ListHeaderComponent={header}
-        ListEmptyComponent={<AppText color="textSecondary">No exercises yet.</AppText>}
+        ListEmptyComponent={
+          <Card>
+            <EmptyState
+              icon={<Ionicons name="barbell-outline" size={24} color={tokens.colors.mutedText} />}
+              title="No exercises yet"
+              description="Add your first exercise to start logging."
+              action={<Button title="Add exercise" variant="secondary" onPress={handleAddExercise} />}
+            />
+          </Card>
+        }
         ItemSeparatorComponent={() => <View style={{ height: tokens.spacing.sm }} />}
         contentContainerStyle={{
           padding: tokens.spacing.lg,
