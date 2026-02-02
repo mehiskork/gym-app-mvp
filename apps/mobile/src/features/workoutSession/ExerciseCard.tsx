@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-import { Badge, Button, Card, Text } from '../../ui';
+import { Badge, Card, Text } from '../../ui';
 import { tokens } from '../../theme/tokens';
 
 
@@ -41,15 +41,35 @@ export function ExerciseCard({
                     ) : null}
                 </View>
                 {isActive ? <Badge label="Current" variant="goal" /> : null}
-                <Button
-                    title="+ Set"
-                    variant="secondary"
-                    size="sm"
-                    leftIcon={<Ionicons name="add" size={16} color={tokens.colors.onSecondary} />}
-                    onPress={onAddSet}
-                />
             </View>
-            <View style={{ gap: tokens.spacing.sm }}>{children}</View>
+            <View style={{ gap: tokens.spacing.sm }}>
+                {children}
+                <Pressable
+                    testID="exercise-card-add-set"
+                    onPress={onAddSet}
+                    style={({ pressed }) => [
+                        {
+                            minHeight: tokens.touchTargetMin,
+                            borderWidth: 1,
+                            borderStyle: 'dashed',
+                            borderColor: tokens.colors.border,
+                            borderRadius: tokens.radius.md,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            marginTop: tokens.spacing.sm,
+                        },
+                        pressed ? { opacity: 0.85 } : null,
+                    ]}
+                >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.sm }}>
+                        <Ionicons name="add" size={16} color={tokens.colors.mutedText} />
+                        <Text variant="muted" color={tokens.colors.mutedText}>
+                            Add Set
+                        </Text>
+                    </View>
+                </Pressable>
+            </View>
+
         </Card>
     );
 }
