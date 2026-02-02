@@ -17,13 +17,21 @@ import { DebugScreen } from '../screens/Debug/DebugScreen';
 import { PrebuiltPlansScreen } from '../screens/PrebuiltPlansScreen';
 import { ClaimStartScreen } from '../screens/ClaimStartScreen';
 import { ClaimConfirmScreen } from '../screens/ClaimConfirmScreen';
+import { tokens } from '../theme/tokens';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export function RootNavigator() {
   return (
     <NavigationContainer>
-      <Stack.Navigator>
+      <Stack.Navigator
+        screenOptions={{
+          headerStyle: { backgroundColor: tokens.colors.bg },
+          headerTintColor: tokens.colors.text,
+          headerShadowVisible: false,
+          contentStyle: { backgroundColor: tokens.colors.bg },
+        }}
+      >
         <Stack.Screen name="MainTabs" component={MainTabs} options={{ headerShown: false }} />
         <Stack.Screen
           name="WorkoutSession"

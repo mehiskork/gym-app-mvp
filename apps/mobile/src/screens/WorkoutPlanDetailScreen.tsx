@@ -15,11 +15,13 @@ import {
   type WorkoutPlanDayRow,
   type WorkoutPlanRow,
 } from '../db/workoutPlanRepo';
+import { createSessionFromPlanDay } from '../db/workoutSessionRepo';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'WorkoutPlanDetail'>;
 
 export function WorkoutPlanDetailScreen({ route, navigation }: Props) {
   const { workoutPlanId } = route.params;
+  const mode = route.params.mode ?? 'view';
   const [plan, setPlan] = useState<WorkoutPlanRow | null>(null);
   const [days, setDays] = useState<WorkoutPlanDayRow[]>([]);
 
@@ -61,7 +63,21 @@ export function WorkoutPlanDetailScreen({ route, navigation }: Props) {
   }, [navigation, plan?.name, workoutPlanId]);
 
   const dayCountLabel = `${days.length} day${days.length === 1 ? '' : 's'}`;
+  const isPickerMode = mode === 'pickDayToStart';
+  const daySubtitle = isPickerMode ? 'Start this day' : 'Tap to edit';
 
+  const handleDayPress = useCallback(
+    (dayId: string) => {
+      if (isPickerMode) {
+        const sessionId = createSessionFromPlanDay({ workoutPlanId, dayId });
+        navigation.navigate('WorkoutSession', { sessionId });
+        return;
+      }
+
+      navigation.navigate('DayDetail', { dayId });
+    },
+    [isPickerMode, navigation, workoutPlanId],
+  );
   return (
     <Screen
       scroll
@@ -91,14 +107,14 @@ export function WorkoutPlanDetailScreen({ route, navigation }: Props) {
                 <ListRow
                   key={day.id}
                   title={day.name ?? `Day ${day.day_index}`}
-                  subtitle="Tap to edit"
+                  subtitle={daySubtitle}
                   left={
                     <IconChip variant="muted" size={40}>
                       <Ionicons name="calendar-outline" size={18} color={tokens.colors.mutedText} />
                     </IconChip>
                   }
                   showChevron
-                  onPress={() => navigation.navigate('DayDetail', { dayId: day.id })}
+                  onPress={() => handleDayPress(day.id)}
                 />
               ))}
             </View>
@@ -108,17 +124,23 @@ export function WorkoutPlanDetailScreen({ route, navigation }: Props) {
                 icon={<Ionicons name="calendar-outline" size={24} color={tokens.colors.mutedText} />}
                 title="No days yet"
                 description="Add your first training day to start logging."
-                action={<Button title="Add day" variant="secondary" onPress={handleAddDay} />}
+                action={
+                  isPickerMode ? null : (
+                    <Button title="Add day" variant="secondary" onPress={handleAddDay} />
+                  )
+                }
               />
             </Card>
           )
           }
-          <View style={{ gap: tokens.spacing.sm }}>
-            {days.length > 0 ? (
-              <Button title="Add day" variant="secondary" onPress={handleAddDay} />
-            ) : null}
-            <Button title="Delete plan" variant="destructive" onPress={confirmDeletePlan} />
-          </View>
+          {isPickerMode ? null : (
+            <View style={{ gap: tokens.spacing.sm }}>
+              {days.length > 0 ? (
+                <Button title="Add day" variant="secondary" onPress={handleAddDay} />
+              ) : null}
+              <Button title="Delete plan" variant="destructive" onPress={confirmDeletePlan} />
+            </View>
+          )}
         </>
       ) : (
         <Card>

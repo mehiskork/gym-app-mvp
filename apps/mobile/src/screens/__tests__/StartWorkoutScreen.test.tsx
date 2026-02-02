@@ -148,6 +148,7 @@ describe('StartWorkoutScreen', () => {
 
         expect(navigation.navigate).toHaveBeenCalledWith('WorkoutPlanDetail', {
             workoutPlanId: 'plan-1',
+            mode: 'pickDayToStart',
         });
     });
 });

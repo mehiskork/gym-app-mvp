@@ -68,7 +68,7 @@ export function StartWorkoutScreen({ navigation }: Props) {
           renderItem={({ item }) => (
             <ListRow
               title={item.name}
-              subtitle="Tap to open"
+              subtitle="Choose a day"
               showChevron
               left={
                 <IconChip variant="muted" size={40}>
@@ -76,7 +76,10 @@ export function StartWorkoutScreen({ navigation }: Props) {
                 </IconChip>
               }
               onPress={() =>
-                navigation.navigate('WorkoutPlanDetail', { workoutPlanId: item.id })
+                navigation.navigate('WorkoutPlanDetail', {
+                  workoutPlanId: item.id,
+                  mode: 'pickDayToStart',
+                })
               }
             />
           )}
