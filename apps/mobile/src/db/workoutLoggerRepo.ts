@@ -9,6 +9,7 @@ export type LoggerSession = {
   id: string;
   title: string;
   status: WorkoutSessionStatus;
+  started_at: string;
   rest_timer_end_at: string | null;
   rest_timer_seconds: number | null;
   rest_timer_label: string | null;
@@ -133,6 +134,7 @@ export function getWorkoutLoggerData(sessionId: string): {
     id: detail.session.id,
     title: detail.session.title,
     status: detail.session.status as WorkoutSessionStatus,
+    started_at: detail.session.started_at,
     rest_timer_end_at: detail.session.rest_timer_end_at,
     rest_timer_seconds: detail.session.rest_timer_seconds,
     rest_timer_label: detail.session.rest_timer_label,
