@@ -52,8 +52,8 @@ export function ExerciseCard({
                             paddingHorizontal: tokens.spacing.sm,
                         }}
                     >
-                        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.xs }}>
-                            <View style={{ width: 40 }}>
+                        <View style={{ flex: 1.0, flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.sm }}>
+                            <View style={{ width: 24 }}>
                                 <Text
                                     variant="label"
                                     color={tokens.colors.mutedText}
@@ -76,7 +76,7 @@ export function ExerciseCard({
                                         WEIGHT
                                     </Text>
                                 </View>
-                                <View style={{ flex: 1 }}>
+                                <View style={{ flex: 0.7 }}>
                                     <Text
                                         variant="label"
                                         color={tokens.colors.mutedText}

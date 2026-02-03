@@ -33,11 +33,11 @@ export function SetRow({
     const buttonSize = tokens.touchTargetMin;
     const rightActionsGap = tokens.spacing.xs;
     const rightActionsWidth = buttonSize * 2 + rightActionsGap;
-    const rowHorizontalPadding = tokens.spacing.sm;
-    const setColWidth = 32;
-    const setInputGap = tokens.spacing.xs;
+    const rowHorizontalPadding = 0;
+    const setColWidth = 18;
+    const setInputGap = 0;
     const inputGap = tokens.spacing.xs;
-    const rowGap = tokens.spacing.sm;
+    const rowGap = tokens.spacing.xs;
     const minInputWidth = 88;
     const maxInputWidth = 132;
 
@@ -68,7 +68,7 @@ export function SetRow({
 
     return (
         <View style={rowStyle} onLayout={handleRowLayout}>
-            <View style={[styles.leftFields, { gap: setInputGap }]}>
+            <View style={[styles.leftCluster, { gap: setInputGap }]}>
                 <View style={[styles.setLabel, { width: setColWidth }]}>
                     <Text
                         testID="set-number"
@@ -96,7 +96,13 @@ export function SetRow({
                         />
                     </View>
 
-                    <View style={[styles.inputWrapper, { width: inputWidth }]}>
+                    <View
+                        style={[
+                            styles.inputWrapper,
+                            styles.repsInputWrapper,
+                            { width: inputWidth },
+                        ]}
+                    >
                         <TextInput
                             testID="reps-input"
                             defaultValue={set.reps === null ? '' : String(set.reps)}
@@ -115,7 +121,7 @@ export function SetRow({
 
             <View
                 style={[
-                    styles.rightActions,
+                    styles.rightCluster,
                     { width: rightActionsWidth, gap: rightActionsGap, marginLeft: rowGap },
                 ]}
             >
@@ -152,7 +158,7 @@ export function SetRow({
 }
 
 const styles = StyleSheet.create({
-    leftFields: {
+    leftCluster: {
         flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
@@ -176,16 +182,19 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
         borderRadius: tokens.radius.md,
     },
-    rightActions: {
+    repsInputWrapper: {
+        marginRight: tokens.spacing.xs,
+    },
+    rightCluster: {
         flexDirection: 'row',
         alignItems: 'center',
-
+        flexShrink: 0,
     },
     row: {
         flexDirection: 'row',
         alignItems: 'center',
         paddingVertical: tokens.spacing.sm,
-        paddingHorizontal: tokens.spacing.sm,
+        paddingHorizontal: 0,
         borderRadius: tokens.radius.md,
         borderWidth: 1,
         borderColor: tokens.colors.border,
@@ -196,7 +205,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         gap: tokens.spacing.xs,
         paddingVertical: tokens.spacing.sm,
-        paddingHorizontal: tokens.spacing.sm,
+        paddingHorizontal: 0,
         borderRadius: tokens.radius.md,
         borderWidth: 1,
         borderColor: tokens.colors.success,
