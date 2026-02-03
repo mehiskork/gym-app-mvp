@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -27,6 +27,7 @@ import {
 import { formatMMSS, secondsElapsed } from '../utils/format';
 import { ExerciseCard } from '../features/workoutSession/ExerciseCard';
 import { SetRow } from '../features/workoutSession/SetRow';
+import { FinishWorkoutSheet } from '../features/workoutSession/FinishWorkoutSheet';
 import { WorkoutSessionHeaderCard } from '../features/workoutSession/WorkoutSessionHeaderCard';
 import { useSnackbarUndo } from '../hooks/useSnackbarUndo';
 
@@ -57,6 +58,8 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
   const [exercises, setExercises] = useState<LoggerExercise[]>([]);
   const [tick, setTick] = useState(0);
 
+  const [finishOpen, setFinishOpen] = useState(false);
+  const [isFinishing, setIsFinishing] = useState(false);
   const insets = useSafeAreaInsets();
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -103,21 +106,40 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
 
   const timerActive = (session?.rest_timer_end_at ?? null) !== null;
 
-  const onFinish = () => {
-    Alert.alert('Finish workout?', 'This will mark the session as completed.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Finish',
-        style: 'default',
-        onPress: () => {
-          completeSession(sessionId);
-          clearRestTimer(sessionId);
-          load();
-          navigation.navigate('MainTabs', { screen: 'Today' });
-        },
-      },
-    ]);
-  };
+  const totals = useMemo(() => {
+    const totalSets = exercises.reduce((sum, exercise) => sum + exercise.sets.length, 0);
+    const completedSets = exercises.reduce(
+      (sum, exercise) => sum + exercise.sets.filter((set) => set.is_completed === 1).length,
+      0,
+    );
+    return { totalSets, completedSets };
+  }, [exercises]);
+
+  const durationMinutes = useMemo(() => {
+    if (!session?.started_at) return 0;
+    const startTime = new Date(session.started_at).getTime();
+    const endTime = Date.now();
+    const diffMs = Math.max(0, endTime - startTime);
+    return Math.round(diffMs / 60000);
+  }, [session?.started_at, tick]);
+
+  const handleFinish = useCallback(() => {
+    setIsFinishing(true);
+    setFinishOpen(false);
+    try {
+      completeSession(sessionId);
+      clearRestTimer(sessionId);
+      load();
+      navigation.navigate('MainTabs', { screen: 'Today' });
+    } finally {
+      setIsFinishing(false);
+    }
+  }, [load, navigation, sessionId]);
+
+  const handleCloseFinish = useCallback(() => {
+    if (isFinishing) return;
+    setFinishOpen(false);
+  }, [isFinishing]);
 
   const footerPaddingBottom = Math.max(insets.bottom, tokens.spacing.sm);
   const footerPaddingTop = tokens.spacing.sm;
@@ -311,8 +333,17 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
           borderTopColor: tokens.colors.border,
         }}
       >
-        <Button title="Finish workout" variant="primary" onPress={onFinish} />
+        <Button title="Finish workout" variant="primary" onPress={() => setFinishOpen(true)} />
       </View>
+      <FinishWorkoutSheet
+        visible={finishOpen}
+        onClose={handleCloseFinish}
+        onFinish={handleFinish}
+        completedSets={totals.completedSets}
+        totalSets={totals.totalSets}
+        durationMinutes={durationMinutes}
+        isFinishing={isFinishing}
+      />
     </Screen>
   );
 }

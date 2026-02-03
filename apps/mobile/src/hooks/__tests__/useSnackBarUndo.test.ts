@@ -1,27 +1,28 @@
-let storedState: unknown;
-let storedRef: { current: ReturnType<typeof setTimeout> | null };
+let mockStoredState: unknown;
+let mockStoredRef: { current: ReturnType<typeof setTimeout> | null };
 
 jest.mock('react', () => {
     const actual = jest.requireActual('react');
     return {
         ...actual,
         useState: jest.fn((initial: unknown) => {
-            if (storedState === undefined) {
-                storedState = typeof initial === 'function' ? initial() : initial;
+            if (mockStoredState === undefined) {
+                mockStoredState = typeof initial === 'function' ? (initial as any)() : initial;
             }
             const setState = (value: unknown) => {
-                storedState =
+                mockStoredState =
                     typeof value === 'function'
-                        ? (value as (prev: unknown) => unknown)(storedState)
+                        ? (value as any)(mockStoredState)
                         : value;
             };
-            return [storedState, setState];
+            return [mockStoredState, setState];
         }),
-        useRef: jest.fn(() => storedRef),
+        useRef: jest.fn(() => mockStoredRef),
         useEffect: jest.fn(),
-        useCallback: (fn: () => unknown) => fn,
+        useCallback: (fn: any) => fn,
     };
 });
+
 
 import { useSnackbarUndo } from '../useSnackbarUndo';
 
@@ -39,8 +40,8 @@ const createPayload = () => ({
 
 describe('useSnackbarUndo', () => {
     beforeEach(() => {
-        storedState = undefined;
-        storedRef = { current: null };
+        mockStoredState = undefined;
+        mockStoredRef = { current: null };
         jest.useFakeTimers();
     });
 

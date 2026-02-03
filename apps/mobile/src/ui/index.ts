@@ -1,4 +1,5 @@
 export { Badge } from './Badge';
+export { BottomSheetModal } from './BottomSheetModal';
 export { Button } from './Button';
 export { Card } from './Card';
 export { EmptyState } from './EmptyState';

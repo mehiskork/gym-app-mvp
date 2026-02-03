@@ -27,6 +27,8 @@ jest.mock('react-native', () => {
             React.createElement('Pressable', props, children),
         ScrollView: ({ children, ...props }: { children?: React.ReactNode }) =>
             React.createElement('ScrollView', props, children),
+        Modal: ({ children, visible, ...props }: { children?: React.ReactNode; visible?: boolean }) =>
+            visible ? React.createElement('Modal', props, children) : null,
         Text: ({ children, ...props }: { children?: React.ReactNode }) =>
             React.createElement('Text', props, children),
         TextInput: ({ children, ...props }: { children?: React.ReactNode }) =>
@@ -172,6 +174,8 @@ describe('WorkoutSessionScreen', () => {
         useStateMock.mockImplementationOnce(() => [session, jest.fn()]);
         useStateMock.mockImplementationOnce(() => [exercises, jest.fn()]);
         useStateMock.mockImplementationOnce(() => [0, jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [false, jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [false, jest.fn()]);
         useStateMock.mockImplementationOnce(() => [{ visible: false, payload: null }, jest.fn()]);
         (getWorkoutLoggerData as jest.Mock).mockReturnValue({ session, exercises });
 
@@ -196,7 +200,7 @@ describe('WorkoutSessionScreen', () => {
         expect(updateWorkoutSet).toHaveBeenCalledWith('set-1', { is_completed: 1 });
     });
 
-    it('renders the finish button in the footer and triggers the finish flow', () => {
+    it('renders the finish button in the footer and opens the finish sheet', () => {
         const session = {
             id: 'session-2',
             title: 'Leg Day',
@@ -209,9 +213,12 @@ describe('WorkoutSessionScreen', () => {
 
         const exercises: Array<unknown> = [];
 
+        const setFinishOpen = jest.fn();
         useStateMock.mockImplementationOnce(() => [session, jest.fn()]);
         useStateMock.mockImplementationOnce(() => [exercises, jest.fn()]);
         useStateMock.mockImplementationOnce(() => [0, jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [false, setFinishOpen]);
+        useStateMock.mockImplementationOnce(() => [false, jest.fn()]);
         useStateMock.mockImplementationOnce(() => [{ visible: false, payload: null }, jest.fn()]);
         (getWorkoutLoggerData as jest.Mock).mockReturnValue({ session, exercises });
 
@@ -228,12 +235,7 @@ describe('WorkoutSessionScreen', () => {
         expect(finishButton?.props.variant).toBe('primary');
         finishButton?.props.onPress?.({} as never);
 
-        const { Alert } = jest.requireMock('react-native');
-        expect(Alert.alert).toHaveBeenCalledWith(
-            'Finish workout?',
-            'This will mark the session as completed.',
-            expect.any(Array),
-        );
+        expect(setFinishOpen).toHaveBeenCalledWith(true);
     });
 
     it('does not render the overall sets counter in the header', () => {
@@ -252,6 +254,8 @@ describe('WorkoutSessionScreen', () => {
         useStateMock.mockImplementationOnce(() => [session, jest.fn()]);
         useStateMock.mockImplementationOnce(() => [exercises, jest.fn()]);
         useStateMock.mockImplementationOnce(() => [0, jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [false, jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [false, jest.fn()]);
         useStateMock.mockImplementationOnce(() => [{ visible: false, payload: null }, jest.fn()]);
         (getWorkoutLoggerData as jest.Mock).mockReturnValue({ session, exercises });
 
@@ -284,6 +288,8 @@ describe('WorkoutSessionScreen', () => {
         useStateMock.mockImplementationOnce(() => [session, jest.fn()]);
         useStateMock.mockImplementationOnce(() => [exercises, jest.fn()]);
         useStateMock.mockImplementationOnce(() => [0, jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [false, jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [false, jest.fn()]);
         useStateMock.mockImplementationOnce(() => [{ visible: false, payload: null }, jest.fn()]);
         (getWorkoutLoggerData as jest.Mock).mockReturnValue({ session, exercises });
 

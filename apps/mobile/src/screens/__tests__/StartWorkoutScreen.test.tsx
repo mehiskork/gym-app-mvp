@@ -1,19 +1,6 @@
-jest.mock('react', () => {
-    const actual = jest.requireActual('react');
-    return {
-        ...actual,
-        useState: jest.fn(),
-        useCallback: (fn: () => unknown) => fn,
-        useMemo: (fn: () => unknown) => fn(),
-    };
-});
-
-jest.mock('@react-navigation/native', () => ({
-    useFocusEffect: jest.fn(),
-}));
-
 jest.mock('react-native', () => {
     const React = require('react');
+
     return {
         ActivityIndicator: ({ children, ...props }: { children?: React.ReactNode }) =>
             React.createElement('ActivityIndicator', props, children),
@@ -27,9 +14,23 @@ jest.mock('react-native', () => {
             React.createElement('View', props, children),
         Text: ({ children, ...props }: { children?: React.ReactNode }) =>
             React.createElement('Text', props, children),
+
+        // add THIS:
+        StyleSheet: {
+            create: (styles: any) => styles,
+            hairlineWidth: 1,
+            absoluteFillObject: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 },
+        },
+
+        // add THIS (safe stub):
+        Modal: ({ children, ...props }: { children?: React.ReactNode }) =>
+            React.createElement('Modal', props, children),
+
         Platform: { select: () => 'monospace' },
     };
 });
+
+
 
 jest.mock('react-native-safe-area-context', () => {
     const React = require('react');
