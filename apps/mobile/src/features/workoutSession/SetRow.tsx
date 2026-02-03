@@ -31,17 +31,14 @@ export function SetRow({
 
     return (
         <View style={rowStyle}>
-            <View style={{ width: 64 }}>
+            <View style={styles.setLabel}>
                 <Text variant="label" color={tokens.colors.mutedText}>
-                    Set {set.set_index}
+                    {set.set_index}
                 </Text>
             </View>
 
-            <View style={{ flex: 1, flexDirection: 'row', gap: tokens.spacing.sm }}>
-                <View style={{ flex: 1 }}>
-                    <Text variant="label" color={tokens.colors.mutedText}>
-                        kg
-                    </Text>
+            <View style={styles.inputs}>
+                <View style={styles.inputWrapper}>
                     <TextInput
                         defaultValue={formatOptionalNumber(set.weight, 2)}
                         keyboardType="decimal-pad"
@@ -52,10 +49,7 @@ export function SetRow({
                     />
                 </View>
 
-                <View style={{ flex: 1 }}>
-                    <Text variant="label" color={tokens.colors.mutedText}>
-                        reps
-                    </Text>
+                <View style={styles.inputWrapper}>
                     <TextInput
                         defaultValue={set.reps === null ? '' : String(set.reps)}
                         keyboardType="number-pad"
@@ -105,6 +99,17 @@ export function SetRow({
 }
 
 const styles = StyleSheet.create({
+    setLabel: {
+        width: 40,
+    },
+    inputs: {
+        flex: 1,
+        flexDirection: 'row',
+        gap: tokens.spacing.sm,
+    },
+    inputWrapper: {
+        flex: 1,
+    },
     row: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -129,6 +134,9 @@ const styles = StyleSheet.create({
     },
     input: {
         minHeight: tokens.touchTargetMin,
+        minWidth: 84,
+        flex: 1,
+        fontSize: tokens.typography.subtitle.fontSize,
         borderRadius: tokens.radius.md,
         borderWidth: 1,
         borderColor: tokens.colors.border,
@@ -138,6 +146,9 @@ const styles = StyleSheet.create({
     },
     completedInput: {
         minHeight: tokens.touchTargetMin,
+        minWidth: 84,
+        flex: 1,
+        fontSize: tokens.typography.subtitle.fontSize,
         borderRadius: tokens.radius.md,
         borderWidth: 1,
         borderColor: tokens.colors.success,

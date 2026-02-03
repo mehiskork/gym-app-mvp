@@ -282,7 +282,7 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
               ]}
               accessibilityLabel="Clear rest timer"
             >
-              <Ionicons name="trash-outline" size={18} color={tokens.colors.textSecondary} />
+              <Ionicons name="trash-outline" size={18} color={tokens.colors.destructive} />
             </Pressable>
           </View>
         </Card>

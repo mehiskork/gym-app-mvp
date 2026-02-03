@@ -22,6 +22,8 @@ export function ExerciseCard({
     onPressTitle,
     children,
 }: ExerciseCardProps) {
+    const hasSets = React.Children.count(children) > 0;
+
     return (
         <Card style={{ gap: tokens.spacing.md }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.md }}>
@@ -41,6 +43,43 @@ export function ExerciseCard({
 
             </View>
             <View style={{ gap: tokens.spacing.sm }}>
+                {hasSets ? (
+                    <View
+                        style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            gap: tokens.spacing.sm,
+                            paddingHorizontal: tokens.spacing.xs,
+                        }}
+                    >
+                        <View style={{ width: 40 }} />
+                        <View style={{ flex: 1, flexDirection: 'row', gap: tokens.spacing.sm }}>
+                            <View style={{ flex: 1 }}>
+                                <Text
+                                    variant="label"
+                                    color={tokens.colors.mutedText}
+                                    style={{
+                                        fontSize: tokens.typography.caption.fontSize,
+                                    }}
+                                >
+                                    WEIGHT
+                                </Text>
+                            </View>
+                            <View style={{ flex: 1 }}>
+                                <Text
+                                    variant="label"
+                                    color={tokens.colors.mutedText}
+                                    style={{
+                                        fontSize: tokens.typography.caption.fontSize,
+                                    }}
+                                >
+                                    REPS
+                                </Text>
+                            </View>
+                        </View>
+                        <View style={{ width: tokens.touchTargetMin * 2 + tokens.spacing.sm }} />
+                    </View>
+                ) : null}
                 {children}
                 <Pressable
                     testID="exercise-card-add-set"

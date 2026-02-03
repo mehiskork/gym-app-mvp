@@ -307,6 +307,12 @@ describe('WorkoutSessionScreen', () => {
             (card) => getPositionStyle(card.props.style) === 'absolute',
         );
         expect(scrollOverlayCard).toBeUndefined();
+
+        const icons = findElementsByType(element, 'Ionicons') as Array<
+            React.ReactElement<{ name: string; color?: string }>
+        >;
+        const trashIcon = icons.find((icon) => icon.props.name === 'trash-outline');
+        expect(trashIcon?.props.color).toBe(tokens.colors.destructive);
     });
 
     it('styles completed set rows and destructive icons', () => {
@@ -346,6 +352,14 @@ describe('WorkoutSessionScreen', () => {
         expect(checkStyle?.backgroundColor).toBe(tokens.colors.success);
         expect(checkStyle?.borderColor).toBe(tokens.colors.success);
 
+        const texts = findElementsByType(element, Text) as Array<
+            React.ReactElement<{ children?: React.ReactNode }>
+        >;
+        expect(texts[0]?.props.children).toBe(1);
+        expect(texts.some((text) => text.props.children === 'kg')).toBe(false);
+        expect(texts.some((text) => text.props.children === 'reps')).toBe(false);
+        expect(texts.some((text) => text.props.children === 'Set 1')).toBe(false);
+
         const icons = findElementsByType(element, 'Ionicons') as Array<
             React.ReactElement<{ name: string; color?: string }>
         >;
@@ -369,5 +383,54 @@ describe('WorkoutSessionScreen', () => {
         expect(addSetRow).toBeDefined();
         addSetRow?.props.onPress?.();
         expect(onAddSet).toHaveBeenCalled();
+    });
+    it('renders column headers once per exercise card', () => {
+        const element = (
+            <ExerciseCard name="Deadlift" subtitle="0/2 sets complete" onAddSet={jest.fn()}>
+                <SetRow
+                    set={{
+                        id: 'set-1',
+                        workout_session_exercise_id: 'exercise-1',
+                        set_index: 1,
+                        weight: 120,
+                        reps: 5,
+                        rpe: null,
+                        rest_seconds: 90,
+                        notes: null,
+                        is_completed: 0,
+                    }}
+                    onWeightEndEditing={jest.fn()}
+                    onRepsEndEditing={jest.fn()}
+                    onToggleComplete={jest.fn()}
+                    onDelete={jest.fn()}
+                />
+                <SetRow
+                    set={{
+                        id: 'set-2',
+                        workout_session_exercise_id: 'exercise-1',
+                        set_index: 2,
+                        weight: 120,
+                        reps: 5,
+                        rpe: null,
+                        rest_seconds: 90,
+                        notes: null,
+                        is_completed: 0,
+                    }}
+                    onWeightEndEditing={jest.fn()}
+                    onRepsEndEditing={jest.fn()}
+                    onToggleComplete={jest.fn()}
+                    onDelete={jest.fn()}
+                />
+            </ExerciseCard>
+        );
+
+        const texts = findElementsByType(element, Text) as Array<
+            React.ReactElement<{ children?: React.ReactNode }>
+        >;
+        const weightLabels = texts.filter((text) => text.props.children === 'WEIGHT');
+        const repLabels = texts.filter((text) => text.props.children === 'REPS');
+
+        expect(weightLabels).toHaveLength(1);
+        expect(repLabels).toHaveLength(1);
     });
 });
