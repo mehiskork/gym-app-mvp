@@ -24,50 +24,95 @@ export function SetRow({
     onToggleComplete,
     onDelete,
 }: SetRowProps) {
+    const [rowWidth, setRowWidth] = React.useState(0);
     const completed = set.is_completed === 1;
     const rowStyle = completed ? styles.completedRow : styles.row;
     const inputStyle = completed ? styles.completedInput : styles.input;
     const checkStyle = completed ? styles.checkCompleted : styles.check;
 
+    const buttonSize = tokens.touchTargetMin;
+    const rightActionsGap = tokens.spacing.xs;
+    const rightActionsWidth = buttonSize * 2 + rightActionsGap;
+    const rowHorizontalPadding = tokens.spacing.sm;
+    const setColWidth = 32;
+    const gap = tokens.spacing.sm;
+    const minInputWidth = 64;
+    const maxInputWidth = 96;
+    const compactMinInputWidth = 56;
+
+    const available =
+        rowWidth > 0
+            ? rowWidth -
+            rowHorizontalPadding * 2 -
+            setColWidth -
+            rightActionsWidth -
+            gap * 3
+            : 0;
+    const baseInputWidth = available > 0 ? Math.floor(available / 2) : maxInputWidth;
+    const clampedInputWidth = Math.max(minInputWidth, Math.min(baseInputWidth, maxInputWidth));
+    const isCompact = available > 0 && available < minInputWidth * 2;
+    const inputWidth = isCompact
+        ? Math.max(compactMinInputWidth, baseInputWidth)
+        : clampedInputWidth;
+    const inputPadding = isCompact ? tokens.spacing.sm : tokens.spacing.md;
+
+    const handleRowLayout = React.useCallback(
+        (event: { nativeEvent: { layout: { width: number } } }) => {
+            const { width } = event.nativeEvent.layout;
+            if (width !== rowWidth) {
+                setRowWidth(width);
+            }
+        },
+        [rowWidth],
+    );
+
+
     return (
-        <View style={rowStyle}>
+        <View style={rowStyle} onLayout={handleRowLayout}>
             <View style={styles.leftFields}>
-                <View style={styles.setLabel}>
+                <View style={[styles.setLabel, { width: setColWidth }]}>
                     <Text variant="label" color={tokens.colors.mutedText}>
                         {set.set_index}
                     </Text>
                 </View>
 
                 <View style={styles.inputs}>
-                    <View style={styles.weightInputWrapper}>
+                    <View style={[styles.inputWrapper, { width: inputWidth }]}>
                         <TextInput
                             defaultValue={formatOptionalNumber(set.weight, 2)}
                             keyboardType="decimal-pad"
                             placeholder="0"
                             placeholderTextColor={tokens.colors.textSecondary}
-                            style={inputStyle}
+                            style={[
+                                inputStyle,
+                                { width: inputWidth, paddingHorizontal: inputPadding },
+                            ]}
                             onEndEditing={(e) => onWeightEndEditing(e.nativeEvent.text)}
                         />
                     </View>
 
-                    <View style={styles.repsInputWrapper}>
+                    <View style={[styles.inputWrapper, { width: inputWidth }]}>
                         <TextInput
                             defaultValue={set.reps === null ? '' : String(set.reps)}
                             keyboardType="number-pad"
                             placeholder="0"
                             placeholderTextColor={tokens.colors.textSecondary}
-                            style={inputStyle}
+                            style={[
+                                inputStyle,
+                                { width: inputWidth, paddingHorizontal: inputPadding },
+                            ]}
                             onEndEditing={(e) => onRepsEndEditing(e.nativeEvent.text)}
                         />
                     </View>
                 </View>
             </View>
 
-            <View style={styles.rightActions}>
+            <View style={[styles.rightActions, { width: rightActionsWidth, gap: rightActionsGap }]}>
                 <Pressable
                     onPress={onToggleComplete}
                     style={({ pressed }) => [
                         checkStyle,
+                        { width: buttonSize, height: buttonSize },
                         pressed ? { opacity: 0.85 } : null,
                     ]}
                     accessibilityLabel="Toggle set complete"
@@ -83,6 +128,7 @@ export function SetRow({
                     onPress={onDelete}
                     style={({ pressed }) => [
                         styles.deleteButton,
+                        { width: buttonSize, height: buttonSize },
                         pressed ? { opacity: 0.85 } : null,
                     ]}
                     accessibilityLabel="Delete set"
@@ -99,34 +145,30 @@ const styles = StyleSheet.create({
         flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
-        gap: tokens.spacing.xs,
+        gap: tokens.spacing.sm,
     },
     setLabel: {
-        width: 40,
+        width: 32,
     },
     inputs: {
         flex: 1,
         flexDirection: 'row',
         gap: tokens.spacing.sm,
+        flexShrink: 1,
     },
-    weightInputWrapper: {
-        flex: 1.2,
-        minWidth: 92,
-    },
-    repsInputWrapper: {
-        flex: 1,
-        minWidth: 84,
+    inputWrapper: {
+        overflow: 'hidden',
+        borderRadius: tokens.radius.md,
     },
     rightActions: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: tokens.spacing.xs,
-        width: tokens.touchTargetMin * 2 + tokens.spacing.xs,
+
     },
     row: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: tokens.spacing.xs,
+        gap: tokens.spacing.sm,
         paddingVertical: tokens.spacing.sm,
         paddingHorizontal: tokens.spacing.sm,
         borderRadius: tokens.radius.md,
@@ -147,8 +189,6 @@ const styles = StyleSheet.create({
     },
     input: {
         minHeight: tokens.touchTargetMin,
-        minWidth: 84,
-        flex: 1,
         fontSize: tokens.typography.subtitle.fontSize + 2,
         borderRadius: tokens.radius.md,
         borderWidth: 1,
@@ -159,8 +199,6 @@ const styles = StyleSheet.create({
     },
     completedInput: {
         minHeight: tokens.touchTargetMin,
-        minWidth: 84,
-        flex: 1,
         fontSize: tokens.typography.subtitle.fontSize + 2,
         borderRadius: tokens.radius.md,
         borderWidth: 1,
