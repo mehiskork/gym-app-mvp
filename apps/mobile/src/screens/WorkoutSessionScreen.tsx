@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -30,7 +30,7 @@ import { WorkoutSessionHeaderCard } from '../features/workoutSession/WorkoutSess
 
 type Props = NativeStackScreenProps<RootStackParamList, 'WorkoutSession'>;
 
-const REST_TIMER_HEIGHT = 92;
+const REST_TIMER_HEIGHT = tokens.touchTargetMin + tokens.spacing.xl;
 
 function parseNumber(input: string): number | null {
   const trimmed = input.trim();
@@ -192,7 +192,7 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
                     <SetRow
                       key={set.id}
                       set={set}
-                      isActive={set.id === activeSetId}
+                      isActive={set.id === activeSetId && ex.id === activeExerciseId}
                       onWeightEndEditing={(value) => {
                         updateWorkoutSet(set.id, { weight: parseNumber(value) });
                         load();
@@ -246,27 +246,27 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
             right: tokens.spacing.lg,
             zIndex: 50,
             elevation: 50,
-            gap: tokens.spacing.md,
+            paddingVertical: tokens.spacing.sm,
+            paddingHorizontal: tokens.spacing.md,
           }}
         >
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.md }}>
             <IconChip variant="primaryTint" size={40}>
               <Ionicons name="timer-outline" size={20} color={tokens.colors.primary} />
             </IconChip>
-            <View style={{ flex: 1, gap: tokens.spacing.xs }}>
-              <Text variant="label" color={tokens.colors.mutedText}>
-                Rest
+            <View style={{ flex: 1 }}>
+              <Text
+                variant="mono"
+                style={{
+                  fontSize: tokens.typography.title.fontSize,
+                  fontWeight: tokens.typography.title.fontWeight,
+                }}
+              >
+                {formatMMSS(elapsed)}
               </Text>
-              <Text variant="mono">{formatMMSS(elapsed)}</Text>
-              {session.rest_timer_label ? (
-                <Text variant="muted">{session.rest_timer_label}</Text>
-              ) : null}
+
             </View>
-            <Button
-              title="Clear"
-              variant="ghost"
-              size="sm"
-              leftIcon={<Ionicons name="trash-outline" size={16} color={tokens.colors.text} />}
+            <Pressable
               onPress={() => {
                 setSession((prev) =>
                   prev
@@ -281,7 +281,22 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
 
                 clearRestTimer(sessionId);
               }}
-            />
+              style={({ pressed }) => [
+                {
+                  minHeight: tokens.touchTargetMin,
+                  minWidth: tokens.touchTargetMin,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: tokens.radius.md,
+                  borderWidth: 1,
+                  borderColor: tokens.colors.border,
+                },
+                pressed ? { opacity: 0.85 } : null,
+              ]}
+              accessibilityLabel="Clear rest timer"
+            >
+              <Ionicons name="trash-outline" size={18} color={tokens.colors.textSecondary} />
+            </Pressable>
           </View>
         </Card>
       ) : null}
