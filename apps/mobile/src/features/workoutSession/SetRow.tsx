@@ -35,10 +35,11 @@ export function SetRow({
     const rightActionsWidth = buttonSize * 2 + rightActionsGap;
     const rowHorizontalPadding = tokens.spacing.sm;
     const setColWidth = 32;
-    const gap = tokens.spacing.sm;
-    const minInputWidth = 64;
-    const maxInputWidth = 96;
-    const compactMinInputWidth = 56;
+    const setInputGap = tokens.spacing.xs;
+    const inputGap = tokens.spacing.xs;
+    const rowGap = tokens.spacing.sm;
+    const minInputWidth = 88;
+    const maxInputWidth = 132;
 
     const available =
         rowWidth > 0
@@ -46,15 +47,13 @@ export function SetRow({
             rowHorizontalPadding * 2 -
             setColWidth -
             rightActionsWidth -
-            gap * 3
+            setInputGap -
+            rowGap
             : 0;
-    const baseInputWidth = available > 0 ? Math.floor(available / 2) : maxInputWidth;
-    const clampedInputWidth = Math.max(minInputWidth, Math.min(baseInputWidth, maxInputWidth));
-    const isCompact = available > 0 && available < minInputWidth * 2;
-    const inputWidth = isCompact
-        ? Math.max(compactMinInputWidth, baseInputWidth)
-        : clampedInputWidth;
-    const inputPadding = isCompact ? tokens.spacing.sm : tokens.spacing.md;
+    const baseInputWidth =
+        available > 0 ? Math.floor((available - inputGap) / 2) : maxInputWidth;
+    const inputWidth = Math.max(minInputWidth, Math.min(baseInputWidth, maxInputWidth));
+    const inputPadding = tokens.spacing.md;
 
     const handleRowLayout = React.useCallback(
         (event: { nativeEvent: { layout: { width: number } } }) => {
@@ -69,16 +68,22 @@ export function SetRow({
 
     return (
         <View style={rowStyle} onLayout={handleRowLayout}>
-            <View style={styles.leftFields}>
+            <View style={[styles.leftFields, { gap: setInputGap }]}>
                 <View style={[styles.setLabel, { width: setColWidth }]}>
-                    <Text variant="label" color={tokens.colors.mutedText}>
+                    <Text
+                        testID="set-number"
+                        variant="body"
+                        color={tokens.colors.mutedText}
+                        style={styles.setNumberText}
+                    >
                         {set.set_index}
                     </Text>
                 </View>
 
-                <View style={styles.inputs}>
+                <View style={[styles.inputs, { gap: inputGap }]}>
                     <View style={[styles.inputWrapper, { width: inputWidth }]}>
                         <TextInput
+                            testID="weight-input"
                             defaultValue={formatOptionalNumber(set.weight, 2)}
                             keyboardType="decimal-pad"
                             placeholder="0"
@@ -93,6 +98,7 @@ export function SetRow({
 
                     <View style={[styles.inputWrapper, { width: inputWidth }]}>
                         <TextInput
+                            testID="reps-input"
                             defaultValue={set.reps === null ? '' : String(set.reps)}
                             keyboardType="number-pad"
                             placeholder="0"
@@ -107,7 +113,12 @@ export function SetRow({
                 </View>
             </View>
 
-            <View style={[styles.rightActions, { width: rightActionsWidth, gap: rightActionsGap }]}>
+            <View
+                style={[
+                    styles.rightActions,
+                    { width: rightActionsWidth, gap: rightActionsGap, marginLeft: rowGap },
+                ]}
+            >
                 <Pressable
                     onPress={onToggleComplete}
                     style={({ pressed }) => [
@@ -145,15 +156,20 @@ const styles = StyleSheet.create({
         flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
-        gap: tokens.spacing.sm,
     },
     setLabel: {
         width: 32,
+        alignItems: 'center',
+    },
+    setNumberText: {
+        fontSize: tokens.typography.subtitle.fontSize + 2,
+        fontWeight: tokens.typography.subtitle.fontWeight,
+        lineHeight: tokens.typography.subtitle.fontSize + 6,
+        textAlign: 'center',
     },
     inputs: {
         flex: 1,
         flexDirection: 'row',
-        gap: tokens.spacing.sm,
         flexShrink: 1,
     },
     inputWrapper: {
@@ -168,7 +184,6 @@ const styles = StyleSheet.create({
     row: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: tokens.spacing.sm,
         paddingVertical: tokens.spacing.sm,
         paddingHorizontal: tokens.spacing.sm,
         borderRadius: tokens.radius.md,
@@ -190,22 +205,32 @@ const styles = StyleSheet.create({
     input: {
         minHeight: tokens.touchTargetMin,
         fontSize: tokens.typography.subtitle.fontSize + 2,
+        fontWeight: tokens.typography.subtitle.fontWeight,
+        lineHeight: tokens.typography.subtitle.fontSize + 6,
         borderRadius: tokens.radius.md,
         borderWidth: 1,
         borderColor: tokens.colors.border,
+        paddingVertical: tokens.spacing.xs,
         paddingHorizontal: tokens.spacing.md,
         color: tokens.colors.text,
         backgroundColor: tokens.colors.surface,
+        textAlign: 'center',
+        textAlignVertical: 'center',
     },
     completedInput: {
         minHeight: tokens.touchTargetMin,
         fontSize: tokens.typography.subtitle.fontSize + 2,
+        fontWeight: tokens.typography.subtitle.fontWeight,
+        lineHeight: tokens.typography.subtitle.fontSize + 6,
         borderRadius: tokens.radius.md,
         borderWidth: 1,
         borderColor: tokens.colors.success,
         paddingHorizontal: tokens.spacing.md,
+        paddingVertical: tokens.spacing.xs,
         color: tokens.colors.text,
         backgroundColor: tokens.colors.successSurface,
+        textAlign: 'center',
+        textAlignVertical: 'center',
     },
     check: {
         minHeight: tokens.touchTargetMin,

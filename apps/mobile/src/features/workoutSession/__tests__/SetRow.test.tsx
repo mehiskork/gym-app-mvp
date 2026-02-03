@@ -64,6 +64,27 @@ const findElementsByType = <P,>(
     return acc;
 };
 
+const findElementByTestId = <P,>(
+    node: React.ReactNode,
+    testID: string,
+): React.ReactElement<P> | undefined => {
+    if (!node) return undefined;
+    if (Array.isArray(node)) {
+        for (const child of node) {
+            const found = findElementByTestId<P>(child, testID);
+            if (found) return found;
+        }
+        return undefined;
+    }
+    if (React.isValidElement<React.PropsWithChildren<P>>(node)) {
+        const props = node.props as { testID?: string; children?: React.ReactNode };
+        if (props?.testID === testID) return node as React.ReactElement<P>;
+        return findElementByTestId<P>(props?.children, testID);
+    }
+    return undefined;
+};
+
+
 const createSet = () => ({
     id: 'set-1',
     workout_session_exercise_id: 'exercise-1',
@@ -131,5 +152,41 @@ describe('SetRow layout sizing', () => {
         });
 
         expect(rightActionsView).toBeDefined();
+    });
+    it('matches set number typography with numeric inputs and centers values', () => {
+        const element = SetRow({
+            set: createSet(),
+            onWeightEndEditing: jest.fn(),
+            onRepsEndEditing: jest.fn(),
+            onToggleComplete: jest.fn(),
+            onDelete: jest.fn(),
+        });
+
+        const setNumber = findElementByTestId<{ style?: unknown }>(element, 'set-number');
+        const weightInput = findElementByTestId<{ style?: unknown }>(element, 'weight-input');
+        const repsInput = findElementByTestId<{ style?: unknown }>(element, 'reps-input');
+
+        const setNumberStyle = StyleSheet.flatten(setNumber?.props.style) as {
+            fontSize?: number;
+            fontWeight?: string;
+            lineHeight?: number;
+        };
+        const weightStyle = StyleSheet.flatten(weightInput?.props.style) as {
+            fontSize?: number;
+            fontWeight?: string;
+            lineHeight?: number;
+            textAlign?: string;
+        };
+        const repsStyle = StyleSheet.flatten(repsInput?.props.style) as {
+            textAlign?: string;
+        };
+
+        expect(setNumberStyle).toMatchObject({
+            fontSize: weightStyle.fontSize,
+            fontWeight: weightStyle.fontWeight,
+            lineHeight: weightStyle.lineHeight,
+        });
+        expect(weightStyle).toMatchObject({ textAlign: 'center' });
+        expect(repsStyle).toMatchObject({ textAlign: 'center' });
     });
 });
