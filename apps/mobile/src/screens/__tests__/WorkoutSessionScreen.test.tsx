@@ -60,6 +60,7 @@ jest.mock('../../db/workoutLoggerRepo', () => ({
     addWorkoutSet: jest.fn(),
     clearRestTimer: jest.fn(),
     deleteWorkoutSet: jest.fn(),
+    restoreWorkoutSet: jest.fn(),
     getWorkoutLoggerData: jest.fn(),
     startRestTimer: jest.fn(),
     updateWorkoutSet: jest.fn(),
@@ -171,6 +172,7 @@ describe('WorkoutSessionScreen', () => {
         useStateMock.mockImplementationOnce(() => [session, jest.fn()]);
         useStateMock.mockImplementationOnce(() => [exercises, jest.fn()]);
         useStateMock.mockImplementationOnce(() => [0, jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [{ visible: false, payload: null }, jest.fn()]);
         (getWorkoutLoggerData as jest.Mock).mockReturnValue({ session, exercises });
 
         const navigation: Nav = { navigate: jest.fn(), setOptions: jest.fn() };
@@ -210,6 +212,7 @@ describe('WorkoutSessionScreen', () => {
         useStateMock.mockImplementationOnce(() => [session, jest.fn()]);
         useStateMock.mockImplementationOnce(() => [exercises, jest.fn()]);
         useStateMock.mockImplementationOnce(() => [0, jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [{ visible: false, payload: null }, jest.fn()]);
         (getWorkoutLoggerData as jest.Mock).mockReturnValue({ session, exercises });
 
         const navigation: Nav = { navigate: jest.fn(), setOptions: jest.fn() };
@@ -249,6 +252,7 @@ describe('WorkoutSessionScreen', () => {
         useStateMock.mockImplementationOnce(() => [session, jest.fn()]);
         useStateMock.mockImplementationOnce(() => [exercises, jest.fn()]);
         useStateMock.mockImplementationOnce(() => [0, jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [{ visible: false, payload: null }, jest.fn()]);
         (getWorkoutLoggerData as jest.Mock).mockReturnValue({ session, exercises });
 
         const navigation: Nav = { navigate: jest.fn(), setOptions: jest.fn() };
@@ -280,6 +284,7 @@ describe('WorkoutSessionScreen', () => {
         useStateMock.mockImplementationOnce(() => [session, jest.fn()]);
         useStateMock.mockImplementationOnce(() => [exercises, jest.fn()]);
         useStateMock.mockImplementationOnce(() => [0, jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [{ visible: false, payload: null }, jest.fn()]);
         (getWorkoutLoggerData as jest.Mock).mockReturnValue({ session, exercises });
 
         const navigation: Nav = { navigate: jest.fn(), setOptions: jest.fn() };

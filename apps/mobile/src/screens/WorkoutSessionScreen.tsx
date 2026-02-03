@@ -7,7 +7,7 @@ import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { RootStackParamList } from '../navigation/types';
-import { Button, Card, EmptyState, IconChip, Screen, Text } from '../ui';
+import { Button, Card, EmptyState, IconChip, Screen, Snackbar, Text } from '../ui';
 import { tokens } from '../theme/tokens';
 import { completeSession } from '../db/workoutSessionRepo';
 import { DEFAULT_REST_SECONDS } from '../db/constants';
@@ -18,15 +18,17 @@ import {
   startRestTimer,
   updateWorkoutSet,
   deleteWorkoutSet,
+  restoreWorkoutSet,
   type LoggerExercise,
   type LoggerSession,
+  type LoggerSet,
 
 } from '../db/workoutLoggerRepo';
 import { formatMMSS, secondsElapsed } from '../utils/format';
 import { ExerciseCard } from '../features/workoutSession/ExerciseCard';
 import { SetRow } from '../features/workoutSession/SetRow';
 import { WorkoutSessionHeaderCard } from '../features/workoutSession/WorkoutSessionHeaderCard';
-
+import { useSnackbarUndo } from '../hooks/useSnackbarUndo';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'WorkoutSession'>;
 
@@ -63,6 +65,14 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
     setSession(data.session);
     setExercises(data.exercises);
   }, [sessionId]);
+
+  const snackbarUndo = useSnackbarUndo<LoggerSet>({
+    onUndo: (payload) => {
+      restoreWorkoutSet(payload);
+      load();
+    },
+  });
+
 
   useFocusEffect(
     useCallback(() => {
@@ -118,6 +128,7 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
     ? baseScrollPaddingTop + REST_TIMER_HEIGHT + tokens.spacing.lg
     : baseScrollPaddingTop;
   const restTimerTop = tokens.spacing.xs - insets.top;
+  const snackbarBottomOffset = footerHeight + tokens.spacing.md;
   if (!session) {
     return (
       <Screen style={{ justifyContent: 'center' }}>
@@ -203,17 +214,9 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
                         load();
                       }}
                       onDelete={() => {
-                        Alert.alert('Delete set?', `${ex.exercise_name} • Set ${set.set_index}`, [
-                          { text: 'Cancel', style: 'cancel' },
-                          {
-                            text: 'Delete',
-                            style: 'destructive',
-                            onPress: () => {
-                              deleteWorkoutSet(set.id);
-                              load();
-                            },
-                          },
-                        ]);
+                        deleteWorkoutSet(set.id);
+                        snackbarUndo.showUndo(set);
+                        load();
                       }}
                     />
                   ))}
@@ -287,6 +290,13 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
           </View>
         </Card>
       ) : null}
+      <Snackbar
+        visible={snackbarUndo.visible}
+        message="Set deleted"
+        actionLabel="UNDO"
+        onAction={snackbarUndo.onUndoAction}
+        bottomOffset={snackbarBottomOffset}
+      />
       <View
         style={{
           position: 'absolute',

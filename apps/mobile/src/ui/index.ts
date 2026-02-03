@@ -7,5 +7,6 @@ export { IconChip } from './IconChip';
 export { ListRow } from './ListRow';
 export { Screen } from './Screen';
 export { SectionHeader } from './SectionHeader';
+export { Snackbar } from './Snackbar';
 export { StatCard } from './StatCard';
 export { Text } from './Text';

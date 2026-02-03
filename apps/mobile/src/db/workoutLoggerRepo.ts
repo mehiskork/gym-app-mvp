@@ -35,6 +35,8 @@ export type LoggerSet = {
   is_completed: number; // 0/1
 };
 
+export type RestoreWorkoutSetInput = LoggerSet;
+
 function normalizeDeletedSetIndices(wseId: string): string[] {
   const deleted = query<{ id: string }>(
     `
@@ -251,6 +253,81 @@ export function deleteWorkoutSet(setId: string) {
     enqueueWorkoutSetSnapshot(setId, 'delete');
   });
 }
+
+export function restoreWorkoutSet(set: RestoreWorkoutSetInput) {
+  inTransaction(() => {
+    const affected = query<{ id: string }>(
+      `
+      SELECT id
+      FROM workout_set
+      WHERE workout_session_exercise_id = ?
+        AND deleted_at IS NULL
+        AND set_index >= ?
+      ORDER BY set_index ASC;
+    `,
+      [set.workout_session_exercise_id, set.set_index],
+    );
+
+    if (affected.length > 0) {
+      exec(
+        `
+        UPDATE workout_set
+        SET set_index = set_index + 1000, updated_at = datetime('now')
+        WHERE workout_session_exercise_id = ?
+          AND deleted_at IS NULL
+          AND set_index >= ?;
+      `,
+        [set.workout_session_exercise_id, set.set_index],
+      );
+    }
+
+    exec(
+      `
+      UPDATE workout_set
+      SET
+        deleted_at = NULL,
+        updated_at = datetime('now'),
+        set_index = ?,
+        weight = ?,
+        reps = ?,
+        rpe = ?,
+        rest_seconds = ?,
+        notes = ?,
+        is_completed = ?
+      WHERE id = ?;
+    `,
+      [
+        set.set_index,
+        set.weight,
+        set.reps,
+        set.rpe,
+        set.rest_seconds,
+        set.notes,
+        set.is_completed,
+        set.id,
+      ],
+    );
+
+    if (affected.length > 0) {
+      exec(
+        `
+        UPDATE workout_set
+        SET set_index = set_index - 999, updated_at = datetime('now')
+        WHERE workout_session_exercise_id = ?
+          AND deleted_at IS NULL
+          AND set_index >= ?;
+      `,
+        [set.workout_session_exercise_id, set.set_index + 1000],
+      );
+    }
+
+    for (const row of affected) {
+      enqueueWorkoutSetSnapshot(row.id);
+    }
+    enqueueWorkoutSetSnapshot(set.id);
+  });
+}
+
 
 export function startRestTimer(sessionId: string, seconds: number, label: string) {
   exec(
