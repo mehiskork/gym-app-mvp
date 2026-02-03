@@ -21,9 +21,9 @@ export function Header({ title, subtitle, showBack = false, onBack, rightAction 
     return (
         <View
             style={{
-                paddingTop: insets.top + tokens.spacing.sm,
-                paddingHorizontal: tokens.spacing.lg,
-                paddingBottom: tokens.spacing.sm,
+                paddingTop: insets.top + tokens.spacing.xs,
+                paddingHorizontal: tokens.spacing.xs,
+                paddingBottom: tokens.spacing.xs,
                 backgroundColor: tokens.colors.bg,
                 borderBottomWidth: 1,
                 borderBottomColor: tokens.colors.border,

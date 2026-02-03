@@ -123,10 +123,14 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
     );
   }, [exercises]);
   const footerPaddingBottom = Math.max(insets.bottom, tokens.spacing.sm);
-  const footerHeight = tokens.touchTargetMin + tokens.spacing.sm + footerPaddingBottom;
+  const footerPaddingTop = tokens.spacing.sm;
+  const footerHeight = tokens.touchTargetMin + footerPaddingTop + footerPaddingBottom;
+  const footerOverlapHeight = Math.max(footerHeight - insets.bottom, tokens.touchTargetMin);
+  const baseScrollPaddingTop = tokens.spacing.md;
   const scrollPaddingTop = timerActive
-    ? tokens.spacing.lg + REST_TIMER_HEIGHT + tokens.spacing.md
-    : tokens.spacing.lg;
+    ? baseScrollPaddingTop + REST_TIMER_HEIGHT + tokens.spacing.lg
+    : baseScrollPaddingTop;
+  const restTimerTop = tokens.spacing.xs - insets.top;
   if (!session) {
     return (
       <Screen style={{ justifyContent: 'center' }}>
@@ -150,16 +154,12 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
           contentContainerStyle={{
             paddingHorizontal: tokens.spacing.lg,
             paddingTop: scrollPaddingTop,
-            paddingBottom: footerHeight + tokens.spacing.lg,
+            paddingBottom: footerOverlapHeight + tokens.spacing.lg,
             gap: tokens.spacing.md,
           }}
           showsVerticalScrollIndicator={false}
         >
-          <WorkoutSessionHeaderCard
-            title={session.title}
-            status={session.status}
-            startedAt={session.started_at}
-          />
+          <WorkoutSessionHeaderCard status={session.status} startedAt={session.started_at} />
 
 
           {exercises.length === 0 ? (
@@ -241,7 +241,7 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
         <Card
           style={{
             position: 'absolute',
-            top: insets.top + tokens.spacing.sm,
+            top: restTimerTop,
             left: tokens.spacing.lg,
             right: tokens.spacing.lg,
             zIndex: 50,
@@ -290,9 +290,9 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
           position: 'absolute',
           left: 0,
           right: 0,
-          bottom: 0,
+          bottom: -insets.bottom,
           paddingHorizontal: tokens.spacing.lg,
-          paddingTop: tokens.spacing.sm,
+          paddingTop: footerPaddingTop,
           paddingBottom: footerPaddingBottom,
           backgroundColor: tokens.colors.surface,
           borderTopWidth: 1,

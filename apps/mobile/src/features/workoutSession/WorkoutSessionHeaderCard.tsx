@@ -8,10 +8,8 @@ import type { WorkoutSessionStatus } from '../../db/constants';
 
 
 type WorkoutSessionHeaderCardProps = {
-    title: string;
     status: WorkoutSessionStatus;
     startedAt?: string | null;
-
 };
 
 const statusLabels: Record<WorkoutSessionStatus, string> = {
@@ -27,24 +25,21 @@ const statusVariants: Record<WorkoutSessionStatus, 'planned' | 'completed' | 'go
 };
 
 export function WorkoutSessionHeaderCard({
-    title,
     status,
     startedAt,
-
 }: WorkoutSessionHeaderCardProps) {
     return (
-        <Card style={{ gap: tokens.spacing.md }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: tokens.spacing.md }}>
-                <View style={{ flex: 1, gap: tokens.spacing.xs }}>
-                    <Text variant="h2">{title}</Text>
-                    {startedAt ? (
-                        <Text variant="muted">Started {formatDateTime(startedAt)}</Text>
-                    ) : null}
-                </View>
+        <Card style={{ gap: tokens.spacing.sm, padding: tokens.spacing.md }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: tokens.spacing.sm }}>
+                {startedAt ? (
+                    <Text variant="muted">Started {formatDateTime(startedAt)}</Text>
+                ) : (
+                    <Text variant="muted">Session active</Text>
+                )}
                 <Badge label={statusLabels[status]} variant={statusVariants[status]} />
-            </View>
+            </View >
 
 
-        </Card>
+        </Card >
     );
 }
