@@ -427,9 +427,11 @@ describe('WorkoutSessionScreen', () => {
         const texts = findElementsByType(element, Text) as Array<
             React.ReactElement<{ children?: React.ReactNode }>
         >;
+        const setLabels = texts.filter((text) => text.props.children === 'SET');
         const weightLabels = texts.filter((text) => text.props.children === 'WEIGHT');
         const repLabels = texts.filter((text) => text.props.children === 'REPS');
 
+        expect(setLabels).toHaveLength(1);
         expect(weightLabels).toHaveLength(1);
         expect(repLabels).toHaveLength(1);
     });

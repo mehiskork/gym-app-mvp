@@ -48,13 +48,12 @@ export function ExerciseCard({
                         style={{
                             flexDirection: 'row',
                             alignItems: 'center',
-                            gap: tokens.spacing.sm,
-                            paddingHorizontal: tokens.spacing.xs,
+                            gap: tokens.spacing.xs,
+                            paddingHorizontal: tokens.spacing.sm,
                         }}
                     >
-                        <View style={{ width: 40 }} />
-                        <View style={{ flex: 1, flexDirection: 'row', gap: tokens.spacing.sm }}>
-                            <View style={{ flex: 1 }}>
+                        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.xs }}>
+                            <View style={{ width: 40 }}>
                                 <Text
                                     variant="label"
                                     color={tokens.colors.mutedText}
@@ -62,22 +61,35 @@ export function ExerciseCard({
                                         fontSize: tokens.typography.caption.fontSize,
                                     }}
                                 >
-                                    WEIGHT
+                                    SET
                                 </Text>
                             </View>
-                            <View style={{ flex: 1 }}>
-                                <Text
-                                    variant="label"
-                                    color={tokens.colors.mutedText}
-                                    style={{
-                                        fontSize: tokens.typography.caption.fontSize,
-                                    }}
-                                >
-                                    REPS
-                                </Text>
+                            <View style={{ flex: 1, flexDirection: 'row', gap: tokens.spacing.sm }}>
+                                <View style={{ flex: 1.2 }}>
+                                    <Text
+                                        variant="label"
+                                        color={tokens.colors.mutedText}
+                                        style={{
+                                            fontSize: tokens.typography.caption.fontSize,
+                                        }}
+                                    >
+                                        WEIGHT
+                                    </Text>
+                                </View>
+                                <View style={{ flex: 1 }}>
+                                    <Text
+                                        variant="label"
+                                        color={tokens.colors.mutedText}
+                                        style={{
+                                            fontSize: tokens.typography.caption.fontSize,
+                                        }}
+                                    >
+                                        REPS
+                                    </Text>
+                                </View>
                             </View>
                         </View>
-                        <View style={{ width: tokens.touchTargetMin * 2 + tokens.spacing.sm }} />
+                        <View style={{ width: tokens.touchTargetMin * 2 + tokens.spacing.xs }} />
                     </View>
                 ) : null}
                 {children}

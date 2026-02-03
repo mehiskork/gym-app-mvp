@@ -31,74 +31,76 @@ export function SetRow({
 
     return (
         <View style={rowStyle}>
-            <View style={styles.setLabel}>
-                <Text variant="label" color={tokens.colors.mutedText}>
-                    {set.set_index}
-                </Text>
-            </View>
-
-            <View style={styles.inputs}>
-                <View style={styles.inputWrapper}>
-                    <TextInput
-                        defaultValue={formatOptionalNumber(set.weight, 2)}
-                        keyboardType="decimal-pad"
-                        placeholder="0"
-                        placeholderTextColor={tokens.colors.textSecondary}
-                        style={inputStyle}
-                        onEndEditing={(e) => onWeightEndEditing(e.nativeEvent.text)}
-                    />
+            <View style={styles.leftFields}>
+                <View style={styles.setLabel}>
+                    <Text variant="label" color={tokens.colors.mutedText}>
+                        {set.set_index}
+                    </Text>
                 </View>
 
-                <View style={styles.inputWrapper}>
-                    <TextInput
-                        defaultValue={set.reps === null ? '' : String(set.reps)}
-                        keyboardType="number-pad"
-                        placeholder="0"
-                        placeholderTextColor={tokens.colors.textSecondary}
-                        style={inputStyle}
-                        onEndEditing={(e) => onRepsEndEditing(e.nativeEvent.text)}
-                    />
+                <View style={styles.inputs}>
+                    <View style={styles.weightInputWrapper}>
+                        <TextInput
+                            defaultValue={formatOptionalNumber(set.weight, 2)}
+                            keyboardType="decimal-pad"
+                            placeholder="0"
+                            placeholderTextColor={tokens.colors.textSecondary}
+                            style={inputStyle}
+                            onEndEditing={(e) => onWeightEndEditing(e.nativeEvent.text)}
+                        />
+                    </View>
+
+                    <View style={styles.repsInputWrapper}>
+                        <TextInput
+                            defaultValue={set.reps === null ? '' : String(set.reps)}
+                            keyboardType="number-pad"
+                            placeholder="0"
+                            placeholderTextColor={tokens.colors.textSecondary}
+                            style={inputStyle}
+                            onEndEditing={(e) => onRepsEndEditing(e.nativeEvent.text)}
+                        />
+                    </View>
                 </View>
             </View>
 
-            <Pressable
-                onPress={onToggleComplete}
-                style={({ pressed }) => [
-                    checkStyle,
-                    pressed ? { opacity: 0.85 } : null,
-                ]}
-                accessibilityLabel="Toggle set complete"
-            >
-                <Ionicons
-                    name="checkmark"
-                    size={18}
-                    color={completed ? tokens.colors.onPrimary : tokens.colors.textSecondary}
-                />
-            </Pressable>
+            <View style={styles.rightActions}>
+                <Pressable
+                    onPress={onToggleComplete}
+                    style={({ pressed }) => [
+                        checkStyle,
+                        pressed ? { opacity: 0.85 } : null,
+                    ]}
+                    accessibilityLabel="Toggle set complete"
+                >
+                    <Ionicons
+                        name="checkmark"
+                        size={18}
+                        color={completed ? tokens.colors.onPrimary : tokens.colors.textSecondary}
+                    />
+                </Pressable>
 
-            <Pressable
-                onPress={onDelete}
-                style={({ pressed }) => [
-                    {
-                        minHeight: tokens.touchTargetMin,
-                        minWidth: tokens.touchTargetMin,
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        borderRadius: tokens.radius.md,
-                        borderWidth: 1,
-                        borderColor: tokens.colors.border,
-                    },
-                    pressed ? { opacity: 0.85 } : null,
-                ]}
-                accessibilityLabel="Delete set"
-            >
-                <Ionicons name="trash-outline" size={18} color={tokens.colors.destructive} />
-            </Pressable>
+                <Pressable
+                    onPress={onDelete}
+                    style={({ pressed }) => [
+                        styles.deleteButton,
+                        pressed ? { opacity: 0.85 } : null,
+                    ]}
+                    accessibilityLabel="Delete set"
+                >
+                    <Ionicons name="trash-outline" size={18} color={tokens.colors.destructive} />
+                </Pressable>
+            </View>
         </View>
     );
 }
 
 const styles = StyleSheet.create({
+    leftFields: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: tokens.spacing.xs,
+    },
     setLabel: {
         width: 40,
     },
@@ -107,13 +109,24 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         gap: tokens.spacing.sm,
     },
-    inputWrapper: {
+    weightInputWrapper: {
+        flex: 1.2,
+        minWidth: 92,
+    },
+    repsInputWrapper: {
         flex: 1,
+        minWidth: 84,
+    },
+    rightActions: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: tokens.spacing.xs,
+        width: tokens.touchTargetMin * 2 + tokens.spacing.xs,
     },
     row: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: tokens.spacing.sm,
+        gap: tokens.spacing.xs,
         paddingVertical: tokens.spacing.sm,
         paddingHorizontal: tokens.spacing.sm,
         borderRadius: tokens.radius.md,
@@ -124,7 +137,7 @@ const styles = StyleSheet.create({
     completedRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: tokens.spacing.sm,
+        gap: tokens.spacing.xs,
         paddingVertical: tokens.spacing.sm,
         paddingHorizontal: tokens.spacing.sm,
         borderRadius: tokens.radius.md,
@@ -136,7 +149,7 @@ const styles = StyleSheet.create({
         minHeight: tokens.touchTargetMin,
         minWidth: 84,
         flex: 1,
-        fontSize: tokens.typography.subtitle.fontSize,
+        fontSize: tokens.typography.subtitle.fontSize + 2,
         borderRadius: tokens.radius.md,
         borderWidth: 1,
         borderColor: tokens.colors.border,
@@ -148,7 +161,7 @@ const styles = StyleSheet.create({
         minHeight: tokens.touchTargetMin,
         minWidth: 84,
         flex: 1,
-        fontSize: tokens.typography.subtitle.fontSize,
+        fontSize: tokens.typography.subtitle.fontSize + 2,
         borderRadius: tokens.radius.md,
         borderWidth: 1,
         borderColor: tokens.colors.success,
@@ -175,5 +188,14 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: tokens.colors.success,
         backgroundColor: tokens.colors.success,
+    },
+    deleteButton: {
+        minHeight: tokens.touchTargetMin,
+        minWidth: tokens.touchTargetMin,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: tokens.radius.md,
+        borderWidth: 1,
+        borderColor: tokens.colors.border,
     },
 });
