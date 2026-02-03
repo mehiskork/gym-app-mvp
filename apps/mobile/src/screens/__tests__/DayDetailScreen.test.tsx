@@ -37,6 +37,10 @@ jest.mock('react-native', () => {
             React.createElement('TextInput', props, children),
         View: ({ children, ...props }: { children?: React.ReactNode }) =>
             React.createElement('View', props, children),
+        StyleSheet: {
+            create: (styles: unknown) => styles,
+            flatten: (styles: unknown) => styles,
+        },
         Platform: { select: () => 'monospace' },
     };
 });
