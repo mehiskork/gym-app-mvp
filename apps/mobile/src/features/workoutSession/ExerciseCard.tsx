@@ -3,14 +3,13 @@ import type { ReactNode } from 'react';
 import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-import { Badge, Card, Text } from '../../ui';
+import { Card, Text } from '../../ui';
 import { tokens } from '../../theme/tokens';
 
 
 type ExerciseCardProps = {
     name: string;
     subtitle?: string | null;
-    isActive?: boolean;
     onAddSet: () => void;
     onPressTitle?: () => void;
     children: ReactNode;
@@ -19,7 +18,6 @@ type ExerciseCardProps = {
 export function ExerciseCard({
     name,
     subtitle,
-    isActive = false,
     onAddSet,
     onPressTitle,
     children,
@@ -40,7 +38,7 @@ export function ExerciseCard({
                         </Text>
                     ) : null}
                 </View>
-                {isActive ? <Badge label="Current" variant="goal" /> : null}
+
             </View>
             <View style={{ gap: tokens.spacing.sm }}>
                 {children}

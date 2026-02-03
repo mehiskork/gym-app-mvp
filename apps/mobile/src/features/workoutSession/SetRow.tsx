@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 import type { LoggerSet } from '../../db/workoutLoggerRepo';
@@ -10,7 +10,7 @@ import { formatOptionalNumber } from '../../utils/format';
 
 type SetRowProps = {
     set: LoggerSet;
-    isActive: boolean;
+
     onWeightEndEditing: (value: string) => void;
     onRepsEndEditing: (value: string) => void;
     onToggleComplete: () => void;
@@ -19,25 +19,15 @@ type SetRowProps = {
 
 export function SetRow({
     set,
-    isActive,
     onWeightEndEditing,
     onRepsEndEditing,
     onToggleComplete,
     onDelete,
 }: SetRowProps) {
-    const done = set.is_completed === 1;
-    const rowStyle = {
-        flexDirection: 'row' as const,
-        alignItems: 'center' as const,
-        gap: tokens.spacing.sm,
-        paddingVertical: tokens.spacing.sm,
-        paddingHorizontal: tokens.spacing.sm,
-        borderRadius: tokens.radius.md,
-        borderWidth: 1,
-        borderColor: isActive ? tokens.colors.primary : tokens.colors.border,
-        backgroundColor: isActive ? 'rgba(245, 138, 42, 0.12)' : tokens.colors.surface2,
-        opacity: done ? 0.6 : 1,
-    };
+    const completed = set.is_completed === 1;
+    const rowStyle = completed ? styles.completedRow : styles.row;
+    const inputStyle = completed ? styles.completedInput : styles.input;
+    const checkStyle = completed ? styles.checkCompleted : styles.check;
 
     return (
         <View style={rowStyle}>
@@ -57,15 +47,7 @@ export function SetRow({
                         keyboardType="decimal-pad"
                         placeholder="0"
                         placeholderTextColor={tokens.colors.textSecondary}
-                        style={{
-                            minHeight: tokens.touchTargetMin,
-                            borderRadius: tokens.radius.md,
-                            borderWidth: 1,
-                            borderColor: tokens.colors.border,
-                            paddingHorizontal: tokens.spacing.md,
-                            color: tokens.colors.text,
-                            backgroundColor: tokens.colors.surface,
-                        }}
+                        style={inputStyle}
                         onEndEditing={(e) => onWeightEndEditing(e.nativeEvent.text)}
                     />
                 </View>
@@ -79,15 +61,7 @@ export function SetRow({
                         keyboardType="number-pad"
                         placeholder="0"
                         placeholderTextColor={tokens.colors.textSecondary}
-                        style={{
-                            minHeight: tokens.touchTargetMin,
-                            borderRadius: tokens.radius.md,
-                            borderWidth: 1,
-                            borderColor: tokens.colors.border,
-                            paddingHorizontal: tokens.spacing.md,
-                            color: tokens.colors.text,
-                            backgroundColor: tokens.colors.surface,
-                        }}
+                        style={inputStyle}
                         onEndEditing={(e) => onRepsEndEditing(e.nativeEvent.text)}
                     />
                 </View>
@@ -96,16 +70,7 @@ export function SetRow({
             <Pressable
                 onPress={onToggleComplete}
                 style={({ pressed }) => [
-                    {
-                        minHeight: tokens.touchTargetMin,
-                        minWidth: tokens.touchTargetMin,
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        borderRadius: tokens.radius.md,
-                        borderWidth: 1,
-                        borderColor: done ? tokens.colors.text : tokens.colors.border,
-                        backgroundColor: done ? tokens.colors.text : 'transparent',
-                    },
+                    checkStyle,
                     pressed ? { opacity: 0.85 } : null,
                 ]}
                 accessibilityLabel="Toggle set complete"
@@ -113,7 +78,7 @@ export function SetRow({
                 <Ionicons
                     name="checkmark"
                     size={18}
-                    color={done ? tokens.colors.background : tokens.colors.textSecondary}
+                    color={completed ? tokens.colors.onPrimary : tokens.colors.textSecondary}
                 />
             </Pressable>
 
@@ -133,8 +98,71 @@ export function SetRow({
                 ]}
                 accessibilityLabel="Delete set"
             >
-                <Ionicons name="trash-outline" size={18} color={tokens.colors.textSecondary} />
+                <Ionicons name="trash-outline" size={18} color={tokens.colors.destructive} />
             </Pressable>
         </View>
     );
 }
+
+const styles = StyleSheet.create({
+    row: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: tokens.spacing.sm,
+        paddingVertical: tokens.spacing.sm,
+        paddingHorizontal: tokens.spacing.sm,
+        borderRadius: tokens.radius.md,
+        borderWidth: 1,
+        borderColor: tokens.colors.border,
+        backgroundColor: tokens.colors.surface2,
+    },
+    completedRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: tokens.spacing.sm,
+        paddingVertical: tokens.spacing.sm,
+        paddingHorizontal: tokens.spacing.sm,
+        borderRadius: tokens.radius.md,
+        borderWidth: 1,
+        borderColor: tokens.colors.success,
+        backgroundColor: tokens.colors.successSurface,
+    },
+    input: {
+        minHeight: tokens.touchTargetMin,
+        borderRadius: tokens.radius.md,
+        borderWidth: 1,
+        borderColor: tokens.colors.border,
+        paddingHorizontal: tokens.spacing.md,
+        color: tokens.colors.text,
+        backgroundColor: tokens.colors.surface,
+    },
+    completedInput: {
+        minHeight: tokens.touchTargetMin,
+        borderRadius: tokens.radius.md,
+        borderWidth: 1,
+        borderColor: tokens.colors.success,
+        paddingHorizontal: tokens.spacing.md,
+        color: tokens.colors.text,
+        backgroundColor: tokens.colors.successSurface,
+    },
+    check: {
+        minHeight: tokens.touchTargetMin,
+        minWidth: tokens.touchTargetMin,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: tokens.radius.md,
+        borderWidth: 1,
+        borderColor: tokens.colors.border,
+        backgroundColor: 'transparent',
+    },
+    checkCompleted: {
+        minHeight: tokens.touchTargetMin,
+        minWidth: tokens.touchTargetMin,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: tokens.radius.md,
+        borderWidth: 1,
+        borderColor: tokens.colors.success,
+        backgroundColor: tokens.colors.success,
+    },
+});

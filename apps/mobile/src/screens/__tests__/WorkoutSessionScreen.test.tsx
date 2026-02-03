@@ -78,6 +78,7 @@ import { ExerciseCard } from '../../features/workoutSession/ExerciseCard';
 import { SetRow } from '../../features/workoutSession/SetRow';
 import { Button, Card, Text } from '../../ui';
 import { getWorkoutLoggerData, updateWorkoutSet } from '../../db/workoutLoggerRepo';
+import { tokens } from '../../theme/tokens';
 
 type Nav = {
     navigate: jest.Mock;
@@ -105,6 +106,14 @@ const getPositionStyle = (style?: StyleProp<ViewStyle>) => {
     if (!style) return undefined;
     return (StyleSheet.flatten(style) as ViewStyle | undefined)?.position;
 };
+
+const resolveStyle = (styleProp: unknown) => {
+    if (typeof styleProp === 'function') {
+        return styleProp({ pressed: false });
+    }
+    return styleProp;
+};
+
 
 describe('WorkoutSessionScreen', () => {
     const useStateMock = React.useState as jest.Mock;
@@ -213,7 +222,7 @@ describe('WorkoutSessionScreen', () => {
         const buttons = findElementsByType(element, Button) as Array<React.ReactElement<ButtonProps>>;
         const finishButton = buttons.find((button) => button.props.title === 'Finish workout');
 
-        expect(finishButton).toBeDefined();
+        expect(finishButton?.props.variant).toBe('primary');
         finishButton?.props.onPress?.({} as never);
 
         const { Alert } = jest.requireMock('react-native');
@@ -298,6 +307,50 @@ describe('WorkoutSessionScreen', () => {
             (card) => getPositionStyle(card.props.style) === 'absolute',
         );
         expect(scrollOverlayCard).toBeUndefined();
+    });
+
+    it('styles completed set rows and destructive icons', () => {
+        const element = (
+            <SetRow
+                set={{
+                    id: 'set-9',
+                    workout_session_exercise_id: 'exercise-1',
+                    set_index: 1,
+                    weight: 100,
+                    reps: 5,
+                    rpe: null,
+                    rest_seconds: 90,
+                    notes: null,
+                    is_completed: 1,
+                }}
+                onWeightEndEditing={jest.fn()}
+                onRepsEndEditing={jest.fn()}
+                onToggleComplete={jest.fn()}
+                onDelete={jest.fn()}
+            />
+        );
+
+        const views = findElementsByType(element, 'View') as Array<
+            React.ReactElement<{ style?: StyleProp<ViewStyle> }>
+        >;
+        const rowStyle = StyleSheet.flatten(views[0]?.props.style) as ViewStyle | undefined;
+        expect(rowStyle?.backgroundColor).toBe(tokens.colors.successSurface);
+        expect(rowStyle?.borderColor).toBe(tokens.colors.success);
+
+        const pressables = findElementsByType(element, 'Pressable') as Array<
+            React.ReactElement<{ style?: unknown }>
+        >;
+        const checkStyle = StyleSheet.flatten(resolveStyle(pressables[0]?.props.style)) as
+            | ViewStyle
+            | undefined;
+        expect(checkStyle?.backgroundColor).toBe(tokens.colors.success);
+        expect(checkStyle?.borderColor).toBe(tokens.colors.success);
+
+        const icons = findElementsByType(element, 'Ionicons') as Array<
+            React.ReactElement<{ name: string; color?: string }>
+        >;
+        const trashIcon = icons.find((icon) => icon.props.name === 'trash-outline');
+        expect(trashIcon?.props.color).toBe(tokens.colors.destructive);
     });
 
     it('renders the add set row inside the exercise card and triggers onAddSet', () => {

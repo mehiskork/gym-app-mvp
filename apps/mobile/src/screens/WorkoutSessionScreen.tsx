@@ -39,11 +39,7 @@ function parseNumber(input: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-function getActiveSetId(exercise: LoggerExercise): string | null {
-  const firstIncomplete = exercise.sets.find((set) => set.is_completed === 0);
-  if (firstIncomplete) return firstIncomplete.id;
-  return exercise.sets[exercise.sets.length - 1]?.id ?? null;
-}
+
 
 function getExerciseSubtitle(exercise: LoggerExercise): string | null {
   if (exercise.sets.length === 0) return null;
@@ -113,15 +109,6 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
     ]);
   };
 
-
-
-  const activeExerciseId = useMemo(() => {
-    return (
-      exercises.find((exercise) => exercise.sets.some((set) => set.is_completed === 0))?.id ??
-      exercises[0]?.id ??
-      null
-    );
-  }, [exercises]);
   const footerPaddingBottom = Math.max(insets.bottom, tokens.spacing.sm);
   const footerPaddingTop = tokens.spacing.sm;
   const footerHeight = tokens.touchTargetMin + footerPaddingTop + footerPaddingBottom;
@@ -172,13 +159,13 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
             </Card>
           ) : (
             exercises.map((ex) => {
-              const activeSetId = getActiveSetId(ex);
+
               return (
                 <ExerciseCard
                   key={ex.id}
                   name={ex.exercise_name}
                   subtitle={getExerciseSubtitle(ex)}
-                  isActive={ex.id === activeExerciseId}
+
                   onPressTitle={() =>
                     navigation.navigate('ExerciseDetail', { exerciseId: ex.exercise_id })
                   }
@@ -192,7 +179,7 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
                     <SetRow
                       key={set.id}
                       set={set}
-                      isActive={set.id === activeSetId && ex.id === activeExerciseId}
+
                       onWeightEndEditing={(value) => {
                         updateWorkoutSet(set.id, { weight: parseNumber(value) });
                         load();
@@ -314,7 +301,7 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
           borderTopColor: tokens.colors.border,
         }}
       >
-        <Button title="Finish workout" variant="destructive" onPress={onFinish} />
+        <Button title="Finish workout" variant="primary" onPress={onFinish} />
       </View>
     </Screen>
   );
