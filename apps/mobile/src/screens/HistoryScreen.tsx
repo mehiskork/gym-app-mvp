@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { Alert, FlatList, Pressable, View } from 'react-native';
+import { Alert, Pressable, View } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
@@ -198,56 +198,66 @@ export function HistoryScreen() {
   );
 
   return (
-    <Screen style={{ flex: 1 }} bottomInset="tabBar">
-      <FlatList
-        data={sessions}
-        keyExtractor={(s) => s.id}
-        ListHeaderComponent={header}
-        contentContainerStyle={{ gap: tokens.spacing.sm }}
-        renderItem={({ item }) => (
-          <View
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: tokens.spacing.sm,
-              padding: tokens.spacing.md,
-              backgroundColor: tokens.colors.surface,
-              borderRadius: tokens.radius.md,
-              borderWidth: 1,
-              borderColor: tokens.colors.border,
-            }}
-          >
-            <Pressable
-              onPress={() => navigation.navigate('SessionDetail', { sessionId: item.id })}
-              style={({ pressed }) => [{ flex: 1 }, pressed ? { opacity: 0.85 } : null]}
-            >
-              <AppText variant="subtitle">{item.title}</AppText>
-              <AppText color="textSecondary">
-                {formatDateTime(item.ended_at ?? item.started_at)}
-              </AppText>
-            </Pressable>
+    <Screen
+      scroll
+      padded={false}
+      bottomInset="tabBar"
+      contentStyle={{
+        gap: tokens.spacing.md,
+        paddingHorizontal: tokens.spacing.lg,
+        paddingTop: tokens.spacing.lg,
+      }}
+    >
+      {header}
 
-            <Pressable
-              onPress={() => confirmDeleteOne(item)}
-              style={({ pressed }) => [
-                {
-                  minHeight: tokens.touchTargetMin,
-                  minWidth: tokens.touchTargetMin,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  borderRadius: tokens.radius.sm,
-                  borderWidth: 1,
-                  borderColor: tokens.colors.border,
-                },
-                pressed ? { opacity: 0.85 } : null,
-              ]}
-              accessibilityLabel="Delete workout from history"
+      {sessions.length > 0 ? (
+        <View style={{ gap: tokens.spacing.md }}>
+          {sessions.map((item) => (
+            <View
+              key={item.id}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: tokens.spacing.sm,
+                padding: tokens.spacing.md,
+                backgroundColor: tokens.colors.surface,
+                borderRadius: tokens.radius.md,
+                borderWidth: 1,
+                borderColor: tokens.colors.border,
+              }}
             >
-              <Ionicons name="trash-outline" size={20} color={tokens.colors.textSecondary} />
-            </Pressable>
-          </View>
-        )}
-      />
+              <Pressable
+                onPress={() => navigation.navigate('SessionDetail', { sessionId: item.id })}
+                style={({ pressed }) => [{ flex: 1 }, pressed ? { opacity: 0.85 } : null]}
+              >
+                <AppText variant="subtitle">{item.title}</AppText>
+                <AppText color="textSecondary">
+                  {formatDateTime(item.ended_at ?? item.started_at)}
+                </AppText>
+              </Pressable>
+
+              <Pressable
+                onPress={() => confirmDeleteOne(item)}
+                style={({ pressed }) => [
+                  {
+                    minHeight: tokens.touchTargetMin,
+                    minWidth: tokens.touchTargetMin,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    borderRadius: tokens.radius.sm,
+                    borderWidth: 1,
+                    borderColor: tokens.colors.border,
+                  },
+                  pressed ? { opacity: 0.85 } : null,
+                ]}
+                accessibilityLabel="Delete workout from history"
+              >
+                <Ionicons name="trash-outline" size={20} color={tokens.colors.textSecondary} />
+              </Pressable>
+            </View>
+          ))}
+        </View>
+      ) : null}
     </Screen>
   );
 }

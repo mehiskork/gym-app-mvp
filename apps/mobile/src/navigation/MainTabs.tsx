@@ -71,7 +71,13 @@ export function MainTabs() {
         component={WorkoutPlansScreen}
         options={{ title: 'Plans', tabBarLabel: 'Workout Plans' }}
       />
-      <Tab.Screen name="History" component={HistoryScreen} />
+      <Tab.Screen
+        name="History"
+        component={HistoryScreen}
+        options={{
+
+        }}
+      />
       <Tab.Screen name="Settings" component={SettingsScreen} />
     </Tab.Navigator>
   );
