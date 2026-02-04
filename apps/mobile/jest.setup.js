@@ -1,5 +1,10 @@
 global.__DEV__ = true;
 
+const React = require('react');
+
+jest.spyOn(React, 'useState');
+
+
 jest.mock('@react-navigation/native', () => ({
     useFocusEffect: jest.fn(),
     useNavigation: () => ({

@@ -1,3 +1,13 @@
+jest.mock('react', () => {
+    const actual = jest.requireActual('react');
+    return {
+        ...actual,
+        useState: jest.fn(),
+        useCallback: (fn: () => unknown) => fn,
+        useMemo: (fn: () => unknown) => fn(),
+    };
+});
+
 jest.mock('react-native', () => {
     const React = require('react');
 

@@ -60,9 +60,9 @@ export function FinishWorkoutSheet({
                         gap: tokens.spacing.lg,
                     }}
                 >
-                    <StatColumn label="Sets Completed" value={completedSets} />
+                    {StatColumn({ label: 'Sets Completed', value: completedSets })}
                     <View style={{ height: 48, width: 1, backgroundColor: tokens.colors.border }} />
-                    <StatColumn label="Duration" value={formatDuration(durationMinutes)} />
+                    {StatColumn({ label: 'Duration', value: formatDuration(durationMinutes) })}
                 </View>
                 <Text variant="body" color={tokens.colors.mutedText} style={{ textAlign: 'center' }}>
                     {message}

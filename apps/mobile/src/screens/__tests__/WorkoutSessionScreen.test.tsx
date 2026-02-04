@@ -77,7 +77,8 @@ jest.mock('../../db/workoutSessionRepo', () => ({
 
 import React from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
-import { StyleSheet } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
 import { WorkoutSessionScreen } from '../WorkoutSessionScreen';
 import { ExerciseCard } from '../../features/workoutSession/ExerciseCard';
@@ -115,7 +116,14 @@ const getPositionStyle = (style?: StyleProp<ViewStyle>) => {
 
 const resolveStyle = (styleProp: unknown) => {
     if (typeof styleProp === 'function') {
-        return styleProp({ pressed: false });
+        const resolved = styleProp({ pressed: false });
+        if (Array.isArray(resolved)) {
+            return resolved.filter(Boolean).reduce<Record<string, unknown>>(
+                (acc, entry) => ({ ...acc, ...(entry as Record<string, unknown>) }),
+                {},
+            );
+        }
+        return resolved;
     }
     return styleProp;
 };
@@ -322,7 +330,7 @@ describe('WorkoutSessionScreen', () => {
         );
         expect(scrollOverlayCard).toBeUndefined();
 
-        const icons = findElementsByType(element, 'Ionicons') as Array<
+        const icons = findElementsByType(element, Ionicons) as Array<
             React.ReactElement<{ name: string; color?: string }>
         >;
         const trashIcon = icons.find((icon) => icon.props.name === 'trash-outline');
@@ -330,34 +338,34 @@ describe('WorkoutSessionScreen', () => {
     });
 
     it('styles completed set rows and destructive icons', () => {
-        const element = (
-            <SetRow
-                set={{
-                    id: 'set-9',
-                    workout_session_exercise_id: 'exercise-1',
-                    set_index: 1,
-                    weight: 100,
-                    reps: 5,
-                    rpe: null,
-                    rest_seconds: 90,
-                    notes: null,
-                    is_completed: 1,
-                }}
-                onWeightEndEditing={jest.fn()}
-                onRepsEndEditing={jest.fn()}
-                onToggleComplete={jest.fn()}
-                onDelete={jest.fn()}
-            />
-        );
+        useStateMock.mockImplementation(() => [0, jest.fn()]);
 
-        const views = findElementsByType(element, 'View') as Array<
+        const element = SetRow({
+            set: {
+                id: 'set-9',
+                workout_session_exercise_id: 'exercise-1',
+                set_index: 1,
+                weight: 100,
+                reps: 5,
+                rpe: null,
+                rest_seconds: 90,
+                notes: null,
+                is_completed: 1,
+            },
+            onWeightEndEditing: jest.fn(),
+            onRepsEndEditing: jest.fn(),
+            onToggleComplete: jest.fn(),
+            onDelete: jest.fn(),
+        });
+
+        const views = findElementsByType(element, View) as Array<
             React.ReactElement<{ style?: StyleProp<ViewStyle> }>
         >;
         const rowStyle = StyleSheet.flatten(views[0]?.props.style) as ViewStyle | undefined;
         expect(rowStyle?.backgroundColor).toBe(tokens.colors.successSurface);
         expect(rowStyle?.borderColor).toBe(tokens.colors.success);
 
-        const pressables = findElementsByType(element, 'Pressable') as Array<
+        const pressables = findElementsByType(element, Pressable) as Array<
             React.ReactElement<{ style?: unknown }>
         >;
         const checkStyle = StyleSheet.flatten(resolveStyle(pressables[0]?.props.style)) as
@@ -374,7 +382,7 @@ describe('WorkoutSessionScreen', () => {
         expect(texts.some((text) => text.props.children === 'reps')).toBe(false);
         expect(texts.some((text) => text.props.children === 'Set 1')).toBe(false);
 
-        const icons = findElementsByType(element, 'Ionicons') as Array<
+        const icons = findElementsByType(element, Ionicons) as Array<
             React.ReactElement<{ name: string; color?: string }>
         >;
         const trashIcon = icons.find((icon) => icon.props.name === 'trash-outline');
@@ -383,13 +391,14 @@ describe('WorkoutSessionScreen', () => {
 
     it('renders the add set row inside the exercise card and triggers onAddSet', () => {
         const onAddSet = jest.fn();
-        const element = (
-            <ExerciseCard name="Squat" subtitle="0/1 sets complete" onAddSet={onAddSet}>
-                <Text>Set row</Text>
-            </ExerciseCard>
-        );
+        const element = ExerciseCard({
+            name: 'Squat',
+            subtitle: '0/1 sets complete',
+            onAddSet,
+            children: <Text>Set row</Text>,
+        });
 
-        const pressables = findElementsByType(element, 'Pressable') as Array<
+        const pressables = findElementsByType(element, Pressable) as Array<
             React.ReactElement<{ onPress?: () => void; testID?: string }>
         >;
         const addSetRow = pressables.find((pressable) => pressable.props.testID === 'exercise-card-add-set');
@@ -399,9 +408,13 @@ describe('WorkoutSessionScreen', () => {
         expect(onAddSet).toHaveBeenCalled();
     });
     it('renders column headers once per exercise card', () => {
-        const element = (
-            <ExerciseCard name="Deadlift" subtitle="0/2 sets complete" onAddSet={jest.fn()}>
+        const element = ExerciseCard({
+            name: 'Deadlift',
+            subtitle: '0/2 sets complete',
+            onAddSet: jest.fn(),
+            children: [
                 <SetRow
+                    key="set-1"
                     set={{
                         id: 'set-1',
                         workout_session_exercise_id: 'exercise-1',
@@ -417,8 +430,9 @@ describe('WorkoutSessionScreen', () => {
                     onRepsEndEditing={jest.fn()}
                     onToggleComplete={jest.fn()}
                     onDelete={jest.fn()}
-                />
+                />,
                 <SetRow
+                    key="set-2"
                     set={{
                         id: 'set-2',
                         workout_session_exercise_id: 'exercise-1',
@@ -434,9 +448,9 @@ describe('WorkoutSessionScreen', () => {
                     onRepsEndEditing={jest.fn()}
                     onToggleComplete={jest.fn()}
                     onDelete={jest.fn()}
-                />
-            </ExerciseCard>
-        );
+                />,
+            ],
+        });
 
         const texts = findElementsByType(element, Text) as Array<
             React.ReactElement<{ children?: React.ReactNode }>

@@ -335,15 +335,15 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
       >
         <Button title="Finish workout" variant="primary" onPress={() => setFinishOpen(true)} />
       </View>
-      <FinishWorkoutSheet
-        visible={finishOpen}
-        onClose={handleCloseFinish}
-        onFinish={handleFinish}
-        completedSets={totals.completedSets}
-        totalSets={totals.totalSets}
-        durationMinutes={durationMinutes}
-        isFinishing={isFinishing}
-      />
+      {FinishWorkoutSheet({
+        visible: finishOpen,
+        onClose: handleCloseFinish,
+        onFinish: handleFinish,
+        completedSets: totals.completedSets,
+        totalSets: totals.totalSets,
+        durationMinutes,
+        isFinishing,
+      })}
     </Screen>
   );
 }

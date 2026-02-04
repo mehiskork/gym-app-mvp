@@ -203,6 +203,34 @@ export function DayDetailScreen({ route, navigation }: Props) {
     </View>
   );
 
+  const emptyState = (
+    <Card>
+      <EmptyState
+        icon={<Ionicons name="barbell-outline" size={24} color={tokens.colors.mutedText} />}
+        title="No exercises yet"
+        description="Add your first exercise to start logging."
+        action={<Button title="Add exercise" variant="secondary" onPress={handleAddExercise} />}
+      />
+    </Card>
+  );
+
+  if (items.length === 0) {
+    return (
+      <Screen padded={false} bottomInset="tabBar" scroll>
+        <View
+          style={{
+            padding: tokens.spacing.lg,
+            paddingBottom: tokens.spacing.xl,
+            gap: tokens.spacing.sm,
+          }}
+        >
+          {header}
+          {emptyState}
+        </View>
+      </Screen>
+    );
+  }
+
   return (
     <Screen padded={false} bottomInset="tabBar" style={{ flex: 1 }}>
       <DraggableFlatList
@@ -210,16 +238,7 @@ export function DayDetailScreen({ route, navigation }: Props) {
         keyExtractor={(x) => x.id}
         renderItem={renderItem}
         ListHeaderComponent={header}
-        ListEmptyComponent={
-          <Card>
-            <EmptyState
-              icon={<Ionicons name="barbell-outline" size={24} color={tokens.colors.mutedText} />}
-              title="No exercises yet"
-              description="Add your first exercise to start logging."
-              action={<Button title="Add exercise" variant="secondary" onPress={handleAddExercise} />}
-            />
-          </Card>
-        }
+
         ItemSeparatorComponent={() => <View style={{ height: tokens.spacing.sm }} />}
         contentContainerStyle={{
           padding: tokens.spacing.lg,
