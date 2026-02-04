@@ -34,6 +34,8 @@ import { useSnackbarUndo } from '../hooks/useSnackbarUndo';
 type Props = NativeStackScreenProps<RootStackParamList, 'WorkoutSession'>;
 
 const REST_TIMER_HEIGHT = tokens.touchTargetMin + tokens.spacing.xl;
+const CTA_HEIGHT = tokens.touchTargetMin + tokens.spacing.sm;
+const CTA_STACK_GAP = tokens.spacing.sm;
 
 function parseNumber(input: string): number | null {
   const trimmed = input.trim();
@@ -143,14 +145,16 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
 
   const footerPaddingBottom = Math.max(insets.bottom, tokens.spacing.sm);
   const footerPaddingTop = tokens.spacing.sm;
-  const footerHeight = tokens.touchTargetMin + footerPaddingTop + footerPaddingBottom;
-  const footerOverlapHeight = Math.max(footerHeight - insets.bottom, tokens.touchTargetMin);
+  const footerHeight = CTA_HEIGHT + footerPaddingTop + footerPaddingBottom;
+  const footerOverlapHeight = Math.max(footerHeight - insets.bottom, CTA_HEIGHT);
+  const bottomStackHeight =
+    footerOverlapHeight + (snackbarUndo.visible ? CTA_HEIGHT + CTA_STACK_GAP : 0);
+  const bottomStackOffset = -insets.bottom;
   const baseScrollPaddingTop = tokens.spacing.md;
   const scrollPaddingTop = timerActive
     ? baseScrollPaddingTop + REST_TIMER_HEIGHT + tokens.spacing.lg
     : baseScrollPaddingTop;
   const restTimerTop = tokens.spacing.xs - insets.top;
-  const snackbarBottomOffset = footerHeight + tokens.spacing.md;
   if (!session) {
     return (
       <Screen style={{ justifyContent: 'center' }}>
@@ -174,7 +178,7 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
           contentContainerStyle={{
             paddingHorizontal: tokens.spacing.lg,
             paddingTop: scrollPaddingTop,
-            paddingBottom: footerOverlapHeight + tokens.spacing.lg,
+            paddingBottom: bottomStackHeight + tokens.spacing.lg,
             gap: tokens.spacing.md,
           }}
           showsVerticalScrollIndicator={false}
@@ -312,19 +316,12 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
           </View>
         </Card>
       ) : null}
-      <Snackbar
-        visible={snackbarUndo.visible}
-        message="Set deleted"
-        actionLabel="UNDO"
-        onAction={snackbarUndo.onUndoAction}
-        bottomOffset={snackbarBottomOffset}
-      />
       <View
         style={{
           position: 'absolute',
           left: 0,
           right: 0,
-          bottom: -insets.bottom,
+          bottom: bottomStackOffset,
           paddingHorizontal: tokens.spacing.lg,
           paddingTop: footerPaddingTop,
           paddingBottom: footerPaddingBottom,
@@ -333,7 +330,20 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
           borderTopColor: tokens.colors.border,
         }}
       >
-        <Button title="Finish workout" variant="primary" onPress={() => setFinishOpen(true)} />
+        <Snackbar
+          visible={snackbarUndo.visible}
+          message="Set deleted"
+          actionLabel="UNDO"
+          onAction={snackbarUndo.onUndoAction}
+          minHeight={CTA_HEIGHT}
+          style={{ marginBottom: snackbarUndo.visible ? CTA_STACK_GAP : 0 }}
+        />
+        <Button
+          title="Finish workout"
+          variant="primary"
+          onPress={() => setFinishOpen(true)}
+          style={{ height: CTA_HEIGHT }}
+        />
       </View>
       {FinishWorkoutSheet({
         visible: finishOpen,

@@ -1,4 +1,5 @@
 import React from 'react';
+import type { ViewStyle } from 'react-native';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -11,8 +12,10 @@ type SnackbarProps = {
     actionLabel?: string;
     onAction?: () => void;
     onDismiss?: () => void;
-    bottomOffset?: number;
+
     icon?: React.ReactNode;
+    minHeight?: number;
+    style?: ViewStyle;
 };
 
 export function Snackbar(props: SnackbarProps) {
@@ -21,13 +24,14 @@ export function Snackbar(props: SnackbarProps) {
         message,
         actionLabel,
         onAction,
-        bottomOffset = tokens.spacing.lg,
         icon,
+        minHeight,
+        style,
     } = props;
     if (!visible) return null;
 
     return (
-        <View style={[styles.container, { bottom: bottomOffset }]}>
+        <View style={[styles.container, minHeight ? { minHeight } : null, style]}>
             <View style={styles.content}>
                 {icon ?? (
                     <View style={styles.icon}>
@@ -55,15 +59,12 @@ export function Snackbar(props: SnackbarProps) {
 
 const styles = StyleSheet.create({
     container: {
-        position: 'absolute',
-        left: tokens.spacing.lg,
-        right: tokens.spacing.lg,
-        borderRadius: tokens.radius.lg,
+        borderRadius: tokens.radius.md,
         borderWidth: 1,
         borderColor: tokens.colors.border,
         backgroundColor: tokens.colors.surface,
         paddingHorizontal: tokens.spacing.md,
-        paddingVertical: tokens.spacing.sm,
+        paddingVertical: tokens.spacing.xs,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
