@@ -3,8 +3,8 @@ import { Alert, TextInput, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import type { RootStackParamList } from '../navigation/types';
-import { Screen } from '../components/Screen';
-import { AppText } from '../components/AppText';
+import { Screen } from '../ui/Screen';
+import { Text } from '../ui/Text';
 import { PrimaryButton, SecondaryButton } from '../components/Buttons';
 import { tokens } from '../theme/tokens';
 import { createCustomExercise } from '../db/exerciseRepo';
@@ -29,10 +29,10 @@ export function CreateExerciseScreen({ navigation }: Props) {
 
   return (
     <Screen style={{ gap: tokens.spacing.lg }}>
-      <AppText variant="title">New Exercise</AppText>
+      <Text variant="title">New Exercise</Text>
 
       <View style={{ gap: tokens.spacing.sm }}>
-        <AppText color="textSecondary">Name</AppText>
+        <Text variant="muted">Name</Text>
         <TextInput
           maxLength={50}
           value={name}

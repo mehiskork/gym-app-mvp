@@ -5,8 +5,8 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 
 import type { RootStackParamList } from '../navigation/types';
-import { Screen } from '../components/Screen';
-import { AppText } from '../components/AppText';
+import { Screen } from '../ui/Screen';
+import { Text } from '../ui/Text';
 import { PrimaryButton, SecondaryButton } from '../components/Buttons';
 import { tokens } from '../theme/tokens';
 import { listExercises, type ExerciseRow } from '../db/exerciseRepo';
@@ -42,7 +42,7 @@ export function ExercisePickerScreen({ route, navigation }: Props) {
 
   return (
     <Screen style={{ gap: tokens.spacing.md }}>
-      <AppText variant="title">Exercises</AppText>
+      <Text variant="title">Exercises</Text>
 
       <View style={{ flexDirection: 'row', gap: tokens.spacing.md }}>
         <View style={{ flex: 1 }}>
@@ -108,11 +108,11 @@ export function ExercisePickerScreen({ route, navigation }: Props) {
               style={({ pressed }) => [{ flex: 1 }, pressed ? { opacity: 0.85 } : null]}
               accessibilityLabel={`${isBrowseOnly ? 'View' : 'Add'} ${item.name}`}
             >
-              <AppText variant="subtitle">{item.name}</AppText>
-              <AppText color="textSecondary">{item.is_custom ? 'Custom' : 'Curated'}</AppText>
-              <AppText color="textSecondary">
+              <Text variant="subtitle">{item.name}</Text>
+              <Text variant="muted">{item.is_custom ? 'Custom' : 'Curated'}</Text>
+              <Text variant="muted">
                 {isBrowseOnly ? 'Tap to view details' : 'Tap to add to day'}
-              </AppText>
+              </Text>
             </Pressable>
 
             <Pressable
@@ -141,7 +141,7 @@ export function ExercisePickerScreen({ route, navigation }: Props) {
         )}
         ListEmptyComponent={
           <View style={{ marginTop: tokens.spacing.lg, gap: tokens.spacing.sm }}>
-            <AppText color="textSecondary">No matching exercises.</AppText>
+            <Text variant="muted">No matching exercises.</Text>
             <PrimaryButton
               title="Create new exercise"
               onPress={() => navigation.navigate('CreateExercise')}

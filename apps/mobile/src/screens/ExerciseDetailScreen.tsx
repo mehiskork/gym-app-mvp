@@ -4,8 +4,8 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
 
 import type { RootStackParamList } from '../navigation/types';
-import { Screen } from '../components/Screen';
-import { AppText } from '../components/AppText';
+import { Screen } from '../ui/Screen';
+import { Text } from '../ui/Text';
 import { tokens } from '../theme/tokens';
 import {
   getExerciseById,
@@ -145,8 +145,8 @@ export function ExerciseDetailScreen({ route, navigation }: Props) {
         contentContainerStyle={{ gap: tokens.spacing.lg, paddingBottom: tokens.spacing.xl }}
       >
         <View style={{ gap: tokens.spacing.xs }}>
-          <AppText color="textSecondary">Exercise</AppText>
-          <AppText variant="title">{name}</AppText>
+          <Text variant="muted">Exercise</Text>
+          <Text variant="title">{name}</Text>
         </View>
 
         <View
@@ -159,35 +159,35 @@ export function ExerciseDetailScreen({ route, navigation }: Props) {
             gap: tokens.spacing.sm,
           }}
         >
-          <AppText variant="subtitle">Progression</AppText>
+          <Text variant="subtitle">Progression</Text>
 
           {!metrics ? (
-            <AppText color="textSecondary">Log some sets to see progression.</AppText>
+            <Text variant="muted">Log some sets to see progression.</Text>
           ) : (
             <View style={{ gap: tokens.spacing.sm }}>
               <View style={{ gap: tokens.spacing.xs }}>
-                <AppText color="textSecondary">Best set (by e1RM)</AppText>
-                <AppText>
+                <Text variant="muted">Best set (by e1RM)</Text>
+                <Text>
                   {formatKg(metrics.bestWeight) + ' kg'} × {metrics.bestReps} ·{' '}
-                  <AppText color="textSecondary">{formatDateTime(metrics.bestWhen)}</AppText>
-                </AppText>
+                  <Text variant="muted">{formatDateTime(metrics.bestWhen)}</Text>
+                </Text>
               </View>
 
               <View style={{ gap: tokens.spacing.xs }}>
-                <AppText color="textSecondary">Best estimated 1RM (Epley)</AppText>
-                <AppText>{formatKg(metrics.bestE1RM)} kg</AppText>
+                <Text variant="muted">Best estimated 1RM (Epley)</Text>
+                <Text>{formatKg(metrics.bestE1RM)} kg</Text>
               </View>
 
               <View style={{ gap: tokens.spacing.xs }}>
-                <AppText color="textSecondary">Last workout volume</AppText>
-                <AppText>{Math.round(metrics.lastVolume)} kg</AppText>
+                <Text variant="muted">Last workout volume</Text>
+                <Text>{Math.round(metrics.lastVolume)} kg</Text>
               </View>
 
               <View style={{ gap: tokens.spacing.xs }}>
-                <AppText color="textSecondary">Last 5 volumes</AppText>
-                <AppText color="textSecondary">
+                <Text variant="muted">Last 5 volumes</Text>
+                <Text variant="muted">
                   {metrics.last5Volumes.map((v) => Math.round(v)).join(' • ')}
-                </AppText>
+                </Text>
               </View>
             </View>
           )}
@@ -203,22 +203,22 @@ export function ExerciseDetailScreen({ route, navigation }: Props) {
             gap: tokens.spacing.sm,
           }}
         >
-          <AppText variant="subtitle">Last workout</AppText>
+          <Text variant="subtitle">Last workout</Text>
 
           {!last ? (
-            <AppText color="textSecondary">No history yet for this exercise.</AppText>
+            <Text variant="muted">No history yet for this exercise.</Text>
           ) : (
             <>
-              <AppText color="textSecondary">
+              <Text variant="muted">
                 {formatDateTime(last.ended_at ?? last.started_at)}
-              </AppText>
+              </Text>
               {lastDuration ? (
-                <AppText color="textSecondary">Duration: {lastDuration}</AppText>
+                <Text variant="muted">Duration: {lastDuration}</Text>
               ) : null}
 
               <View style={{ gap: tokens.spacing.xs }}>
                 {last.sets.length === 0 ? (
-                  <AppText color="textSecondary">No sets logged.</AppText>
+                  <Text variant="muted">No sets logged.</Text>
                 ) : (
                   last.sets.map((s) => (
                     <View
@@ -231,8 +231,8 @@ export function ExerciseDetailScreen({ route, navigation }: Props) {
                         borderTopColor: tokens.colors.border,
                       }}
                     >
-                      <AppText color="textSecondary">Set {s.set_index}</AppText>
-                      <AppText>{formatSetLine(s.weight, s.reps)}</AppText>
+                      <Text variant="muted">Set {s.set_index}</Text>
+                      <Text>{formatSetLine(s.weight, s.reps)}</Text>
                     </View>
                   ))
                 )}
@@ -242,10 +242,10 @@ export function ExerciseDetailScreen({ route, navigation }: Props) {
         </View>
 
         <View style={{ gap: tokens.spacing.sm }}>
-          <AppText variant="subtitle">Recent sessions</AppText>
+          <Text variant="subtitle">Recent sessions</Text>
 
           {recent.length === 0 ? (
-            <AppText color="textSecondary">No earlier sessions.</AppText>
+            <Text variant="muted">No earlier sessions.</Text>
           ) : (
             recent.map((sess) => (
               <Pressable
@@ -264,21 +264,21 @@ export function ExerciseDetailScreen({ route, navigation }: Props) {
                 ]}
                 accessibilityLabel={`Open session ${sess.title}`}
               >
-                <AppText variant="subtitle">{sess.title}</AppText>
-                <AppText color="textSecondary">
+                <Text variant="subtitle">{sess.title}</Text>
+                <Text variant="muted">
                   {formatDateTime(sess.ended_at ?? sess.started_at)}
-                </AppText>
+                </Text>
 
                 {sess.sets.length > 0 ? (
-                  <AppText color="textSecondary">
+                  <Text variant="muted">
                     {sess.sets
                       .slice(0, 3)
                       .map((s) => formatSetLine(s.weight, s.reps))
                       .join('  •  ')}
                     {sess.sets.length > 3 ? '  •  …' : ''}
-                  </AppText>
+                  </Text>
                 ) : (
-                  <AppText color="textSecondary">No sets logged.</AppText>
+                  <Text variant="muted">No sets logged.</Text>
                 )}
               </Pressable>
             ))

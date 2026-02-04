@@ -4,8 +4,8 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 
-import { Screen } from '../components/Screen';
-import { AppText } from '../components/AppText';
+import { Screen } from '../ui/Screen';
+import { Text } from '../ui/Text';
 import { PrimaryButton } from '../components/Buttons';
 import { tokens } from '../theme/tokens';
 import type { RootStackParamList } from '../navigation/types';
@@ -54,18 +54,18 @@ export function PrebuiltPlansScreen() {
 
   return (
     <Screen>
-      <AppText variant="title" style={{ marginBottom: tokens.spacing.md }}>
+      <Text variant="title" style={{ marginBottom: tokens.spacing.md }}>
         Prebuilt plans
-      </AppText>
-      <AppText color="textSecondary" style={{ marginBottom: tokens.spacing.lg }}>
+      </Text>
+      <Text variant="muted" style={{ marginBottom: tokens.spacing.lg }}>
         Import a template to start editing and logging workouts.
-      </AppText>
+      </Text>
 
       <FlatList
         data={templates}
         keyExtractor={(item) => item.id}
         ItemSeparatorComponent={() => <View style={{ height: tokens.spacing.sm }} />}
-        ListEmptyComponent={<AppText color="textSecondary">No templates available.</AppText>}
+        ListEmptyComponent={<Text variant="muted">No templates available.</Text>}
         renderItem={({ item }) => (
           <View
             style={[
@@ -78,9 +78,9 @@ export function PrebuiltPlansScreen() {
               },
             ]}
           >
-            <AppText variant="subtitle">{item.name}</AppText>
-            {item.description ? <AppText color="textSecondary">{item.description}</AppText> : null}
-            <AppText color="textSecondary">{item.dayCount} days</AppText>
+            <Text variant="subtitle">{item.name}</Text>
+            {item.description ? <Text variant="muted">{item.description}</Text> : null}
+            <Text variant="muted">{item.dayCount} days</Text>
             <View
               style={{
                 flexDirection: 'row',

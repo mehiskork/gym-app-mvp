@@ -4,8 +4,8 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { v4 as uuidv4 } from 'uuid';
 
 import type { RootStackParamList } from '../navigation/types';
-import { Screen } from '../components/Screen';
-import { AppText } from '../components/AppText';
+import { Screen } from '../ui/Screen';
+import { Text } from '../ui/Text';
 import { PrimaryButton, SecondaryButton } from '../components/Buttons';
 import { tokens } from '../theme/tokens';
 import { apiPost, ApiError } from '../utils/apiClient';
@@ -102,10 +102,10 @@ export function ClaimConfirmScreen({ navigation }: Props) {
     return (
         <Screen padded style={{ gap: tokens.spacing.lg }}>
             <View style={{ gap: tokens.spacing.sm }}>
-                <AppText variant="title">Confirm claim (dev)</AppText>
-                <AppText color="textSecondary">
+                <Text variant="title">Confirm claim (dev)</Text>
+                <Text variant="muted">
                     Enter a claim code to confirm the link. This uses a dev-only header for now.
-                </AppText>
+                </Text>
             </View>
 
             <TextInput
@@ -125,8 +125,8 @@ export function ClaimConfirmScreen({ navigation }: Props) {
                 }}
             />
 
-            {error ? <AppText color="danger">{error}</AppText> : null}
-            {success ? <AppText color="primary">{success}</AppText> : null}
+            {error ? <Text color={tokens.colors.danger}>{error}</Text> : null}
+            {success ? <Text color={tokens.colors.primary}>{success}</Text> : null}
 
             <PrimaryButton title="Confirm" onPress={handleConfirm} loading={loading} />
 

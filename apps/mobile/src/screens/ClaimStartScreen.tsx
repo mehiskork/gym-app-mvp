@@ -4,8 +4,8 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import * as Clipboard from 'expo-clipboard';
 
 import type { RootStackParamList } from '../navigation/types';
-import { Screen } from '../components/Screen';
-import { AppText } from '../components/AppText';
+import { Screen } from '../ui/Screen';
+import { Text } from '../ui/Text';
 import { PrimaryButton, SecondaryButton } from '../components/Buttons';
 import { tokens } from '../theme/tokens';
 import { apiPost, ApiError } from '../utils/apiClient';
@@ -84,21 +84,21 @@ export function ClaimStartScreen({ navigation }: Props) {
     return (
         <Screen padded style={{ gap: tokens.spacing.lg }}>
             <View style={{ gap: tokens.spacing.sm }}>
-                <AppText variant="title">Link your account</AppText>
-                <AppText color="textSecondary">
+                <Text variant="title">Link your account</Text>
+                <Text variant="muted">
                     Generate a claim code to link this device with your account. Keep this screen open while
                     you complete the flow.
-                </AppText>
+                </Text>
             </View>
 
             <PrimaryButton title="Generate code" onPress={handleGenerate} loading={loading} />
 
             {error ? (
                 <View style={{ gap: tokens.spacing.xs }}>
-                    <AppText color="danger">{error.message}</AppText>
+                    <Text color={tokens.colors.danger}>{error.message}</Text>
                     {error.canRetry ? (
                         <Pressable onPress={handleGenerate}>
-                            <AppText color="primary">Retry</AppText>
+                            <Text color={tokens.colors.primary}>Retry</Text>
                         </Pressable>
                     ) : null}
                 </View>
@@ -115,13 +115,13 @@ export function ClaimStartScreen({ navigation }: Props) {
                         gap: tokens.spacing.sm,
                     }}
                 >
-                    <AppText variant="subtitle" style={{ textAlign: 'center', letterSpacing: 2 }}>
+                    <Text variant="subtitle" style={{ textAlign: 'center', letterSpacing: 2 }}>
                         {code}
-                    </AppText>
+                    </Text>
                     {expiresLabel ? (
-                        <AppText color="textSecondary" style={{ textAlign: 'center' }}>
+                        <Text variant="muted" style={{ textAlign: 'center' }}>
                             Expires at {expiresLabel}
-                        </AppText>
+                        </Text>
                     ) : null}
                     <SecondaryButton title="Copy code" onPress={handleCopy} />
                 </View>

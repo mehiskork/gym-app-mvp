@@ -4,8 +4,8 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
 
 import type { RootStackParamList } from '../navigation/types';
-import { Screen } from '../components/Screen';
-import { AppText } from '../components/AppText';
+import { Screen } from '../ui/Screen';
+import { Text } from '../ui/Text';
 import { tokens } from '../theme/tokens';
 import { listSessionPrEvents, recomputeSessionPrsIfNeeded, type PrEventRow } from '../db/prRepo';
 import {
@@ -88,8 +88,8 @@ export function SessionDetailScreen({ route, navigation }: Props) {
   if (!session) {
     return (
       <Screen style={{ justifyContent: 'center' }}>
-        <AppText variant="title">Session not found</AppText>
-        <AppText color="textSecondary">This workout session no longer exists.</AppText>
+        <Text variant="title">Session not found</Text>
+        <Text variant="muted">This workout session no longer exists.</Text>
       </Screen>
     );
   }
@@ -114,16 +114,16 @@ export function SessionDetailScreen({ route, navigation }: Props) {
                 gap: tokens.spacing.sm,
               }}
             >
-              <AppText variant="subtitle">PRs</AppText>
+              <Text variant="subtitle">PRs</Text>
               {prs.map((p) => (
-                <AppText key={p.id}>{formatPr(p)}</AppText>
+                <Text key={p.id}>{formatPr(p)}</Text>
               ))}
             </View>
           ) : null}
 
-          <AppText variant="title">{session.title}</AppText>
-          <AppText color="textSecondary">{formatDateTime(session.started_at)}</AppText>
-          {dur ? <AppText color="textSecondary">Duration: {dur}</AppText> : null}
+          <Text variant="title">{session.title}</Text>
+          <Text variant="muted">{formatDateTime(session.started_at)}</Text>
+          {dur ? <Text variant="muted">Duration: {dur}</Text> : null}
         </View>
 
         {exercises.map((ex) => {
@@ -147,11 +147,11 @@ export function SessionDetailScreen({ route, navigation }: Props) {
                 style={({ pressed }) => [pressed ? { opacity: 0.85 } : null]}
                 accessibilityLabel={`Open exercise details for ${ex.exercise_name}`}
               >
-                <AppText variant="subtitle">{ex.exercise_name}</AppText>
+                <Text variant="subtitle">{ex.exercise_name}</Text>
               </Pressable>
 
               {exSets.length === 0 ? (
-                <AppText color="textSecondary">No sets logged.</AppText>
+                <Text variant="muted">No sets logged.</Text>
               ) : (
                 exSets.map((s) => (
                   <View
@@ -164,11 +164,11 @@ export function SessionDetailScreen({ route, navigation }: Props) {
                       borderTopColor: tokens.colors.border,
                     }}
                   >
-                    <AppText color="textSecondary">Set {s.set_index}</AppText>
-                    <AppText>
+                    <Text variant="muted">Set {s.set_index}</Text>
+                    <Text>
                       {(s.weight ?? 0).toString()} × {(s.reps ?? 0).toString()}
                       {s.is_completed === 1 ? '' : ' (edit)'}
-                    </AppText>
+                    </Text>
                   </View>
                 ))
               )}

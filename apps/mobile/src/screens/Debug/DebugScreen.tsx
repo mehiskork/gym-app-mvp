@@ -6,8 +6,8 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as Clipboard from 'expo-clipboard';
 
-import { Screen } from '../../components/Screen';
-import { AppText } from '../../components/AppText';
+import { Screen } from '../../ui/Screen';
+import { Text } from '../../ui/Text';
 import { tokens } from '../../theme/tokens';
 import { safeJsonParse } from '../../utils/json';
 import {
@@ -45,9 +45,9 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
         marginBottom: tokens.spacing.lg,
       }}
     >
-      <AppText variant="subtitle" style={{ marginBottom: tokens.spacing.md }}>
+      <Text variant="subtitle" style={{ marginBottom: tokens.spacing.md }}>
         {title}
-      </AppText>
+      </Text>
       {children}
     </View>
   );
@@ -63,10 +63,10 @@ function Row({ label, value }: { label: string; value: string }) {
         marginBottom: 8,
       }}
     >
-      <AppText color="textSecondary" style={{ flex: 1 }}>
+      <Text variant="muted" style={{ flex: 1 }}>
         {label}
-      </AppText>
-      <AppText style={{ fontWeight: '600' }}>{value}</AppText>
+      </Text>
+      <Text style={{ fontWeight: '600' }}>{value}</Text>
     </View>
   );
 }
@@ -74,8 +74,8 @@ function Row({ label, value }: { label: string; value: string }) {
 function StackedRow({ label, value }: { label: string; value: string }) {
   return (
     <View style={{ marginBottom: 8 }}>
-      <AppText color="textSecondary">{label}</AppText>
-      <AppText style={{ fontWeight: '600', marginTop: 2 }}>{value}</AppText>
+      <Text variant="muted">{label}</Text>
+      <Text style={{ fontWeight: '600', marginTop: 2 }}>{value}</Text>
     </View>
   );
 }
@@ -256,7 +256,7 @@ export function DebugScreen() {
 
         <Card title="Database counts">
           {Object.keys(counts).length === 0 ? (
-            <AppText color="textSecondary">Loading…</AppText>
+            <Text variant="muted">Loading…</Text>
           ) : (
             Object.entries(counts).map(([k, v]) => <Row key={k} label={k} value={String(v)} />)
           )}
@@ -271,7 +271,7 @@ export function DebugScreen() {
               alignItems: 'center',
             }}
           >
-            <AppText style={{ fontWeight: '700' }}>Refresh</AppText>
+            <Text style={{ fontWeight: '700' }}>Refresh</Text>
           </Pressable>
         </Card>
 
@@ -279,7 +279,7 @@ export function DebugScreen() {
           <Card title="Week start debug">
             <StackedRow label="Week start (now)" value={weekStartDebug.weekStartNow || '—'} />
             {weekStartDebug.recentWeekBuckets.length === 0 ? (
-              <AppText color="textSecondary">No completed sessions.</AppText>
+              <Text variant="muted">No completed sessions.</Text>
             ) : (
               weekStartDebug.recentWeekBuckets.map((bucket) => (
                 <Row
@@ -304,7 +304,7 @@ export function DebugScreen() {
               />
             </>
           ) : (
-            <AppText color="textSecondary">None</AppText>
+            <Text variant="muted">None</Text>
           )}
 
           <Pressable
@@ -337,7 +337,7 @@ export function DebugScreen() {
               alignItems: 'center',
             }}
           >
-            <AppText style={{ fontWeight: '700' }}>Reset in-progress workout (dev-only)</AppText>
+            <Text style={{ fontWeight: '700' }}>Reset in-progress workout (dev-only)</Text>
           </Pressable>
         </Card>
 
@@ -359,7 +359,7 @@ export function DebugScreen() {
               marginBottom: tokens.spacing.md,
             }}
           >
-            <AppText style={{ fontWeight: '700' }}>Repair sessions missing sets (dev-only)</AppText>
+            <Text style={{ fontWeight: '700' }}>Repair sessions missing sets (dev-only)</Text>
           </Pressable>
           <Pressable
             disabled={!devOnly}
@@ -378,7 +378,7 @@ export function DebugScreen() {
               marginBottom: tokens.spacing.md,
             }}
           >
-            <AppText style={{ fontWeight: '700' }}>Seed test plan (dev-only)</AppText>
+            <Text style={{ fontWeight: '700' }}>Seed test plan (dev-only)</Text>
           </Pressable>
           <Pressable
             disabled={!devOnly}
@@ -396,9 +396,9 @@ export function DebugScreen() {
               marginBottom: tokens.spacing.md,
             }}
           >
-            <AppText style={{ fontWeight: '700' }}>
+            <Text style={{ fontWeight: '700' }}>
               Test nested transaction rollback (dev-only)
-            </AppText>
+            </Text>
           </Pressable>
 
           <Pressable
@@ -417,7 +417,7 @@ export function DebugScreen() {
               marginBottom: tokens.spacing.md,
             }}
           >
-            <AppText style={{ fontWeight: '700' }}>Validate status enums (dev-only)</AppText>
+            <Text style={{ fontWeight: '700' }}>Validate status enums (dev-only)</Text>
           </Pressable>
 
           <Pressable
@@ -430,12 +430,12 @@ export function DebugScreen() {
               alignItems: 'center',
             }}
           >
-            <AppText style={{ fontWeight: '700' }}>Export logs (JSON)</AppText>
+            <Text style={{ fontWeight: '700' }}>Export logs (JSON)</Text>
           </Pressable>
 
-          <AppText color="textSecondary" style={{ marginTop: tokens.spacing.md }}>
+          <Text variant="muted" style={{ marginTop: tokens.spacing.md }}>
             Export includes build info, DB counts, in-progress workout, and last 1000 log entries.
-          </AppText>
+          </Text>
         </Card>
 
         <Card title="Support">
@@ -449,11 +449,11 @@ export function DebugScreen() {
               alignItems: 'center',
             }}
           >
-            <AppText style={{ fontWeight: '700' }}>Export support bundle</AppText>
+            <Text style={{ fontWeight: '700' }}>Export support bundle</Text>
           </Pressable>
-          <AppText color="textSecondary" style={{ marginTop: tokens.spacing.md }}>
+          <Text variant="muted" style={{ marginTop: tokens.spacing.md }}>
             Export includes sync state, outbox stats, recent sync runs, and table counts.
-          </AppText>
+          </Text>
         </Card>
 
         <Card title="Sync">
@@ -467,7 +467,7 @@ export function DebugScreen() {
                 />
               ) : null}
               {devOnly && syncStateHealth && !syncStateHealth.ok ? (
-                <AppText color="textSecondary">{syncStateHealth.message}</AppText>
+                <Text variant="muted">{syncStateHealth.message}</Text>
               ) : null}
               <Row label="Device ID" value={syncInfo.deviceId} />
               <Row label="Has token" value={syncInfo.hasDeviceToken ? 'true' : 'false'} />
@@ -491,28 +491,28 @@ export function DebugScreen() {
                 }
               />
 
-              <AppText variant="subtitle" style={{ marginTop: tokens.spacing.md }}>
+              <Text variant="subtitle" style={{ marginTop: tokens.spacing.md }}>
                 Recent ops
-              </AppText>
+              </Text>
               {syncInfo.recentOutboxOps.length === 0 ? (
-                <AppText color="textSecondary">No outbox ops yet.</AppText>
+                <Text variant="muted">No outbox ops yet.</Text>
               ) : (
                 syncInfo.recentOutboxOps.map((op) => (
                   <View key={op.op_id} style={{ marginTop: tokens.spacing.sm }}>
-                    <AppText style={{ fontWeight: '600' }}>{op.op_id}</AppText>
-                    <AppText color="textSecondary">
+                    <Text style={{ fontWeight: '600' }}>{op.op_id}</Text>
+                    <Text variant="muted">
                       {`${op.status} • attempts ${op.attempt_count} • next ${op.next_attempt_at ?? '—'
                         }`}
-                    </AppText>
-                    <AppText color="textSecondary">
+                    </Text>
+                    <Text variant="muted">
                       {`created ${op.created_at} • error ${truncate(op.last_error, 80)}`}
-                    </AppText>
+                    </Text>
                   </View>
                 ))
               )}
             </>
           ) : (
-            <AppText color="textSecondary">Loading…</AppText>
+            <Text variant="muted">Loading…</Text>
           )}
 
           <Pressable
@@ -532,7 +532,7 @@ export function DebugScreen() {
               marginBottom: tokens.spacing.md,
             }}
           >
-            <AppText style={{ fontWeight: '700' }}>Register device (dev-only)</AppText>
+            <Text style={{ fontWeight: '700' }}>Register device (dev-only)</Text>
           </Pressable>
 
           <Pressable
@@ -549,7 +549,7 @@ export function DebugScreen() {
               marginTop: tokens.spacing.md,
             }}
           >
-            <AppText style={{ fontWeight: '700' }}>Sync now</AppText>
+            <Text style={{ fontWeight: '700' }}>Sync now</Text>
           </Pressable>
 
           <Pressable
@@ -566,7 +566,7 @@ export function DebugScreen() {
               marginTop: tokens.spacing.md,
             }}
           >
-            <AppText style={{ fontWeight: '700' }}>Pull only</AppText>
+            <Text style={{ fontWeight: '700' }}>Pull only</Text>
           </Pressable>
 
           <Pressable
@@ -584,7 +584,7 @@ export function DebugScreen() {
               marginTop: tokens.spacing.md,
             }}
           >
-            <AppText style={{ fontWeight: '700' }}>Repair stale in-flight</AppText>
+            <Text style={{ fontWeight: '700' }}>Repair stale in-flight</Text>
           </Pressable>
 
           <Pressable
@@ -617,7 +617,7 @@ export function DebugScreen() {
               marginTop: tokens.spacing.md,
             }}
           >
-            <AppText style={{ fontWeight: '700' }}>Reset cursor to 0 (dev-only)</AppText>
+            <Text style={{ fontWeight: '700' }}>Reset cursor to 0 (dev-only)</Text>
           </Pressable>
 
 
@@ -651,27 +651,27 @@ export function DebugScreen() {
               marginTop: tokens.spacing.md,
             }}
           >
-            <AppText style={{ fontWeight: '700' }}>Clear outbox (dev-only)</AppText>
+            <Text style={{ fontWeight: '700' }}>Clear outbox (dev-only)</Text>
           </Pressable>
         </Card>
         <Card title="Sync Runs">
           {syncRuns.length === 0 ? (
-            <AppText color="textSecondary">No sync runs yet.</AppText>
+            <Text variant="muted">No sync runs yet.</Text>
           ) : (
             syncRuns.map((run) => (
               <View key={run.id} style={{ marginBottom: tokens.spacing.md }}>
-                <AppText style={{ fontWeight: '600' }}>
+                <Text style={{ fontWeight: '600' }}>
                   {`${new Date(run.started_at).toLocaleString()} • ${run.status}`}
-                </AppText>
-                <AppText color="textSecondary">
+                </Text>
+                <Text variant="muted">
                   {`ops ${run.ops_sent} • deltas ${run.deltas_applied}`}
-                </AppText>
-                <AppText color="textSecondary">
+                </Text>
+                <Text variant="muted">
                   {`cursor ${run.cursor_before ?? '—'} → ${run.cursor_after ?? '—'}`}
-                </AppText>
-                <AppText color="textSecondary">
+                </Text>
+                <Text variant="muted">
                   {`error ${run.error_code ?? '—'}`}
-                </AppText>
+                </Text>
               </View>
             ))
           )}
