@@ -5,7 +5,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
 import { Screen } from '../ui/Screen';
 import { Text } from '../ui/Text';
-import { PrimaryButton, SecondaryButton } from '../components/Buttons';
+import { Button } from '../ui/Button';
 import { tokens } from '../theme/tokens';
 import { createCustomExercise } from '../db/exerciseRepo';
 
@@ -54,10 +54,15 @@ export function CreateExerciseScreen({ navigation }: Props) {
 
       <View style={{ flexDirection: 'row', gap: tokens.spacing.md }}>
         <View style={{ flex: 1 }}>
-          <SecondaryButton title="Cancel" onPress={() => navigation.goBack()} disabled={saving} />
+          <Button
+            title="Cancel"
+            variant="secondary"
+            onPress={() => navigation.goBack()}
+            disabled={saving}
+          />
         </View>
         <View style={{ flex: 1 }}>
-          <PrimaryButton title="Save" onPress={onSave} loading={saving} />
+          <Button title="Save" onPress={onSave} loading={saving} />
         </View>
       </View>
     </Screen>

@@ -7,7 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import type { RootStackParamList } from '../navigation/types';
 import { Screen } from '../ui/Screen';
 import { Text } from '../ui/Text';
-import { PrimaryButton, SecondaryButton } from '../components/Buttons';
+import { Button } from '../ui/Button';
 import { tokens } from '../theme/tokens';
 import { listExercises, type ExerciseRow } from '../db/exerciseRepo';
 
@@ -46,13 +46,14 @@ export function ExercisePickerScreen({ route, navigation }: Props) {
 
       <View style={{ flexDirection: 'row', gap: tokens.spacing.md }}>
         <View style={{ flex: 1 }}>
-          <SecondaryButton
+          <Button
             title="New exercise"
+            variant="secondary"
             onPress={() => navigation.navigate('CreateExercise')}
           />
         </View>
         <View style={{ flex: 1 }}>
-          <SecondaryButton title="Close" onPress={() => navigation.goBack()} />
+          <Button title="Close" variant="secondary" onPress={() => navigation.goBack()} />
         </View>
       </View>
 
@@ -142,7 +143,7 @@ export function ExercisePickerScreen({ route, navigation }: Props) {
         ListEmptyComponent={
           <View style={{ marginTop: tokens.spacing.lg, gap: tokens.spacing.sm }}>
             <Text variant="muted">No matching exercises.</Text>
-            <PrimaryButton
+            <Button
               title="Create new exercise"
               onPress={() => navigation.navigate('CreateExercise')}
             />

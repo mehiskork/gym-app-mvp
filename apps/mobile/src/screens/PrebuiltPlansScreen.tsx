@@ -6,7 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { Screen } from '../ui/Screen';
 import { Text } from '../ui/Text';
-import { PrimaryButton } from '../components/Buttons';
+import { Button } from '../ui/Button';
 import { tokens } from '../theme/tokens';
 import type { RootStackParamList } from '../navigation/types';
 import { importPrebuiltPlan, listPrebuiltPlans } from '../db/prebuiltPlansRepo';
@@ -90,7 +90,7 @@ export function PrebuiltPlansScreen() {
               }}
             >
               <View style={{ flex: 1 }}>
-                <PrimaryButton
+                <Button
                   title={
                     item.existingPlanId
                       ? 'Added to plans'

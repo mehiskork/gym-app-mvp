@@ -4,7 +4,7 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { Screen, Text } from '../ui';
-import { PrimaryButton } from '../components/Buttons';
+import { Button } from '../ui/Button';
 import { tokens } from '../theme/tokens';
 import { listExercises, type ExerciseRow } from '../db/exerciseRepo';
 import type { RootStackParamList } from '../navigation/types';
@@ -30,7 +30,7 @@ export function PlansScreen() {
     <Screen>
       <View style={{ gap: tokens.spacing.md, marginBottom: tokens.spacing.lg }}>
         <Text variant="title">Exercises</Text>
-        <PrimaryButton
+        <Button
           title="Add custom exercise"
           onPress={() => navigation.navigate('CreateExercise')}
         />

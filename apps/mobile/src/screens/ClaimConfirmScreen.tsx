@@ -6,7 +6,7 @@ import { v4 as uuidv4 } from 'uuid';
 import type { RootStackParamList } from '../navigation/types';
 import { Screen } from '../ui/Screen';
 import { Text } from '../ui/Text';
-import { PrimaryButton, SecondaryButton } from '../components/Buttons';
+import { Button } from '../ui/Button';
 import { tokens } from '../theme/tokens';
 import { apiPost, ApiError } from '../utils/apiClient';
 import { getString, setString } from '../utils/prefs';
@@ -128,9 +128,9 @@ export function ClaimConfirmScreen({ navigation }: Props) {
             {error ? <Text color={tokens.colors.danger}>{error}</Text> : null}
             {success ? <Text color={tokens.colors.primary}>{success}</Text> : null}
 
-            <PrimaryButton title="Confirm" onPress={handleConfirm} loading={loading} />
+            <Button title="Confirm" onPress={handleConfirm} loading={loading} />
 
-            <SecondaryButton title="Cancel" onPress={handleCancel} />
+            <Button title="Cancel" variant="secondary" onPress={handleCancel} />
         </Screen>
     );
 }

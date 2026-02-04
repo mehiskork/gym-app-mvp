@@ -6,7 +6,7 @@ import * as Clipboard from 'expo-clipboard';
 import type { RootStackParamList } from '../navigation/types';
 import { Screen } from '../ui/Screen';
 import { Text } from '../ui/Text';
-import { PrimaryButton, SecondaryButton } from '../components/Buttons';
+import { Button } from '../ui/Button';
 import { tokens } from '../theme/tokens';
 import { apiPost, ApiError } from '../utils/apiClient';
 import { pauseSync, resumeSync } from '../db/appMetaRepo';
@@ -91,7 +91,7 @@ export function ClaimStartScreen({ navigation }: Props) {
                 </Text>
             </View>
 
-            <PrimaryButton title="Generate code" onPress={handleGenerate} loading={loading} />
+            <Button title="Generate code" onPress={handleGenerate} loading={loading} />
 
             {error ? (
                 <View style={{ gap: tokens.spacing.xs }}>
@@ -123,11 +123,11 @@ export function ClaimStartScreen({ navigation }: Props) {
                             Expires at {expiresLabel}
                         </Text>
                     ) : null}
-                    <SecondaryButton title="Copy code" onPress={handleCopy} />
+                    <Button title="Copy code" variant="secondary" onPress={handleCopy} />
                 </View>
             ) : null}
 
-            <SecondaryButton title="Cancel" onPress={handleCancel} />
+            <Button title="Cancel" variant="secondary" onPress={handleCancel} />
         </Screen>
     );
 }

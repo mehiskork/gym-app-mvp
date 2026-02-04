@@ -4,7 +4,7 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { BottomSheetModal, Card, ListRow, Screen, Text, ToggleRow } from '../ui';
-import { PrimaryButton, SecondaryButton } from '../components/Buttons';
+import { Button } from '../ui/Button';
 import { tokens } from '../theme/tokens';
 import { VersionTapUnlock } from '../components/VersionTapUnlock';
 import { isDebugUnlocked, setDebugUnlocked } from '../utils/debugUnlock';
@@ -105,7 +105,7 @@ export function SettingsScreen() {
         paddingTop: tokens.spacing.xs,
       }}
     >
-      <PrimaryButton title="Exercises" onPress={() => navigation.navigate('ExercisePicker')} />
+      <Button title="Exercises" onPress={() => navigation.navigate('ExercisePicker')} />
 
       <Card>
         <Text variant="subtitle" style={{ marginBottom: tokens.spacing.sm }}>
@@ -174,10 +174,11 @@ export function SettingsScreen() {
         <Text color={tokens.colors.textSecondary}>
           Account: {claimed ? 'Linked' : 'Guest'}
         </Text>
-        <PrimaryButton title="Link to account" onPress={() => navigation.navigate('ClaimStart')} />
+        <Button title="Link to account" onPress={() => navigation.navigate('ClaimStart')} />
         {debugUnlocked ? (
-          <SecondaryButton
+          <Button
             title="Dev: Confirm claim"
+            variant="secondary"
             onPress={() => navigation.navigate('ClaimConfirm')}
           />
         ) : null}
