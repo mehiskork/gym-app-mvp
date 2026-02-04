@@ -3,8 +3,7 @@ import { FlatList, View } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
-import { Screen } from '../components/Screen';
-import { AppText } from '../components/AppText';
+import { Screen, Text } from '../ui';
 import { PrimaryButton } from '../components/Buttons';
 import { tokens } from '../theme/tokens';
 import { listExercises, type ExerciseRow } from '../db/exerciseRepo';
@@ -30,7 +29,7 @@ export function PlansScreen() {
   return (
     <Screen>
       <View style={{ gap: tokens.spacing.md, marginBottom: tokens.spacing.lg }}>
-        <AppText variant="title">Exercises</AppText>
+        <Text variant="title">Exercises</Text>
         <PrimaryButton
           title="Add custom exercise"
           onPress={() => navigation.navigate('CreateExercise')}
@@ -51,8 +50,8 @@ export function PlansScreen() {
               borderColor: tokens.colors.border,
             }}
           >
-            <AppText variant="subtitle">{item.name}</AppText>
-            <AppText color="textSecondary">{item.is_custom ? 'Custom' : 'Curated'}</AppText>
+            <Text variant="subtitle">{item.name}</Text>
+            <Text color={tokens.colors.textSecondary}>{item.is_custom ? 'Custom' : 'Curated'}</Text>
           </View>
         )}
       />

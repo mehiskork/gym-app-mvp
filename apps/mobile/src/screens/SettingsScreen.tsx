@@ -4,7 +4,6 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { BottomSheetModal, Card, ListRow, Screen, Text, ToggleRow } from '../ui';
-import { AppText } from '../components/AppText';
 import { PrimaryButton, SecondaryButton } from '../components/Buttons';
 import { tokens } from '../theme/tokens';
 import { VersionTapUnlock } from '../components/VersionTapUnlock';
@@ -171,8 +170,10 @@ export function SettingsScreen() {
           gap: tokens.spacing.sm,
         }}
       >
-        <AppText variant="subtitle">Account</AppText>
-        <AppText color="textSecondary">Account: {claimed ? 'Linked' : 'Guest'}</AppText>
+        <Text variant="subtitle">Account</Text>
+        <Text color={tokens.colors.textSecondary}>
+          Account: {claimed ? 'Linked' : 'Guest'}
+        </Text>
         <PrimaryButton title="Link to account" onPress={() => navigation.navigate('ClaimStart')} />
         {debugUnlocked ? (
           <SecondaryButton
@@ -217,16 +218,16 @@ export function SettingsScreen() {
           padding: tokens.spacing.lg,
         }}
       >
-        <AppText variant="subtitle" style={{ marginBottom: tokens.spacing.md }}>
+        <Text variant="subtitle" style={{ marginBottom: tokens.spacing.md }}>
           About
-        </AppText>
+        </Text>
 
         <View style={{ gap: tokens.spacing.sm }}>
           <VersionTapUnlock onUnlocked={handleUnlocked} onLocked={handleLocked} />
 
           {debugUnlocked ? (
             <Pressable onPress={handleOpenDebug}>
-              <AppText color="primary">Open Debug</AppText>
+              <Text color={tokens.colors.primary}>Open Debug</Text>
             </Pressable>
           ) : null}
         </View>

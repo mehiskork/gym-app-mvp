@@ -6,13 +6,13 @@ import { tokens } from '../theme/tokens';
 
 type Variant = 'title' | 'h2' | 'subtitle' | 'body' | 'muted' | 'label' | 'mono';
 
-type AppTextProps = TextProps & {
+type TextComponentProps = TextProps & {
     variant?: Variant;
     weight?: TextStyle['fontWeight'];
     color?: string;
 };
 
-export function Text({ variant = 'body', weight, color, style, ...props }: AppTextProps) {
+export function Text({ variant = 'body', weight, color, style, ...props }: TextComponentProps) {
     const baseStyle = variant === 'muted' ? tokens.typography.body : tokens.typography[variant];
     const resolvedColor = color ?? (variant === 'muted' ? tokens.colors.mutedText : tokens.colors.text);
     const monoStyle: TextStyle | null =

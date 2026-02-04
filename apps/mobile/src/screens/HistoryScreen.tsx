@@ -5,8 +5,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 
 import type { RootStackParamList } from '../navigation/types';
-import { Screen } from '../ui';
-import { AppText } from '../components/AppText';
+import { Screen, Text } from '../ui';
 import { tokens } from '../theme/tokens';
 import { formatDateTime, formatVolume, formatWeekLabel } from '../utils/format';
 
@@ -112,7 +111,7 @@ export function HistoryScreen() {
             accessibilityLabel="Delete all history"
           >
             <Ionicons name="trash-outline" size={18} color={tokens.colors.textSecondary} />
-            <AppText color="textSecondary">Delete all</AppText>
+            <Text color={tokens.colors.textSecondary}>Delete all</Text>
           </Pressable>
         </View>
 
@@ -127,13 +126,13 @@ export function HistoryScreen() {
               gap: tokens.spacing.sm,
             }}
           >
-            <AppText variant="subtitle">
+            <Text variant="subtitle">
               This week: {formatVolume(thisWeek.total_kg)} kg ({thisWeek.workouts} workouts)
-            </AppText>
+            </Text>
 
             {weeklyExercises.length > 0 ? (
               <View style={{ gap: tokens.spacing.xs }}>
-                <AppText color="textSecondary">Top exercises</AppText>
+                <Text color={tokens.colors.textSecondary}>Top exercises</Text>
                 {weeklyExercises.map((x) => (
                   <View
                     key={x.exercise_id}
@@ -144,9 +143,9 @@ export function HistoryScreen() {
                     }}
                   >
                     <View style={{ flex: 1 }}>
-                      <AppText color="textSecondary">{x.exercise_name}</AppText>
+                      <Text color={tokens.colors.textSecondary}>{x.exercise_name}</Text>
                     </View>
-                    <AppText color="textSecondary">{formatVolume(x.total_kg)} kg</AppText>
+                    <Text color={tokens.colors.textSecondary}>{formatVolume(x.total_kg)} kg</Text>
                   </View>
                 ))}
               </View>
@@ -165,7 +164,7 @@ export function HistoryScreen() {
               gap: tokens.spacing.sm,
             }}
           >
-            <AppText variant="subtitle">Weekly volume</AppText>
+            <Text variant="subtitle">Weekly volume</Text>
 
             {weekly.map((w) => (
               <View
@@ -177,12 +176,12 @@ export function HistoryScreen() {
                 }}
               >
                 <View style={{ flex: 1 }}>
-                  <AppText>{formatWeekLabel(w.week_start)}</AppText>
-                  <AppText color="textSecondary">{w.sessions} workouts</AppText>
+                  <Text>{formatWeekLabel(w.week_start)}</Text>
+                  <Text color={tokens.colors.textSecondary}>{w.sessions} workouts</Text>
                 </View>
 
                 <View style={{ alignItems: 'flex-end' }}>
-                  <AppText>{formatVolume(w.volume)} kg</AppText>
+                  <Text>{formatVolume(w.volume)} kg</Text>
                 </View>
               </View>
             ))}
@@ -190,7 +189,7 @@ export function HistoryScreen() {
         ) : null}
 
         {sessions.length === 0 ? (
-          <AppText color="textSecondary">No completed workouts yet.</AppText>
+          <Text color={tokens.colors.textSecondary}>No completed workouts yet.</Text>
         ) : null}
       </View>
     ),
@@ -230,10 +229,10 @@ export function HistoryScreen() {
                 onPress={() => navigation.navigate('SessionDetail', { sessionId: item.id })}
                 style={({ pressed }) => [{ flex: 1 }, pressed ? { opacity: 0.85 } : null]}
               >
-                <AppText variant="subtitle">{item.title}</AppText>
-                <AppText color="textSecondary">
+                <Text variant="subtitle">{item.title}</Text>
+                <Text color={tokens.colors.textSecondary}>
                   {formatDateTime(item.ended_at ?? item.started_at)}
-                </AppText>
+                </Text>
               </Pressable>
 
               <Pressable

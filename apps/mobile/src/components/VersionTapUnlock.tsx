@@ -1,6 +1,7 @@
 import React, { useRef } from 'react';
 import { Pressable } from 'react-native';
-import { AppText } from './AppText';
+import { tokens } from '../theme/tokens';
+import { Text } from '../ui/Text';
 import { setDebugUnlocked } from '../utils/debugUnlock';
 import appConfig from '../../app.json';
 
@@ -45,7 +46,7 @@ export function VersionTapUnlock({ onUnlocked, onLocked }: Props) {
         onLocked?.();
       }}
     >
-      <AppText color="textSecondary">{`Version ${versionLabel}`}</AppText>
+      <Text color={tokens.colors.textSecondary}>{`Version ${versionLabel}`}</Text>
     </Pressable>
   );
 }

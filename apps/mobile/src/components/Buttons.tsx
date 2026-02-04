@@ -1,7 +1,7 @@
 import React from 'react';
 import { Pressable, ActivityIndicator, type PressableProps, type ViewStyle } from 'react-native';
 import { tokens } from '../theme/tokens';
-import { AppText } from './AppText';
+import { Text } from '../ui/Text';
 
 type ButtonProps = Omit<PressableProps, 'children'> & {
   title: string;
@@ -36,9 +36,9 @@ export function PrimaryButton({ title, loading, disabled, ...props }: ButtonProp
       {loading ? (
         <ActivityIndicator />
       ) : (
-        <AppText variant="subtitle" style={{ color: tokens.colors.primaryText }}>
+        <Text variant="subtitle" color={tokens.colors.primaryText}>
           {title}
-        </AppText>
+        </Text>
       )}
     </Pressable>
   );
@@ -61,7 +61,7 @@ export function SecondaryButton({ title, loading, disabled, ...props }: ButtonPr
         pressed && !isDisabled ? { opacity: 0.85 } : null,
       ]}
     >
-      {loading ? <ActivityIndicator /> : <AppText variant="subtitle">{title}</AppText>}
+      {loading ? <ActivityIndicator /> : <Text variant="subtitle">{title}</Text>}
     </Pressable>
   );
 }
