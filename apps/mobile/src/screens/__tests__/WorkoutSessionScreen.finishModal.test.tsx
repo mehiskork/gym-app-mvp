@@ -12,11 +12,21 @@ jest.mock('react', () => {
 
 jest.mock('@react-navigation/native', () => ({
     useFocusEffect: jest.fn(),
+    useIsFocused: () => true,
 }));
 
 jest.mock('expo-haptics', () => ({
     selectionAsync: jest.fn(),
 }));
+
+jest.mock(
+    'expo-keep-awake',
+    () => ({
+        activateKeepAwakeAsync: jest.fn(),
+        deactivateKeepAwake: jest.fn(),
+    }),
+    { virtual: true },
+);
 
 jest.mock('react-native', () => {
     const React = require('react');
@@ -76,12 +86,17 @@ jest.mock('../../db/workoutSessionRepo', () => ({
     completeSession: jest.fn(),
 }));
 
+jest.mock('../../db/settingsRepo', () => ({
+    getSettings: jest.fn(),
+}));
+
 import React from 'react';
 
 import { WorkoutSessionScreen } from '../WorkoutSessionScreen';
 import { Button, Text } from '../../ui';
 import { clearRestTimer, getWorkoutLoggerData } from '../../db/workoutLoggerRepo';
 import { completeSession } from '../../db/workoutSessionRepo';
+import { getSettings } from '../../db/settingsRepo';
 
 type Nav = {
     navigate: jest.Mock;
@@ -168,6 +183,12 @@ describe('WorkoutSessionScreen finish modal', () => {
         (getWorkoutLoggerData as jest.Mock).mockReset();
         (completeSession as jest.Mock).mockReset();
         (clearRestTimer as jest.Mock).mockReset();
+        (getSettings as jest.Mock).mockReturnValue({
+            defaultRestSeconds: 120,
+            autoStartRestTimer: true,
+            restTimerVibration: true,
+            keepScreenOn: true,
+        });
     });
 
     it('opens the finish sheet when tapping Finish workout', () => {
@@ -177,6 +198,15 @@ describe('WorkoutSessionScreen finish modal', () => {
         useStateMock.mockImplementationOnce(() => [session, jest.fn()]);
         useStateMock.mockImplementationOnce(() => [exercises, jest.fn()]);
         useStateMock.mockImplementationOnce(() => [0, jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [
+            {
+                defaultRestSeconds: 120,
+                autoStartRestTimer: true,
+                restTimerVibration: true,
+                keepScreenOn: true,
+            },
+            jest.fn(),
+        ]);
         useStateMock.mockImplementationOnce(() => [false, setFinishOpen]);
         useStateMock.mockImplementationOnce(() => [false, jest.fn()]);
         useStateMock.mockImplementationOnce(() => [{ visible: false, payload: null }, jest.fn()]);
@@ -203,6 +233,15 @@ describe('WorkoutSessionScreen finish modal', () => {
         useStateMock.mockImplementationOnce(() => [session, jest.fn()]);
         useStateMock.mockImplementationOnce(() => [exercises, jest.fn()]);
         useStateMock.mockImplementationOnce(() => [0, jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [
+            {
+                defaultRestSeconds: 120,
+                autoStartRestTimer: true,
+                restTimerVibration: true,
+                keepScreenOn: true,
+            },
+            jest.fn(),
+        ]);
         useStateMock.mockImplementationOnce(() => [true, jest.fn()]);
         useStateMock.mockImplementationOnce(() => [false, jest.fn()]);
         useStateMock.mockImplementationOnce(() => [{ visible: false, payload: null }, jest.fn()]);
@@ -228,6 +267,15 @@ describe('WorkoutSessionScreen finish modal', () => {
         useStateMock.mockImplementationOnce(() => [session, jest.fn()]);
         useStateMock.mockImplementationOnce(() => [exercises, jest.fn()]);
         useStateMock.mockImplementationOnce(() => [0, jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [
+            {
+                defaultRestSeconds: 120,
+                autoStartRestTimer: true,
+                restTimerVibration: true,
+                keepScreenOn: true,
+            },
+            jest.fn(),
+        ]);
         useStateMock.mockImplementationOnce(() => [true, jest.fn()]);
         useStateMock.mockImplementationOnce(() => [false, jest.fn()]);
         useStateMock.mockImplementationOnce(() => [{ visible: false, payload: null }, jest.fn()]);
@@ -274,6 +322,15 @@ describe('WorkoutSessionScreen finish modal', () => {
         useStateMock.mockImplementationOnce(() => [session, jest.fn()]);
         useStateMock.mockImplementationOnce(() => [exercises, jest.fn()]);
         useStateMock.mockImplementationOnce(() => [0, jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [
+            {
+                defaultRestSeconds: 120,
+                autoStartRestTimer: true,
+                restTimerVibration: true,
+                keepScreenOn: true,
+            },
+            jest.fn(),
+        ]);
         useStateMock.mockImplementationOnce(() => [true, setFinishOpen]);
         useStateMock.mockImplementationOnce(() => [false, jest.fn()]);
         useStateMock.mockImplementationOnce(() => [{ visible: false, payload: null }, jest.fn()]);

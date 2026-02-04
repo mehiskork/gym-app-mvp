@@ -330,17 +330,19 @@ export function restoreWorkoutSet(set: RestoreWorkoutSetInput) {
 
 
 export function startRestTimer(sessionId: string, seconds: number, label: string) {
+  const clampedSeconds = Math.max(0, Math.floor(seconds));
+  const offset = `+${clampedSeconds} seconds`;
   exec(
     `
     UPDATE workout_session
     SET
-      rest_timer_end_at = datetime('now'),
+      rest_timer_end_at = datetime('now', ?),
       rest_timer_seconds = ?,
       rest_timer_label = ?,
       updated_at = datetime('now')
     WHERE id = ? AND deleted_at IS NULL;
   `,
-    [seconds, label, sessionId],
+    [offset, clampedSeconds, label, sessionId],
   );
 }
 

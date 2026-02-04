@@ -11,3 +11,4 @@ export { SectionHeader } from './SectionHeader';
 export { Snackbar } from './Snackbar';
 export { StatCard } from './StatCard';
 export { Text } from './Text';
+export { ToggleRow } from './ToggleRow';

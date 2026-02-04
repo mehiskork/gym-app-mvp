@@ -1,16 +1,16 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { RootStackParamList } from '../navigation/types';
 import { Button, Card, EmptyState, IconChip, Screen, Snackbar, Text } from '../ui';
 import { tokens } from '../theme/tokens';
 import { completeSession } from '../db/workoutSessionRepo';
-import { DEFAULT_REST_SECONDS } from '../db/constants';
 import {
   addWorkoutSet,
   clearRestTimer,
@@ -22,20 +22,22 @@ import {
   type LoggerExercise,
   type LoggerSession,
   type LoggerSet,
-
 } from '../db/workoutLoggerRepo';
-import { formatMMSS, secondsElapsed } from '../utils/format';
+import { formatRestCountdown, getRemainingSeconds } from '../utils/format';
 import { ExerciseCard } from '../features/workoutSession/ExerciseCard';
 import { SetRow } from '../features/workoutSession/SetRow';
 import { FinishWorkoutSheet } from '../features/workoutSession/FinishWorkoutSheet';
 import { WorkoutSessionHeaderCard } from '../features/workoutSession/WorkoutSessionHeaderCard';
 import { useSnackbarUndo } from '../hooks/useSnackbarUndo';
+import { getSettings } from '../db/settingsRepo';
+import { maybeTriggerRestTimerHaptics } from '../utils/restTimer';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'WorkoutSession'>;
 
 const REST_TIMER_HEIGHT = tokens.touchTargetMin + tokens.spacing.xl;
 const CTA_HEIGHT = tokens.touchTargetMin + tokens.spacing.sm;
 const CTA_STACK_GAP = tokens.spacing.sm;
+const KEEP_AWAKE_TAG = 'workout-session';
 
 function parseNumber(input: string): number | null {
   const trimmed = input.trim();
@@ -44,26 +46,26 @@ function parseNumber(input: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-
-
 function getExerciseSubtitle(exercise: LoggerExercise): string | null {
   if (exercise.sets.length === 0) return null;
   const completed = exercise.sets.filter((set) => set.is_completed === 1).length;
   return `${completed}/${exercise.sets.length} sets complete`;
 }
 
-
 export function WorkoutSessionScreen({ route, navigation }: Props) {
   const { sessionId } = route.params;
 
+  const isFocused = useIsFocused();
   const [session, setSession] = useState<LoggerSession | null>(null);
   const [exercises, setExercises] = useState<LoggerExercise[]>([]);
   const [tick, setTick] = useState(0);
+  const [settings, setSettings] = useState(getSettings());
 
   const [finishOpen, setFinishOpen] = useState(false);
   const [isFinishing, setIsFinishing] = useState(false);
   const insets = useSafeAreaInsets();
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const restHapticsRef = useRef(false);
 
   const load = useCallback(() => {
     const data = getWorkoutLoggerData(sessionId);
@@ -78,12 +80,19 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
     },
   });
 
-
   useFocusEffect(
     useCallback(() => {
       load();
+      setSettings(getSettings());
     }, [load]),
   );
+
+  const remainingSeconds = useMemo(
+    () => getRemainingSeconds(session?.rest_timer_end_at ?? null),
+    [session?.rest_timer_end_at, tick],
+  );
+
+  const timerActive = (session?.rest_timer_end_at ?? null) !== null;
 
   useEffect(() => {
     // lightweight timer tick for countdown UI (DB remains source of truth)
@@ -95,18 +104,34 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
     };
   }, []);
 
+  useEffect(() => {
+    if (!timerActive) {
+      restHapticsRef.current = false;
+      return;
+    }
+    void maybeTriggerRestTimerHaptics(
+      remainingSeconds,
+      settings.restTimerVibration,
+      restHapticsRef,
+    );
+  }, [remainingSeconds, settings.restTimerVibration, timerActive]);
+
+  useEffect(() => {
+    if (isFocused && settings.keepScreenOn && session?.status === 'in_progress') {
+      void activateKeepAwakeAsync(KEEP_AWAKE_TAG);
+      return () => {
+        void deactivateKeepAwake(KEEP_AWAKE_TAG);
+      };
+    }
+    void deactivateKeepAwake(KEEP_AWAKE_TAG);
+    return undefined;
+  }, [isFocused, settings.keepScreenOn, session?.status]);
+
   useFocusEffect(
     useCallback(() => {
       if (session?.title) navigation.setOptions({ title: session.title });
     }, [navigation, session?.title]),
   );
-
-  const elapsed = useMemo(
-    () => secondsElapsed(session?.rest_timer_end_at ?? null),
-    [session?.rest_timer_end_at, tick],
-  );
-
-  const timerActive = (session?.rest_timer_end_at ?? null) !== null;
 
   const totals = useMemo(() => {
     const totalSets = exercises.reduce((sum, exercise) => sum + exercise.sets.length, 0);
@@ -233,9 +258,12 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
                         updateWorkoutSet(set.id, { is_completed: done ? 0 : 1 });
                         void Haptics.selectionAsync();
                         // Start rest timer when marking done
-                        if (!done) {
-                          const seconds = set.rest_seconds ?? DEFAULT_REST_SECONDS;
-                          startRestTimer(sessionId, seconds, ex.exercise_name);
+                        if (!done && settings.autoStartRestTimer) {
+                          startRestTimer(
+                            sessionId,
+                            settings.defaultRestSeconds,
+                            ex.exercise_name,
+                          );
                         }
                         load();
                       }}
@@ -278,7 +306,7 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
                   fontWeight: tokens.typography.title.fontWeight,
                 }}
               >
-                {formatMMSS(elapsed)}
+                {formatRestCountdown(remainingSeconds)}
               </Text>
 
             </View>

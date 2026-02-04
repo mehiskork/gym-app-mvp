@@ -52,8 +52,19 @@ export function secondsElapsed(startAt: string | null): number {
     return Math.max(0, Math.floor((Date.now() - startMs) / 1000));
 }
 
+export function getRemainingSeconds(endAt: string | null): number {
+    if (!endAt) return 0;
+    const endMs = parseSqliteDateMs(endAt);
+    if (!Number.isFinite(endMs)) return 0;
+    return Math.max(0, Math.ceil((endMs - Date.now()) / 1000));
+}
+
 export function formatMMSS(totalSeconds: number): string {
     const m = Math.floor(totalSeconds / 60);
     const s = totalSeconds % 60;
     return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+export function formatRestCountdown(totalSeconds: number): string {
+    return formatMMSS(Math.max(0, totalSeconds));
 }
