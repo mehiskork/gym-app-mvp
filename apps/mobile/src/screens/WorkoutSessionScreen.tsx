@@ -133,6 +133,18 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
     }, [navigation, session?.title]),
   );
 
+  useFocusEffect(
+    useCallback(() => {
+      const unsubscribe = navigation.addListener('beforeRemove', (e) => {
+        if (e.data.action.type !== 'GO_BACK') return;
+        e.preventDefault();
+        navigation.navigate('MainTabs', { screen: 'Today' });
+      });
+      return unsubscribe;
+    }, [navigation]),
+  );
+
+
   const totals = useMemo(() => {
     const totalSets = exercises.reduce((sum, exercise) => sum + exercise.sets.length, 0);
     const completedSets = exercises.reduce(

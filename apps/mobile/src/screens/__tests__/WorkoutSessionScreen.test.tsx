@@ -94,6 +94,7 @@ import React from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 
 import { WorkoutSessionScreen } from '../WorkoutSessionScreen';
 import { ExerciseCard } from '../../features/workoutSession/ExerciseCard';
@@ -106,6 +107,7 @@ import { tokens } from '../../theme/tokens';
 type Nav = {
     navigate: jest.Mock;
     setOptions: jest.Mock;
+    addListener: jest.Mock;
 };
 
 const findElementsByType = <P,>(
@@ -159,6 +161,7 @@ describe('WorkoutSessionScreen', () => {
             restTimerVibration: true,
             keepScreenOn: true,
         });
+        (useFocusEffect as jest.Mock).mockImplementation((callback: () => void) => callback());
     });
 
     it('renders the exercise and toggles a set', () => {
@@ -222,7 +225,11 @@ describe('WorkoutSessionScreen', () => {
         useStateMock.mockImplementationOnce(() => [{ visible: false, payload: null }, jest.fn()]);
         (getWorkoutLoggerData as jest.Mock).mockReturnValue({ session, exercises });
 
-        const navigation: Nav = { navigate: jest.fn(), setOptions: jest.fn() };
+        const navigation: Nav = {
+            navigate: jest.fn(),
+            setOptions: jest.fn(),
+            addListener: jest.fn(),
+        };
         const element = WorkoutSessionScreen({
             navigation,
             route: { key: 'WorkoutSession', name: 'WorkoutSession', params: { sessionId: 'session-1' } },
@@ -293,7 +300,11 @@ describe('WorkoutSessionScreen', () => {
         useStateMock.mockImplementationOnce(() => [{ visible: false, payload: null }, jest.fn()]);
         (getWorkoutLoggerData as jest.Mock).mockReturnValue({ session, exercises });
 
-        const navigation: Nav = { navigate: jest.fn(), setOptions: jest.fn() };
+        const navigation: Nav = {
+            navigate: jest.fn(),
+            setOptions: jest.fn(),
+            addListener: jest.fn(),
+        };
         const element = WorkoutSessionScreen({
             navigation,
             route: { key: 'WorkoutSession', name: 'WorkoutSession', params: { sessionId: 'session-1' } },
@@ -337,7 +348,11 @@ describe('WorkoutSessionScreen', () => {
         useStateMock.mockImplementationOnce(() => [{ visible: false, payload: null }, jest.fn()]);
         (getWorkoutLoggerData as jest.Mock).mockReturnValue({ session, exercises });
 
-        const navigation: Nav = { navigate: jest.fn(), setOptions: jest.fn() };
+        const navigation: Nav = {
+            navigate: jest.fn(),
+            setOptions: jest.fn(),
+            addListener: jest.fn(),
+        };
         const element = WorkoutSessionScreen({
             navigation,
             route: { key: 'WorkoutSession', name: 'WorkoutSession', params: { sessionId: 'session-2' } },
@@ -383,7 +398,11 @@ describe('WorkoutSessionScreen', () => {
         useStateMock.mockImplementationOnce(() => [{ visible: false, payload: null }, jest.fn()]);
         (getWorkoutLoggerData as jest.Mock).mockReturnValue({ session, exercises });
 
-        const navigation: Nav = { navigate: jest.fn(), setOptions: jest.fn() };
+        const navigation: Nav = {
+            navigate: jest.fn(),
+            setOptions: jest.fn(),
+            addListener: jest.fn(),
+        };
         const element = WorkoutSessionScreen({
             navigation,
             route: { key: 'WorkoutSession', name: 'WorkoutSession', params: { sessionId: 'session-3' } },
@@ -426,7 +445,11 @@ describe('WorkoutSessionScreen', () => {
         useStateMock.mockImplementationOnce(() => [{ visible: false, payload: null }, jest.fn()]);
         (getWorkoutLoggerData as jest.Mock).mockReturnValue({ session, exercises });
 
-        const navigation: Nav = { navigate: jest.fn(), setOptions: jest.fn() };
+        const navigation: Nav = {
+            navigate: jest.fn(),
+            setOptions: jest.fn(),
+            addListener: jest.fn(),
+        };
         const element = WorkoutSessionScreen({
             navigation,
             route: { key: 'WorkoutSession', name: 'WorkoutSession', params: { sessionId: 'session-4' } },
@@ -457,6 +480,62 @@ describe('WorkoutSessionScreen', () => {
         >;
         const trashIcon = icons.find((icon) => icon.props.name === 'trash-outline');
         expect(trashIcon?.props.color).toBe(tokens.colors.destructive);
+    });
+
+    it('redirects back navigation to the Today tab', () => {
+        const session = {
+            id: 'session-5',
+            title: 'Core Day',
+            status: 'in_progress',
+            started_at: '2024-01-05T00:00:00Z',
+            rest_timer_end_at: null,
+            rest_timer_seconds: null,
+            rest_timer_label: null,
+        };
+
+        const exercises: Array<unknown> = [];
+
+        useStateMock.mockImplementationOnce(() => [session, jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [exercises, jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [0, jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [
+            {
+                defaultRestSeconds: 120,
+                autoStartRestTimer: true,
+                restTimerVibration: true,
+                keepScreenOn: true,
+            },
+            jest.fn(),
+        ]);
+        useStateMock.mockImplementationOnce(() => [false, jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [false, jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [{ visible: false, payload: null }, jest.fn()]);
+        (getWorkoutLoggerData as jest.Mock).mockReturnValue({ session, exercises });
+
+        let beforeRemoveHandler: ((event: { data: { action: { type: string } }; preventDefault: () => void }) => void) | undefined;
+        const navigation: Nav = {
+            navigate: jest.fn(),
+            setOptions: jest.fn(),
+            addListener: jest.fn((event: string, handler: typeof beforeRemoveHandler) => {
+                if (event === 'beforeRemove') {
+                    beforeRemoveHandler = handler ?? undefined;
+                }
+                return jest.fn();
+            }),
+        };
+
+        WorkoutSessionScreen({
+            navigation,
+            route: { key: 'WorkoutSession', name: 'WorkoutSession', params: { sessionId: 'session-5' } },
+        } as never);
+
+        expect(navigation.addListener).toHaveBeenCalledWith('beforeRemove', expect.any(Function));
+
+        const preventDefault = jest.fn();
+        beforeRemoveHandler?.({ data: { action: { type: 'GO_BACK' } }, preventDefault });
+
+        expect(preventDefault).toHaveBeenCalled();
+        expect(navigation.navigate).toHaveBeenCalledWith('MainTabs', { screen: 'Today' });
     });
 
     it('styles completed set rows and destructive icons', () => {

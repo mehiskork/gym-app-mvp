@@ -57,15 +57,17 @@ jest.mock('../../db/workoutPlanRepo', () => ({
 }));
 jest.mock('../../db/workoutSessionRepo', () => ({
     createSessionFromPlanDay: jest.fn(),
+    getInProgressSession: jest.fn(),
 }));
 import React from 'react';
 
 import { EmptyState, ListRow } from '../../ui';
 import { WorkoutPlanDetailScreen } from '../WorkoutPlanDetailScreen';
-import { createSessionFromPlanDay } from '../../db/workoutSessionRepo';
+import { createSessionFromPlanDay, getInProgressSession } from '../../db/workoutSessionRepo';
 type Nav = {
     navigate: jest.Mock;
     goBack: jest.Mock;
+    replace: jest.Mock;
 };
 
 const findElementsByType = <P,>(
@@ -90,6 +92,8 @@ describe('WorkoutPlanDetailScreen', () => {
 
     beforeEach(() => {
         useStateMock.mockReset();
+        (createSessionFromPlanDay as jest.Mock).mockReset();
+        (getInProgressSession as jest.Mock).mockReset();
     });
 
     it('renders day rows when days exist', () => {
@@ -99,7 +103,7 @@ describe('WorkoutPlanDetailScreen', () => {
         useStateMock.mockImplementationOnce(() => [plan, jest.fn()]);
         useStateMock.mockImplementationOnce(() => [days, jest.fn()]);
 
-        const navigation: Nav = { navigate: jest.fn(), goBack: jest.fn() };
+        const navigation: Nav = { navigate: jest.fn(), goBack: jest.fn(), replace: jest.fn() };
         const element = WorkoutPlanDetailScreen({
             navigation,
             route: {
@@ -122,7 +126,7 @@ describe('WorkoutPlanDetailScreen', () => {
         useStateMock.mockImplementationOnce(() => [plan, jest.fn()]);
         useStateMock.mockImplementationOnce(() => [days, jest.fn()]);
 
-        const navigation: Nav = { navigate: jest.fn(), goBack: jest.fn() };
+        const navigation: Nav = { navigate: jest.fn(), goBack: jest.fn(), replace: jest.fn() };
         const element = WorkoutPlanDetailScreen({
             navigation,
             route: {
@@ -151,7 +155,7 @@ describe('WorkoutPlanDetailScreen', () => {
         useStateMock.mockImplementationOnce(() => [plan, jest.fn()]);
         useStateMock.mockImplementationOnce(() => [[], jest.fn()]);
 
-        const navigation: Nav = { navigate: jest.fn(), goBack: jest.fn() };
+        const navigation: Nav = { navigate: jest.fn(), goBack: jest.fn(), replace: jest.fn() };
         const element = WorkoutPlanDetailScreen({
             navigation,
             route: {
@@ -173,9 +177,10 @@ describe('WorkoutPlanDetailScreen', () => {
         useStateMock.mockImplementationOnce(() => [plan, jest.fn()]);
         useStateMock.mockImplementationOnce(() => [days, jest.fn()]);
 
+        (getInProgressSession as jest.Mock).mockReturnValue(null);
         (createSessionFromPlanDay as jest.Mock).mockReturnValue('session-1');
 
-        const navigation: Nav = { navigate: jest.fn(), goBack: jest.fn() };
+        const navigation: Nav = { navigate: jest.fn(), goBack: jest.fn(), replace: jest.fn() };
         const element = WorkoutPlanDetailScreen({
             navigation,
             route: {
@@ -199,8 +204,43 @@ describe('WorkoutPlanDetailScreen', () => {
             workoutPlanId: 'plan-1',
             dayId: 'day-1',
         });
-        expect(navigation.navigate).toHaveBeenCalledWith('WorkoutSession', {
+        expect(navigation.replace).toHaveBeenCalledWith('WorkoutSession', {
             sessionId: 'session-1',
+        });
+    });
+
+    it('resumes an in-progress session instead of creating a new one', () => {
+        const plan = { id: 'plan-1', name: 'Strength Plan', description: null, is_template: 0 };
+        const days = [{ id: 'day-1', name: 'Day 1', day_index: 1 }];
+
+        useStateMock.mockImplementationOnce(() => [plan, jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [days, jest.fn()]);
+
+        (getInProgressSession as jest.Mock).mockReturnValue({ id: 'session-99' });
+
+        const navigation: Nav = { navigate: jest.fn(), goBack: jest.fn(), replace: jest.fn() };
+        const element = WorkoutPlanDetailScreen({
+            navigation,
+            route: {
+                key: 'WorkoutPlanDetail',
+                name: 'WorkoutPlanDetail',
+                params: { workoutPlanId: 'plan-1', mode: 'pickDayToStart' },
+            },
+        } as never);
+
+        type ListRowProps = React.ComponentProps<typeof ListRow>;
+        const rows = findElementsByType<ListRowProps>(element, ListRow);
+        const firstRow = rows[0];
+
+        if (!firstRow?.props.onPress) {
+            throw new Error('Expected day row to have onPress.');
+        }
+
+        firstRow.props.onPress({} as never);
+
+        expect(createSessionFromPlanDay).not.toHaveBeenCalled();
+        expect(navigation.replace).toHaveBeenCalledWith('WorkoutSession', {
+            sessionId: 'session-99',
         });
     });
 });

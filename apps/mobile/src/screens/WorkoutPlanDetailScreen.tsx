@@ -15,7 +15,7 @@ import {
   type WorkoutPlanDayRow,
   type WorkoutPlanRow,
 } from '../db/workoutPlanRepo';
-import { createSessionFromPlanDay } from '../db/workoutSessionRepo';
+import { createSessionFromPlanDay, getInProgressSession } from '../db/workoutSessionRepo';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'WorkoutPlanDetail'>;
 
@@ -69,8 +69,24 @@ export function WorkoutPlanDetailScreen({ route, navigation }: Props) {
   const handleDayPress = useCallback(
     (dayId: string) => {
       if (isPickerMode) {
-        const sessionId = createSessionFromPlanDay({ workoutPlanId, dayId });
-        navigation.navigate('WorkoutSession', { sessionId });
+        const existingSession = getInProgressSession();
+        if (existingSession) {
+          navigation.replace('WorkoutSession', { sessionId: existingSession.id });
+          return;
+        }
+        try {
+          const sessionId = createSessionFromPlanDay({ workoutPlanId, dayId });
+          navigation.replace('WorkoutSession', { sessionId });
+        } catch (error) {
+          const message = error instanceof Error ? error.message : '';
+          const prefix = 'WORKOUT_IN_PROGRESS:';
+          if (message.startsWith(prefix)) {
+            const sessionId = message.slice(prefix.length);
+            navigation.replace('WorkoutSession', { sessionId });
+            return;
+          }
+          throw error;
+        }
         return;
       }
 
