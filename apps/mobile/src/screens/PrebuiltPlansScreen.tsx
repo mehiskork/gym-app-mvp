@@ -53,7 +53,7 @@ export function PrebuiltPlansScreen() {
   };
 
   return (
-    <Screen>
+    <Screen bottomInset="none">
       <Text variant="title" style={{ marginBottom: tokens.spacing.md }}>
         Prebuilt plans
       </Text>

@@ -140,7 +140,7 @@ export function ExerciseDetailScreen({ route, navigation }: Props) {
   }, [sessions]);
 
   return (
-    <Screen style={{ flex: 1 }}>
+    <Screen bottomInset="none" style={{ flex: 1 }}>
       <ScrollView
         contentContainerStyle={{ gap: tokens.spacing.lg, paddingBottom: tokens.spacing.xl }}
       >

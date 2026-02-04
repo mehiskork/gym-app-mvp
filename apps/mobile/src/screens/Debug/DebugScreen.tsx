@@ -234,7 +234,7 @@ export function DebugScreen() {
   const baseUrl = process.env.EXPO_PUBLIC_API_BASE_URL ?? '—';
 
   return (
-    <Screen padded style={{ flex: 1 }}>
+    <Screen padded bottomInset="none" style={{ flex: 1 }}>
       <ScrollView contentContainerStyle={{ paddingBottom: tokens.spacing.xl }}>
         <Card title="Build">
           <Row label="App" value={buildInfo.appName} />

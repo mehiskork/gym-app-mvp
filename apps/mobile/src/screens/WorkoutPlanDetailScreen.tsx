@@ -97,7 +97,7 @@ export function WorkoutPlanDetailScreen({ route, navigation }: Props) {
   return (
     <Screen
       scroll
-      bottomInset="tabBar"
+      bottomInset="none"
       contentStyle={{
         gap: tokens.spacing.md,
       }}

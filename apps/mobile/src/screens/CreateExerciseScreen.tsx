@@ -28,7 +28,7 @@ export function CreateExerciseScreen({ navigation }: Props) {
   };
 
   return (
-    <Screen style={{ gap: tokens.spacing.lg }}>
+    <Screen bottomInset="none" style={{ gap: tokens.spacing.lg }}>
       <Text variant="title">New Exercise</Text>
 
       <View style={{ gap: tokens.spacing.sm }}>

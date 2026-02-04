@@ -82,7 +82,7 @@ export function ClaimStartScreen({ navigation }: Props) {
     }, [expiresAt]);
 
     return (
-        <Screen padded style={{ gap: tokens.spacing.lg }}>
+        <Screen padded bottomInset="none" style={{ gap: tokens.spacing.lg }}>
             <View style={{ gap: tokens.spacing.sm }}>
                 <Text variant="title">Link your account</Text>
                 <Text variant="muted">

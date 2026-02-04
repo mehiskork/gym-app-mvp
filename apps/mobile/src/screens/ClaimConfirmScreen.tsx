@@ -100,7 +100,7 @@ export function ClaimConfirmScreen({ navigation }: Props) {
     }, [navigation]);
 
     return (
-        <Screen padded style={{ gap: tokens.spacing.lg }}>
+        <Screen padded bottomInset="none" style={{ gap: tokens.spacing.lg }}>
             <View style={{ gap: tokens.spacing.sm }}>
                 <Text variant="title">Confirm claim (dev)</Text>
                 <Text variant="muted">

@@ -87,7 +87,7 @@ export function SessionDetailScreen({ route, navigation }: Props) {
 
   if (!session) {
     return (
-      <Screen style={{ justifyContent: 'center' }}>
+      <Screen bottomInset="none" style={{ justifyContent: 'center' }}>
         <Text variant="title">Session not found</Text>
         <Text variant="muted">This workout session no longer exists.</Text>
       </Screen>
@@ -97,7 +97,7 @@ export function SessionDetailScreen({ route, navigation }: Props) {
   const dur = formatDurationSeconds(durationSeconds(session.started_at, session.ended_at));
 
   return (
-    <Screen style={{ flex: 1 }}>
+    <Screen bottomInset="none" style={{ flex: 1 }}>
       <ScrollView
         contentContainerStyle={{ gap: tokens.spacing.lg, paddingBottom: tokens.spacing.xl }}
         keyboardShouldPersistTaps="handled"

@@ -73,7 +73,7 @@ jest.mock('../../db/dayExerciseRepo', () => ({
 import React from 'react';
 import DraggableFlatList, { type RenderItemParams } from 'react-native-draggable-flatlist';
 
-import { Button, EmptyState, ListRow } from '../../ui';
+import { Button, EmptyState, ListRow, Screen } from '../../ui';
 import { DayDetailScreen } from '../DayDetailScreen';
 
 type Nav = {
@@ -131,6 +131,23 @@ describe('DayDetailScreen', () => {
         addExerciseButton.props.onPress({} as never);
 
         expect(navigation.navigate).toHaveBeenCalledWith('ExercisePicker', { dayId: 'day-1' });
+    });
+
+    it('uses bottomInset="none" for stack layout', () => {
+        useStateMock.mockImplementationOnce(() => ['Push', jest.fn()]);
+        useStateMock.mockImplementationOnce(() => ['Push', jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [[], jest.fn()]);
+
+        const navigation: Nav = { navigate: jest.fn(), setOptions: jest.fn() };
+        const element = DayDetailScreen({
+            navigation,
+            route: { key: 'DayDetail', name: 'DayDetail', params: { dayId: 'day-1' } },
+        } as never);
+
+        type ScreenProps = React.ComponentProps<typeof Screen>;
+        const screens = findElementsByType<ScreenProps>(element, Screen);
+
+        expect(screens[0]?.props.bottomInset).toBe('none');
     });
 
     it('renders exercise list rows when exercises exist', () => {

@@ -216,7 +216,7 @@ export function DayDetailScreen({ route, navigation }: Props) {
 
   if (items.length === 0) {
     return (
-      <Screen padded={false} bottomInset="tabBar" scroll>
+      <Screen padded={false} bottomInset="none" scroll>
         <View
           style={{
             padding: tokens.spacing.lg,
@@ -232,7 +232,7 @@ export function DayDetailScreen({ route, navigation }: Props) {
   }
 
   return (
-    <Screen padded={false} bottomInset="tabBar" style={{ flex: 1 }}>
+    <Screen padded={false} bottomInset="none" style={{ flex: 1 }}>
       <DraggableFlatList
         data={items}
         keyExtractor={(x) => x.id}
