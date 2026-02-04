@@ -103,6 +103,7 @@ describe('DayDetailScreen', () => {
 
     beforeEach(() => {
         useStateMock.mockReset();
+        useStateMock.mockImplementation((initial: unknown) => [initial, jest.fn()]);
     });
 
     it('shows empty state and add exercise action when no exercises exist', () => {

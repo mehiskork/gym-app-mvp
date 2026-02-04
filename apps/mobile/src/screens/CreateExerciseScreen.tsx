@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { Alert, TextInput, View } from 'react-native';
+import { Alert, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import type { RootStackParamList } from '../navigation/types';
 import { Screen } from '../ui/Screen';
 import { Text } from '../ui/Text';
 import { Button } from '../ui/Button';
+import { Input } from '../ui/Input';
 import { tokens } from '../theme/tokens';
 import { createCustomExercise } from '../db/exerciseRepo';
 
@@ -32,23 +33,15 @@ export function CreateExerciseScreen({ navigation }: Props) {
       <Text variant="title">New Exercise</Text>
 
       <View style={{ gap: tokens.spacing.sm }}>
-        <Text variant="muted">Name</Text>
-        <TextInput
+        <Input
+          label="Name"
           maxLength={50}
           value={name}
           onChangeText={setName}
           placeholder="e.g., Cable Fly"
           placeholderTextColor={tokens.colors.textSecondary}
           autoFocus
-          style={{
-            minHeight: tokens.touchTargetMin,
-            borderRadius: tokens.radius.md,
-            borderWidth: 1,
-            borderColor: tokens.colors.border,
-            paddingHorizontal: tokens.spacing.md,
-            color: tokens.colors.text,
-            backgroundColor: tokens.colors.surface,
-          }}
+
         />
       </View>
 

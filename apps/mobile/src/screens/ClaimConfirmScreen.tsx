@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { TextInput, View } from 'react-native';
+import { View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -7,6 +7,7 @@ import type { RootStackParamList } from '../navigation/types';
 import { Screen } from '../ui/Screen';
 import { Text } from '../ui/Text';
 import { Button } from '../ui/Button';
+import { Input } from '../ui/Input';
 import { tokens } from '../theme/tokens';
 import { apiPost, ApiError } from '../utils/apiClient';
 import { getString, setString } from '../utils/prefs';
@@ -108,21 +109,13 @@ export function ClaimConfirmScreen({ navigation }: Props) {
                 </Text>
             </View>
 
-            <TextInput
+            <Input
                 value={code}
                 onChangeText={setCode}
                 autoCapitalize="characters"
                 placeholder="Enter code"
                 placeholderTextColor={tokens.colors.textSecondary}
-                style={{
-                    minHeight: tokens.touchTargetMin,
-                    borderRadius: tokens.radius.md,
-                    borderWidth: 1,
-                    borderColor: tokens.colors.border,
-                    paddingHorizontal: tokens.spacing.md,
-                    color: tokens.colors.text,
-                    backgroundColor: tokens.colors.surface,
-                }}
+
             />
 
             {error ? <Text color={tokens.colors.danger}>{error}</Text> : null}

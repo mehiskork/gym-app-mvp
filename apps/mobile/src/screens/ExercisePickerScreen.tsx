@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { Alert, FlatList, Pressable, TextInput, View } from 'react-native';
+import { Alert, FlatList, Pressable, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,6 +8,7 @@ import type { RootStackParamList } from '../navigation/types';
 import { Screen } from '../ui/Screen';
 import { Text } from '../ui/Text';
 import { Button } from '../ui/Button';
+import { Input } from '../ui/Input';
 import { tokens } from '../theme/tokens';
 import { listExercises, type ExerciseRow } from '../db/exerciseRepo';
 
@@ -57,20 +58,12 @@ export function ExercisePickerScreen({ route, navigation }: Props) {
         </View>
       </View>
 
-      <TextInput
+      <Input
         value={q}
         onChangeText={setQ}
         placeholder="Search exercises"
         placeholderTextColor={tokens.colors.textSecondary}
-        style={{
-          minHeight: tokens.touchTargetMin,
-          borderRadius: tokens.radius.md,
-          borderWidth: 1,
-          borderColor: tokens.colors.border,
-          paddingHorizontal: tokens.spacing.md,
-          color: tokens.colors.text,
-          backgroundColor: tokens.colors.surface,
-        }}
+
       />
 
       <FlatList

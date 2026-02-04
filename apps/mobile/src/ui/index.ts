@@ -6,6 +6,7 @@ export { EmptyState } from './EmptyState';
 export { Header } from './Header';
 export { IconChip } from './IconChip';
 export { ListRow } from './ListRow';
+export { Input } from './Input';
 export { Screen } from './Screen';
 export { SectionHeader } from './SectionHeader';
 export { Snackbar } from './Snackbar';

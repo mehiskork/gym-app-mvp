@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { Alert, Pressable, TextInput, View } from 'react-native';
+import { Alert, Pressable, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
 import DraggableFlatList, { type RenderItemParams } from 'react-native-draggable-flatlist';
@@ -7,7 +7,7 @@ import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 
 import type { RootStackParamList } from '../navigation/types';
-import { Button, Card, EmptyState, IconChip, ListRow, Screen, Text } from '../ui';
+import { Button, Card, EmptyState, IconChip, Input, ListRow, Screen, Text } from '../ui';
 import { tokens } from '../theme/tokens';
 import {
   deleteDayExercise,
@@ -170,27 +170,17 @@ export function DayDetailScreen({ route, navigation }: Props) {
       <Card>
         <View style={{ gap: tokens.spacing.md }}>
           <View style={{ gap: tokens.spacing.xs }}>
-            <Text variant="label" color={tokens.colors.mutedText}>
-              Day name
-            </Text>
-            <TextInput
+            <Input
+              label="Day name"
               maxLength={50}
               value={dayNameInput}
               onChangeText={setDayNameInput}
               placeholder="e.g., Push"
-              placeholderTextColor={tokens.colors.mutedText}
+
               returnKeyType="done"
               onSubmitEditing={commitDayName}
               onEndEditing={commitDayName}
-              style={{
-                minHeight: tokens.touchTargetMin,
-                borderRadius: tokens.radius.md,
-                borderWidth: 1,
-                borderColor: tokens.colors.border,
-                paddingHorizontal: tokens.spacing.md,
-                color: tokens.colors.text,
-                backgroundColor: tokens.colors.surface,
-              }}
+
             />
           </View>
           <Text variant="muted">

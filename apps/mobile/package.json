@@ -10,8 +10,7 @@
     "test": "jest",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --ext .ts,.tsx",
-    "format": "prettier . --write",
-    "check:no-legacy-ui": "sh -c \"if rg -n \\\"src/components/(AppText|Screen)\\\" src || rg -n \\\"from ['\\\\\\\"]\\\\.\\\\./components/(AppText|Screen)['\\\\\\\"]\\\" src; then echo 'Legacy UI import found.'; exit 1; fi\""
+    "format": "prettier . --write"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",

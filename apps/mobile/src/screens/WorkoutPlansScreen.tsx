@@ -1,10 +1,10 @@
 import React, { useCallback, useState } from 'react';
-import { Alert, FlatList, Pressable, TextInput, View } from 'react-native';
+import { Alert, FlatList, Pressable, View } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 
-import { Screen, Card, EmptyState, ListRow, IconChip, Button, Text } from '../ui';
+import { Screen, Card, EmptyState, Input, ListRow, IconChip, Button, Text } from '../ui';
 import { tokens } from '../theme/tokens';
 import {
   createWorkoutPlan,
@@ -69,23 +69,13 @@ export function WorkoutPlansScreen() {
     >
       <Card>
         <View style={{ gap: tokens.spacing.sm }}>
-          <Text variant="muted">New workout plan name</Text>
-          <TextInput
+          <Input
+            label="New workout plan name"
             maxLength={50}
             value={name}
             onChangeText={setName}
             placeholder="e.g., Push Pull Legs"
-            placeholderTextColor={tokens.colors.mutedText}
-            style={{
-              minHeight: tokens.touchTargetMin,
-              borderRadius: tokens.radius.md,
-              borderWidth: 1,
-              borderColor: tokens.colors.border,
-              paddingHorizontal: tokens.spacing.md,
-              color: tokens.colors.text,
-              backgroundColor: tokens.colors.surface,
 
-            }}
           />
           <Button title="Build workout plan" onPress={onCreate} disabled={!name.trim()} />
         </View>
