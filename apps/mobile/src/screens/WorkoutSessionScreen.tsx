@@ -31,6 +31,10 @@ import { WorkoutSessionHeaderCard } from '../features/workoutSession/WorkoutSess
 import { useSnackbarUndo } from '../hooks/useSnackbarUndo';
 import { getSettings } from '../db/settingsRepo';
 import { maybeTriggerRestTimerHaptics } from '../utils/restTimer';
+import {
+  cancelRestTimerNotification,
+  scheduleRestTimerNotification,
+} from '../utils/restTimerNotifications';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'WorkoutSession'>;
 
@@ -168,6 +172,7 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
     try {
       completeSession(sessionId);
       clearRestTimer(sessionId);
+      void cancelRestTimerNotification();
       load();
       navigation.navigate('MainTabs', { screen: 'Today' });
     } finally {
@@ -276,6 +281,9 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
                             settings.defaultRestSeconds,
                             ex.exercise_name,
                           );
+                          if (settings.restTimerNotifications) {
+                            void scheduleRestTimerNotification(settings.defaultRestSeconds);
+                          }
                         }
                         load();
                       }}
@@ -336,6 +344,7 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
                 );
 
                 clearRestTimer(sessionId);
+                void cancelRestTimerNotification();
               }}
               style={({ pressed }) => [
                 {

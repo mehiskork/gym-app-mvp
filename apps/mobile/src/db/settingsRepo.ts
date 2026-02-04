@@ -6,6 +6,7 @@ export type Settings = {
     autoStartRestTimer: boolean;
     restTimerVibration: boolean;
     keepScreenOn: boolean;
+    restTimerNotifications: boolean;
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -13,6 +14,7 @@ export const DEFAULT_SETTINGS: Settings = {
     autoStartRestTimer: true,
     restTimerVibration: true,
     keepScreenOn: true,
+    restTimerNotifications: false,
 };
 
 const SETTINGS_KEY = 'settings';
@@ -35,6 +37,10 @@ function normalizeSettings(input: unknown): Settings {
                 : DEFAULT_SETTINGS.restTimerVibration,
         keepScreenOn:
             typeof parsed.keepScreenOn === 'boolean' ? parsed.keepScreenOn : DEFAULT_SETTINGS.keepScreenOn,
+        restTimerNotifications:
+            typeof parsed.restTimerNotifications === 'boolean'
+                ? parsed.restTimerNotifications
+                : DEFAULT_SETTINGS.restTimerNotifications,
     };
 }
 

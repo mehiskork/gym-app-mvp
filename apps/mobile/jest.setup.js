@@ -14,3 +14,16 @@ jest.mock('@react-navigation/native', () => ({
     }),
     NavigationContainer: ({ children }) => children,
 }));
+
+jest.mock(
+    'expo-notifications',
+    () => ({
+        AndroidImportance: { DEFAULT: 'default' },
+        setNotificationChannelAsync: jest.fn(),
+        getPermissionsAsync: jest.fn(),
+        requestPermissionsAsync: jest.fn(),
+        scheduleNotificationAsync: jest.fn(),
+        cancelScheduledNotificationAsync: jest.fn(),
+    }),
+    { virtual: true },
+);

@@ -188,6 +188,7 @@ describe('WorkoutSessionScreen finish modal', () => {
             autoStartRestTimer: true,
             restTimerVibration: true,
             keepScreenOn: true,
+            restTimerNotifications: false,
         });
     });
 
@@ -204,6 +205,7 @@ describe('WorkoutSessionScreen finish modal', () => {
                 autoStartRestTimer: true,
                 restTimerVibration: true,
                 keepScreenOn: true,
+                restTimerNotifications: false,
             },
             jest.fn(),
         ]);
@@ -239,6 +241,7 @@ describe('WorkoutSessionScreen finish modal', () => {
                 autoStartRestTimer: true,
                 restTimerVibration: true,
                 keepScreenOn: true,
+                restTimerNotifications: false,
             },
             jest.fn(),
         ]);
@@ -273,6 +276,7 @@ describe('WorkoutSessionScreen finish modal', () => {
                 autoStartRestTimer: true,
                 restTimerVibration: true,
                 keepScreenOn: true,
+                restTimerNotifications: false,
             },
             jest.fn(),
         ]);
@@ -328,6 +332,7 @@ describe('WorkoutSessionScreen finish modal', () => {
                 autoStartRestTimer: true,
                 restTimerVibration: true,
                 keepScreenOn: true,
+                restTimerNotifications: false,
             },
             jest.fn(),
         ]);

@@ -29,6 +29,7 @@ describe('settingsRepo', () => {
             autoStartRestTimer: true,
             restTimerVibration: false,
             keepScreenOn: true,
+            restTimerNotifications: false,
         });
         expect(setMeta).toHaveBeenCalledWith('settings', JSON.stringify(next));
     });

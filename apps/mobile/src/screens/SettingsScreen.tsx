@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { Alert, Pressable, View } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
@@ -13,7 +13,11 @@ import type { RootStackParamList } from '../navigation/types';
 import { getClaimed } from '../db/appMetaRepo';
 import { formatRestCountdown } from '../utils/format';
 import { getSettings, updateSettings } from '../db/settingsRepo';
-
+import {
+  cancelRestTimerNotification,
+  ensureRestTimerNotificationChannel,
+  requestRestTimerNotificationPermission,
+} from '../utils/restTimerNotifications';
 const REST_TIME_OPTIONS = [
   { label: '0:30', seconds: 30 },
   { label: '1:00', seconds: 60 },
@@ -65,6 +69,30 @@ export function SettingsScreen() {
   const restTimeLabel = useMemo(
     () => formatRestCountdown(settings.defaultRestSeconds),
     [settings.defaultRestSeconds],
+  );
+
+  const handleRestNotificationsToggle = useCallback(
+    async (value: boolean) => {
+      if (!value) {
+        setSettings(updateSettings({ restTimerNotifications: false }));
+        await cancelRestTimerNotification();
+        return;
+      }
+
+      const granted = await requestRestTimerNotificationPermission();
+      if (!granted) {
+        setSettings(updateSettings({ restTimerNotifications: false }));
+        Alert.alert(
+          'Notifications disabled',
+          'Enable notifications in Settings to get silent rest timer alerts.',
+        );
+        return;
+      }
+
+      await ensureRestTimerNotificationChannel();
+      setSettings(updateSettings({ restTimerNotifications: true }));
+    },
+    [setSettings],
   );
 
   return (
@@ -119,6 +147,15 @@ export function SettingsScreen() {
             onValueChange={(value) =>
               setSettings(updateSettings({ restTimerVibration: value }))
             }
+            variant="flat"
+          />
+          <ToggleRow
+            title="Rest notifications"
+            subtitle="Show a notification when rest ends (silent)"
+            value={settings.restTimerNotifications}
+            onValueChange={(value) => {
+              void handleRestNotificationsToggle(value);
+            }}
             variant="flat"
           />
         </View>

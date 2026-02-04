@@ -160,6 +160,7 @@ describe('WorkoutSessionScreen', () => {
             autoStartRestTimer: true,
             restTimerVibration: true,
             keepScreenOn: true,
+            restTimerNotifications: false,
         });
         (useFocusEffect as jest.Mock).mockImplementation((callback: () => void) => callback());
     });
@@ -217,6 +218,7 @@ describe('WorkoutSessionScreen', () => {
                 autoStartRestTimer: true,
                 restTimerVibration: true,
                 keepScreenOn: true,
+                restTimerNotifications: false,
             },
             jest.fn(),
         ]);
@@ -292,6 +294,7 @@ describe('WorkoutSessionScreen', () => {
                 autoStartRestTimer: true,
                 restTimerVibration: true,
                 keepScreenOn: true,
+                restTimerNotifications: false,
             },
             jest.fn(),
         ]);
@@ -340,6 +343,7 @@ describe('WorkoutSessionScreen', () => {
                 autoStartRestTimer: true,
                 restTimerVibration: true,
                 keepScreenOn: true,
+                restTimerNotifications: false,
             },
             jest.fn(),
         ]);
@@ -390,6 +394,7 @@ describe('WorkoutSessionScreen', () => {
                 autoStartRestTimer: true,
                 restTimerVibration: true,
                 keepScreenOn: true,
+                restTimerNotifications: false,
             },
             jest.fn(),
         ]);
@@ -437,6 +442,7 @@ describe('WorkoutSessionScreen', () => {
                 autoStartRestTimer: true,
                 restTimerVibration: true,
                 keepScreenOn: true,
+                restTimerNotifications: false,
             },
             jest.fn(),
         ]);
@@ -504,6 +510,7 @@ describe('WorkoutSessionScreen', () => {
                 autoStartRestTimer: true,
                 restTimerVibration: true,
                 keepScreenOn: true,
+                restTimerNotifications: false,
             },
             jest.fn(),
         ]);
