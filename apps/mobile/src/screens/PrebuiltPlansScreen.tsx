@@ -1,12 +1,10 @@
 import React, { useMemo, useState } from 'react';
-import { Alert, FlatList, Pressable, View } from 'react-native';
+import { Alert, FlatList, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 
-import { Screen } from '../ui/Screen';
-import { Text } from '../ui/Text';
-import { Button } from '../ui/Button';
+import { Button, IconButton, Screen, Text } from '../ui';
 import { tokens } from '../theme/tokens';
 import type { RootStackParamList } from '../navigation/types';
 import { importPrebuiltPlan, listPrebuiltPlans } from '../db/prebuiltPlansRepo';
@@ -102,26 +100,14 @@ export function PrebuiltPlansScreen() {
                   disabled={isBusy || item.existingPlanId !== null}
                 />
               </View>
-              <Pressable
+              <IconButton
                 onPress={() => handlePreview(item.id, item.existingPlanId)}
                 disabled={isBusy}
-                style={({ pressed }) => [
-                  {
-                    minHeight: tokens.touchTargetMin,
-                    minWidth: tokens.touchTargetMin,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    borderRadius: tokens.radius.sm,
-                    borderWidth: 1,
-                    borderColor: tokens.colors.border,
-                    backgroundColor: tokens.colors.surface,
-                  },
-                  pressed ? { opacity: 0.85 } : null,
-                ]}
+
                 accessibilityLabel="View plan days"
-              >
-                <Ionicons name="information-circle-outline" size={20} color={tokens.colors.text} />
-              </Pressable>
+
+                icon={<Ionicons name="information-circle-outline" size={20} />}
+              />
             </View>
           </View>
         )}

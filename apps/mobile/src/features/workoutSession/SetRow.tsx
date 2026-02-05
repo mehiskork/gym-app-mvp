@@ -1,9 +1,8 @@
 import React from 'react';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-
 import type { LoggerSet } from '../../db/workoutLoggerRepo';
-import { Text } from '../../ui';
+import { IconButton, Text } from '../../ui';
 import { tokens } from '../../theme/tokens';
 import { formatOptionalNumber } from '../../utils/format';
 
@@ -29,7 +28,6 @@ export function SetRow({
     const rowStyle = completed ? styles.completedRow : styles.row;
     const inputStyle = completed ? styles.completedInput : styles.input;
     const checkStyle = completed ? styles.checkCompleted : styles.check;
-
     const buttonSize = tokens.touchTargetMin;
     const rightActionsGap = tokens.spacing.xs;
     const rightActionsWidth = buttonSize * 2 + rightActionsGap;
@@ -43,15 +41,9 @@ export function SetRow({
 
     const available =
         rowWidth > 0
-            ? rowWidth -
-            rowHorizontalPadding * 2 -
-            setColWidth -
-            rightActionsWidth -
-            setInputGap -
-            rowGap
+            ? rowWidth - rowHorizontalPadding * 2 - setColWidth - rightActionsWidth - setInputGap - rowGap
             : 0;
-    const baseInputWidth =
-        available > 0 ? Math.floor((available - inputGap) / 2) : maxInputWidth;
+    const baseInputWidth = available > 0 ? Math.floor((available - inputGap) / 2) : maxInputWidth;
     const inputWidth = Math.max(minInputWidth, Math.min(baseInputWidth, maxInputWidth));
     const inputPadding = tokens.spacing.md;
 
@@ -79,7 +71,6 @@ export function SetRow({
                         {set.set_index}
                     </Text>
                 </View>
-
                 <View style={[styles.inputs, { gap: inputGap }]}>
                     <View style={[styles.inputWrapper, { width: inputWidth }]}>
                         <TextInput
@@ -88,31 +79,19 @@ export function SetRow({
                             keyboardType="decimal-pad"
                             placeholder="0"
                             placeholderTextColor={tokens.colors.textSecondary}
-                            style={[
-                                inputStyle,
-                                { width: inputWidth, paddingHorizontal: inputPadding },
-                            ]}
+                            style={[inputStyle, { width: inputWidth, paddingHorizontal: inputPadding }]}
                             onEndEditing={(e) => onWeightEndEditing(e.nativeEvent.text)}
                         />
                     </View>
 
-                    <View
-                        style={[
-                            styles.inputWrapper,
-                            styles.repsInputWrapper,
-                            { width: inputWidth },
-                        ]}
-                    >
+                    <View style={[styles.inputWrapper, styles.repsInputWrapper, { width: inputWidth }]}>
                         <TextInput
                             testID="reps-input"
                             defaultValue={set.reps === null ? '' : String(set.reps)}
                             keyboardType="number-pad"
                             placeholder="0"
                             placeholderTextColor={tokens.colors.textSecondary}
-                            style={[
-                                inputStyle,
-                                { width: inputWidth, paddingHorizontal: inputPadding },
-                            ]}
+                            style={[inputStyle, { width: inputWidth, paddingHorizontal: inputPadding }]}
                             onEndEditing={(e) => onRepsEndEditing(e.nativeEvent.text)}
                         />
                     </View>
@@ -141,17 +120,13 @@ export function SetRow({
                     />
                 </Pressable>
 
-                <Pressable
+                <IconButton
                     onPress={onDelete}
-                    style={({ pressed }) => [
-                        styles.deleteButton,
-                        { width: buttonSize, height: buttonSize },
-                        pressed ? { opacity: 0.85 } : null,
-                    ]}
+                    size={buttonSize}
                     accessibilityLabel="Delete set"
-                >
-                    <Ionicons name="trash-outline" size={18} color={tokens.colors.destructive} />
-                </Pressable>
+                    variant="danger"
+                    icon={<Ionicons name="trash-outline" size={18} />}
+                />
             </View>
         </View>
     );
@@ -260,14 +235,5 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: tokens.colors.success,
         backgroundColor: tokens.colors.success,
-    },
-    deleteButton: {
-        minHeight: tokens.touchTargetMin,
-        minWidth: tokens.touchTargetMin,
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderRadius: tokens.radius.md,
-        borderWidth: 1,
-        borderColor: tokens.colors.border,
     },
 });

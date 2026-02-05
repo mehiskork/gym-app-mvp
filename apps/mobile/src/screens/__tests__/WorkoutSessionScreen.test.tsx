@@ -89,7 +89,6 @@ jest.mock('../../db/settingsRepo', () => ({
     getSettings: jest.fn(),
 }));
 
-
 import React from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { Pressable, StyleSheet, View } from 'react-native';
@@ -99,7 +98,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { WorkoutSessionScreen } from '../WorkoutSessionScreen';
 import { ExerciseCard } from '../../features/workoutSession/ExerciseCard';
 import { SetRow } from '../../features/workoutSession/SetRow';
-import { Button, Card, Text } from '../../ui';
+import { Button, Card, IconButton, Text } from '../../ui';
 import { getWorkoutLoggerData, startRestTimer, updateWorkoutSet } from '../../db/workoutLoggerRepo';
 import { getSettings } from '../../db/settingsRepo';
 import { tokens } from '../../theme/tokens';
@@ -136,16 +135,16 @@ const resolveStyle = (styleProp: unknown) => {
     if (typeof styleProp === 'function') {
         const resolved = styleProp({ pressed: false });
         if (Array.isArray(resolved)) {
-            return resolved.filter(Boolean).reduce<Record<string, unknown>>(
-                (acc, entry) => ({ ...acc, ...(entry as Record<string, unknown>) }),
-                {},
-            );
+            return resolved
+                .filter(Boolean)
+                .reduce<
+                    Record<string, unknown>
+                >((acc, entry) => ({ ...acc, ...(entry as Record<string, unknown>) }), {});
         }
         return resolved;
     }
     return styleProp;
 };
-
 
 describe('WorkoutSessionScreen', () => {
     const useStateMock = React.useState as jest.Mock;
@@ -470,10 +469,9 @@ describe('WorkoutSessionScreen', () => {
         const scrollViews = findElementsByType(element, 'ScrollView') as Array<
             React.ReactElement<{ children?: React.ReactNode }>
         >;
-        const scrollCards = scrollViews.flatMap((scrollView) =>
-        (findElementsByType(scrollView.props.children, Card) as Array<
-            React.ReactElement<CardProps>
-        >),
+        const scrollCards = scrollViews.flatMap(
+            (scrollView) =>
+                findElementsByType(scrollView.props.children, Card) as Array<React.ReactElement<CardProps>>,
         );
 
         const scrollOverlayCard = scrollCards.find(
@@ -481,11 +479,13 @@ describe('WorkoutSessionScreen', () => {
         );
         expect(scrollOverlayCard).toBeUndefined();
 
-        const icons = findElementsByType(element, Ionicons) as Array<
-            React.ReactElement<{ name: string; color?: string }>
+        const iconButtons = findElementsByType(element, IconButton) as Array<
+            React.ReactElement<{ accessibilityLabel?: string; variant?: string }>
         >;
-        const trashIcon = icons.find((icon) => icon.props.name === 'trash-outline');
-        expect(trashIcon?.props.color).toBe(tokens.colors.destructive);
+        const clearRestTimerButton = iconButtons.find(
+            (button) => button.props.accessibilityLabel === 'Clear rest timer',
+        );
+        expect(clearRestTimerButton?.props.variant).toBe('danger');
     });
 
     it('redirects back navigation to the Today tab', () => {
@@ -519,7 +519,9 @@ describe('WorkoutSessionScreen', () => {
         useStateMock.mockImplementationOnce(() => [{ visible: false, payload: null }, jest.fn()]);
         (getWorkoutLoggerData as jest.Mock).mockReturnValue({ session, exercises });
 
-        let beforeRemoveHandler: ((event: { data: { action: { type: string } }; preventDefault: () => void }) => void) | undefined;
+        let beforeRemoveHandler:
+            | ((event: { data: { action: { type: string } }; preventDefault: () => void }) => void)
+            | undefined;
         const navigation: Nav = {
             navigate: jest.fn(),
             setOptions: jest.fn(),
@@ -590,11 +592,13 @@ describe('WorkoutSessionScreen', () => {
         expect(texts.some((text) => text.props.children === 'reps')).toBe(false);
         expect(texts.some((text) => text.props.children === 'Set 1')).toBe(false);
 
-        const icons = findElementsByType(element, Ionicons) as Array<
-            React.ReactElement<{ name: string; color?: string }>
+        const iconButtons = findElementsByType(element, IconButton) as Array<
+            React.ReactElement<{ accessibilityLabel?: string; variant?: string }>
         >;
-        const trashIcon = icons.find((icon) => icon.props.name === 'trash-outline');
-        expect(trashIcon?.props.color).toBe(tokens.colors.destructive);
+        const deleteSetButton = iconButtons.find(
+            (button) => button.props.accessibilityLabel === 'Delete set',
+        );
+        expect(deleteSetButton?.props.variant).toBe('danger');
     });
 
     it('renders the add set row inside the exercise card and triggers onAddSet', () => {
@@ -609,7 +613,9 @@ describe('WorkoutSessionScreen', () => {
         const pressables = findElementsByType(element, Pressable) as Array<
             React.ReactElement<{ onPress?: () => void; testID?: string }>
         >;
-        const addSetRow = pressables.find((pressable) => pressable.props.testID === 'exercise-card-add-set');
+        const addSetRow = pressables.find(
+            (pressable) => pressable.props.testID === 'exercise-card-add-set',
+        );
 
         expect(addSetRow).toBeDefined();
         addSetRow?.props.onPress?.();

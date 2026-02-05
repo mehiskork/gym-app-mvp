@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,7 +8,7 @@ import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { RootStackParamList } from '../navigation/types';
-import { Button, Card, EmptyState, IconChip, Screen, Snackbar, Text } from '../ui';
+import { Button, Card, EmptyState, IconButton, IconChip, Screen, Snackbar, Text } from '../ui';
 import { tokens } from '../theme/tokens';
 import { completeSession } from '../db/workoutSessionRepo';
 import {
@@ -148,7 +148,6 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
     }, [navigation]),
   );
 
-
   const totals = useMemo(() => {
     const totalSets = exercises.reduce((sum, exercise) => sum + exercise.sets.length, 0);
     const completedSets = exercises.reduce(
@@ -206,15 +205,10 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
   }
 
   return (
-    <Screen
-      padded={false}
-      bottomInset="none"
-      contentStyle={{ paddingTop: 0 }}
-    >
+    <Screen padded={false} bottomInset="none" contentStyle={{ paddingTop: 0 }}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={{ flex: 1 }}
-
       >
         <ScrollView
           contentContainerStyle={{
@@ -227,7 +221,6 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
         >
           <WorkoutSessionHeaderCard status={session.status} startedAt={session.started_at} />
 
-
           {exercises.length === 0 ? (
             <Card>
               <EmptyState
@@ -238,13 +231,11 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
             </Card>
           ) : (
             exercises.map((ex) => {
-
               return (
                 <ExerciseCard
                   key={ex.id}
                   name={ex.exercise_name}
                   subtitle={getExerciseSubtitle(ex)}
-
                   onPressTitle={() =>
                     navigation.navigate('ExerciseDetail', { exerciseId: ex.exercise_id })
                   }
@@ -258,7 +249,6 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
                     <SetRow
                       key={set.id}
                       set={set}
-
                       onWeightEndEditing={(value) => {
                         updateWorkoutSet(set.id, { weight: parseNumber(value) });
                         load();
@@ -276,11 +266,7 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
                         void Haptics.selectionAsync();
                         // Start rest timer when marking done
                         if (!done && settings.autoStartRestTimer) {
-                          startRestTimer(
-                            sessionId,
-                            settings.defaultRestSeconds,
-                            ex.exercise_name,
-                          );
+                          startRestTimer(sessionId, settings.defaultRestSeconds, ex.exercise_name);
                           if (settings.restTimerNotifications) {
                             void scheduleRestTimerNotification(settings.defaultRestSeconds);
                           }
@@ -328,9 +314,8 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
               >
                 {formatRestCountdown(remainingSeconds)}
               </Text>
-
             </View>
-            <Pressable
+            <IconButton
               onPress={() => {
                 setSession((prev) =>
                   prev
@@ -346,22 +331,11 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
                 clearRestTimer(sessionId);
                 void cancelRestTimerNotification();
               }}
-              style={({ pressed }) => [
-                {
-                  minHeight: tokens.touchTargetMin,
-                  minWidth: tokens.touchTargetMin,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  borderRadius: tokens.radius.md,
-                  borderWidth: 1,
-                  borderColor: tokens.colors.border,
-                },
-                pressed ? { opacity: 0.85 } : null,
-              ]}
+
               accessibilityLabel="Clear rest timer"
-            >
-              <Ionicons name="trash-outline" size={18} color={tokens.colors.destructive} />
-            </Pressable>
+              variant="danger"
+              icon={<Ionicons name="trash-outline" size={18} />}
+            />
           </View>
         </Card>
       ) : null}

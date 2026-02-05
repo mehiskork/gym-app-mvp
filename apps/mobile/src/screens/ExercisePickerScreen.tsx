@@ -5,10 +5,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 
 import type { RootStackParamList } from '../navigation/types';
-import { Screen } from '../ui/Screen';
-import { Text } from '../ui/Text';
-import { Button } from '../ui/Button';
-import { Input } from '../ui/Input';
+import { Button, IconButton, Input, Screen, Text } from '../ui';
 import { tokens } from '../theme/tokens';
 import { listExercises, type ExerciseRow } from '../db/exerciseRepo';
 
@@ -63,7 +60,6 @@ export function ExercisePickerScreen({ route, navigation }: Props) {
         onChangeText={setQ}
         placeholder="Search exercises"
         placeholderTextColor={tokens.colors.textSecondary}
-
       />
 
       <FlatList
@@ -109,28 +105,11 @@ export function ExercisePickerScreen({ route, navigation }: Props) {
               </Text>
             </Pressable>
 
-            <Pressable
+            <IconButton
               onPress={() => navigation.navigate('ExerciseDetail', { exerciseId: item.id })}
-              style={({ pressed }) => [
-                {
-                  minHeight: tokens.touchTargetMin,
-                  minWidth: tokens.touchTargetMin,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  borderRadius: tokens.radius.sm,
-                  borderWidth: 1,
-                  borderColor: tokens.colors.border,
-                },
-                pressed ? { opacity: 0.85 } : null,
-              ]}
               accessibilityLabel={`Open details for ${item.name}`}
-            >
-              <Ionicons
-                name="information-circle-outline"
-                size={20}
-                color={tokens.colors.textSecondary}
-              />
-            </Pressable>
+              icon={<Ionicons name="information-circle-outline" size={20} />}
+            />
           </View>
         )}
         ListEmptyComponent={

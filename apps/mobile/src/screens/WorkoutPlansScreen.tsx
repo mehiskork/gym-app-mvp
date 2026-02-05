@@ -1,10 +1,10 @@
 import React, { useCallback, useState } from 'react';
-import { Alert, FlatList, Pressable, View } from 'react-native';
+import { Alert, FlatList, View } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 
-import { Screen, Card, EmptyState, Input, ListRow, IconChip, Button, Text } from '../ui';
+import { Screen, Card, EmptyState, Input, ListRow, IconChip, Button, IconButton } from '../ui';
 import { tokens } from '../theme/tokens';
 import {
   createWorkoutPlan,
@@ -18,7 +18,6 @@ type Nav = NativeStackNavigationProp<RootStackParamList>;
 
 export function WorkoutPlansScreen() {
   const navigation = useNavigation<Nav>();
-
 
   const [workoutPlans, setWorkoutPlans] = useState<WorkoutPlanRow[]>([]);
   const [name, setName] = useState('');
@@ -64,7 +63,6 @@ export function WorkoutPlansScreen() {
       bottomInset="tabBar"
       contentStyle={{
         gap: tokens.spacing.lg,
-
       }}
     >
       <Card>
@@ -75,7 +73,6 @@ export function WorkoutPlansScreen() {
             value={name}
             onChangeText={setName}
             placeholder="e.g., Push Pull Legs"
-
           />
           <Button title="Build workout plan" onPress={onCreate} disabled={!name.trim()} />
         </View>
@@ -88,13 +85,12 @@ export function WorkoutPlansScreen() {
       />
 
       <View style={{ gap: tokens.spacing.sm }}>
-
         <FlatList
           data={workoutPlans}
           keyExtractor={(p) => p.id}
           scrollEnabled={false}
           ItemSeparatorComponent={() => <View style={{ height: tokens.spacing.sm }} />}
-          ListEmptyComponent={(
+          ListEmptyComponent={
             <Card>
               <EmptyState
                 icon={<Ionicons name="barbell-outline" size={24} color={tokens.colors.mutedText} />}
@@ -102,7 +98,7 @@ export function WorkoutPlansScreen() {
                 description="Create a plan or browse templates to get started."
               />
             </Card>
-          )}
+          }
           renderItem={({ item }) => (
             <ListRow
               title={item.name}
@@ -113,37 +109,20 @@ export function WorkoutPlansScreen() {
                   <Ionicons name="barbell-outline" size={18} color={tokens.colors.mutedText} />
                 </IconChip>
               }
-              onPress={() =>
-                navigation.navigate('WorkoutPlanDetail', { workoutPlanId: item.id })
-              }
+              onPress={() => navigation.navigate('WorkoutPlanDetail', { workoutPlanId: item.id })}
               right={
-                <Pressable
+                <IconButton
                   onPress={() => confirmDelete(item)}
-                  style={({ pressed }) => [
-                    {
-                      minHeight: tokens.touchTargetMin,
-                      minWidth: tokens.touchTargetMin,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      borderRadius: tokens.radius.sm,
-                      borderWidth: 1,
-                      borderColor: tokens.colors.border,
-                    },
-                    pressed ? { opacity: 0.85 } : null,
-                  ]}
+
                   accessibilityLabel="Delete workout plan"
-                >
-                  <Ionicons
-                    name="trash-outline"
-                    size={20}
-                    color={tokens.colors.mutedText}
-                  />
-                </Pressable>
+                  variant="danger"
+                  icon={<Ionicons name="trash-outline" size={20} />}
+                />
               }
             />
           )}
         />
       </View>
-    </Screen >
+    </Screen>
   );
 }
