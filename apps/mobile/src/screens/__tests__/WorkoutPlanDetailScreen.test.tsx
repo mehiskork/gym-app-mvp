@@ -61,7 +61,7 @@ jest.mock('../../db/workoutSessionRepo', () => ({
     getInProgressSession: jest.fn(),
 }));
 import React from 'react';
-
+import { useFocusEffect } from '@react-navigation/native';
 import { EmptyState, Input, ListRow } from '../../ui';
 import { WorkoutPlanDetailScreen } from '../WorkoutPlanDetailScreen';
 import { createSessionFromPlanDay, getInProgressSession } from '../../db/workoutSessionRepo';
@@ -99,7 +99,7 @@ describe('WorkoutPlanDetailScreen', () => {
         (getInProgressSession as jest.Mock).mockReset();
         (updateWorkoutPlanName as jest.Mock).mockReset();
     });
-
+    (useFocusEffect as jest.Mock).mockImplementation((callback: () => void) => callback());
     it('renders plan name input and day rows when days exist', () => {
         const plan = { id: 'plan-1', name: 'Strength Plan', description: null, is_template: 0 };
         const days = [{ id: 'day-1', name: 'Day 1', day_index: 1 }];
@@ -203,9 +203,34 @@ describe('WorkoutPlanDetailScreen', () => {
         expect(emptyStates[0]?.props.title).toBe('No days yet');
     });
 
+    it('replaces to active session on focus in picker mode', () => {
+        const plan = { id: 'plan-1', name: 'Strength Plan', description: null, is_template: 0 };
+
+        useStateMock.mockImplementationOnce(() => [plan, jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [[], jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [plan.name, jest.fn()]);
+
+        (getInProgressSession as jest.Mock).mockReturnValue({ id: 'session-42' });
+
+        const navigation: Nav = { navigate: jest.fn(), goBack: jest.fn(), replace: jest.fn() };
+        WorkoutPlanDetailScreen({
+            navigation,
+            route: {
+                key: 'WorkoutPlanDetail',
+                name: 'WorkoutPlanDetail',
+                params: { workoutPlanId: 'plan-1', mode: 'pickDayToStart' },
+            },
+        } as never);
+
+        expect(navigation.replace).toHaveBeenCalledWith('WorkoutSession', {
+            sessionId: 'session-42',
+        });
+    });
+
     it('starts a session and navigates to workout session in picker mode', () => {
         const plan = { id: 'plan-1', name: 'Strength Plan', description: null, is_template: 0 };
         const days = [{ id: 'day-1', name: 'Day 1', day_index: 1 }];
+
 
         useStateMock.mockImplementationOnce(() => [plan, jest.fn()]);
         useStateMock.mockImplementationOnce(() => [days, jest.fn()]);

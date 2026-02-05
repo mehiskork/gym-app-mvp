@@ -35,10 +35,16 @@ export function WorkoutPlanDetailScreen({ route, navigation }: Props) {
 
   useFocusEffect(
     useCallback(() => {
+      if (mode === 'pickDayToStart') {
+        const existingSession = getInProgressSession();
+        if (existingSession) {
+          navigation.replace('WorkoutSession', { sessionId: existingSession.id });
+          return;
+        }
+      }
       load();
-    }, [load]),
+    }, [load, mode, navigation]),
   );
-
 
   const persistPlanName = useCallback(() => {
     const trimmedName = planName.trim();

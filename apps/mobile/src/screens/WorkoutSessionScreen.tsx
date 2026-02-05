@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useFocusEffect, useIsFocused } from '@react-navigation/native';
+import { CommonActions, useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
@@ -70,7 +70,18 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
   const insets = useSafeAreaInsets();
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const restHapticsRef = useRef(false);
+  const isExitingToTodayRef = useRef(false);
 
+  const resetToToday = useCallback(() => {
+    if (isExitingToTodayRef.current) return;
+    isExitingToTodayRef.current = true;
+    navigation.dispatch(
+      CommonActions.reset({
+        index: 0,
+        routes: [{ name: 'MainTabs', params: { screen: 'Today' } }],
+      }),
+    );
+  }, [navigation]);
   const load = useCallback(() => {
     const data = getWorkoutLoggerData(sessionId);
     setSession(data.session);
@@ -140,12 +151,12 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
   useFocusEffect(
     useCallback(() => {
       const unsubscribe = navigation.addListener('beforeRemove', (e) => {
-        if (e.data.action.type !== 'GO_BACK') return;
+        if (!['GO_BACK', 'POP', 'POP_TO_TOP'].includes(e.data.action.type)) return;
         e.preventDefault();
-        navigation.navigate('MainTabs', { screen: 'Today' });
+        resetToToday();
       });
       return unsubscribe;
-    }, [navigation]),
+    }, [navigation, resetToToday]),
   );
 
   const totals = useMemo(() => {

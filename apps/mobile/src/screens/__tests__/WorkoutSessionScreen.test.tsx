@@ -11,6 +11,9 @@ jest.mock('react', () => {
 });
 
 jest.mock('@react-navigation/native', () => ({
+    CommonActions: {
+        reset: jest.fn((payload: unknown) => ({ type: 'RESET', payload })),
+    },
     useFocusEffect: jest.fn(),
     useIsFocused: () => true,
 }));
@@ -93,7 +96,7 @@ import React from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from '@react-navigation/native';
+import { CommonActions, useFocusEffect } from '@react-navigation/native';
 
 import { WorkoutSessionScreen } from '../WorkoutSessionScreen';
 import { ExerciseCard } from '../../features/workoutSession/ExerciseCard';
@@ -105,6 +108,7 @@ import { tokens } from '../../theme/tokens';
 
 type Nav = {
     navigate: jest.Mock;
+    dispatch: jest.Mock;
     setOptions: jest.Mock;
     addListener: jest.Mock;
 };
@@ -162,6 +166,7 @@ describe('WorkoutSessionScreen', () => {
             restTimerNotifications: false,
         });
         (useFocusEffect as jest.Mock).mockImplementation((callback: () => void) => callback());
+        (CommonActions.reset as jest.Mock).mockClear();
     });
 
     it('renders the exercise and toggles a set', () => {
@@ -228,6 +233,7 @@ describe('WorkoutSessionScreen', () => {
 
         const navigation: Nav = {
             navigate: jest.fn(),
+            dispatch: jest.fn(),
             setOptions: jest.fn(),
             addListener: jest.fn(),
         };
@@ -304,6 +310,7 @@ describe('WorkoutSessionScreen', () => {
 
         const navigation: Nav = {
             navigate: jest.fn(),
+            dispatch: jest.fn(),
             setOptions: jest.fn(),
             addListener: jest.fn(),
         };
@@ -353,6 +360,7 @@ describe('WorkoutSessionScreen', () => {
 
         const navigation: Nav = {
             navigate: jest.fn(),
+            dispatch: jest.fn(),
             setOptions: jest.fn(),
             addListener: jest.fn(),
         };
@@ -404,6 +412,7 @@ describe('WorkoutSessionScreen', () => {
 
         const navigation: Nav = {
             navigate: jest.fn(),
+            dispatch: jest.fn(),
             setOptions: jest.fn(),
             addListener: jest.fn(),
         };
@@ -452,6 +461,7 @@ describe('WorkoutSessionScreen', () => {
 
         const navigation: Nav = {
             navigate: jest.fn(),
+            dispatch: jest.fn(),
             setOptions: jest.fn(),
             addListener: jest.fn(),
         };
@@ -524,6 +534,7 @@ describe('WorkoutSessionScreen', () => {
             | undefined;
         const navigation: Nav = {
             navigate: jest.fn(),
+            dispatch: jest.fn(),
             setOptions: jest.fn(),
             addListener: jest.fn((event: string, handler: typeof beforeRemoveHandler) => {
                 if (event === 'beforeRemove') {
@@ -544,7 +555,17 @@ describe('WorkoutSessionScreen', () => {
         beforeRemoveHandler?.({ data: { action: { type: 'GO_BACK' } }, preventDefault });
 
         expect(preventDefault).toHaveBeenCalled();
-        expect(navigation.navigate).toHaveBeenCalledWith('MainTabs', { screen: 'Today' });
+        expect(CommonActions.reset).toHaveBeenCalledWith({
+            index: 0,
+            routes: [{ name: 'MainTabs', params: { screen: 'Today' } }],
+        });
+        expect(navigation.dispatch).toHaveBeenCalledWith({
+            type: 'RESET',
+            payload: {
+                index: 0,
+                routes: [{ name: 'MainTabs', params: { screen: 'Today' } }],
+            },
+        });
     });
 
     it('styles completed set rows and destructive icons', () => {

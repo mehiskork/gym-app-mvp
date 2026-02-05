@@ -10,6 +10,7 @@ import {
   listWorkoutPlansWithSessionCounts,
   type WorkoutPlanWithSessionCountRow,
 } from '../db/workoutPlanRepo';
+import { getInProgressSession } from '../db/workoutSessionRepo';
 
 
 type Props = NativeStackScreenProps<RootStackParamList, 'StartWorkout'>;
@@ -29,8 +30,13 @@ export function StartWorkoutScreen({ navigation }: Props) {
 
   useFocusEffect(
     useCallback(() => {
+      const existingSession = getInProgressSession();
+      if (existingSession) {
+        navigation.replace('WorkoutSession', { sessionId: existingSession.id });
+        return;
+      }
       load();
-    }, [load]),
+    }, [load, navigation]),
   );
 
   return (
