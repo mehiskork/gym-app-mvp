@@ -17,7 +17,7 @@ import {
   reorderDayExercises,
   type DayExerciseRow,
 } from '../db/dayExerciseRepo';
-import { createSessionFromPlanDay, getInProgressSession } from '../db/workoutSessionRepo';
+import { createSessionFromPlanDay, getInProgressSession, getSessionById } from '../db/workoutSessionRepo';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'DayDetail'>;
 
@@ -73,6 +73,11 @@ export function DayDetailScreen({ route, navigation }: Props) {
     }
 
     const sessionId = createSessionFromPlanDay({ workoutPlanId, dayId });
+    const createdSession = getSessionById(sessionId);
+    if (!createdSession) {
+      Alert.alert('Unable to start workout', 'Please try again.');
+      return;
+    }
     navigation.replace('WorkoutSession', { sessionId });
   }, [dayId, navigation, workoutPlanId]);
 

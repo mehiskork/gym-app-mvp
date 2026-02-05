@@ -73,13 +73,15 @@ jest.mock('../../db/dayExerciseRepo', () => ({
 jest.mock('../../db/workoutSessionRepo', () => ({
     createSessionFromPlanDay: jest.fn(),
     getInProgressSession: jest.fn(),
+    getSessionById: jest.fn(),
 }));
 
 import React from 'react';
 import DraggableFlatList, { type RenderItemParams } from 'react-native-draggable-flatlist';
 import { Button, EmptyState, ListRow, Screen } from '../../ui';
 import { DayDetailScreen } from '../DayDetailScreen';
-import { createSessionFromPlanDay, getInProgressSession } from '../../db/workoutSessionRepo';
+import { createSessionFromPlanDay, getInProgressSession, getSessionById } from '../../db/workoutSessionRepo';
+
 
 type Nav = {
     navigate: jest.Mock;
@@ -113,6 +115,8 @@ describe('DayDetailScreen', () => {
         (createSessionFromPlanDay as jest.Mock).mockReset();
         (getInProgressSession as jest.Mock).mockReset();
         (getInProgressSession as jest.Mock).mockReturnValue(null);
+        (getSessionById as jest.Mock).mockReset();
+        (getSessionById as jest.Mock).mockReturnValue({ id: 'session-1' });
     });
 
     it('shows empty state and add exercise action when no exercises exist', () => {
@@ -170,7 +174,32 @@ describe('DayDetailScreen', () => {
         startButton?.props.onPress?.({} as never);
 
         expect(createSessionFromPlanDay).toHaveBeenCalledWith({ workoutPlanId: 'plan-1', dayId: 'day-1' });
+        expect(getSessionById).toHaveBeenCalledWith('session-1');
         expect(navigation.replace).toHaveBeenCalledWith('WorkoutSession', { sessionId: 'session-1' });
+    });
+
+    it('does not navigate when created session cannot be verified', () => {
+        const { Alert } = require('react-native');
+        (createSessionFromPlanDay as jest.Mock).mockReturnValue('session-missing');
+        (getSessionById as jest.Mock).mockReturnValue(null);
+
+        const navigation: Nav = { navigate: jest.fn(), replace: jest.fn(), setOptions: jest.fn() };
+        const element = DayDetailScreen({
+            navigation,
+            route: {
+                key: 'DayDetail',
+                name: 'DayDetail',
+                params: { dayId: 'day-1', workoutPlanId: 'plan-1', mode: 'startSession' },
+            },
+        } as never);
+
+        const buttons = findElementsByType<React.ComponentProps<typeof Button>>(element, Button);
+        const startButton = buttons.find((button) => button.props.title === 'Start workout');
+        startButton?.props.onPress?.({} as never);
+
+        expect(getSessionById).toHaveBeenCalledWith('session-missing');
+        expect(Alert.alert).toHaveBeenCalledWith('Unable to start workout', 'Please try again.');
+        expect(navigation.replace).not.toHaveBeenCalled();
     });
 
     it('resumes active workout in start-session mode', () => {

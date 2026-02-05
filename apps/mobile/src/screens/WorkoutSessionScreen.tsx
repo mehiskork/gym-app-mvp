@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { CommonActions, useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -70,11 +70,12 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
   const insets = useSafeAreaInsets();
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const restHapticsRef = useRef(false);
-  const isExitingToTodayRef = useRef(false);
+  const isExitingToHomeRef = useRef(false);
 
-  const resetToToday = useCallback(() => {
-    if (isExitingToTodayRef.current) return;
-    isExitingToTodayRef.current = true;
+  const resetToHome = useCallback((showMessage = false) => {
+    if (isExitingToHomeRef.current) return;
+    isExitingToHomeRef.current = true;
+    if (showMessage) Alert.alert('Workout session unavailable', 'Returning to Home.');
     navigation.dispatch(
       CommonActions.reset({
         index: 0,
@@ -84,9 +85,15 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
   }, [navigation]);
   const load = useCallback(() => {
     const data = getWorkoutLoggerData(sessionId);
+    if (!data) {
+      setSession(null);
+      setExercises([]);
+      resetToHome(true);
+      return;
+    }
     setSession(data.session);
     setExercises(data.exercises);
-  }, [sessionId]);
+  }, [resetToHome, sessionId]);
 
   const snackbarUndo = useSnackbarUndo<LoggerSet>({
     onUndo: (payload) => {
@@ -153,10 +160,10 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
       const unsubscribe = navigation.addListener('beforeRemove', (e) => {
         if (!['GO_BACK', 'POP', 'POP_TO_TOP'].includes(e.data.action.type)) return;
         e.preventDefault();
-        resetToToday();
+        resetToHome();
       });
       return unsubscribe;
-    }, [navigation, resetToToday]),
+    }, [navigation, resetToHome]),
   );
 
   const totals = useMemo(() => {
@@ -184,7 +191,7 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
       clearRestTimer(sessionId);
       void cancelRestTimerNotification();
       load();
-      navigation.navigate('MainTabs', { screen: 'Today' });
+      navigation.navigate('MainTabs', { screen: 'Home' });
     } finally {
       setIsFinishing(false);
     }

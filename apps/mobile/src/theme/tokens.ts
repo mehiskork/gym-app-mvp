@@ -37,7 +37,7 @@ export const tokens = {
     border: '#262B36',
     text: '#F5F7FA',
     mutedText: '#A3A9B4',
-    primary: '#F58A2A',
+    primary: '#f58a2a',
     onPrimary: '#1B1208',
     secondary: '#2A3242',
     onSecondary: '#F5F7FA',

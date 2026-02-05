@@ -16,7 +16,7 @@ import {
   type WorkoutPlanRow,
   updateWorkoutPlanName,
 } from '../db/workoutPlanRepo';
-import { getInProgressSession } from '../db/workoutSessionRepo';
+import { createSessionFromPlanDay, getInProgressSession } from '../db/workoutSessionRepo';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'WorkoutPlanDetail'>;
 
@@ -36,7 +36,7 @@ export function WorkoutPlanDetailScreen({ route, navigation }: Props) {
 
   useFocusEffect(
     useCallback(() => {
-      if (mode === 'pickDayToStart') {
+      if (mode === 'pickSessionToStart') {
         const existingSession = getInProgressSession();
         if (existingSession) {
           setPickerNotice('Resume active workout');
@@ -86,10 +86,8 @@ export function WorkoutPlanDetailScreen({ route, navigation }: Props) {
     );
   }, [navigation, plan?.name, workoutPlanId]);
 
-  const dayCountLabel = `${days.length} day${days.length === 1 ? '' : 's'}`;
-  const isPickerMode = mode === 'pickDayToStart';
-  const daySubtitle = isPickerMode ? 'Start this day' : 'Tap to edit';
-
+  const sessionCountLabel = `${days.length} session${days.length === 1 ? '' : 's'}`;
+  const isPickerMode = mode === 'pickSessionToStart';
   const handleDayPress = useCallback(
     (dayId: string) => {
       if (isPickerMode) {
@@ -99,11 +97,8 @@ export function WorkoutPlanDetailScreen({ route, navigation }: Props) {
           navigation.replace('WorkoutSession', { sessionId: existingSession.id });
           return;
         }
-        navigation.navigate('DayDetail', {
-          dayId,
-          workoutPlanId,
-          mode: 'startSession',
-        });
+        const sessionId = createSessionFromPlanDay({ workoutPlanId, dayId });
+        navigation.replace('WorkoutSession', { sessionId });
         return;
       }
 
@@ -127,6 +122,7 @@ export function WorkoutPlanDetailScreen({ route, navigation }: Props) {
               <Input
                 label="Plan name"
                 value={planName}
+                editable={!isPickerMode}
                 onChangeText={isPickerMode ? undefined : setPlanName}
                 onBlur={isPickerMode ? undefined : persistPlanName}
                 maxLength={50}
@@ -135,21 +131,21 @@ export function WorkoutPlanDetailScreen({ route, navigation }: Props) {
                 onSubmitEditing={isPickerMode ? undefined : persistPlanName}
               />
               {plan.description ? <Text variant="muted">{plan.description}</Text> : null}
-              <Text variant="muted">{dayCountLabel}</Text>
+              <Text variant="muted">{sessionCountLabel}</Text>
               {isPickerMode && pickerNotice ? <Text variant="muted">{pickerNotice}</Text> : null}
             </View>
           </Card>
 
           {days.length > 0 ? (
             <View style={{ gap: tokens.spacing.sm }}>
-              <Text variant="label" color={tokens.colors.mutedText}>
-                Training days
+              <Text variant={isPickerMode ? 'title' : 'label'} color={tokens.colors.mutedText}>
+                {isPickerMode ? 'Pick a session' : 'Sessions'}
               </Text>
               {days.map((day) => (
                 <ListRow
                   key={day.id}
-                  title={day.name ?? `Day ${day.day_index}`}
-                  subtitle={daySubtitle}
+                  title={day.name ?? `Session ${day.day_index}`}
+                  subtitle={isPickerMode ? undefined : 'Tap to edit'}
                   left={
                     <IconChip variant="muted" size={40}>
                       <Ionicons name="calendar-outline" size={18} color={tokens.colors.mutedText} />
@@ -166,11 +162,11 @@ export function WorkoutPlanDetailScreen({ route, navigation }: Props) {
                 icon={
                   <Ionicons name="calendar-outline" size={24} color={tokens.colors.mutedText} />
                 }
-                title="No days yet"
-                description="Add your first training day to start logging."
+                title="No sessions yet"
+                description="Add your first session to start logging."
                 action={
                   isPickerMode ? null : (
-                    <Button title="Add day" variant="secondary" onPress={handleAddDay} />
+                    <Button title="Add session" variant="secondary" onPress={handleAddDay} />
                   )
                 }
               />
@@ -179,7 +175,7 @@ export function WorkoutPlanDetailScreen({ route, navigation }: Props) {
           {isPickerMode ? null : (
             <View style={{ gap: tokens.spacing.sm }}>
               {days.length > 0 ? (
-                <Button title="Add day" variant="secondary" onPress={handleAddDay} />
+                <Button title="Add session" variant="secondary" onPress={handleAddDay} />
               ) : null}
               <Button title="Delete plan" variant="destructive" onPress={confirmDeletePlan} />
             </View>

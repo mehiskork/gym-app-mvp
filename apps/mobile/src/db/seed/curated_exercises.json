@@ -282,5 +282,25 @@
   {
     "id": "ex_hanging_leg_raise",
     "name": "Hanging Leg Raise"
+  },
+  {
+    "id": "ex_close_grip_bench_press_barbell",
+    "name": "Close-Grip Barbell Bench Press"
+  },
+  {
+    "id": "ex_chest_supported_row",
+    "name": "Chest-Supported Row"
+  },
+  {
+    "id": "ex_preacher_curl",
+    "name": "Preacher Curl"
+  },
+  {
+    "id": "ex_spider_curl",
+    "name": "Spider Curl"
+  },
+  {
+    "id": "ex_rear_delt_raise",
+    "name": "Rear Delt Raise"
   }
 ]

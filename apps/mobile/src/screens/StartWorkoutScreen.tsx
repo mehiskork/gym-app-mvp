@@ -83,7 +83,7 @@ export function StartWorkoutScreen({ navigation }: Props) {
                   ? () =>
                     navigation.navigate('WorkoutPlanDetail', {
                       workoutPlanId: item.id,
-                      mode: 'pickDayToStart',
+                      mode: 'pickSessionToStart',
                     })
                   : undefined
               }

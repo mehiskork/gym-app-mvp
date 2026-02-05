@@ -358,6 +358,6 @@ describe('WorkoutSessionScreen finish modal', () => {
         finishButton?.props.onPress?.({} as never);
         expect(completeSession).toHaveBeenCalledWith(session.id);
         expect(clearRestTimer).toHaveBeenCalledWith(session.id);
-        expect(navigation.navigate).toHaveBeenCalledWith('MainTabs', { screen: 'Today' });
+        expect(navigation.navigate).toHaveBeenCalledWith('MainTabs', { screen: 'Home' });
     });
 });

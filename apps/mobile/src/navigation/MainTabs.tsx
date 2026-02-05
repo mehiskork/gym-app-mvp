@@ -46,7 +46,7 @@ export function MainTabs() {
           let iconName: React.ComponentProps<typeof Ionicons>['name'];
 
           switch (route.name) {
-            case 'Today':
+            case 'Home':
               iconName = focused ? 'flame' : 'flame-outline';
               break;
             case 'WorkoutPlans':
@@ -66,7 +66,7 @@ export function MainTabs() {
         },
       })}
     >
-      <Tab.Screen name="Today" component={TodayScreen} options={{ title: 'Home' }} />
+      <Tab.Screen name="Home" component={TodayScreen} options={{ title: 'Home' }} />
       <Tab.Screen
         name="WorkoutPlans"
         component={WorkoutPlansScreen}

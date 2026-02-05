@@ -128,9 +128,9 @@ function enqueueWorkoutSetSnapshot(setId: string, opType: 'upsert' | 'delete' = 
 export function getWorkoutLoggerData(sessionId: string): {
   session: LoggerSession;
   exercises: LoggerExercise[];
-} {
+} | null {
   const detail = fetchSessionDetail(sessionId);
-  if (!detail) throw new Error('Session not found');
+  if (!detail) return null;
 
   const session: LoggerSession = {
     id: detail.session.id,

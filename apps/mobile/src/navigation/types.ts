@@ -1,7 +1,7 @@
 import type { NavigatorScreenParams } from '@react-navigation/native';
 
 export type TabParamList = {
-  Today: undefined;
+  Home: undefined;
   WorkoutPlans: undefined;
   History: undefined;
   Settings: undefined;
@@ -19,7 +19,7 @@ export type RootStackParamList = {
 
   CreateExercise: undefined;
 
-  WorkoutPlanDetail: { workoutPlanId: string; mode?: 'edit' | 'pickDayToStart' };
+  WorkoutPlanDetail: { workoutPlanId: string; mode?: 'edit' | 'pickSessionToStart' };
   PrebuiltPlans: undefined;
   DayDetail: {
     dayId: string;

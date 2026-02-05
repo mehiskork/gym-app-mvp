@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { Alert, FlatList, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -9,6 +9,7 @@ import { tokens } from '../theme/tokens';
 import type { RootStackParamList } from '../navigation/types';
 import { importPrebuiltPlan, listPrebuiltPlans } from '../db/prebuiltPlansRepo';
 import { listDaysForWorkoutPlan } from '../db/workoutPlanRepo';
+import { getInProgressSession } from '../db/workoutSessionRepo';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -16,14 +17,26 @@ export function PrebuiltPlansScreen() {
   const navigation = useNavigation<Nav>();
   const [importingId, setImportingId] = useState<string | null>(null);
 
-  const templates = useMemo(() => listPrebuiltPlans(), []);
+  const [templates, setTemplates] = useState(() => listPrebuiltPlans());
   const isBusy = importingId !== null;
 
   const handleImport = (templateId: string) => {
     try {
       setImportingId(templateId);
       const planId = importPrebuiltPlan(templateId);
-      navigation.replace('WorkoutPlanDetail', { workoutPlanId: planId });
+      setTemplates((prev) =>
+        prev.map((template) =>
+          template.id === templateId ? { ...template, existingPlanId: planId } : template,
+        ),
+      );
+      const existingSession = getInProgressSession();
+      if (existingSession) {
+        return;
+      }
+      navigation.replace('WorkoutPlanDetail', {
+        workoutPlanId: planId,
+        mode: 'pickSessionToStart',
+      });
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Failed to import prebuilt plan';
       Alert.alert('Error', message);
@@ -38,7 +51,7 @@ export function PrebuiltPlansScreen() {
       const planId = existingPlanId ?? importPrebuiltPlan(templateId);
       const days = listDaysForWorkoutPlan(planId);
       if (days.length === 0) {
-        Alert.alert('No days found', 'This plan has no days to preview.');
+        Alert.alert('No sessions found', 'This plan has no sessions to preview.');
         return;
       }
       navigation.replace('DayDetail', { dayId: days[0].id });
@@ -75,7 +88,9 @@ export function PrebuiltPlansScreen() {
           >
             <Text variant="subtitle">{item.name}</Text>
             {item.description ? <Text variant="muted">{item.description}</Text> : null}
-            <Text variant="muted">{item.dayCount} days</Text>
+            <Text variant="muted">
+              {item.dayCount} session{item.dayCount === 1 ? '' : 's'}
+            </Text>
             <View
               style={{
                 flexDirection: 'row',
@@ -101,7 +116,7 @@ export function PrebuiltPlansScreen() {
                 onPress={() => handlePreview(item.id, item.existingPlanId)}
                 disabled={isBusy}
 
-                accessibilityLabel="View plan days"
+                accessibilityLabel="View plan sessions"
 
                 icon={<Ionicons name="information-circle-outline" size={20} />}
               />

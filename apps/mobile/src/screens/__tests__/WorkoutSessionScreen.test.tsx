@@ -498,7 +498,7 @@ describe('WorkoutSessionScreen', () => {
         expect(clearRestTimerButton?.props.variant).toBe('danger');
     });
 
-    it('redirects back navigation to the Today tab', () => {
+    it('redirects back navigation to the Home tab', () => {
         const session = {
             id: 'session-5',
             title: 'Core Day',
@@ -557,13 +557,62 @@ describe('WorkoutSessionScreen', () => {
         expect(preventDefault).toHaveBeenCalled();
         expect(CommonActions.reset).toHaveBeenCalledWith({
             index: 0,
-            routes: [{ name: 'MainTabs', params: { screen: 'Today' } }],
+            routes: [{ name: 'MainTabs', params: { screen: 'Home' } }],
         });
         expect(navigation.dispatch).toHaveBeenCalledWith({
             type: 'RESET',
             payload: {
                 index: 0,
-                routes: [{ name: 'MainTabs', params: { screen: 'Today' } }],
+                routes: [{ name: 'MainTabs', params: { screen: 'Home' } }],
+            },
+        });
+    });
+
+
+    it('resets to Home when session detail is missing', () => {
+        const { Alert } = require('react-native');
+        useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [[], jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [0, jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [
+            {
+                defaultRestSeconds: 120,
+                autoStartRestTimer: true,
+                restTimerVibration: true,
+                keepScreenOn: true,
+                restTimerNotifications: false,
+            },
+            jest.fn(),
+        ]);
+        useStateMock.mockImplementationOnce(() => [false, jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [false, jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [{ visible: false, payload: null }, jest.fn()]);
+        (getWorkoutLoggerData as jest.Mock).mockReturnValue(null);
+
+        const navigation: Nav = {
+            navigate: jest.fn(),
+            dispatch: jest.fn(),
+            setOptions: jest.fn(),
+            addListener: jest.fn(() => jest.fn()),
+        };
+
+        expect(() =>
+            WorkoutSessionScreen({
+                navigation,
+                route: { key: 'WorkoutSession', name: 'WorkoutSession', params: { sessionId: 'missing' } },
+            } as never),
+        ).not.toThrow();
+
+        expect(Alert.alert).toHaveBeenCalledWith('Workout session unavailable', 'Returning to Home.');
+        expect(CommonActions.reset).toHaveBeenCalledWith({
+            index: 0,
+            routes: [{ name: 'MainTabs', params: { screen: 'Home' } }],
+        });
+        expect(navigation.dispatch).toHaveBeenCalledWith({
+            type: 'RESET',
+            payload: {
+                index: 0,
+                routes: [{ name: 'MainTabs', params: { screen: 'Home' } }],
             },
         });
     });
