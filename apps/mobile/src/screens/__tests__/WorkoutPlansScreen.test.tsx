@@ -130,6 +130,28 @@ describe('WorkoutPlansScreen', () => {
         expect(buttons.some((button) => button.props.title === 'Templates')).toBe(true);
     });
 
+    it('renders Templates as primary with flash icon', () => {
+        useStateMock.mockImplementationOnce(() => [[], jest.fn()]);
+
+        const element = WorkoutPlansScreen();
+        type ButtonProps = React.ComponentProps<typeof Button>;
+        const buttons = findElementsByType<ButtonProps>(element, Button);
+        const templatesButton = buttons.find((button) => button.props.title === 'Templates');
+
+        expect(templatesButton?.props.variant).toBe('primary');
+        if (!templatesButton?.props.leftIcon || !React.isValidElement(templatesButton.props.leftIcon)) {
+            throw new Error('Expected Templates button leftIcon.');
+        }
+
+        const iconElement = templatesButton.props.leftIcon as React.ReactElement<{
+            name?: string;
+            size?: number;
+        }>;
+
+        expect((iconElement.type as { name?: string }).name).toBe('Ionicons');
+        expect(iconElement.props.name).toBe('flash-outline');
+        expect(iconElement.props.size).toBe(16);
+    });
     it('navigates to templates when Templates button is pressed', () => {
         const navigation: Nav = { navigate: jest.fn() };
         (useNavigation as jest.Mock).mockReturnValue(navigation);

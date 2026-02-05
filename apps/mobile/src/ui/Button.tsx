@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { cloneElement, isValidElement } from 'react';
 import type { ReactNode } from 'react';
 import type { PressableProps, ViewStyle } from 'react-native';
 import { ActivityIndicator, Pressable, View } from 'react-native';
@@ -77,6 +77,12 @@ export function Button({
 }: ButtonProps) {
     const isDisabled = disabled || loading;
     const content = children ?? title;
+    const leftIconNode =
+        leftIcon && isValidElement(leftIcon)
+            ? cloneElement(leftIcon as React.ReactElement<{ color?: string }>, {
+                color: variantTextColors[variant],
+            })
+            : leftIcon;
 
     return (
         <Pressable
@@ -101,7 +107,7 @@ export function Button({
                 <ActivityIndicator color={variantTextColors[variant]} />
             ) : (
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    {leftIcon ? <View style={{ marginRight: tokens.spacing.sm }}>{leftIcon}</View> : null}
+                    {leftIconNode ? <View style={{ marginRight: tokens.spacing.sm }}>{leftIconNode}</View> : null}
                     {typeof content === 'string' ? (
                         <Text variant="body" weight="600" color={variantTextColors[variant]}>
                             {content}

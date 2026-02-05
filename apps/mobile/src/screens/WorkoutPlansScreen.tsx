@@ -90,7 +90,8 @@ export function WorkoutPlansScreen() {
         <View style={{ flex: 1 }}>
           <Button
             title="Templates"
-            variant="secondary"
+            variant="primary"
+            leftIcon={<Ionicons name="flash-outline" size={16} />}
             onPress={() => navigation.navigate('PrebuiltPlans')}
           />
         </View>
