@@ -18,6 +18,7 @@ export function MainTabs() {
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerTitleAlign: 'center',
+        headerLargeTitle: false,
         headerTintColor: tokens.colors.text,
         headerShadowVisible: false,
         headerStyle: {
@@ -65,20 +66,14 @@ export function MainTabs() {
         },
       })}
     >
-      <Tab.Screen name="Today" component={TodayScreen} />
+      <Tab.Screen name="Today" component={TodayScreen} options={{ title: 'Home' }} />
       <Tab.Screen
         name="WorkoutPlans"
         component={WorkoutPlansScreen}
         options={{ title: 'Plans', tabBarLabel: 'Workout Plans' }}
       />
-      <Tab.Screen
-        name="History"
-        component={HistoryScreen}
-        options={{
-
-        }}
-      />
-      <Tab.Screen name="Settings" component={SettingsScreen} />
+      <Tab.Screen name="History" component={HistoryScreen} options={{ title: 'History' }} />
+      <Tab.Screen name="Settings" component={SettingsScreen} options={{ title: 'Settings' }} />
     </Tab.Navigator>
   );
 }

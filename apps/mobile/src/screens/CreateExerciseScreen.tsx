@@ -4,7 +4,6 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import type { RootStackParamList } from '../navigation/types';
 import { Screen } from '../ui/Screen';
-import { Text } from '../ui/Text';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { tokens } from '../theme/tokens';
@@ -30,8 +29,6 @@ export function CreateExerciseScreen({ navigation }: Props) {
 
   return (
     <Screen bottomInset="none" style={{ gap: tokens.spacing.lg }}>
-      <Text variant="title">New Exercise</Text>
-
       <View style={{ gap: tokens.spacing.sm }}>
         <Input
           label="Name"

@@ -144,11 +144,6 @@ export function ExerciseDetailScreen({ route, navigation }: Props) {
       <ScrollView
         contentContainerStyle={{ gap: tokens.spacing.lg, paddingBottom: tokens.spacing.xl }}
       >
-        <View style={{ gap: tokens.spacing.xs }}>
-          <Text variant="muted">Exercise</Text>
-          <Text variant="title">{name}</Text>
-        </View>
-
         <View
           style={{
             padding: tokens.spacing.md,

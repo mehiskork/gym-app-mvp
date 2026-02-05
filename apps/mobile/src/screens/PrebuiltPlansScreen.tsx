@@ -52,9 +52,6 @@ export function PrebuiltPlansScreen() {
 
   return (
     <Screen bottomInset="none">
-      <Text variant="title" style={{ marginBottom: tokens.spacing.md }}>
-        Prebuilt plans
-      </Text>
       <Text variant="muted" style={{ marginBottom: tokens.spacing.lg }}>
         Import a template to start editing and logging workouts.
       </Text>

@@ -84,7 +84,6 @@ export function ClaimStartScreen({ navigation }: Props) {
     return (
         <Screen padded bottomInset="none" style={{ gap: tokens.spacing.lg }}>
             <View style={{ gap: tokens.spacing.sm }}>
-                <Text variant="title">Link your account</Text>
                 <Text variant="muted">
                     Generate a claim code to link this device with your account. Keep this screen open while
                     you complete the flow.

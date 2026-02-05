@@ -103,7 +103,6 @@ export function ClaimConfirmScreen({ navigation }: Props) {
     return (
         <Screen padded bottomInset="none" style={{ gap: tokens.spacing.lg }}>
             <View style={{ gap: tokens.spacing.sm }}>
-                <Text variant="title">Confirm claim (dev)</Text>
                 <Text variant="muted">
                     Enter a claim code to confirm the link. This uses a dev-only header for now.
                 </Text>

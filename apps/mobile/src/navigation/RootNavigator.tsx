@@ -29,6 +29,7 @@ export function RootNavigator() {
           headerStyle: { backgroundColor: tokens.colors.bg },
           headerTintColor: tokens.colors.text,
           headerShadowVisible: false,
+          headerLargeTitle: false,
           contentStyle: { backgroundColor: tokens.colors.bg },
         }}
       >
@@ -36,7 +37,7 @@ export function RootNavigator() {
         <Stack.Screen
           name="WorkoutSession"
           component={WorkoutSessionScreen}
-          options={{ presentation: 'modal', title: 'Workout' }}
+          options={{ presentation: 'modal', title: 'Workout', headerShown: true }}
         />
         <Stack.Screen
           name="StartWorkout"
@@ -46,12 +47,12 @@ export function RootNavigator() {
         <Stack.Screen
           name="CreateExercise"
           component={CreateExerciseScreen}
-          options={{ presentation: 'modal', title: 'New Exercise' }}
+          options={{ presentation: 'modal', title: 'New exercise', headerShown: true }}
         />
         <Stack.Screen
           name="ExercisePicker"
           component={ExercisePickerScreen}
-          options={{ presentation: 'modal', title: 'Select Exercise' }}
+          options={{ presentation: 'modal', title: 'Exercises', headerShown: true }}
         />
         <Stack.Screen
           name="WorkoutPlanDetail"
@@ -61,28 +62,28 @@ export function RootNavigator() {
         <Stack.Screen
           name="PrebuiltPlans"
           component={PrebuiltPlansScreen}
-          options={{ title: 'Prebuilt Plans' }}
+          options={{ title: 'Prebuilt plans', headerShown: true }}
         />
         <Stack.Screen name="DayDetail" component={DayDetailScreen} options={{ title: 'Day' }} />
         <Stack.Screen
           name="SessionDetail"
           component={SessionDetailScreen}
-          options={{ title: 'Session' }}
+          options={{ title: 'Session', headerShown: true }}
         />
         <Stack.Screen
           name="ExerciseDetail"
           component={ExerciseDetailScreen}
-          options={{ title: 'Exercise' }}
+          options={{ title: 'Exercise', headerShown: true }}
         />
         <Stack.Screen
           name="ClaimStart"
           component={ClaimStartScreen}
-          options={{ title: 'Link account' }}
+          options={{ title: 'Link account', headerShown: true }}
         />
         <Stack.Screen
           name="ClaimConfirm"
           component={ClaimConfirmScreen}
-          options={{ title: 'Confirm claim' }}
+          options={{ title: 'Confirm claim', headerShown: true }}
         />
         <Stack.Screen name="Debug" component={DebugScreen} options={{ title: 'Debug' }} />
       </Stack.Navigator>

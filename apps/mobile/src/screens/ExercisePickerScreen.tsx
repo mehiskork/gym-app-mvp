@@ -40,8 +40,6 @@ export function ExercisePickerScreen({ route, navigation }: Props) {
 
   return (
     <Screen bottomInset="none" style={{ gap: tokens.spacing.md }}>
-      <Text variant="title">Exercises</Text>
-
       <View style={{ flexDirection: 'row', gap: tokens.spacing.md }}>
         <View style={{ flex: 1 }}>
           <Button

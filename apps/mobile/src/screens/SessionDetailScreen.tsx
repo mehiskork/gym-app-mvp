@@ -121,7 +121,7 @@ export function SessionDetailScreen({ route, navigation }: Props) {
             </View>
           ) : null}
 
-          <Text variant="title">{session.title}</Text>
+
           <Text variant="muted">{formatDateTime(session.started_at)}</Text>
           {dur ? <Text variant="muted">Duration: {dur}</Text> : null}
         </View>
