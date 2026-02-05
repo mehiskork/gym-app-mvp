@@ -62,7 +62,7 @@ jest.mock('../../db/workoutSessionRepo', () => ({
 }));
 import React from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { EmptyState, Input, ListRow } from '../../ui';
+import { Button, EmptyState, Input, ListRow } from '../../ui';
 import { WorkoutPlanDetailScreen } from '../WorkoutPlanDetailScreen';
 import { createSessionFromPlanDay, getInProgressSession } from '../../db/workoutSessionRepo';
 import { updateWorkoutPlanName } from '../../db/workoutPlanRepo';
@@ -95,6 +95,7 @@ describe('WorkoutPlanDetailScreen', () => {
 
     beforeEach(() => {
         useStateMock.mockReset();
+        useStateMock.mockImplementation((initial: unknown) => [initial, jest.fn()]);
         (createSessionFromPlanDay as jest.Mock).mockReset();
         (getInProgressSession as jest.Mock).mockReset();
         (updateWorkoutPlanName as jest.Mock).mockReset();
@@ -178,7 +179,7 @@ describe('WorkoutPlanDetailScreen', () => {
         if (!firstRow?.props.onPress) throw new Error('Expected day row to have onPress.');
 
         firstRow.props.onPress({} as never);
-        expect(navigation.navigate).toHaveBeenCalledWith('DayDetail', { dayId: 'day-1' });
+        expect(navigation.navigate).toHaveBeenCalledWith('DayDetail', { dayId: 'day-1', mode: 'edit' });
     });
 
     it('shows empty state when there are no days', () => {
@@ -227,7 +228,7 @@ describe('WorkoutPlanDetailScreen', () => {
         });
     });
 
-    it('starts a session and navigates to workout session in picker mode', () => {
+    it('navigates to day detail start flow in picker mode', () => {
         const plan = { id: 'plan-1', name: 'Strength Plan', description: null, is_template: 0 };
         const days = [{ id: 'day-1', name: 'Day 1', day_index: 1 }];
 
@@ -237,7 +238,6 @@ describe('WorkoutPlanDetailScreen', () => {
         useStateMock.mockImplementationOnce(() => [plan.name, jest.fn()]);
 
         (getInProgressSession as jest.Mock).mockReturnValue(null);
-        (createSessionFromPlanDay as jest.Mock).mockReturnValue('session-1');
 
         const navigation: Nav = { navigate: jest.fn(), goBack: jest.fn(), replace: jest.fn() };
         const element = WorkoutPlanDetailScreen({
@@ -256,12 +256,11 @@ describe('WorkoutPlanDetailScreen', () => {
 
         firstRow.props.onPress({} as never);
 
-        expect(createSessionFromPlanDay).toHaveBeenCalledWith({
-            workoutPlanId: 'plan-1',
+        expect(createSessionFromPlanDay).not.toHaveBeenCalled();
+        expect(navigation.navigate).toHaveBeenCalledWith('DayDetail', {
             dayId: 'day-1',
-        });
-        expect(navigation.replace).toHaveBeenCalledWith('WorkoutSession', {
-            sessionId: 'session-1',
+            workoutPlanId: 'plan-1',
+            mode: 'startSession',
         });
     });
 
@@ -296,5 +295,34 @@ describe('WorkoutPlanDetailScreen', () => {
         expect(navigation.replace).toHaveBeenCalledWith('WorkoutSession', {
             sessionId: 'session-99',
         });
+    });
+
+    it('hides builder-only controls in picker mode', () => {
+        const plan = { id: 'plan-1', name: 'Strength Plan', description: null, is_template: 0 };
+        const days = [{ id: 'day-1', name: 'Day 1', day_index: 1 }];
+
+        useStateMock.mockImplementationOnce(() => [plan, jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [days, jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [plan.name, jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+
+        const navigation: Nav = { navigate: jest.fn(), goBack: jest.fn(), replace: jest.fn() };
+        const element = WorkoutPlanDetailScreen({
+            navigation,
+            route: {
+                key: 'WorkoutPlanDetail',
+                name: 'WorkoutPlanDetail',
+                params: { workoutPlanId: 'plan-1', mode: 'pickDayToStart' },
+            },
+        } as never);
+
+        type ButtonProps = React.ComponentProps<typeof Button>;
+        const buttons = findElementsByType<ButtonProps>(element, Button);
+        expect(buttons.some((button) => button.props.title === 'Add day')).toBe(false);
+        expect(buttons.some((button) => button.props.title === 'Delete plan')).toBe(false);
+
+        type InputProps = React.ComponentProps<typeof Input>;
+        const inputs = findElementsByType<InputProps>(element, Input);
+        expect(inputs[0]?.props.onBlur).toBeUndefined();
     });
 });

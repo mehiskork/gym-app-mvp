@@ -16,16 +16,17 @@ import {
   type WorkoutPlanRow,
   updateWorkoutPlanName,
 } from '../db/workoutPlanRepo';
-import { createSessionFromPlanDay, getInProgressSession } from '../db/workoutSessionRepo';
+import { getInProgressSession } from '../db/workoutSessionRepo';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'WorkoutPlanDetail'>;
 
 export function WorkoutPlanDetailScreen({ route, navigation }: Props) {
   const { workoutPlanId } = route.params;
-  const mode = route.params.mode ?? 'view';
+  const mode = route.params.mode ?? 'edit';
   const [plan, setPlan] = useState<WorkoutPlanRow | null>(null);
   const [days, setDays] = useState<WorkoutPlanDayRow[]>([]);
   const [planName, setPlanName] = useState('');
+  const [pickerNotice, setPickerNotice] = useState<string | null>(null);
   const load = useCallback(() => {
     const nextPlan = getWorkoutPlanById(workoutPlanId);
     setPlan(nextPlan);
@@ -38,6 +39,7 @@ export function WorkoutPlanDetailScreen({ route, navigation }: Props) {
       if (mode === 'pickDayToStart') {
         const existingSession = getInProgressSession();
         if (existingSession) {
+          setPickerNotice('Resume active workout');
           navigation.replace('WorkoutSession', { sessionId: existingSession.id });
           return;
         }
@@ -93,26 +95,19 @@ export function WorkoutPlanDetailScreen({ route, navigation }: Props) {
       if (isPickerMode) {
         const existingSession = getInProgressSession();
         if (existingSession) {
+          setPickerNotice('Resume active workout');
           navigation.replace('WorkoutSession', { sessionId: existingSession.id });
           return;
         }
-        try {
-          const sessionId = createSessionFromPlanDay({ workoutPlanId, dayId });
-          navigation.replace('WorkoutSession', { sessionId });
-        } catch (error) {
-          const message = error instanceof Error ? error.message : '';
-          const prefix = 'WORKOUT_IN_PROGRESS:';
-          if (message.startsWith(prefix)) {
-            const sessionId = message.slice(prefix.length);
-            navigation.replace('WorkoutSession', { sessionId });
-            return;
-          }
-          throw error;
-        }
+        navigation.navigate('DayDetail', {
+          dayId,
+          workoutPlanId,
+          mode: 'startSession',
+        });
         return;
       }
 
-      navigation.navigate('DayDetail', { dayId });
+      navigation.navigate('DayDetail', { dayId, mode: 'edit' });
     },
     [isPickerMode, navigation, workoutPlanId],
   );
@@ -132,15 +127,16 @@ export function WorkoutPlanDetailScreen({ route, navigation }: Props) {
               <Input
                 label="Plan name"
                 value={planName}
-                onChangeText={setPlanName}
-                onBlur={persistPlanName}
+                onChangeText={isPickerMode ? undefined : setPlanName}
+                onBlur={isPickerMode ? undefined : persistPlanName}
                 maxLength={50}
                 autoCapitalize="words"
                 returnKeyType="done"
-                onSubmitEditing={persistPlanName}
+                onSubmitEditing={isPickerMode ? undefined : persistPlanName}
               />
               {plan.description ? <Text variant="muted">{plan.description}</Text> : null}
               <Text variant="muted">{dayCountLabel}</Text>
+              {isPickerMode && pickerNotice ? <Text variant="muted">{pickerNotice}</Text> : null}
             </View>
           </Card>
 

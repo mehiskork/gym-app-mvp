@@ -8,10 +8,9 @@ import { Screen } from '../ui';
 import { tokens } from '../theme/tokens';
 import type { RootStackParamList } from '../navigation/types';
 import { getInProgressSession } from '../db/workoutSessionRepo';
-import { getWorkoutPlanById, listWorkoutPlans } from '../db/workoutPlanRepo';
+import { listWorkoutPlans } from '../db/workoutPlanRepo';
 import { getThisWeekSummary } from '../db/weeklyRepo';
 import { listRecentSessionSummaries } from '../db/historyRepo';
-import { TodayHero } from '../features/today/TodayHero';
 import { TodayPrimaryAction } from '../features/today/TodayPrimaryAction';
 import { TodayRecentActivity } from '../features/today/TodayRecentActivity';
 import { TodayWeeklyStats } from '../features/today/TodayWeeklyStats';
@@ -22,7 +21,6 @@ export function TodayScreen() {
   const navigation = useNavigation<Nav>();
   const [inProgressId, setInProgressId] = useState<string | null>(null);
   const [inProgressTitle, setInProgressTitle] = useState<string | null>(null);
-  const [inProgressPlan, setInProgressPlan] = useState<string | null>(null);
   const [hasPlans, setHasPlans] = useState(false);
   const [weeklyWorkouts, setWeeklyWorkouts] = useState(0);
   const [weeklyVolume, setWeeklyVolume] = useState(0);
@@ -32,8 +30,6 @@ export function TodayScreen() {
     const s = getInProgressSession();
     setInProgressId(s?.id ?? null);
     setInProgressTitle(s?.title ?? null);
-    const planName = s?.source_workout_plan_id ? getWorkoutPlanById(s.source_workout_plan_id)?.name : null;
-    setInProgressPlan(planName ?? null);
     setHasPlans(listWorkoutPlans().length > 0);
     const week = getThisWeekSummary();
     setWeeklyWorkouts(week.workouts);
@@ -54,12 +50,7 @@ export function TodayScreen() {
       bottomInset="tabBar"
     >
 
-      <View style={{ paddingHorizontal: tokens.spacing.lg, paddingTop: tokens.spacing.lg, gap: tokens.spacing.lg }}>
-        <TodayHero
-          hasActiveWorkout={Boolean(inProgressId)}
-          activeWorkoutTitle={inProgressTitle}
-          activePlanName={inProgressPlan}
-        />
+      <View style={{ paddingHorizontal: tokens.spacing.lg, paddingTop: tokens.spacing.md, gap: tokens.spacing.lg }}>
         <TodayPrimaryAction
           hasActiveWorkout={Boolean(inProgressId)}
           activeWorkoutTitle={inProgressTitle ?? undefined}

@@ -9,7 +9,7 @@ jest.mock('react', () => {
 });
 
 jest.mock('@react-navigation/native', () => ({
-    useFocusEffect: jest.fn(),
+    useFocusEffect: jest.fn((callback: () => void) => callback()),
 }));
 
 jest.mock('expo-haptics', () => ({
@@ -70,14 +70,20 @@ jest.mock('../../db/dayExerciseRepo', () => ({
     reorderDayExercises: jest.fn(),
 }));
 
+jest.mock('../../db/workoutSessionRepo', () => ({
+    createSessionFromPlanDay: jest.fn(),
+    getInProgressSession: jest.fn(),
+}));
+
 import React from 'react';
 import DraggableFlatList, { type RenderItemParams } from 'react-native-draggable-flatlist';
-
 import { Button, EmptyState, ListRow, Screen } from '../../ui';
 import { DayDetailScreen } from '../DayDetailScreen';
+import { createSessionFromPlanDay, getInProgressSession } from '../../db/workoutSessionRepo';
 
 type Nav = {
     navigate: jest.Mock;
+    replace: jest.Mock;
     setOptions: jest.Mock;
 };
 
@@ -104,101 +110,98 @@ describe('DayDetailScreen', () => {
     beforeEach(() => {
         useStateMock.mockReset();
         useStateMock.mockImplementation((initial: unknown) => [initial, jest.fn()]);
+        (createSessionFromPlanDay as jest.Mock).mockReset();
+        (getInProgressSession as jest.Mock).mockReset();
+        (getInProgressSession as jest.Mock).mockReturnValue(null);
     });
 
     it('shows empty state and add exercise action when no exercises exist', () => {
-        useStateMock.mockImplementationOnce(() => ['Push', jest.fn()]);
-        useStateMock.mockImplementationOnce(() => ['Push', jest.fn()]);
-        useStateMock.mockImplementationOnce(() => [[], jest.fn()]);
-
-        const navigation: Nav = { navigate: jest.fn(), setOptions: jest.fn() };
+        const navigation: Nav = { navigate: jest.fn(), replace: jest.fn(), setOptions: jest.fn() };
         const element = DayDetailScreen({
             navigation,
             route: { key: 'DayDetail', name: 'DayDetail', params: { dayId: 'day-1' } },
         } as never);
 
-        type EmptyStateProps = React.ComponentProps<typeof EmptyState>;
-        const emptyStates = findElementsByType<EmptyStateProps>(element, EmptyState);
+        const emptyStates = findElementsByType<React.ComponentProps<typeof EmptyState>>(element, EmptyState);
         expect(emptyStates[0]?.props.title).toBe('No exercises yet');
 
-        type ButtonProps = React.ComponentProps<typeof Button>;
-        const buttons = findElementsByType<ButtonProps>(element, Button);
+        const buttons = findElementsByType<React.ComponentProps<typeof Button>>(element, Button);
         const addExerciseButton = buttons.find((button) => button.props.title === 'Add exercise');
-
-        if (!addExerciseButton?.props.onPress) {
-            throw new Error('Expected Add exercise button to be rendered.');
-        }
-
-        addExerciseButton.props.onPress({} as never);
+        addExerciseButton?.props.onPress?.({} as never);
 
         expect(navigation.navigate).toHaveBeenCalledWith('ExercisePicker', { dayId: 'day-1' });
     });
 
-    it('uses bottomInset="none" for stack layout', () => {
-        useStateMock.mockImplementationOnce(() => ['Push', jest.fn()]);
-        useStateMock.mockImplementationOnce(() => ['Push', jest.fn()]);
-        useStateMock.mockImplementationOnce(() => [[], jest.fn()]);
-
-        const navigation: Nav = { navigate: jest.fn(), setOptions: jest.fn() };
-        const element = DayDetailScreen({
-            navigation,
-            route: { key: 'DayDetail', name: 'DayDetail', params: { dayId: 'day-1' } },
-        } as never);
-
-        type ScreenProps = React.ComponentProps<typeof Screen>;
-        const screens = findElementsByType<ScreenProps>(element, Screen);
-
-        expect(screens[0]?.props.bottomInset).toBe('none');
-    });
-
     it('renders exercise list rows when exercises exist', () => {
-        const items = [
-            {
-                id: 'day-ex-1',
-                program_day_id: 'day-1',
-                exercise_id: 'bench',
-                exercise_name: 'Bench Press',
-                position: 1,
-                notes: null,
-            },
-        ];
-
+        const items = [{ id: 'day-ex-1', program_day_id: 'day-1', exercise_id: 'bench', exercise_name: 'Bench Press', position: 1, notes: null }];
         useStateMock.mockImplementationOnce(() => ['Push', jest.fn()]);
         useStateMock.mockImplementationOnce(() => ['Push', jest.fn()]);
         useStateMock.mockImplementationOnce(() => [items, jest.fn()]);
 
-        const navigation: Nav = { navigate: jest.fn(), setOptions: jest.fn() };
+        const navigation: Nav = { navigate: jest.fn(), replace: jest.fn(), setOptions: jest.fn() };
         const element = DayDetailScreen({
             navigation,
             route: { key: 'DayDetail', name: 'DayDetail', params: { dayId: 'day-1' } },
         } as never);
 
-        type FlatListProps = React.ComponentProps<typeof DraggableFlatList>;
-        const lists = findElementsByType<FlatListProps>(element, DraggableFlatList);
-        const list = lists[0];
-
-        if (!list) {
-            throw new Error('Expected DraggableFlatList to be rendered.');
-        }
-        const renderItem = list.props.renderItem;
-        if (!renderItem) {
-            throw new Error('Expected renderItem to be defined.');
-        }
-
-        type Item = (typeof items)[number];
-        const typedRenderItem = renderItem as (params: RenderItemParams<Item>) => React.ReactElement;
-        const rowNode = typedRenderItem({
-            item: items[0],
-            drag: jest.fn(),
-            isActive: false,
-            getIndex: () => 0,
-        });
-
-        if (!React.isValidElement(rowNode)) {
-            throw new Error('Expected exercise row to be a React element.');
-        }
-
+        const lists = findElementsByType<React.ComponentProps<typeof DraggableFlatList>>(element, DraggableFlatList);
+        const renderItem = lists[0]?.props.renderItem as ((params: RenderItemParams<(typeof items)[number]>) => React.ReactElement);
+        const rowNode = renderItem({ item: items[0], drag: jest.fn(), isActive: false, getIndex: () => 0 });
         const row = rowNode as React.ReactElement<React.ComponentProps<typeof ListRow>>;
+
         expect(row.props.title).toBe('Bench Press');
+    });
+
+    it('starts a workout in start-session mode', () => {
+        (createSessionFromPlanDay as jest.Mock).mockReturnValue('session-1');
+
+        const navigation: Nav = { navigate: jest.fn(), replace: jest.fn(), setOptions: jest.fn() };
+        const element = DayDetailScreen({
+            navigation,
+            route: {
+                key: 'DayDetail',
+                name: 'DayDetail',
+                params: { dayId: 'day-1', workoutPlanId: 'plan-1', mode: 'startSession' },
+            },
+        } as never);
+
+        const buttons = findElementsByType<React.ComponentProps<typeof Button>>(element, Button);
+        const startButton = buttons.find((button) => button.props.title === 'Start workout');
+        startButton?.props.onPress?.({} as never);
+
+        expect(createSessionFromPlanDay).toHaveBeenCalledWith({ workoutPlanId: 'plan-1', dayId: 'day-1' });
+        expect(navigation.replace).toHaveBeenCalledWith('WorkoutSession', { sessionId: 'session-1' });
+    });
+
+    it('resumes active workout in start-session mode', () => {
+        (getInProgressSession as jest.Mock).mockReturnValue({ id: 'active-1' });
+
+        const navigation: Nav = { navigate: jest.fn(), replace: jest.fn(), setOptions: jest.fn() };
+        const element = DayDetailScreen({
+            navigation,
+            route: {
+                key: 'DayDetail',
+                name: 'DayDetail',
+                params: { dayId: 'day-1', workoutPlanId: 'plan-1', mode: 'startSession' },
+            },
+        } as never);
+
+        const buttons = findElementsByType<React.ComponentProps<typeof Button>>(element, Button);
+        const startButton = buttons.find((button) => button.props.title === 'Start workout');
+        startButton?.props.onPress?.({} as never);
+
+        expect(createSessionFromPlanDay).not.toHaveBeenCalled();
+        expect(navigation.replace).toHaveBeenCalledWith('WorkoutSession', { sessionId: 'active-1' });
+    });
+
+    it('uses bottomInset="none" for stack layout', () => {
+        const navigation: Nav = { navigate: jest.fn(), replace: jest.fn(), setOptions: jest.fn() };
+        const element = DayDetailScreen({
+            navigation,
+            route: { key: 'DayDetail', name: 'DayDetail', params: { dayId: 'day-1' } },
+        } as never);
+
+        const screens = findElementsByType<React.ComponentProps<typeof Screen>>(element, Screen);
+        expect(screens[0]?.props.bottomInset).toBe('none');
     });
 });

@@ -17,15 +17,17 @@ import {
   reorderDayExercises,
   type DayExerciseRow,
 } from '../db/dayExerciseRepo';
+import { createSessionFromPlanDay, getInProgressSession } from '../db/workoutSessionRepo';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'DayDetail'>;
 
 export function DayDetailScreen({ route, navigation }: Props) {
-  const { dayId } = route.params;
+  const { dayId, workoutPlanId, mode = 'edit' } = route.params;
 
   const [dayNameInput, setDayNameInput] = useState<string>('');
   const [savedName, setSavedName] = useState<string>('');
   const [items, setItems] = useState<DayExerciseRow[]>([]);
+  const [startNotice, setStartNotice] = useState<string | null>(null);
 
   const load = useCallback(() => {
     const day = getDayById(dayId);
@@ -54,6 +56,25 @@ export function DayDetailScreen({ route, navigation }: Props) {
       navigation.setOptions({ title: 'Day' });
     }, [navigation]),
   );
+
+  const isStartSessionMode = mode === 'startSession';
+
+  const handleStartWorkout = useCallback(() => {
+    const existingSession = getInProgressSession();
+    if (existingSession) {
+      setStartNotice('Resume active workout');
+      navigation.replace('WorkoutSession', { sessionId: existingSession.id });
+      return;
+    }
+
+    if (!workoutPlanId) {
+      Alert.alert('Error', 'Missing workout plan for start flow.');
+      return;
+    }
+
+    const sessionId = createSessionFromPlanDay({ workoutPlanId, dayId });
+    navigation.replace('WorkoutSession', { sessionId });
+  }, [dayId, navigation, workoutPlanId]);
 
   const handleAddExercise = useCallback(() => {
     navigation.navigate('ExercisePicker', { dayId });
@@ -97,7 +118,7 @@ export function DayDetailScreen({ route, navigation }: Props) {
     ({ item, drag, isActive }: RenderItemParams<DayExerciseRow>) => (
       <ListRow
         title={item.exercise_name}
-        subtitle="Tap to view"
+        subtitle={isStartSessionMode ? 'View exercise' : 'Tap to view'}
         left={
           <IconChip variant="muted" size={40}>
             <Ionicons name="barbell-outline" size={18} color={tokens.colors.mutedText} />
@@ -105,7 +126,7 @@ export function DayDetailScreen({ route, navigation }: Props) {
         }
         onPress={() => navigation.navigate('ExerciseDetail', { exerciseId: item.exercise_id })}
         showChevron
-        right={
+        right={isStartSessionMode ? undefined : (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.xs }}>
             <Pressable
               onPress={() => confirmDeleteExercise(item)}
@@ -145,7 +166,7 @@ export function DayDetailScreen({ route, navigation }: Props) {
               <Ionicons name="reorder-three-outline" size={18} color={tokens.colors.mutedText} />
             </Pressable>
           </View>
-        }
+        )}
         style={
           isActive
             ? {
@@ -162,7 +183,7 @@ export function DayDetailScreen({ route, navigation }: Props) {
       />
 
     ),
-    [confirmDeleteExercise, navigation],
+    [confirmDeleteExercise, isStartSessionMode, navigation],
   );
 
   const header = (
@@ -186,8 +207,15 @@ export function DayDetailScreen({ route, navigation }: Props) {
           <Text variant="muted">
             {items.length} exercise{items.length === 1 ? '' : 's'}
           </Text>
-          <Button title="Add exercise" onPress={handleAddExercise} />
-          <Text variant="muted">Hold the reorder handle to move exercises.</Text>
+          {isStartSessionMode ? (
+            <Button title="Start workout" onPress={handleStartWorkout} />
+          ) : (
+            <>
+              <Button title="Add exercise" onPress={handleAddExercise} />
+              <Text variant="muted">Hold the reorder handle to move exercises.</Text>
+            </>
+          )}
+          {isStartSessionMode && startNotice ? <Text variant="muted">{startNotice}</Text> : null}
         </View>
       </Card>
     </View>
@@ -199,7 +227,13 @@ export function DayDetailScreen({ route, navigation }: Props) {
         icon={<Ionicons name="barbell-outline" size={24} color={tokens.colors.mutedText} />}
         title="No exercises yet"
         description="Add your first exercise to start logging."
-        action={<Button title="Add exercise" variant="secondary" onPress={handleAddExercise} />}
+        action={
+          isStartSessionMode ? (
+            <Button title="Start workout" variant="secondary" onPress={handleStartWorkout} />
+          ) : (
+            <Button title="Add exercise" variant="secondary" onPress={handleAddExercise} />
+          )
+        }
       />
     </Card>
   );
@@ -234,17 +268,25 @@ export function DayDetailScreen({ route, navigation }: Props) {
           padding: tokens.spacing.lg,
           paddingBottom: tokens.spacing.xl,
         }}
-        onDragBegin={() => {
-          void Haptics.selectionAsync();
-        }}
-        onDragEnd={({ data }) => {
-          setItems(data);
-          reorderDayExercises(
-            dayId,
-            data.map((x) => x.id),
-          );
-          load();
-        }}
+        onDragBegin={
+          isStartSessionMode
+            ? undefined
+            : () => {
+              void Haptics.selectionAsync();
+            }
+        }
+        onDragEnd={
+          isStartSessionMode
+            ? undefined
+            : ({ data }) => {
+              setItems(data);
+              reorderDayExercises(
+                dayId,
+                data.map((x) => x.id),
+              );
+              load();
+            }
+        }
         keyboardShouldPersistTaps="handled"
       />
     </Screen>
