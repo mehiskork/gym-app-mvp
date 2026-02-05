@@ -9,6 +9,11 @@ export type WorkoutPlanRow = {
   is_template: number;
 };
 
+export type WorkoutPlanWithDayCountRow = WorkoutPlanRow & {
+  dayCount: number;
+};
+
+
 export type WorkoutPlanDayRow = {
   id: string;
   day_index: number;
@@ -77,6 +82,32 @@ export function listWorkoutPlans(): WorkoutPlanRow[] {
   `,
   );
 }
+
+export function listWorkoutPlansWithDayCounts(): WorkoutPlanWithDayCountRow[] {
+  return query<WorkoutPlanWithDayCountRow>(
+    `
+    SELECT
+      p.id,
+      p.name,
+      p.description,
+      p.is_template,
+      COUNT(DISTINCT d.id) AS dayCount
+    FROM program p
+    LEFT JOIN program_week w
+      ON w.program_id = p.id
+      AND w.week_index = 1
+      AND w.deleted_at IS NULL
+    LEFT JOIN program_day d
+      ON d.program_week_id = w.id
+      AND d.deleted_at IS NULL
+    WHERE p.deleted_at IS NULL
+    GROUP BY p.id, p.name, p.description, p.is_template
+    ORDER BY p.updated_at DESC
+    LIMIT 100;
+  `,
+  );
+}
+
 
 export function getWorkoutPlanById(id: string): WorkoutPlanRow | null {
   const rows = query<WorkoutPlanRow>(

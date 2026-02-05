@@ -12,8 +12,7 @@ jest.mock('react-native', () => {
     const React = require('react');
 
     return {
-        ActivityIndicator: ({ children, ...props }: { children?: React.ReactNode }) =>
-            React.createElement('ActivityIndicator', props, children),
+        Alert: { alert: jest.fn() },
         FlatList: ({ children, ...props }: { children?: React.ReactNode }) =>
             React.createElement('FlatList', props, children),
         Pressable: ({ children, ...props }: { children?: React.ReactNode }) =>
@@ -44,6 +43,11 @@ jest.mock('react-native-safe-area-context', () => {
     };
 });
 
+jest.mock('@react-navigation/native', () => ({
+    useFocusEffect: jest.fn(),
+    useNavigation: jest.fn(),
+}));
+
 jest.mock('@expo/vector-icons', () => {
     const React = require('react');
     return {
@@ -53,20 +57,18 @@ jest.mock('@expo/vector-icons', () => {
 });
 
 jest.mock('../../db/workoutPlanRepo', () => ({
+    createWorkoutPlan: jest.fn(),
+    deleteWorkoutPlan: jest.fn(),
     listWorkoutPlansWithDayCounts: jest.fn(),
 }));
 
 import React from 'react';
 import { FlatList } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 
-import { EmptyState } from '../../ui';
-import { StartWorkoutScreen } from '../StartWorkoutScreen';
-import { listWorkoutPlansWithDayCounts } from '../../db/workoutPlanRepo';
+import { WorkoutPlansScreen } from '../WorkoutPlansScreen';
 
-
-type Nav = {
-    navigate: jest.Mock;
-};
+type Nav = { navigate: jest.Mock };
 
 const findElementByType = <P,>(
     node: React.ReactNode,
@@ -87,49 +89,76 @@ const findElementByType = <P,>(
     return null;
 };
 
-describe('StartWorkoutScreen', () => {
+describe('WorkoutPlansScreen', () => {
     const useStateMock = React.useState as jest.Mock;
 
     beforeEach(() => {
         useStateMock.mockReset();
-        (listWorkoutPlansWithDayCounts as jest.Mock).mockReset();
+        (useNavigation as jest.Mock).mockReturnValue({ navigate: jest.fn() });
     });
 
-    it('shows empty state when there are no plans', () => {
-        useStateMock.mockImplementationOnce(() => [[], jest.fn()]);
-
-        const navigation: Nav = { navigate: jest.fn() };
-        const element = StartWorkoutScreen({
-            navigation,
-            route: { key: 'StartWorkout', name: 'StartWorkout' },
-        } as never);
-
-        type EmptyStateProps = React.ComponentProps<typeof EmptyState>;
-        const emptyState = findElementByType<EmptyStateProps>(element, EmptyState);
-
-        expect(emptyState?.props.title).toBe('No plans yet');
-    });
-
-    it('shows day-count subtitle and navigates for plans with days', () => {
+    it('shows day count subtitles for plan rows', () => {
         const plans = [
-            { id: 'plan-1', name: 'Strength Plan', description: null, is_template: 0, dayCount: 3 },
+            { id: 'plan-1', name: 'Plan A', description: null, is_template: 0, dayCount: 1 },
+            { id: 'plan-2', name: 'Plan B', description: null, is_template: 0, dayCount: 4 },
+            { id: 'plan-3', name: 'Plan C', description: null, is_template: 0, dayCount: 0 },
         ];
 
-        useStateMock.mockImplementationOnce(() => [plans, jest.fn()]);
+        useStateMock
+            .mockImplementationOnce(() => [plans, jest.fn()])
+            .mockImplementationOnce(() => ['', jest.fn()]);
 
-        const navigation: Nav = { navigate: jest.fn() };
-        const element = StartWorkoutScreen({
-            navigation,
-            route: { key: 'StartWorkout', name: 'StartWorkout' },
-        } as never);
+        const element = WorkoutPlansScreen();
 
         type FlatListProps = React.ComponentProps<typeof FlatList>;
         const list = findElementByType<FlatListProps>(element, FlatList);
-
-        if (!list?.props.renderItem) {
+        const renderItem = list?.props.renderItem;
+        if (!renderItem) {
             throw new Error('Expected FlatList renderItem to be defined.');
         }
-        const rowNode = list.props.renderItem({
+
+        const makeRow = (index: number) => {
+            const rowNode = renderItem({
+                item: plans[index],
+                index,
+                separators: {
+                    highlight: jest.fn(),
+                    unhighlight: jest.fn(),
+                    updateProps: jest.fn(),
+                },
+            });
+            if (!React.isValidElement(rowNode)) {
+                throw new Error('Expected plan row to be a React element.');
+            }
+            return rowNode as React.ReactElement<{ subtitle: string }>;
+        };
+
+        expect(makeRow(0).props.subtitle).toBe('1 day');
+        expect(makeRow(1).props.subtitle).toBe('4 days');
+        expect(makeRow(2).props.subtitle).toBe('No days yet');
+    });
+
+    it('navigates to plan detail when a row is pressed', () => {
+        const plans = [
+            { id: 'plan-1', name: 'Plan A', description: null, is_template: 0, dayCount: 2 },
+        ];
+        const navigation: Nav = { navigate: jest.fn() };
+        (useNavigation as jest.Mock).mockReturnValue(navigation);
+
+        useStateMock
+            .mockImplementationOnce(() => [plans, jest.fn()])
+            .mockImplementationOnce(() => ['', jest.fn()]);
+
+        const element = WorkoutPlansScreen();
+
+        type FlatListProps = React.ComponentProps<typeof FlatList>;
+        const list = findElementByType<FlatListProps>(element, FlatList);
+        const renderItem = list?.props.renderItem;
+        if (!renderItem) {
+            throw new Error('Expected FlatList renderItem to be defined.');
+        }
+
+        const rowNode = renderItem({
             item: plans[0],
             index: 0,
             separators: {
@@ -138,66 +167,16 @@ describe('StartWorkoutScreen', () => {
                 updateProps: jest.fn(),
             },
         });
+
         if (!React.isValidElement(rowNode)) {
             throw new Error('Expected plan row to be a React element.');
         }
-        const row = rowNode as React.ReactElement<{
-            title: string;
-            subtitle: string;
-            onPress?: () => void;
-            showChevron: boolean;
-        }>;
 
-        expect(row.props.title).toBe('Strength Plan');
-        expect(row.props.subtitle).toBe('3 days');
-        expect(row.props.showChevron).toBe(true);
-
+        const row = rowNode as React.ReactElement<{ onPress?: () => void }>;
         row.props.onPress?.();
 
         expect(navigation.navigate).toHaveBeenCalledWith('WorkoutPlanDetail', {
             workoutPlanId: 'plan-1',
-            mode: 'pickDayToStart',
         });
-    });
-    it('shows "No days yet" and disables navigation for 0-day plans', () => {
-        const plans = [
-            { id: 'plan-0', name: 'New Plan', description: null, is_template: 0, dayCount: 0 },
-        ];
-
-        useStateMock.mockImplementationOnce(() => [plans, jest.fn()]);
-
-        const navigation: Nav = { navigate: jest.fn() };
-        const element = StartWorkoutScreen({
-            navigation,
-            route: { key: 'StartWorkout', name: 'StartWorkout' },
-        } as never);
-
-        type FlatListProps = React.ComponentProps<typeof FlatList>;
-        const list = findElementByType<FlatListProps>(element, FlatList);
-
-        if (!list?.props.renderItem) {
-            throw new Error('Expected FlatList renderItem to be defined.');
-        }
-
-        const rowNode = list.props.renderItem({
-            item: plans[0],
-            index: 0,
-            separators: {
-                highlight: jest.fn(),
-                unhighlight: jest.fn(),
-                updateProps: jest.fn(),
-            },
-        });
-
-        if (!React.isValidElement(rowNode)) {
-            throw new Error('Expected plan row to be a React element.');
-        }
-
-        const row = rowNode as React.ReactElement<{ subtitle: string; onPress?: () => void; showChevron: boolean }>;
-
-        expect(row.props.subtitle).toBe('No days yet');
-        expect(row.props.showChevron).toBe(false);
-        expect(row.props.onPress).toBeUndefined();
-        expect(navigation.navigate).not.toHaveBeenCalled();
     });
 });

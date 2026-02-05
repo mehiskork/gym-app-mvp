@@ -9,21 +9,30 @@ import { tokens } from '../theme/tokens';
 import {
   createWorkoutPlan,
   deleteWorkoutPlan,
+  listWorkoutPlansWithDayCounts,
+  type WorkoutPlanWithDayCountRow,
   listWorkoutPlans,
   type WorkoutPlanRow,
 } from '../db/workoutPlanRepo';
 import type { RootStackParamList } from '../navigation/types';
+
+function formatDayCountSubtitle(dayCount: number): string {
+  if (dayCount === 0) return 'No days yet';
+  if (dayCount === 1) return '1 day';
+  return `${dayCount} days`;
+}
+
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
 export function WorkoutPlansScreen() {
   const navigation = useNavigation<Nav>();
 
-  const [workoutPlans, setWorkoutPlans] = useState<WorkoutPlanRow[]>([]);
+  const [workoutPlans, setWorkoutPlans] = useState<WorkoutPlanWithDayCountRow[]>([]);
   const [name, setName] = useState('');
 
   const load = useCallback(() => {
-    setWorkoutPlans(listWorkoutPlans());
+    setWorkoutPlans(listWorkoutPlansWithDayCounts());
   }, []);
 
   useFocusEffect(
@@ -43,7 +52,7 @@ export function WorkoutPlansScreen() {
     }
   };
 
-  const confirmDelete = (plan: WorkoutPlanRow) => {
+  const confirmDelete = (plan: WorkoutPlanWithDayCountRow) => {
     Alert.alert('Delete workout plan?', `"${plan.name}" will be deleted from this device.`, [
       { text: 'Cancel', style: 'cancel' },
       {
@@ -102,7 +111,7 @@ export function WorkoutPlansScreen() {
           renderItem={({ item }) => (
             <ListRow
               title={item.name}
-              subtitle="Tap to open"
+              subtitle={formatDayCountSubtitle(item.dayCount)}
               showChevron
               left={
                 <IconChip variant="muted" size={40}>

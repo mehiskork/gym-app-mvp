@@ -8,17 +8,23 @@ import { Ionicons } from '@expo/vector-icons';
 import type { RootStackParamList } from '../navigation/types';
 import { Screen, Card, EmptyState, Button, ListRow, IconChip } from '../ui';
 import { tokens } from '../theme/tokens';
-import { listWorkoutPlans, type WorkoutPlanRow } from '../db/workoutPlanRepo';
+import { listWorkoutPlansWithDayCounts, type WorkoutPlanWithDayCountRow } from '../db/workoutPlanRepo';
 
 
 type Props = NativeStackScreenProps<RootStackParamList, 'StartWorkout'>;
 
-export function StartWorkoutScreen({ navigation }: Props) {
-  const [plans, setPlans] = useState<WorkoutPlanRow[]>([]);
+function formatDayCountSubtitle(dayCount: number): string {
+  if (dayCount === 0) return 'No days yet';
+  if (dayCount === 1) return '1 day';
+  return `${dayCount} days`;
+}
 
+
+export function StartWorkoutScreen({ navigation }: Props) {
+  const [plans, setPlans] = useState<WorkoutPlanWithDayCountRow[]>([]);
 
   const load = useCallback(() => {
-    setPlans(listWorkoutPlans());
+    setPlans(listWorkoutPlansWithDayCounts());
   }, []);
 
   useFocusEffect(
@@ -68,18 +74,21 @@ export function StartWorkoutScreen({ navigation }: Props) {
           renderItem={({ item }) => (
             <ListRow
               title={item.name}
-              subtitle="Choose a day"
-              showChevron
+              subtitle={formatDayCountSubtitle(item.dayCount)}
+              showChevron={item.dayCount > 0}
               left={
                 <IconChip variant="muted" size={40}>
                   <Ionicons name="barbell-outline" size={18} color={tokens.colors.mutedText} />
                 </IconChip>
               }
-              onPress={() =>
-                navigation.navigate('WorkoutPlanDetail', {
-                  workoutPlanId: item.id,
-                  mode: 'pickDayToStart',
-                })
+              onPress={
+                item.dayCount > 0
+                  ? () =>
+                    navigation.navigate('WorkoutPlanDetail', {
+                      workoutPlanId: item.id,
+                      mode: 'pickDayToStart',
+                    })
+                  : undefined
               }
             />
           )}
