@@ -53,7 +53,7 @@ jest.mock('@expo/vector-icons', () => {
 });
 
 jest.mock('../../db/workoutPlanRepo', () => ({
-    listWorkoutPlansWithDayCounts: jest.fn(),
+    listWorkoutPlansWithSessionCounts: jest.fn(),
 }));
 
 import React from 'react';
@@ -61,8 +61,7 @@ import { FlatList } from 'react-native';
 
 import { EmptyState } from '../../ui';
 import { StartWorkoutScreen } from '../StartWorkoutScreen';
-import { listWorkoutPlansWithDayCounts } from '../../db/workoutPlanRepo';
-
+import { listWorkoutPlansWithSessionCounts } from '../../db/workoutPlanRepo';
 
 type Nav = {
     navigate: jest.Mock;
@@ -92,7 +91,7 @@ describe('StartWorkoutScreen', () => {
 
     beforeEach(() => {
         useStateMock.mockReset();
-        (listWorkoutPlansWithDayCounts as jest.Mock).mockReset();
+        (listWorkoutPlansWithSessionCounts as jest.Mock).mockReset();
     });
 
     it('shows empty state when there are no plans', () => {
@@ -110,9 +109,9 @@ describe('StartWorkoutScreen', () => {
         expect(emptyState?.props.title).toBe('No plans yet');
     });
 
-    it('shows day-count subtitle and navigates for plans with days', () => {
+    it('shows session-count subtitle and navigates for plans with sessions', () => {
         const plans = [
-            { id: 'plan-1', name: 'Strength Plan', description: null, is_template: 0, dayCount: 3 },
+            { id: 'plan-1', name: 'Strength Plan', description: null, is_template: 0, sessionCount: 3 },
         ];
 
         useStateMock.mockImplementationOnce(() => [plans, jest.fn()]);
@@ -149,7 +148,7 @@ describe('StartWorkoutScreen', () => {
         }>;
 
         expect(row.props.title).toBe('Strength Plan');
-        expect(row.props.subtitle).toBe('3 days');
+        expect(row.props.subtitle).toBe('3 sessions');
         expect(row.props.showChevron).toBe(true);
 
         row.props.onPress?.();
@@ -159,9 +158,10 @@ describe('StartWorkoutScreen', () => {
             mode: 'pickDayToStart',
         });
     });
-    it('shows "No days yet" and disables navigation for 0-day plans', () => {
+
+    it('shows singular session subtitle for a 1-session plan', () => {
         const plans = [
-            { id: 'plan-0', name: 'New Plan', description: null, is_template: 0, dayCount: 0 },
+            { id: 'plan-1', name: 'Strength Plan', description: null, is_template: 0, sessionCount: 1 },
         ];
 
         useStateMock.mockImplementationOnce(() => [plans, jest.fn()]);
@@ -193,9 +193,53 @@ describe('StartWorkoutScreen', () => {
             throw new Error('Expected plan row to be a React element.');
         }
 
-        const row = rowNode as React.ReactElement<{ subtitle: string; onPress?: () => void; showChevron: boolean }>;
+        const row = rowNode as React.ReactElement<{ subtitle: string; showChevron: boolean }>;
 
-        expect(row.props.subtitle).toBe('No days yet');
+        expect(row.props.subtitle).toBe('1 session');
+        expect(row.props.showChevron).toBe(true);
+    });
+
+    it('shows "No sessions yet" and disables navigation for 0-session plans', () => {
+        const plans = [
+            { id: 'plan-0', name: 'New Plan', description: null, is_template: 0, sessionCount: 0 },
+        ];
+
+        useStateMock.mockImplementationOnce(() => [plans, jest.fn()]);
+
+        const navigation: Nav = { navigate: jest.fn() };
+        const element = StartWorkoutScreen({
+            navigation,
+            route: { key: 'StartWorkout', name: 'StartWorkout' },
+        } as never);
+
+        type FlatListProps = React.ComponentProps<typeof FlatList>;
+        const list = findElementByType<FlatListProps>(element, FlatList);
+
+        if (!list?.props.renderItem) {
+            throw new Error('Expected FlatList renderItem to be defined.');
+        }
+
+        const rowNode = list.props.renderItem({
+            item: plans[0],
+            index: 0,
+            separators: {
+                highlight: jest.fn(),
+                unhighlight: jest.fn(),
+                updateProps: jest.fn(),
+            },
+        });
+
+        if (!React.isValidElement(rowNode)) {
+            throw new Error('Expected plan row to be a React element.');
+        }
+
+        const row = rowNode as React.ReactElement<{
+            subtitle: string;
+            onPress?: () => void;
+            showChevron: boolean;
+        }>;
+
+        expect(row.props.subtitle).toBe('No sessions yet');
         expect(row.props.showChevron).toBe(false);
         expect(row.props.onPress).toBeUndefined();
         expect(navigation.navigate).not.toHaveBeenCalled();

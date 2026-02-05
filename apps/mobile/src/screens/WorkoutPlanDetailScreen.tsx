@@ -5,7 +5,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 
 import type { RootStackParamList } from '../navigation/types';
-import { Screen, Card, EmptyState, Text, ListRow, IconChip, Button } from '../ui';
+import { Screen, Card, EmptyState, Text, ListRow, IconChip, Button, Input } from '../ui';
 import { tokens } from '../theme/tokens';
 import {
   addDayToWorkoutPlan,
@@ -14,6 +14,7 @@ import {
   listDaysForWorkoutPlan,
   type WorkoutPlanDayRow,
   type WorkoutPlanRow,
+  updateWorkoutPlanName,
 } from '../db/workoutPlanRepo';
 import { createSessionFromPlanDay, getInProgressSession } from '../db/workoutSessionRepo';
 
@@ -24,11 +25,12 @@ export function WorkoutPlanDetailScreen({ route, navigation }: Props) {
   const mode = route.params.mode ?? 'view';
   const [plan, setPlan] = useState<WorkoutPlanRow | null>(null);
   const [days, setDays] = useState<WorkoutPlanDayRow[]>([]);
-
+  const [planName, setPlanName] = useState('');
   const load = useCallback(() => {
     const nextPlan = getWorkoutPlanById(workoutPlanId);
     setPlan(nextPlan);
     setDays(nextPlan ? listDaysForWorkoutPlan(workoutPlanId) : []);
+    setPlanName(nextPlan?.name ?? '');
   }, [workoutPlanId]);
 
   useFocusEffect(
@@ -37,6 +39,20 @@ export function WorkoutPlanDetailScreen({ route, navigation }: Props) {
     }, [load]),
   );
 
+
+  const persistPlanName = useCallback(() => {
+    const trimmedName = planName.trim();
+    if (!plan || !trimmedName || trimmedName === plan.name) return;
+
+    try {
+      updateWorkoutPlanName(workoutPlanId, trimmedName);
+      setPlan({ ...plan, name: trimmedName });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to update plan name';
+      Alert.alert('Error', message);
+      setPlanName(plan.name);
+    }
+  }, [plan, planName, workoutPlanId]);
 
   const handleAddDay = useCallback(() => {
     const dayId = addDayToWorkoutPlan(workoutPlanId);
@@ -94,6 +110,7 @@ export function WorkoutPlanDetailScreen({ route, navigation }: Props) {
     },
     [isPickerMode, navigation, workoutPlanId],
   );
+
   return (
     <Screen
       scroll
@@ -102,13 +119,20 @@ export function WorkoutPlanDetailScreen({ route, navigation }: Props) {
         gap: tokens.spacing.md,
       }}
     >
-
-
       {plan ? (
         <>
           <Card>
             <View style={{ gap: tokens.spacing.sm }}>
-              <Text variant="title">{plan.name}</Text>
+              <Input
+                label="Plan name"
+                value={planName}
+                onChangeText={setPlanName}
+                onBlur={persistPlanName}
+                maxLength={50}
+                autoCapitalize="words"
+                returnKeyType="done"
+                onSubmitEditing={persistPlanName}
+              />
               {plan.description ? <Text variant="muted">{plan.description}</Text> : null}
               <Text variant="muted">{dayCountLabel}</Text>
             </View>
@@ -137,7 +161,9 @@ export function WorkoutPlanDetailScreen({ route, navigation }: Props) {
           ) : (
             <Card>
               <EmptyState
-                icon={<Ionicons name="calendar-outline" size={24} color={tokens.colors.mutedText} />}
+                icon={
+                  <Ionicons name="calendar-outline" size={24} color={tokens.colors.mutedText} />
+                }
                 title="No days yet"
                 description="Add your first training day to start logging."
                 action={
@@ -147,8 +173,7 @@ export function WorkoutPlanDetailScreen({ route, navigation }: Props) {
                 }
               />
             </Card>
-          )
-          }
+          )}
           {isPickerMode ? null : (
             <View style={{ gap: tokens.spacing.sm }}>
               {days.length > 0 ? (
@@ -161,7 +186,9 @@ export function WorkoutPlanDetailScreen({ route, navigation }: Props) {
       ) : (
         <Card>
           <EmptyState
-            icon={<Ionicons name="alert-circle-outline" size={24} color={tokens.colors.mutedText} />}
+            icon={
+              <Ionicons name="alert-circle-outline" size={24} color={tokens.colors.mutedText} />
+            }
             title="Plan not found"
             description="This plan may have been deleted."
           />

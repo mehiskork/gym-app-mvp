@@ -3,28 +3,28 @@ import { FlatList, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-
-
 import type { RootStackParamList } from '../navigation/types';
 import { Screen, Card, EmptyState, Button, ListRow, IconChip } from '../ui';
 import { tokens } from '../theme/tokens';
-import { listWorkoutPlansWithDayCounts, type WorkoutPlanWithDayCountRow } from '../db/workoutPlanRepo';
+import {
+  listWorkoutPlansWithSessionCounts,
+  type WorkoutPlanWithSessionCountRow,
+} from '../db/workoutPlanRepo';
 
 
 type Props = NativeStackScreenProps<RootStackParamList, 'StartWorkout'>;
 
-function formatDayCountSubtitle(dayCount: number): string {
-  if (dayCount === 0) return 'No days yet';
-  if (dayCount === 1) return '1 day';
-  return `${dayCount} days`;
+function formatSessionCountSubtitle(sessionCount: number): string {
+  if (sessionCount === 0) return 'No sessions yet';
+  if (sessionCount === 1) return '1 session';
+  return `${sessionCount} sessions`;
 }
 
-
 export function StartWorkoutScreen({ navigation }: Props) {
-  const [plans, setPlans] = useState<WorkoutPlanWithDayCountRow[]>([]);
+  const [plans, setPlans] = useState<WorkoutPlanWithSessionCountRow[]>([]);
 
   const load = useCallback(() => {
-    setPlans(listWorkoutPlansWithDayCounts());
+    setPlans(listWorkoutPlansWithSessionCounts());
   }, []);
 
   useFocusEffect(
@@ -33,17 +33,8 @@ export function StartWorkoutScreen({ navigation }: Props) {
     }, [load]),
   );
 
-
   return (
-    <Screen
-      scroll
-      bottomInset="none"
-      contentStyle={{
-
-      }}
-    >
-
-
+    <Screen scroll bottomInset="none" contentStyle={{}}>
       {plans.length === 0 ? (
         <Card>
           <EmptyState
@@ -74,15 +65,15 @@ export function StartWorkoutScreen({ navigation }: Props) {
           renderItem={({ item }) => (
             <ListRow
               title={item.name}
-              subtitle={formatDayCountSubtitle(item.dayCount)}
-              showChevron={item.dayCount > 0}
+              subtitle={formatSessionCountSubtitle(item.sessionCount)}
+              showChevron={item.sessionCount > 0}
               left={
                 <IconChip variant="muted" size={40}>
                   <Ionicons name="barbell-outline" size={18} color={tokens.colors.mutedText} />
                 </IconChip>
               }
               onPress={
-                item.dayCount > 0
+                item.sessionCount > 0
                   ? () =>
                     navigation.navigate('WorkoutPlanDetail', {
                       workoutPlanId: item.id,
@@ -93,8 +84,7 @@ export function StartWorkoutScreen({ navigation }: Props) {
             />
           )}
         />
-      )
-      }
-    </Screen >
+      )}
+    </Screen>
   );
 }

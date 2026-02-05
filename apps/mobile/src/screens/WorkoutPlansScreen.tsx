@@ -3,36 +3,45 @@ import { Alert, FlatList, View } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
-
-import { Screen, Card, EmptyState, Input, ListRow, IconChip, Button, IconButton } from '../ui';
+import { Screen, Card, EmptyState, ListRow, IconChip, Button, IconButton, Text } from '../ui';
 import { tokens } from '../theme/tokens';
 import {
   createWorkoutPlan,
   deleteWorkoutPlan,
-  listWorkoutPlansWithDayCounts,
-  type WorkoutPlanWithDayCountRow,
+  listWorkoutPlansWithSessionCounts,
+  type WorkoutPlanWithSessionCountRow,
   listWorkoutPlans,
   type WorkoutPlanRow,
 } from '../db/workoutPlanRepo';
 import type { RootStackParamList } from '../navigation/types';
 
-function formatDayCountSubtitle(dayCount: number): string {
-  if (dayCount === 0) return 'No days yet';
-  if (dayCount === 1) return '1 day';
-  return `${dayCount} days`;
+function formatSessionCountSubtitle(sessionCount: number): string {
+  if (sessionCount === 0) return 'No sessions yet';
+  if (sessionCount === 1) return '1 session';
+  return `${sessionCount} sessions`;
 }
 
+function getNextDefaultPlanName(plans: WorkoutPlanRow[]): string {
+  const maxPlanNumber = plans.reduce((max, plan) => {
+    const match = /^Plan\s+(\d+)$/i.exec(plan.name.trim());
+    if (!match) return max;
 
+    const value = Number(match[1]);
+    if (!Number.isInteger(value)) return max;
+    return Math.max(max, value);
+  }, 0);
+
+  return `Plan ${maxPlanNumber + 1}`;
+}
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
 export function WorkoutPlansScreen() {
   const navigation = useNavigation<Nav>();
 
-  const [workoutPlans, setWorkoutPlans] = useState<WorkoutPlanWithDayCountRow[]>([]);
-  const [name, setName] = useState('');
+  const [workoutPlans, setWorkoutPlans] = useState<WorkoutPlanWithSessionCountRow[]>([]);
 
   const load = useCallback(() => {
-    setWorkoutPlans(listWorkoutPlansWithDayCounts());
+    setWorkoutPlans(listWorkoutPlansWithSessionCounts());
   }, []);
 
   useFocusEffect(
@@ -43,16 +52,16 @@ export function WorkoutPlansScreen() {
 
   const onCreate = () => {
     try {
-      createWorkoutPlan({ name });
-      setName('');
-      load();
+      const defaultName = getNextDefaultPlanName(listWorkoutPlans());
+      const workoutPlanId = createWorkoutPlan({ name: defaultName });
+      navigation.navigate('WorkoutPlanDetail', { workoutPlanId });
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Failed to create workout plan';
       Alert.alert('Error', message);
     }
   };
 
-  const confirmDelete = (plan: WorkoutPlanWithDayCountRow) => {
+  const confirmDelete = (plan: WorkoutPlanWithSessionCountRow) => {
     Alert.alert('Delete workout plan?', `"${plan.name}" will be deleted from this device.`, [
       { text: 'Cancel', style: 'cancel' },
       {
@@ -74,26 +83,22 @@ export function WorkoutPlansScreen() {
         gap: tokens.spacing.lg,
       }}
     >
-      <Card>
-        <View style={{ gap: tokens.spacing.sm }}>
-          <Input
-            label="New workout plan name"
-            maxLength={50}
-            value={name}
-            onChangeText={setName}
-            placeholder="e.g., Push Pull Legs"
-          />
-          <Button title="Build workout plan" onPress={onCreate} disabled={!name.trim()} />
+      <View style={{ flexDirection: 'row', gap: tokens.spacing.sm }}>
+        <View style={{ flex: 1 }}>
+          <Button title="+ Create Plan" onPress={onCreate} />
         </View>
-      </Card>
-
-      <ListRow
-        title="Browse templates"
-        subtitle="Prebuilt plans to customize"
-        onPress={() => navigation.navigate('PrebuiltPlans')}
-      />
-
+        <View style={{ flex: 1 }}>
+          <Button
+            title="Templates"
+            variant="secondary"
+            onPress={() => navigation.navigate('PrebuiltPlans')}
+          />
+        </View>
+      </View>
       <View style={{ gap: tokens.spacing.sm }}>
+        <Text variant="label" color={tokens.colors.mutedText}>
+          MY PLANS
+        </Text>
         <FlatList
           data={workoutPlans}
           keyExtractor={(p) => p.id}
@@ -108,28 +113,35 @@ export function WorkoutPlansScreen() {
               />
             </Card>
           }
-          renderItem={({ item }) => (
-            <ListRow
-              title={item.name}
-              subtitle={formatDayCountSubtitle(item.dayCount)}
-              showChevron
-              left={
-                <IconChip variant="muted" size={40}>
-                  <Ionicons name="barbell-outline" size={18} color={tokens.colors.mutedText} />
-                </IconChip>
-              }
-              onPress={() => navigation.navigate('WorkoutPlanDetail', { workoutPlanId: item.id })}
-              right={
-                <IconButton
-                  onPress={() => confirmDelete(item)}
+          renderItem={({ item }) => {
+            const hasSessions = item.sessionCount > 0;
 
-                  accessibilityLabel="Delete workout plan"
-                  variant="danger"
-                  icon={<Ionicons name="trash-outline" size={20} />}
-                />
-              }
-            />
-          )}
+            return (
+              <ListRow
+                title={item.name}
+                subtitle={formatSessionCountSubtitle(item.sessionCount)}
+                showChevron={hasSessions}
+                left={
+                  <IconChip variant="muted" size={40}>
+                    <Ionicons name="barbell-outline" size={18} color={tokens.colors.mutedText} />
+                  </IconChip>
+                }
+                onPress={
+                  hasSessions
+                    ? () => navigation.navigate('WorkoutPlanDetail', { workoutPlanId: item.id })
+                    : undefined
+                }
+                right={
+                  <IconButton
+                    onPress={() => confirmDelete(item)}
+                    accessibilityLabel="Delete workout plan"
+                    variant="danger"
+                    icon={<Ionicons name="trash-outline" size={20} />}
+                  />
+                }
+              />
+            );
+          }}
         />
       </View>
     </Screen>

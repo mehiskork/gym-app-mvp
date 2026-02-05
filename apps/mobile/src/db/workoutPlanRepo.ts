@@ -9,10 +9,9 @@ export type WorkoutPlanRow = {
   is_template: number;
 };
 
-export type WorkoutPlanWithDayCountRow = WorkoutPlanRow & {
-  dayCount: number;
+export type WorkoutPlanWithSessionCountRow = WorkoutPlanRow & {
+  sessionCount: number;
 };
-
 
 export type WorkoutPlanDayRow = {
   id: string;
@@ -83,15 +82,15 @@ export function listWorkoutPlans(): WorkoutPlanRow[] {
   );
 }
 
-export function listWorkoutPlansWithDayCounts(): WorkoutPlanWithDayCountRow[] {
-  return query<WorkoutPlanWithDayCountRow>(
+export function listWorkoutPlansWithSessionCounts(): WorkoutPlanWithSessionCountRow[] {
+  return query<WorkoutPlanWithSessionCountRow>(
     `
     SELECT
       p.id,
       p.name,
       p.description,
       p.is_template,
-      COUNT(DISTINCT d.id) AS dayCount
+       COUNT(DISTINCT d.id) AS sessionCount
     FROM program p
     LEFT JOIN program_week w
       ON w.program_id = p.id
@@ -108,6 +107,19 @@ export function listWorkoutPlansWithDayCounts(): WorkoutPlanWithDayCountRow[] {
   );
 }
 
+export function updateWorkoutPlanName(workoutPlanId: string, name: string) {
+  const trimmedName = name.trim();
+  if (!trimmedName) throw new Error('Workout plan name is required');
+
+  exec(
+    `
+    UPDATE program
+    SET name = ?, updated_at = datetime('now')
+    WHERE id = ? AND deleted_at IS NULL;
+  `,
+    [trimmedName, workoutPlanId],
+  );
+}
 
 export function getWorkoutPlanById(id: string): WorkoutPlanRow | null {
   const rows = query<WorkoutPlanRow>(

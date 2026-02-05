@@ -54,6 +54,7 @@ jest.mock('../../db/workoutPlanRepo', () => ({
     deleteWorkoutPlan: jest.fn(),
     getWorkoutPlanById: jest.fn(),
     listDaysForWorkoutPlan: jest.fn(),
+    updateWorkoutPlanName: jest.fn(),
 }));
 jest.mock('../../db/workoutSessionRepo', () => ({
     createSessionFromPlanDay: jest.fn(),
@@ -61,9 +62,11 @@ jest.mock('../../db/workoutSessionRepo', () => ({
 }));
 import React from 'react';
 
-import { EmptyState, ListRow } from '../../ui';
+import { EmptyState, Input, ListRow } from '../../ui';
 import { WorkoutPlanDetailScreen } from '../WorkoutPlanDetailScreen';
 import { createSessionFromPlanDay, getInProgressSession } from '../../db/workoutSessionRepo';
+import { updateWorkoutPlanName } from '../../db/workoutPlanRepo';
+
 type Nav = {
     navigate: jest.Mock;
     goBack: jest.Mock;
@@ -94,14 +97,16 @@ describe('WorkoutPlanDetailScreen', () => {
         useStateMock.mockReset();
         (createSessionFromPlanDay as jest.Mock).mockReset();
         (getInProgressSession as jest.Mock).mockReset();
+        (updateWorkoutPlanName as jest.Mock).mockReset();
     });
 
-    it('renders day rows when days exist', () => {
+    it('renders plan name input and day rows when days exist', () => {
         const plan = { id: 'plan-1', name: 'Strength Plan', description: null, is_template: 0 };
         const days = [{ id: 'day-1', name: 'Day 1', day_index: 1 }];
 
         useStateMock.mockImplementationOnce(() => [plan, jest.fn()]);
         useStateMock.mockImplementationOnce(() => [days, jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [plan.name, jest.fn()]);
 
         const navigation: Nav = { navigate: jest.fn(), goBack: jest.fn(), replace: jest.fn() };
         const element = WorkoutPlanDetailScreen({
@@ -113,10 +118,40 @@ describe('WorkoutPlanDetailScreen', () => {
             },
         } as never);
 
+        type InputProps = React.ComponentProps<typeof Input>;
+        const inputs = findElementsByType<InputProps>(element, Input);
+        expect(inputs[0]?.props.label).toBe('Plan name');
+
         type ListRowProps = React.ComponentProps<typeof ListRow>;
         const rows = findElementsByType<ListRowProps>(element, ListRow);
-
         expect(rows[0]?.props.title).toBe('Day 1');
+    });
+
+    it('persists plan name edits from the inline input on blur', () => {
+        const plan = { id: 'plan-1', name: 'Strength Plan', description: null, is_template: 0 };
+
+        useStateMock.mockImplementationOnce(() => [plan, jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [[], jest.fn()]);
+        useStateMock.mockImplementationOnce(() => ['Renamed Plan', jest.fn()]);
+
+        const navigation: Nav = { navigate: jest.fn(), goBack: jest.fn(), replace: jest.fn() };
+        const element = WorkoutPlanDetailScreen({
+            navigation,
+            route: {
+                key: 'WorkoutPlanDetail',
+                name: 'WorkoutPlanDetail',
+                params: { workoutPlanId: 'plan-1' },
+            },
+        } as never);
+
+        type InputProps = React.ComponentProps<typeof Input>;
+        const inputs = findElementsByType<InputProps>(element, Input);
+        const planNameInput = inputs[0];
+        if (!planNameInput?.props.onBlur) throw new Error('Expected plan name Input onBlur.');
+
+        planNameInput.props.onBlur({} as never);
+
+        expect(updateWorkoutPlanName).toHaveBeenCalledWith('plan-1', 'Renamed Plan');
     });
 
     it('navigates to day detail when a day row is pressed', () => {
@@ -125,6 +160,7 @@ describe('WorkoutPlanDetailScreen', () => {
 
         useStateMock.mockImplementationOnce(() => [plan, jest.fn()]);
         useStateMock.mockImplementationOnce(() => [days, jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [plan.name, jest.fn()]);
 
         const navigation: Nav = { navigate: jest.fn(), goBack: jest.fn(), replace: jest.fn() };
         const element = WorkoutPlanDetailScreen({
@@ -139,13 +175,9 @@ describe('WorkoutPlanDetailScreen', () => {
         type ListRowProps = React.ComponentProps<typeof ListRow>;
         const rows = findElementsByType<ListRowProps>(element, ListRow);
         const firstRow = rows[0];
-
-        if (!firstRow?.props.onPress) {
-            throw new Error('Expected day row to have onPress.');
-        }
+        if (!firstRow?.props.onPress) throw new Error('Expected day row to have onPress.');
 
         firstRow.props.onPress({} as never);
-
         expect(navigation.navigate).toHaveBeenCalledWith('DayDetail', { dayId: 'day-1' });
     });
 
@@ -154,6 +186,7 @@ describe('WorkoutPlanDetailScreen', () => {
 
         useStateMock.mockImplementationOnce(() => [plan, jest.fn()]);
         useStateMock.mockImplementationOnce(() => [[], jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [plan.name, jest.fn()]);
 
         const navigation: Nav = { navigate: jest.fn(), goBack: jest.fn(), replace: jest.fn() };
         const element = WorkoutPlanDetailScreen({
@@ -167,15 +200,16 @@ describe('WorkoutPlanDetailScreen', () => {
 
         type EmptyStateProps = React.ComponentProps<typeof EmptyState>;
         const emptyStates = findElementsByType<EmptyStateProps>(element, EmptyState);
-
         expect(emptyStates[0]?.props.title).toBe('No days yet');
     });
+
     it('starts a session and navigates to workout session in picker mode', () => {
         const plan = { id: 'plan-1', name: 'Strength Plan', description: null, is_template: 0 };
         const days = [{ id: 'day-1', name: 'Day 1', day_index: 1 }];
 
         useStateMock.mockImplementationOnce(() => [plan, jest.fn()]);
         useStateMock.mockImplementationOnce(() => [days, jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [plan.name, jest.fn()]);
 
         (getInProgressSession as jest.Mock).mockReturnValue(null);
         (createSessionFromPlanDay as jest.Mock).mockReturnValue('session-1');
@@ -193,10 +227,7 @@ describe('WorkoutPlanDetailScreen', () => {
         type ListRowProps = React.ComponentProps<typeof ListRow>;
         const rows = findElementsByType<ListRowProps>(element, ListRow);
         const firstRow = rows[0];
-
-        if (!firstRow?.props.onPress) {
-            throw new Error('Expected day row to have onPress.');
-        }
+        if (!firstRow?.props.onPress) throw new Error('Expected day row to have onPress.');
 
         firstRow.props.onPress({} as never);
 
@@ -215,6 +246,7 @@ describe('WorkoutPlanDetailScreen', () => {
 
         useStateMock.mockImplementationOnce(() => [plan, jest.fn()]);
         useStateMock.mockImplementationOnce(() => [days, jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [plan.name, jest.fn()]);
 
         (getInProgressSession as jest.Mock).mockReturnValue({ id: 'session-99' });
 
@@ -231,10 +263,7 @@ describe('WorkoutPlanDetailScreen', () => {
         type ListRowProps = React.ComponentProps<typeof ListRow>;
         const rows = findElementsByType<ListRowProps>(element, ListRow);
         const firstRow = rows[0];
-
-        if (!firstRow?.props.onPress) {
-            throw new Error('Expected day row to have onPress.');
-        }
+        if (!firstRow?.props.onPress) throw new Error('Expected day row to have onPress.');
 
         firstRow.props.onPress({} as never);
 
