@@ -95,6 +95,53 @@ class SyncControllerValidationIT {
                 .andExpect(jsonPath("$.details.opId").value("op-2"));
     }
 
+       @Test
+    void deleteWithSqliteDeletedAtIsAccepted() throws Exception {
+        String token = seedDeviceAndToken("device-delete-sqlite");
+        String payload = """
+                {"cursor":null,"ops":[{"opId":"op-4","entityType":"program","entityId":"program-4","opType":"delete","payload":{"deleted_at":"2026-02-13 12:34:56"}}]}
+                """;
+
+        mockMvc.perform(post("/sync")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", "Bearer " + token)
+                .content(payload))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.acks[0].opId").value("op-4"));
+    }
+
+    @Test
+    void upsertWithInvalidUpdatedAtReturnsValidationError() throws Exception {
+        String token = seedDeviceAndToken("device-upsert-invalid-updated-at");
+        String payload = """
+                {"cursor":null,"ops":[{"opId":"op-5","entityType":"program","entityId":"program-5","opType":"upsert","payload":{"updated_at":"not-a-timestamp"}}]}
+                """;
+
+        mockMvc.perform(post("/sync")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", "Bearer " + token)
+                .content(payload))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("SYNC_VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.details.opId").value("op-5"))
+                .andExpect(jsonPath("$.details.field").value("updated_at"));
+    }
+
+    @Test
+    void upsertWithSqliteUpdatedAtIsAccepted() throws Exception {
+        String token = seedDeviceAndToken("device-upsert-sqlite-updated-at");
+        String payload = """
+                {"cursor":null,"ops":[{"opId":"op-6","entityType":"program","entityId":"program-6","opType":"upsert","payload":{"updated_at":"2026-02-13 12:34:56"}}]}
+                """;
+
+        mockMvc.perform(post("/sync")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", "Bearer " + token)
+                .content(payload))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.acks[0].opId").value("op-6"));
+    }
+
     @Test
     void unsupportedEntityTypeReturnsValidationError() throws Exception {
         String token = seedDeviceAndToken("device-entity-unsupported");

@@ -535,6 +535,8 @@ public class SyncService {
                 }
                 if (normalizedOpType.equals("delete")) {
                         validateDeletePayload(op);
+                } else {
+                        validateUpsertPayload(op);
                 }
         }
 
@@ -548,12 +550,36 @@ public class SyncService {
                                         "Invalid sync operation",
                                         buildDetails(op, "deleted_at", "deleted_at is required for delete"));
                 }
-                try {
-                        Instant.parse(deletedAt.toString());
-                } catch (Exception ex) {
+                Instant parsedDeletedAt = parseInstant(op.payload(), "deleted_at", "deletedAt");
+                if (parsedDeletedAt == null) {
                         throw new ValidationException(
                                         "Invalid sync operation",
-                                        buildDetails(op, "deleted_at", "deleted_at must be ISO-8601"));
+                                        buildDetails(op, "deleted_at",
+                                                        "deleted_at must be an ISO-8601 or SQLite timestamp"));
+                }
+        }
+
+        private void validateUpsertPayload(SyncOp op) {
+                Object updatedAt = op.payload().get("updated_at");
+                if (updatedAt == null) {
+                        updatedAt = op.payload().get("updatedAt");
+                }
+                if (updatedAt != null && parseInstant(op.payload(), "updated_at", "updatedAt") == null) {
+                        throw new ValidationException(
+                                        "Invalid sync operation",
+                                        buildDetails(op, "updated_at",
+                                                        "updated_at must be an ISO-8601 or SQLite timestamp"));
+                }
+
+                Object deletedAt = op.payload().get("deleted_at");
+                if (deletedAt == null) {
+                        deletedAt = op.payload().get("deletedAt");
+                }
+                if (deletedAt != null && parseInstant(op.payload(), "deleted_at", "deletedAt") == null) {
+                        throw new ValidationException(
+                                        "Invalid sync operation",
+                                        buildDetails(op, "deleted_at",
+                                                        "deleted_at must be an ISO-8601 or SQLite timestamp"));
                 }
         }
 
