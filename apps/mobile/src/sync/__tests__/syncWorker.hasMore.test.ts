@@ -51,60 +51,55 @@ jest.mock('../../utils/logger', () => ({
 }));
 
 jest.mock('../applyDeltas', () => ({
-    applyDeltas: jest.fn(() => ({ applied: 1, skipped: 0, total: 1 })),
+    applyDeltas: jest.fn((deltas) => ({ applied: deltas.length, skipped: 0, total: deltas.length })),
 }));
 
-describe('syncNow continuation', () => {
+describe('syncNow hasMore paging loop', () => {
     beforeEach(() => {
         mockSyncState = { cursor: '0', backoff_until: null, consecutive_failures: 0 };
         process.env.EXPO_PUBLIC_API_BASE_URL = 'https://example.test';
-        jest.useFakeTimers();
     });
 
     afterEach(() => {
-        jest.useRealTimers();
         jest.resetAllMocks();
     });
 
-    it('continues syncing when hasMore is true', async () => {
-        const page1Deltas = Array.from({ length: 1000 }, (_, index) => ({
-            entityType: 'exercise',
-            entityId: `exercise-${index}`,
-            opType: 'upsert',
-            payload: {},
-        }));
-        const page2Deltas = Array.from({ length: 500 }, (_, index) => ({
-            entityType: 'exercise',
-            entityId: `exercise-${index + 1000}`,
-            opType: 'upsert',
-            payload: {},
-        }));
+    it('pages pull-only requests in-order until hasMore is false and advances cursor each page', async () => {
+        const pages = [
+            {
+                cursor: '1000',
+                hasMore: true,
+                deltas: [{ entityType: 'exercise', entityId: '1', opType: 'upsert', payload: {} }],
+            },
+            {
+                cursor: '2000',
+                hasMore: true,
+                deltas: [{ entityType: 'exercise', entityId: '2', opType: 'upsert', payload: {} }],
+            },
+            {
+                cursor: '3000',
+                hasMore: false,
+                deltas: [{ entityType: 'exercise', entityId: '3', opType: 'upsert', payload: {} }],
+            },
+        ];
 
         const fetchMock = jest.fn();
-        fetchMock
-            .mockResolvedValueOnce({
+        pages.forEach((page) => {
+            fetchMock.mockResolvedValueOnce({
                 ok: true,
                 status: 200,
                 json: async () => ({
                     acks: [],
-                    deltas: page1Deltas,
-                    cursor: '1000',
-                    hasMore: true,
-                }),
-            })
-            .mockResolvedValueOnce({
-                ok: true,
-                status: 200,
-                json: async () => ({
-                    acks: [],
-                    deltas: page2Deltas,
-                    cursor: '1500',
-                    hasMore: false,
+                    deltas: page.deltas,
+                    cursor: page.cursor,
+                    hasMore: page.hasMore,
                 }),
             });
+        });
+
         global.fetch = fetchMock as unknown as typeof fetch;
 
-        const claimedOps = [
+        (claimOutboxOps as jest.Mock).mockReturnValue([
             {
                 op_id: 'op-1',
                 device_id: 'device-1',
@@ -115,17 +110,29 @@ describe('syncNow continuation', () => {
                 payload_json: JSON.stringify({ name: 'Bench' }),
                 attempt_count: 0,
             },
-        ];
-        (claimOutboxOps as jest.Mock).mockReturnValue(claimedOps);
+        ]);
 
         await syncNow();
-        await jest.runAllTimersAsync();
 
-        expect(fetchMock).toHaveBeenCalledTimes(2);
-        const secondCallBody = JSON.parse(fetchMock.mock.calls[1][1].body as string);
-        expect(secondCallBody.ops).toEqual([]);
-        expect((applyDeltas as jest.Mock).mock.calls).toHaveLength(2);
-        expect(getSyncState().cursor).toBe('1500');
-        expect(updateSyncState).toHaveBeenCalled();
+        expect(fetchMock).toHaveBeenCalledTimes(3);
+        expect(claimOutboxOps).toHaveBeenCalledTimes(1);
+
+        const requestBodies = fetchMock.mock.calls.map((call) => JSON.parse(call[1].body as string));
+        expect(requestBodies[0].cursor).toBe('0');
+        expect(requestBodies[1].cursor).toBe('1000');
+        expect(requestBodies[2].cursor).toBe('2000');
+
+        expect(requestBodies[0].ops.length).toBe(1);
+        expect(requestBodies[1].ops).toEqual([]);
+        expect(requestBodies[2].ops).toEqual([]);
+
+        const cursorUpdates = (updateSyncState as jest.Mock).mock.calls
+            .map((call) => call[0])
+            .filter((update) => update.cursor)
+            .map((update) => update.cursor);
+
+        expect(cursorUpdates).toEqual(['1000', '2000', '3000']);
+        expect((applyDeltas as jest.Mock).mock.calls).toHaveLength(3);
+        expect(getSyncState().cursor).toBe('3000');
     });
 });

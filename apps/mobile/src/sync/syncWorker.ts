@@ -98,7 +98,7 @@ export async function registerDeviceIfNeeded(): Promise<void> {
 }
 
 const MAX_CONTINUATION_PAGES = 10;
-const CONTINUATION_DELAY_MS = 0;
+let inFlightSync: Promise<void> | null = null;
 
 type SyncNowOptions = {
   force?: boolean;
@@ -109,9 +109,56 @@ type SyncNowOptions = {
 export async function syncNow(): Promise<void>;
 export async function syncNow(options?: SyncNowOptions): Promise<void>;
 export async function syncNow(options: SyncNowOptions = {}): Promise<void> {
+  if (inFlightSync) {
+    return inFlightSync;
+  }
+
+  const run = runSyncChain(options).finally(() => {
+    if (inFlightSync === run) {
+      inFlightSync = null;
+    }
+  });
+
+  inFlightSync = run;
+  return run;
+}
+
+async function runSyncChain(options: SyncNowOptions): Promise<void> {
+  let continuationDepth = options.continuationDepth ?? 0;
+  let runOptions = options;
+
+  while (true) {
+    const hasMore = await runSyncPage(runOptions);
+
+    if (!hasMore) {
+      return;
+    }
+
+    if (continuationDepth >= MAX_CONTINUATION_PAGES) {
+      logEvent('warn', 'sync', 'Sync continuation limit reached', {
+        continuationDepth,
+        maxContinuationPages: MAX_CONTINUATION_PAGES,
+      });
+      return;
+    }
+
+    continuationDepth += 1;
+    logEvent('info', 'sync', 'Sync continuation paging', {
+      continuationDepth,
+    });
+
+    runOptions = {
+      force: true,
+      pullOnly: true,
+      continuationDepth,
+    };
+  }
+}
+
+async function runSyncPage(options: SyncNowOptions): Promise<boolean> {
   if (isSyncPaused()) {
     logEvent('info', 'sync', 'Sync paused', { reason: 'claim' });
-    return;
+    return false;
   }
 
   // Offline-first invariants:
@@ -123,24 +170,23 @@ export async function syncNow(options: SyncNowOptions = {}): Promise<void> {
 
   if (!baseUrl) {
     updateSyncState({ last_error: 'Sync base URL not configured.' });
-    return;
+    return false;
   }
 
   if (!options.force && syncState.backoff_until) {
     const backoffTime = Date.parse(syncState.backoff_until);
     if (!Number.isNaN(backoffTime) && backoffTime > Date.now()) {
-      return;
+      return false;
     }
   }
 
   const token = getDeviceToken();
   if (!token) {
     updateSyncState({ last_error: 'Device not registered (missing token).' });
-    return;
+    return false;
   }
 
   repairStaleInFlightOps(OUTBOX_STALE_IN_FLIGHT_SECONDS);
-  const continuationDepth = options.continuationDepth ?? 0;
   const ops = options.pullOnly ? [] : claimOutboxOps(SYNC_BATCH_LIMIT);
   const cursor = syncState.cursor;
   const runId = createSyncRun({ cursorBefore: cursor });
@@ -154,6 +200,7 @@ export async function syncNow(options: SyncNowOptions = {}): Promise<void> {
   let errorMessage: string | null = null;
   let backoffSeconds: number | null = null;
   let status: 'success' | 'failed' = 'failed';
+  let hasMore = false;
 
   try {
     const response = await fetch(`${baseUrl}/sync`, {
@@ -252,26 +299,7 @@ export async function syncNow(options: SyncNowOptions = {}): Promise<void> {
       });
     }
 
-    if (data.hasMore === true) {
-      if (continuationDepth >= MAX_CONTINUATION_PAGES) {
-        logEvent('warn', 'sync', 'Sync continuation limit reached', {
-          continuationDepth,
-          maxContinuationPages: MAX_CONTINUATION_PAGES,
-        });
-      } else {
-        logEvent('info', 'sync', 'Sync continuation scheduled', {
-          continuationDepth: continuationDepth + 1,
-          cursorAfter,
-        });
-        setTimeout(() => {
-          void syncNow({
-            force: true,
-            pullOnly: true,
-            continuationDepth: continuationDepth + 1,
-          });
-        }, CONTINUATION_DELAY_MS);
-      }
-    }
+    hasMore = data.hasMore === true;
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     const nextFailureCount = (syncState.consecutive_failures ?? 0) + 1;
@@ -307,4 +335,5 @@ export async function syncNow(options: SyncNowOptions = {}): Promise<void> {
       backoffSeconds,
     });
   }
+  return hasMore;
 }

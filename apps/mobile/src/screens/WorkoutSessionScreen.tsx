@@ -79,7 +79,7 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
     navigation.dispatch(
       CommonActions.reset({
         index: 0,
-        routes: [{ name: 'MainTabs', params: { screen: 'Today' } }],
+        routes: [{ name: 'MainTabs', params: { screen: 'Home' } }],
       }),
     );
   }, [navigation]);
