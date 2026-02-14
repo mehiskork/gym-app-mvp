@@ -391,6 +391,32 @@ function isForeignKeyError(err: unknown): boolean {
     return err.message.toLowerCase().includes('foreign key');
 }
 
+function getExistingInProgressSessionId(): string | null {
+    const row = query<{ id: string }>(
+        "SELECT id FROM workout_session WHERE status = 'IN_PROGRESS' LIMIT 1;",
+    )[0];
+    return row?.id ?? null;
+}
+
+function shouldSkipInProgressConflict(delta: SyncDelta, payload: Record<string, unknown>): boolean {
+    if (delta.entityType !== 'workout_session') return false;
+    if (delta.opType.toLowerCase() !== 'upsert') return false;
+    if (payload.status !== 'IN_PROGRESS') return false;
+
+    const localInProgressId = getExistingInProgressSessionId();
+    if (!localInProgressId) return false;
+
+    const incomingId = String(payload.id ?? delta.entityId);
+    if (localInProgressId === incomingId) return false;
+
+    logEvent('warn', 'sync', 'sync_delta_skipped_in_progress_conflict', {
+        localInProgressId,
+        incomingId,
+        incomingUpdatedAt: parseUpdatedAt(payload),
+    });
+    return true;
+}
+
 function applyDelta(delta: SyncDelta): DeltaOutcome {
     const config = tableConfigs[delta.entityType];
     if (!config) {
@@ -403,6 +429,11 @@ function applyDelta(delta: SyncDelta): DeltaOutcome {
     }
 
     const payload = normalizePayload(delta.payload, delta.entityId, config);
+    if (shouldSkipInProgressConflict(delta, payload)) {
+        return 'skipped';
+    }
+
+
     const localRow = fetchLocalRow(config, String(payload[config.primaryKey]));
 
     if (shouldSkipDelta(config, localRow, payload)) {
