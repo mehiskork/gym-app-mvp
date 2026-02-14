@@ -37,108 +37,169 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @Testcontainers
 class RateLimitIntegrationTest {
 
-    @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:15")
-            .withDatabaseName("testdb")
-            .withUsername("test")
-            .withPassword("test");
+        @Container
+        static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:15")
+                        .withDatabaseName("testdb")
+                        .withUsername("test")
+                        .withPassword("test");
 
-    @DynamicPropertySource
-    static void configureProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", postgres::getJdbcUrl);
-        registry.add("spring.datasource.username", postgres::getUsername);
-        registry.add("spring.datasource.password", postgres::getPassword);
-        registry.add("spring.flyway.enabled", () -> "true");
-        registry.add("rateLimit.sync.capacity", () -> "2");
-        registry.add("rateLimit.sync.refillPerSecond", () -> "0");
-        registry.add("rateLimit.register.capacity", () -> "2");
-        registry.add("rateLimit.register.refillPerSecond", () -> "0");
-    }
+        @DynamicPropertySource
+        static void configureProperties(DynamicPropertyRegistry registry) {
+                registry.add("spring.datasource.url", postgres::getJdbcUrl);
+                registry.add("spring.datasource.username", postgres::getUsername);
+                registry.add("spring.datasource.password", postgres::getPassword);
+                registry.add("spring.flyway.enabled", () -> "true");
+                registry.add("rateLimit.sync.capacity", () -> "2");
+                registry.add("rateLimit.sync.refillPerSecond", () -> "0");
+                registry.add("rateLimit.register.capacity", () -> "2");
+                registry.add("rateLimit.register.refillPerSecond", () -> "0");
+        }
 
-    @Autowired
-    private MockMvc mockMvc;
+        @Autowired
+        private MockMvc mockMvc;
 
-    @Autowired
-    private JdbcTemplate jdbcTemplate;
+        @Autowired
+        private JdbcTemplate jdbcTemplate;
 
-    @Autowired
-    private PasswordEncoder passwordEncoder;
+        @Autowired
+        private PasswordEncoder passwordEncoder;
 
-    @Autowired
-    private DataSource dataSource;
+        @Autowired
+        private DataSource dataSource;
 
-    @MockitoBean
-    private SyncService syncService;
+        @MockitoBean
+        private SyncService syncService;
 
-    @BeforeEach
-    void migrateSchema() {
-        Flyway.configure()
-                .dataSource(dataSource)
-                .load()
-                .migrate();
-    }
+        @BeforeEach
+        void migrateSchema() {
+                Flyway.configure()
+                                .dataSource(dataSource)
+                                .load()
+                                .migrate();
+        }
 
-    @Test
-    void registerIsRateLimitedByRemoteAddress() throws Exception {
-        String requestBody = "{\"deviceId\":\"rate-limit-device\",\"deviceSecret\":\"secret\"}";
-        MockHttpServletRequestBuilder request = post("/device/register")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(requestBody)
-                .with(req -> {
-                    req.setRemoteAddr("10.10.10.10");
-                    return req;
-                });
+        @Test
+        void registerIsRateLimitedByRemoteAddress() throws Exception {
+                String requestBody = "{\"deviceId\":\"rate-limit-device\",\"deviceSecret\":\"secret\"}";
+                MockHttpServletRequestBuilder request = post("/device/register")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(requestBody)
+                                .with(req -> {
+                                        req.setRemoteAddr("10.10.10.10");
+                                        return req;
+                                });
 
-        mockMvc.perform(request).andExpect(status().isOk());
-        mockMvc.perform(request).andExpect(status().isOk());
-        mockMvc.perform(request)
-                .andExpect(status().isTooManyRequests())
-                .andExpect(jsonPath("$.code").value("RATE_LIMITED"));
-    }
+                mockMvc.perform(request).andExpect(status().isOk());
+                mockMvc.perform(request).andExpect(status().isOk());
+                mockMvc.perform(request)
+                                .andExpect(status().isTooManyRequests())
+                                .andExpect(jsonPath("$.code").value("RATE_LIMITED"));
+        }
 
-    @Test
-    void syncIsRateLimitedByDeviceId() throws Exception {
-        String deviceId = "rate-limit-device-sync";
-        String token = seedDeviceAndToken(deviceId);
-        when(syncService.sync(eq(deviceId), eq("guest-" + deviceId), any(), any()))
-                .thenReturn(new SyncResponse(List.of(), null, List.of(), false));
+        @Test
+        void syncWithInvalidTokenIsRateLimitedByRemoteAddress() throws Exception {
+                MockHttpServletRequestBuilder request = post("/sync")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .header("Authorization", "Bearer invalid-token")
+                                .content("{\"cursor\":null,\"ops\":[]}")
+                                .with(req -> {
+                                        req.setRemoteAddr("10.10.10.11");
+                                        return req;
+                                });
 
-        MockHttpServletRequestBuilder request = post("/sync")
-                .contentType(MediaType.APPLICATION_JSON)
-                .header("Authorization", "Bearer " + token)
-                .content("{\"cursor\":null,\"ops\":[]}");
+                mockMvc.perform(request)
+                                .andExpect(status().isUnauthorized())
+                                .andExpect(jsonPath("$.code").value("AUTH_INVALID_TOKEN"));
+                mockMvc.perform(request)
+                                .andExpect(status().isUnauthorized())
+                                .andExpect(jsonPath("$.code").value("AUTH_INVALID_TOKEN"));
+                mockMvc.perform(request)
+                                .andExpect(status().isTooManyRequests())
+                                .andExpect(jsonPath("$.code").value("RATE_LIMITED"));
+        }
 
-        mockMvc.perform(request).andExpect(status().isOk());
-        mockMvc.perform(request).andExpect(status().isOk());
-        mockMvc.perform(request)
-                .andExpect(status().isTooManyRequests())
-                .andExpect(jsonPath("$.code").value("RATE_LIMITED"));
-    }
+        @Test
+        void syncIsRateLimitedByDeviceId() throws Exception {
+                String deviceId = "rate-limit-device-sync";
+                String token = seedDeviceAndToken(deviceId);
+                when(syncService.sync(eq(deviceId), eq("guest-" + deviceId), any(), any()))
+                                .thenReturn(new SyncResponse(List.of(), null, List.of(), false));
 
-    private String seedDeviceAndToken(String deviceId) {
-        String guestUserId = "guest-" + deviceId;
-        String rawToken = "token-" + deviceId;
-        insertDevice(deviceId, guestUserId);
-        insertToken(rawToken, deviceId, Instant.now().plusSeconds(3600));
-        return rawToken;
-    }
+                MockHttpServletRequestBuilder request = post("/sync")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .header("Authorization", "Bearer " + token)
+                                .content("{\"cursor\":null,\"ops\":[]}");
 
-    private void insertDevice(String deviceId, String guestUserId) {
-        String secretHash = passwordEncoder.encode("secret");
-        jdbcTemplate.update(
-                "INSERT INTO device (device_id, secret_hash, guest_user_id) VALUES (?, ?, ?)",
-                deviceId,
-                secretHash,
-                guestUserId);
-    }
+                mockMvc.perform(request).andExpect(status().isOk());
+                mockMvc.perform(request).andExpect(status().isOk());
+                mockMvc.perform(request)
+                                .andExpect(status().isTooManyRequests())
+                                .andExpect(jsonPath("$.code").value("RATE_LIMITED"));
+        }
 
-    private void insertToken(String rawToken, String deviceId, Instant expiresAt) {
-        String tokenHash = passwordEncoder.encode(rawToken);
-        OffsetDateTime expiresAtValue = OffsetDateTime.ofInstant(expiresAt, ZoneOffset.UTC);
-        jdbcTemplate.update(
-                "INSERT INTO device_token (token_hash, device_id, expires_at) VALUES (?, ?, ?)",
-                tokenHash,
-                deviceId,
-                expiresAtValue);
-    }
+        @Test
+        void syncIsStillRateLimitedByDeviceAcrossDifferentRemoteAddresses() throws Exception {
+                String deviceId = "rate-limit-device-by-device";
+                String token = seedDeviceAndToken(deviceId);
+                when(syncService.sync(eq(deviceId), eq("guest-" + deviceId), any(), any()))
+                                .thenReturn(new SyncResponse(List.of(), null, List.of(), false));
+
+                mockMvc.perform(post("/sync")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .header("Authorization", "Bearer " + token)
+                                .content("{\"cursor\":null,\"ops\":[]}")
+                                .with(req -> {
+                                        req.setRemoteAddr("10.10.10.21");
+                                        return req;
+                                }))
+                                .andExpect(status().isOk());
+
+                mockMvc.perform(post("/sync")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .header("Authorization", "Bearer " + token)
+                                .content("{\"cursor\":null,\"ops\":[]}")
+                                .with(req -> {
+                                        req.setRemoteAddr("10.10.10.22");
+                                        return req;
+                                }))
+                                .andExpect(status().isOk());
+
+                mockMvc.perform(post("/sync")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .header("Authorization", "Bearer " + token)
+                                .content("{\"cursor\":null,\"ops\":[]}")
+                                .with(req -> {
+                                        req.setRemoteAddr("10.10.10.23");
+                                        return req;
+                                }))
+                                .andExpect(status().isTooManyRequests())
+                                .andExpect(jsonPath("$.code").value("RATE_LIMITED"));
+        }
+
+        private String seedDeviceAndToken(String deviceId) {
+                String guestUserId = "guest-" + deviceId;
+                String rawToken = "token-" + deviceId;
+                insertDevice(deviceId, guestUserId);
+                insertToken(rawToken, deviceId, Instant.now().plusSeconds(3600));
+                return rawToken;
+        }
+
+        private void insertDevice(String deviceId, String guestUserId) {
+                String secretHash = passwordEncoder.encode("secret");
+                jdbcTemplate.update(
+                                "INSERT INTO device (device_id, secret_hash, guest_user_id) VALUES (?, ?, ?)",
+                                deviceId,
+                                secretHash,
+                                guestUserId);
+        }
+
+        private void insertToken(String rawToken, String deviceId, Instant expiresAt) {
+                String tokenHash = passwordEncoder.encode(rawToken);
+                OffsetDateTime expiresAtValue = OffsetDateTime.ofInstant(expiresAt, ZoneOffset.UTC);
+                jdbcTemplate.update(
+                                "INSERT INTO device_token (token_hash, device_id, expires_at) VALUES (?, ?, ?)",
+                                tokenHash,
+                                deviceId,
+                                expiresAtValue);
+        }
 }

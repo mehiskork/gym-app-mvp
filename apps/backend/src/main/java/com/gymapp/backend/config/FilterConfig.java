@@ -1,6 +1,7 @@
 package com.gymapp.backend.config;
 
 import tools.jackson.databind.ObjectMapper;
+import com.gymapp.backend.repository.DeviceTokenRepository;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -16,8 +17,9 @@ public class FilterConfig {
     }
 
     @Bean
-    public com.gymapp.backend.config.RateLimitFilter rateLimitFilter(ObjectMapper objectMapper) {
-        return new com.gymapp.backend.config.RateLimitFilter(objectMapper);
+    public com.gymapp.backend.config.RateLimitFilter rateLimitFilter(
+            ObjectMapper objectMapper, DeviceTokenRepository deviceTokenRepository) {
+        return new com.gymapp.backend.config.RateLimitFilter(objectMapper, deviceTokenRepository);
     }
 
     @Bean

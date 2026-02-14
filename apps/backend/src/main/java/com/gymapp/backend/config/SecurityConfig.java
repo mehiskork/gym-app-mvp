@@ -41,7 +41,7 @@ public class SecurityConfig {
                         .requestMatchers("/claim/start").hasRole("DEVICE")
                         .anyRequest().denyAll())
                 .addFilterBefore(bearerFilter, UsernamePasswordAuthenticationFilter.class)
-                .addFilterAfter(rateLimitFilter, BearerDeviceAuthFilter.class)
+                .addFilterBefore(rateLimitFilter, BearerDeviceAuthFilter.class)
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint((req, res, e) -> writeError(res, objectMapper,
                                 HttpStatus.UNAUTHORIZED, "AUTH_UNAUTHORIZED", "Unauthorized"))
