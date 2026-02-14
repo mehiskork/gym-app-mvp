@@ -276,11 +276,26 @@ function fetchLocalRow(config: TableConfig, id: string): { updated_at?: string; 
 }
 
 function isNewerTimestamp(localValue?: string | null, incomingValue?: string | null): boolean {
-    if (!localValue || !incomingValue) return false;
-    const localTime = Date.parse(localValue);
-    const incomingTime = Date.parse(incomingValue);
-    if (Number.isNaN(localTime) || Number.isNaN(incomingTime)) return false;
+    const localTime = parseTimestampMs(localValue);
+    const incomingTime = parseTimestampMs(incomingValue);
+    if (localTime === null || incomingTime === null) return false;
     return localTime > incomingTime;
+}
+
+function parseTimestampMs(value: string | null | undefined): number | null {
+    if (!value) return null;
+
+    if (value.includes('T')) {
+        const parsed = Date.parse(value);
+        return Number.isNaN(parsed) ? null : parsed;
+    }
+
+    const sqliteTimestamp = /^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2})$/;
+    const match = value.match(sqliteTimestamp);
+    if (!match) return null;
+
+    const parsed = Date.parse(`${match[1]}T${match[2]}Z`);
+    return Number.isNaN(parsed) ? null : parsed;
 }
 
 function shouldSkipDelta(
@@ -312,9 +327,7 @@ function upsertRow(config: TableConfig, payload: Record<string, unknown>) {
     const placeholders = columns.map(() => '?').join(', ');
     const values = columns.map((column) => toSqlValue(payload[column]));
     const updateColumns = columns.filter((column) => column !== config.primaryKey);
-    const updateAssignments = updateColumns
-        .map((column) => `${column} = COALESCE(excluded.${column}, ${config.tableName}.${column})`)
-        .join(', ');
+    const updateAssignments = updateColumns.map((column) => `${column} = excluded.${column}`).join(', ');
 
     exec(
         `
