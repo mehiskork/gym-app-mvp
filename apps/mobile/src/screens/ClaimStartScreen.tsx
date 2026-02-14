@@ -8,7 +8,8 @@ import { Screen } from '../ui/Screen';
 import { Text } from '../ui/Text';
 import { Button } from '../ui/Button';
 import { tokens } from '../theme/tokens';
-import { apiPost, ApiError } from '../utils/apiClient';
+import { api } from '../api/client';
+import { ApiError } from '../api/errors';
 import { pauseSync, resumeSync } from '../db/appMetaRepo';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ClaimStart'>;
@@ -41,7 +42,7 @@ export function ClaimStartScreen({ navigation }: Props) {
         setLoading(true);
         setError(null);
         try {
-            const data = await apiPost<ClaimStartResponse>('/claim/start');
+            const data = await api.post<ClaimStartResponse>('/claim/start');
             setCode(data.code);
             setExpiresAt(data.expiresAt);
         } catch (err) {
@@ -51,7 +52,7 @@ export function ClaimStartScreen({ navigation }: Props) {
                     message: 'Too many attempts. Please wait a moment and try again.',
                     canRetry: true,
                 });
-            } else if (err instanceof ApiError && (err.code === 'NETWORK' || err.code === 'TIMEOUT')) {
+            } else if (err instanceof ApiError && (err.isNetworkError || err.isTimeout)) {
                 setError({
                     message: 'Network issue. Check your connection and retry.',
                     canRetry: true,

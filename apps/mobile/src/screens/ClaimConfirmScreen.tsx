@@ -9,7 +9,8 @@ import { Text } from '../ui/Text';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { tokens } from '../theme/tokens';
-import { apiPost, ApiError } from '../utils/apiClient';
+import { api } from '../api/client';
+import { ApiError } from '../api/errors';
 import { getString, setString } from '../utils/prefs';
 import { pauseSync, resumeSync, setClaimed, setClaimedUserId } from '../db/appMetaRepo';
 
@@ -66,7 +67,7 @@ export function ClaimConfirmScreen({ navigation }: Props) {
 
         try {
             const devUserId = await getOrCreateDevUserId();
-            const data = await apiPost<ClaimConfirmResponse>(
+            const data = await api.post<ClaimConfirmResponse>(
                 '/claim/confirm',
                 { code: trimmed },
                 { headers: { 'X-User-Id': devUserId } },
