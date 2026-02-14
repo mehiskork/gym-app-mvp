@@ -65,6 +65,7 @@ export type SyncPauseReason = 'claim';
 const SYNC_PAUSED_REASON_KEY = 'sync_paused_reason';
 const CLAIMED_KEY = 'claimed';
 const CLAIMED_USER_ID_KEY = 'claimed_user_id';
+const REST_TIMER_NOTIFICATION_ID_KEY = 'rest_timer_notification_id';
 
 export function pauseSync(reason: SyncPauseReason) {
   setMeta(SYNC_PAUSED_REASON_KEY, reason);
@@ -97,6 +98,19 @@ export function setClaimedUserId(userId: string | null) {
 
 export function getClaimedUserId(): string | null {
   return getMeta(CLAIMED_USER_ID_KEY);
+}
+
+export async function getRestTimerNotificationId(): Promise<string | null> {
+  return getMeta(REST_TIMER_NOTIFICATION_ID_KEY);
+}
+
+export async function setRestTimerNotificationId(id: string | null): Promise<void> {
+  if (!id) {
+    clearMeta(REST_TIMER_NOTIFICATION_ID_KEY);
+    return;
+  }
+
+  setMeta(REST_TIMER_NOTIFICATION_ID_KEY, id);
 }
 /**
  * Device-local user id, used as owner_user_id for custom exercises until sign-in exists.

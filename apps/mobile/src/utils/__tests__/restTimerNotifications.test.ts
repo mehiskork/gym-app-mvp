@@ -15,6 +15,12 @@ jest.mock(
     { virtual: true },
 );
 
+jest.mock('../../db/appMetaRepo', () => ({
+    getRestTimerNotificationId: jest.fn().mockResolvedValue(null),
+    setRestTimerNotificationId: jest.fn().mockResolvedValue(undefined),
+}));
+
+
 import * as Notifications from 'expo-notifications';
 import {
     cancelRestTimerNotification,

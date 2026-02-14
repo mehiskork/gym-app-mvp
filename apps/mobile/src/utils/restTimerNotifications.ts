@@ -1,6 +1,12 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
+import {
+    getRestTimerNotificationId,
+    setRestTimerNotificationId,
+} from '../db/appMetaRepo';
+
+
 export const REST_TIMER_CHANNEL_ID = 'rest-timer';
 
 let restTimerNotificationId: string | null = null;
@@ -42,16 +48,20 @@ export async function scheduleRestTimerNotification(remainingSeconds: number): P
         body: 'Time to lift.',
         channelId: REST_TIMER_CHANNEL_ID,
     } as Notifications.NotificationContentInput;
-    restTimerNotificationId = await Notifications.scheduleNotificationAsync({
+    const id = await Notifications.scheduleNotificationAsync({
         content,
         trigger,
     });
+    restTimerNotificationId = id;
+    await setRestTimerNotificationId(id);
 }
 
 export async function cancelRestTimerNotification(): Promise<void> {
-    if (!restTimerNotificationId) return;
-    await Notifications.cancelScheduledNotificationAsync(restTimerNotificationId);
+    const id = restTimerNotificationId ?? (await getRestTimerNotificationId());
+    if (!id) return;
+    await Notifications.cancelScheduledNotificationAsync(id);
     restTimerNotificationId = null;
+    await setRestTimerNotificationId(null);
 }
 
 export function resetRestTimerNotificationState(): void {
