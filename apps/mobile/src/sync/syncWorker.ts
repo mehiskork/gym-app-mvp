@@ -182,8 +182,13 @@ async function runSyncPage(options: SyncNowOptions): Promise<boolean> {
 
   const token = getDeviceToken();
   if (!token) {
-    updateSyncState({ last_error: 'Device not registered (missing token).' });
-    return false;
+    await registerDeviceIfNeeded();
+    if (!getDeviceToken()) {
+      updateSyncState({ last_error: 'Device not registered (missing token).' });
+      return false;
+    }
+
+    return runSyncPage(options);
   }
 
   repairStaleInFlightOps(OUTBOX_STALE_IN_FLIGHT_SECONDS);
@@ -301,6 +306,19 @@ async function runSyncPage(options: SyncNowOptions): Promise<boolean> {
 
     hasMore = data.hasMore === true;
   } catch (err) {
+    if (httpStatus === 401) {
+      errorCode = 'auth_401_cleared';
+      errorMessage = err instanceof Error ? err.message : 'Unauthorized';
+      inTransaction(() => {
+        setDeviceToken(null);
+        updateSyncState({
+          last_error: errorCode,
+          backoff_until: null,
+          consecutive_failures: 0,
+        });
+      });
+      return false;
+    }
     const message = err instanceof Error ? err.message : 'Unknown error';
     const nextFailureCount = (syncState.consecutive_failures ?? 0) + 1;
     backoffSeconds = computeBackoffSeconds(nextFailureCount);
