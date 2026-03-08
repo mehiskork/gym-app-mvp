@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import type { PressableProps, ViewStyle } from 'react-native';
 import { ActivityIndicator, Pressable, View } from 'react-native';
 
+import { useAppTheme } from '../theme/theme';
 import { tokens } from '../theme/tokens';
 import { Text } from './Text';
 
@@ -38,31 +39,6 @@ const sizeStyles: Record<Size, ViewStyle> = {
     },
 };
 
-const variantStyles: Record<Variant, ViewStyle> = {
-    primary: {
-        backgroundColor: tokens.colors.primary,
-        borderColor: tokens.colors.primary,
-    },
-    secondary: {
-        backgroundColor: tokens.colors.secondary,
-        borderColor: tokens.colors.border,
-    },
-    ghost: {
-        backgroundColor: 'transparent',
-        borderColor: tokens.colors.border,
-    },
-    destructive: {
-        backgroundColor: tokens.colors.danger,
-        borderColor: tokens.colors.danger,
-    },
-};
-
-const variantTextColors: Record<Variant, string> = {
-    primary: tokens.colors.onPrimary,
-    secondary: tokens.colors.onSecondary,
-    ghost: tokens.colors.text,
-    destructive: tokens.colors.text,
-};
 
 export function Button({
     title,
@@ -75,8 +51,34 @@ export function Button({
     style,
     ...props
 }: ButtonProps) {
+    const { colors } = useAppTheme();
     const isDisabled = disabled || loading;
     const content = children ?? title;
+    const variantStyles: Record<Variant, ViewStyle> = {
+        primary: {
+            backgroundColor: colors.primary,
+            borderColor: colors.primary,
+        },
+        secondary: {
+            backgroundColor: colors.secondary,
+            borderColor: colors.border,
+        },
+        ghost: {
+            backgroundColor: 'transparent',
+            borderColor: colors.border,
+        },
+        destructive: {
+            backgroundColor: colors.danger,
+            borderColor: colors.danger,
+        },
+    };
+    const variantTextColors: Record<Variant, string> = {
+        primary: colors.onPrimary,
+        secondary: colors.onSecondary,
+        ghost: colors.text,
+        destructive: colors.text,
+    };
+
     const leftIconNode =
         leftIcon && isValidElement(leftIcon)
             ? cloneElement(leftIcon as React.ReactElement<{ color?: string }>, {

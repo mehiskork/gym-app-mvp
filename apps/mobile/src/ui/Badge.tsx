@@ -1,6 +1,7 @@
 import React from 'react';
 import { View } from 'react-native';
 
+import { useAppTheme } from '../theme/theme';
 import { tokens } from '../theme/tokens';
 import { Text } from './Text';
 
@@ -11,14 +12,15 @@ type BadgeProps = {
     variant?: Variant;
 };
 
-const variantStyles: Record<Variant, { backgroundColor: string; color: string }> = {
-    pr: { backgroundColor: tokens.colors.warning, color: tokens.colors.onPrimary },
-    completed: { backgroundColor: tokens.colors.success, color: tokens.colors.onPrimary },
-    planned: { backgroundColor: tokens.colors.secondary, color: tokens.colors.onSecondary },
-    goal: { backgroundColor: tokens.colors.primary, color: tokens.colors.onPrimary },
-};
 
 export function Badge({ label, variant = 'planned' }: BadgeProps) {
+    const { colors } = useAppTheme();
+    const variantStyles: Record<Variant, { backgroundColor: string; color: string }> = {
+        pr: { backgroundColor: colors.warning, color: colors.onPrimary },
+        completed: { backgroundColor: colors.success, color: colors.onPrimary },
+        planned: { backgroundColor: colors.secondary, color: colors.onSecondary },
+        goal: { backgroundColor: colors.primary, color: colors.onPrimary },
+    };
     const style = variantStyles[variant];
 
     return (

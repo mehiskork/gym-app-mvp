@@ -30,7 +30,17 @@ describe('settingsRepo', () => {
             restTimerVibration: false,
             keepScreenOn: true,
             restTimerNotifications: false,
+            primaryColorKey: 'orange',
         });
         expect(setMeta).toHaveBeenCalledWith('settings', JSON.stringify(next));
     });
+
+    it('normalizes unknown primary color to orange', () => {
+        (getMeta as jest.Mock).mockReturnValue(
+            JSON.stringify({ primaryColorKey: 'unknown' }),
+        );
+
+        expect(getSettings().primaryColorKey).toBe('orange');
+    });
+
 });

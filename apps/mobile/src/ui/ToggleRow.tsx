@@ -2,6 +2,7 @@ import React from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { Switch, View } from 'react-native';
 
+import { useAppTheme } from '../theme/theme';
 import { tokens } from '../theme/tokens';
 import { Text } from './Text';
 
@@ -24,16 +25,17 @@ export function ToggleRow({
     style,
     variant = 'card',
 }: ToggleRowProps) {
+    const { colors } = useAppTheme();
     const containerStyle: ViewStyle = {
         flexDirection: 'row',
         alignItems: 'center',
         gap: tokens.spacing.md,
         padding: tokens.spacing.md,
-        backgroundColor: variant === 'card' ? tokens.colors.surface : 'transparent',
+        backgroundColor: variant === 'card' ? colors.surface : 'transparent',
         borderRadius: variant === 'card' ? tokens.radius.md : 0,
         borderWidth: variant === 'card' ? 1 : 0,
         borderBottomWidth: variant === 'flat' ? 1 : 0,
-        borderColor: tokens.colors.border,
+        borderColor: colors.border,
     };
 
     return (
@@ -49,9 +51,9 @@ export function ToggleRow({
             <Switch
                 value={value}
                 onValueChange={onValueChange}
-                trackColor={{ false: tokens.colors.border, true: tokens.colors.primary }}
-                thumbColor={tokens.colors.surface}
-                ios_backgroundColor={tokens.colors.border}
+                trackColor={{ false: colors.border, true: colors.primary }}
+                thumbColor={colors.surface}
+                ios_backgroundColor={colors.border}
             />
         </View>
     );

@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { View } from 'react-native';
 
+import { useAppTheme } from '../theme/theme';
 import { tokens } from '../theme/tokens';
 
 type Variant = 'primarySolid' | 'primaryTint' | 'muted';
@@ -20,19 +21,21 @@ const sizeStyles: Record<number, ViewStyle> = {
     56: { width: 56, height: 56, borderRadius: tokens.radius.xl },
 };
 
-const variantStyles: Record<Variant, ViewStyle> = {
-    primarySolid: {
-        backgroundColor: tokens.colors.primary,
-    },
-    primaryTint: {
-        backgroundColor: 'rgba(245, 138, 42, 0.15)',
-    },
-    muted: {
-        backgroundColor: tokens.colors.surface2,
-    },
-};
+
 
 export function IconChip({ children, variant = 'muted', size = 44, style }: IconChipProps) {
+    const { colors } = useAppTheme();
+    const variantStyles: Record<Variant, ViewStyle> = {
+        primarySolid: {
+            backgroundColor: colors.primary,
+        },
+        primaryTint: {
+            backgroundColor: colors.primaryTint,
+        },
+        muted: {
+            backgroundColor: colors.surface2,
+        },
+    };
     const baseStyle: ViewStyle = {
         alignItems: 'center',
         justifyContent: 'center',

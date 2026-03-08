@@ -10,30 +10,32 @@ import { TodayScreen } from '../screens/TodayScreen';
 import { WorkoutPlansScreen } from '../screens/WorkoutPlansScreen';
 import { HistoryScreen } from '../screens/HistoryScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
+import { useAppTheme } from '../theme/theme';
 import { tokens } from '../theme/tokens';
 
 const Tab = createBottomTabNavigator<TabParamList>();
 
 export function MainTabs() {
   const insets = useSafeAreaInsets();
+  const { colors } = useAppTheme();
 
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerTitleAlign: 'center',
         headerLargeTitle: false,
-        headerTintColor: tokens.colors.text,
+        headerTintColor: colors.text,
         headerShadowVisible: false,
         headerStyle: {
-          backgroundColor: tokens.colors.bg,
+          backgroundColor: colors.bg,
           elevation: 0,
         },
-        sceneContainerStyle: { backgroundColor: tokens.colors.bg },
-        tabBarActiveTintColor: tokens.colors.primary,
-        tabBarInactiveTintColor: tokens.colors.mutedText,
+        sceneContainerStyle: { backgroundColor: colors.bg },
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.mutedText,
         tabBarStyle: {
-          backgroundColor: tokens.colors.surface,
-          borderTopColor: tokens.colors.border,
+          backgroundColor: colors.surface,
+          borderTopColor: colors.border,
           height: tokens.layout.tabBarHeight + insets.bottom,
           paddingTop: tokens.spacing.xs,
           paddingBottom: Math.max(insets.bottom, tokens.spacing.sm),

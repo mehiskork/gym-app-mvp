@@ -1,5 +1,6 @@
 import { getMeta, setMeta } from './appMetaRepo';
 import { safeJsonParse } from '../utils/json';
+import { DEFAULT_PRIMARY_COLOR_KEY, isPrimaryColorKey, type PrimaryColorKey } from '../theme/primaryColors';
 
 export type Settings = {
     defaultRestSeconds: number;
@@ -7,6 +8,7 @@ export type Settings = {
     restTimerVibration: boolean;
     keepScreenOn: boolean;
     restTimerNotifications: boolean;
+    primaryColorKey: PrimaryColorKey;
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -15,6 +17,7 @@ export const DEFAULT_SETTINGS: Settings = {
     restTimerVibration: true,
     keepScreenOn: true,
     restTimerNotifications: false,
+    primaryColorKey: DEFAULT_PRIMARY_COLOR_KEY,
 };
 
 const SETTINGS_KEY = 'settings';
@@ -41,6 +44,9 @@ function normalizeSettings(input: unknown): Settings {
             typeof parsed.restTimerNotifications === 'boolean'
                 ? parsed.restTimerNotifications
                 : DEFAULT_SETTINGS.restTimerNotifications,
+        primaryColorKey: isPrimaryColorKey(parsed.primaryColorKey)
+            ? parsed.primaryColorKey
+            : DEFAULT_SETTINGS.primaryColorKey,
     };
 }
 
