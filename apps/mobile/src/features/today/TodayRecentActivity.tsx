@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { tokens } from '../../theme/tokens';
 import { Badge, Card, EmptyState, IconChip, ListRow, SectionHeader, Text } from '../../ui';
 import { formatDate, formatVolume } from './format';
+import { parseTimestampMs } from '../../utils/timestamp';
 
 type RecentSession = {
     id: string;
@@ -34,9 +35,9 @@ export function TodayRecentActivity({ sessions, onViewAll, onOpenSession }: Toda
             {hasSessions ? (
                 <View style={{ gap: tokens.spacing.sm }}>
                     {sessions.slice(0, 3).map((session) => {
-                        const subtitle = `${formatDate(new Date(session.endedAt ?? session.startedAt))} · ${formatVolume(
-                            session.volume,
-                        )} kg`;
+                        const timestampMs = parseTimestampMs(session.endedAt ?? session.startedAt);
+                        const sessionDate = timestampMs === null ? new Date() : new Date(timestampMs);
+                        const subtitle = `${formatDate(sessionDate)} · ${formatVolume(session.volume)} kg`;
 
                         return (
                             <ListRow

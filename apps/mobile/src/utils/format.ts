@@ -1,3 +1,5 @@
+import { parseTimestampMs } from './timestamp';
+
 export function formatDateTime(iso: string): string {
     const d = new Date(iso);
     return d.toLocaleString();
@@ -40,22 +42,17 @@ export function formatWeekLabel(weekStart: string): string {
     return `Week of ${d.toLocaleDateString()}`;
 }
 
-export function parseSqliteDateMs(input: string): number {
-    const iso = input.includes('T') ? input : `${input.replace(' ', 'T')}Z`;
-    return Date.parse(iso);
-}
-
 export function secondsElapsed(startAt: string | null): number {
     if (!startAt) return 0;
-    const startMs = parseSqliteDateMs(startAt);
-    if (!Number.isFinite(startMs)) return 0;
+    const startMs = parseTimestampMs(startAt);
+    if (startMs === null || !Number.isFinite(startMs)) return 0;
     return Math.max(0, Math.floor((Date.now() - startMs) / 1000));
 }
 
 export function getRemainingSeconds(endAt: string | null): number {
     if (!endAt) return 0;
-    const endMs = parseSqliteDateMs(endAt);
-    if (!Number.isFinite(endMs)) return 0;
+    const endMs = parseTimestampMs(endAt);
+    if (endMs === null || !Number.isFinite(endMs)) return 0;
     return Math.max(0, Math.ceil((endMs - Date.now()) / 1000));
 }
 

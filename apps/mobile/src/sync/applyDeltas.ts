@@ -1,6 +1,7 @@
 import type * as SQLite from 'expo-sqlite';
 import { exec, query } from '../db/db';
 import { logEvent } from '../utils/logger';
+import { parseTimestampMs } from '../utils/timestamp';
 
 export type SyncDelta = {
     entityType: string;
@@ -280,22 +281,6 @@ function isNewerTimestamp(localValue?: string | null, incomingValue?: string | n
     const incomingTime = parseTimestampMs(incomingValue);
     if (localTime === null || incomingTime === null) return false;
     return localTime > incomingTime;
-}
-
-function parseTimestampMs(value: string | null | undefined): number | null {
-    if (!value) return null;
-
-    if (value.includes('T')) {
-        const parsed = Date.parse(value);
-        return Number.isNaN(parsed) ? null : parsed;
-    }
-
-    const sqliteTimestamp = /^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2})$/;
-    const match = value.match(sqliteTimestamp);
-    if (!match) return null;
-
-    const parsed = Date.parse(`${match[1]}T${match[2]}Z`);
-    return Number.isNaN(parsed) ? null : parsed;
 }
 
 function shouldSkipDelta(

@@ -25,6 +25,7 @@ import {
   type LoggerSet,
 } from '../db/workoutLoggerRepo';
 import { formatRestCountdown, getRemainingSeconds } from '../utils/format';
+import { parseTimestampMs } from '../utils/timestamp';
 import { ExerciseCard } from '../features/workoutSession/ExerciseCard';
 import { SetRow } from '../features/workoutSession/SetRow';
 import { FinishWorkoutSheet } from '../features/workoutSession/FinishWorkoutSheet';
@@ -178,7 +179,8 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
 
   const durationMinutes = useMemo(() => {
     if (!session?.started_at) return 0;
-    const startTime = new Date(session.started_at).getTime();
+    const startTime = parseTimestampMs(session.started_at);
+    if (startTime === null) return 0;
     const endTime = Date.now();
     const diffMs = Math.max(0, endTime - startTime);
     return Math.round(diffMs / 60000);
