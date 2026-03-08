@@ -20,6 +20,7 @@ import { createSyncRun, finishSyncRun } from '../db/syncRunRepo';
 import { inTransaction } from '../db/tx';
 import { safeJsonParse } from '../utils/json';
 import { logEvent } from '../utils/logger';
+import { getApiBaseUrl } from '../api/config';
 import { applyDeltas, type SyncDelta } from './applyDeltas';
 
 import {
@@ -29,9 +30,6 @@ import {
   SYNC_BATCH_LIMIT,
 } from './constants';
 
-function getBaseUrl(): string | null {
-  return process.env.EXPO_PUBLIC_API_BASE_URL ?? null;
-}
 
 function nextAttemptAtFromNow(seconds: number): string {
   const ms = seconds * 1000;
@@ -59,8 +57,7 @@ function classifyErrorCode(err: unknown, httpStatus?: number | null): string {
 
 
 export async function registerDeviceIfNeeded(): Promise<void> {
-  const baseUrl = getBaseUrl();
-  if (!baseUrl) return;
+  const baseUrl = getApiBaseUrl();
 
   const existingToken = getDeviceToken();
   if (existingToken) return;
@@ -165,13 +162,8 @@ async function runSyncPage(options: SyncNowOptions): Promise<boolean> {
   // - Domain writes + outbox enqueue happen in the SAME SQLite transaction.
   // - We never ack unless the backend explicitly acks opIds.
   // - On network errors (airplane mode, timeout, DNS, 5xx), ops stay pending/failed and visible.
-  const baseUrl = getBaseUrl();
+  const baseUrl = getApiBaseUrl();
   const syncState = getSyncState();
-
-  if (!baseUrl) {
-    updateSyncState({ last_error: 'Sync base URL not configured.' });
-    return false;
-  }
 
   if (!options.force && syncState.backoff_until) {
     const backoffTime = Date.parse(syncState.backoff_until);

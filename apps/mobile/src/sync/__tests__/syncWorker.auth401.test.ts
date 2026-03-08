@@ -68,7 +68,7 @@ describe('syncNow 401 self-heal', () => {
     });
 
     afterEach(() => {
-        jest.resetAllMocks();
+        jest.clearAllMocks();
     });
 
     it('clears device token on /sync 401 and keeps ops pending for retry', async () => {

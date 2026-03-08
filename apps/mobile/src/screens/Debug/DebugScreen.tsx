@@ -30,6 +30,7 @@ import { listSyncRuns } from '../../db/syncRunRepo';
 import { seedTestPlan } from '../../db/seed/seedTestPlan';
 import { query } from '../../db/db';
 import appConfig from '../../../app.json';
+import { getApiBaseUrl } from '../../api/config';
 import { registerDeviceIfNeeded, syncNow } from '../../sync/syncWorker';
 import { OUTBOX_STALE_IN_FLIGHT_SECONDS } from '../../sync/constants';
 
@@ -231,7 +232,7 @@ export function DebugScreen() {
   }, []);
 
   const devOnly = __DEV__;
-  const baseUrl = process.env.EXPO_PUBLIC_API_BASE_URL ?? '—';
+  const baseUrl = getApiBaseUrl();
 
   return (
     <Screen padded bottomInset="none" style={{ flex: 1 }}>
