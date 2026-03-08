@@ -1,6 +1,9 @@
 import React from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+
+import type { TabParamList } from './types';
+import { TAB_ROUTES } from './routes';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { TodayScreen } from '../screens/TodayScreen';
@@ -9,7 +12,7 @@ import { HistoryScreen } from '../screens/HistoryScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { tokens } from '../theme/tokens';
 
-const Tab = createBottomTabNavigator();
+const Tab = createBottomTabNavigator<TabParamList>();
 
 export function MainTabs() {
   const insets = useSafeAreaInsets();
@@ -46,16 +49,16 @@ export function MainTabs() {
           let iconName: React.ComponentProps<typeof Ionicons>['name'];
 
           switch (route.name) {
-            case 'Home':
+            case TAB_ROUTES.Home:
               iconName = focused ? 'flame' : 'flame-outline';
               break;
-            case 'WorkoutPlans':
+            case TAB_ROUTES.WorkoutPlans:
               iconName = focused ? 'calendar' : 'calendar-outline';
               break;
-            case 'History':
+            case TAB_ROUTES.History:
               iconName = focused ? 'bar-chart' : 'bar-chart-outline';
               break;
-            case 'Settings':
+            case TAB_ROUTES.Settings:
               iconName = focused ? 'settings' : 'settings-outline';
               break;
             default:
@@ -66,14 +69,14 @@ export function MainTabs() {
         },
       })}
     >
-      <Tab.Screen name="Home" component={TodayScreen} options={{ title: 'Home' }} />
+      <Tab.Screen name={TAB_ROUTES.Home} component={TodayScreen} options={{ title: 'Home' }} />
       <Tab.Screen
-        name="WorkoutPlans"
+        name={TAB_ROUTES.WorkoutPlans}
         component={WorkoutPlansScreen}
         options={{ title: 'Plans', tabBarLabel: 'Workout Plans' }}
       />
-      <Tab.Screen name="History" component={HistoryScreen} options={{ title: 'History' }} />
-      <Tab.Screen name="Settings" component={SettingsScreen} options={{ title: 'Settings' }} />
+      <Tab.Screen name={TAB_ROUTES.History} component={HistoryScreen} options={{ title: 'History' }} />
+      <Tab.Screen name={TAB_ROUTES.Settings} component={SettingsScreen} options={{ title: 'Settings' }} />
     </Tab.Navigator>
   );
 }

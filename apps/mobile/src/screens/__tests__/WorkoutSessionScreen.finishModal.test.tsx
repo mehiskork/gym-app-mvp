@@ -90,9 +90,15 @@ jest.mock('../../db/settingsRepo', () => ({
     getSettings: jest.fn(),
 }));
 
+jest.mock('../../utils/restTimerNotifications', () => ({
+    cancelRestTimerNotification: jest.fn(),
+    scheduleRestTimerNotification: jest.fn(),
+}));
+
 import React from 'react';
 
 import { WorkoutSessionScreen } from '../WorkoutSessionScreen';
+import { TAB_ROUTES } from '../../navigation/routes';
 import { Button, Text } from '../../ui';
 import { clearRestTimer, getWorkoutLoggerData } from '../../db/workoutLoggerRepo';
 import { completeSession } from '../../db/workoutSessionRepo';
@@ -358,6 +364,6 @@ describe('WorkoutSessionScreen finish modal', () => {
         finishButton?.props.onPress?.({} as never);
         expect(completeSession).toHaveBeenCalledWith(session.id);
         expect(clearRestTimer).toHaveBeenCalledWith(session.id);
-        expect(navigation.navigate).toHaveBeenCalledWith('MainTabs', { screen: 'Home' });
+        expect(navigation.navigate).toHaveBeenCalledWith('MainTabs', { screen: TAB_ROUTES.Home });
     });
 });

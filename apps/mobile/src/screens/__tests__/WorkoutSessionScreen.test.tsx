@@ -92,6 +92,12 @@ jest.mock('../../db/settingsRepo', () => ({
     getSettings: jest.fn(),
 }));
 
+jest.mock('../../utils/restTimerNotifications', () => ({
+    cancelRestTimerNotification: jest.fn(),
+    scheduleRestTimerNotification: jest.fn(),
+}));
+
+
 import React from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { Pressable, StyleSheet, View } from 'react-native';
@@ -99,6 +105,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { CommonActions, useFocusEffect } from '@react-navigation/native';
 
 import { WorkoutSessionScreen } from '../WorkoutSessionScreen';
+import { TAB_ROUTES } from '../../navigation/routes';
 import { ExerciseCard } from '../../features/workoutSession/ExerciseCard';
 import { SetRow } from '../../features/workoutSession/SetRow';
 import { Button, Card, IconButton, Text } from '../../ui';
@@ -557,13 +564,13 @@ describe('WorkoutSessionScreen', () => {
         expect(preventDefault).toHaveBeenCalled();
         expect(CommonActions.reset).toHaveBeenCalledWith({
             index: 0,
-            routes: [{ name: 'MainTabs', params: { screen: 'Home' } }],
+            routes: [{ name: 'MainTabs', params: { screen: TAB_ROUTES.Home } }],
         });
         expect(navigation.dispatch).toHaveBeenCalledWith({
             type: 'RESET',
             payload: {
                 index: 0,
-                routes: [{ name: 'MainTabs', params: { screen: 'Home' } }],
+                routes: [{ name: 'MainTabs', params: { screen: TAB_ROUTES.Home } }],
             },
         });
     });
@@ -606,13 +613,13 @@ describe('WorkoutSessionScreen', () => {
         expect(Alert.alert).toHaveBeenCalledWith('Workout session unavailable', 'Returning to Home.');
         expect(CommonActions.reset).toHaveBeenCalledWith({
             index: 0,
-            routes: [{ name: 'MainTabs', params: { screen: 'Home' } }],
+            routes: [{ name: 'MainTabs', params: { screen: TAB_ROUTES.Home } }],
         });
         expect(navigation.dispatch).toHaveBeenCalledWith({
             type: 'RESET',
             payload: {
                 index: 0,
-                routes: [{ name: 'MainTabs', params: { screen: 'Home' } }],
+                routes: [{ name: 'MainTabs', params: { screen: TAB_ROUTES.Home } }],
             },
         });
     });

@@ -3,6 +3,7 @@ import { FlatList, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import { TAB_ROUTES } from '../navigation/routes';
 import type { RootStackParamList } from '../navigation/types';
 import { Screen, Card, EmptyState, Button, ListRow, IconChip } from '../ui';
 import { tokens } from '../theme/tokens';
@@ -52,7 +53,7 @@ export function StartWorkoutScreen({ navigation }: Props) {
                 <Button
                   title="Create a plan"
                   variant="secondary"
-                  onPress={() => navigation.navigate('MainTabs', { screen: 'WorkoutPlans' })}
+                  onPress={() => navigation.navigate('MainTabs', { screen: TAB_ROUTES.WorkoutPlans })}
                 />
                 <Button
                   title="Browse templates"

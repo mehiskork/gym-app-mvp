@@ -7,6 +7,7 @@ import * as Haptics from 'expo-haptics';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { TAB_ROUTES } from '../navigation/routes';
 import type { RootStackParamList } from '../navigation/types';
 import { Button, Card, EmptyState, IconButton, IconChip, Screen, Snackbar, Text } from '../ui';
 import { tokens } from '../theme/tokens';
@@ -79,7 +80,7 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
     navigation.dispatch(
       CommonActions.reset({
         index: 0,
-        routes: [{ name: 'MainTabs', params: { screen: 'Home' } }],
+        routes: [{ name: 'MainTabs', params: { screen: TAB_ROUTES.Home } }],
       }),
     );
   }, [navigation]);
@@ -191,7 +192,7 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
       clearRestTimer(sessionId);
       void cancelRestTimerNotification();
       load();
-      navigation.navigate('MainTabs', { screen: 'Home' });
+      navigation.navigate('MainTabs', { screen: TAB_ROUTES.Home });
     } finally {
       setIsFinishing(false);
     }

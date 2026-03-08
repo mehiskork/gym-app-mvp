@@ -6,6 +6,7 @@ import { useNavigation } from '@react-navigation/native';
 
 import { Screen } from '../ui';
 import { tokens } from '../theme/tokens';
+import { TAB_ROUTES } from '../navigation/routes';
 import type { RootStackParamList } from '../navigation/types';
 import { getInProgressSession } from '../db/workoutSessionRepo';
 import { listWorkoutPlans } from '../db/workoutPlanRepo';
@@ -60,7 +61,7 @@ export function TodayScreen() {
           hasPlans={hasPlans}
           onStart={() => navigation.navigate('StartWorkout')}
           onBrowsePlans={() => navigation.navigate('PrebuiltPlans')}
-          onCreatePlan={() => navigation.navigate('MainTabs', { screen: 'WorkoutPlans' })}
+          onCreatePlan={() => navigation.navigate('MainTabs', { screen: TAB_ROUTES.WorkoutPlans })}
         />
         <TodayWeeklyStats workouts={weeklyWorkouts} totalKg={weeklyVolume} />
         <TodayRecentActivity
@@ -72,7 +73,7 @@ export function TodayScreen() {
             volume: session.volume,
             prs: session.prs,
           }))}
-          onViewAll={() => navigation.navigate('MainTabs', { screen: 'History' })}
+         onViewAll={() => navigation.navigate('MainTabs', { screen: TAB_ROUTES.History })}
           onOpenSession={(sessionId) => navigation.navigate('SessionDetail', { sessionId })}
         />
       </View>
