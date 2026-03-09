@@ -7,30 +7,39 @@ import {
 } from '../db/appMetaRepo';
 
 export const REST_TIMER_CHANNEL_ID = 'rest-timer';
-export const REST_TIMER_NOTIFICATION_VIBRATION_PATTERN = [0, 300, 120, 220] as const;
+export const REST_TIMER_CHANNEL_ID_V2 = 'rest-timer-v2';
+export const REST_TIMER_SILENT_CHANNEL_ID_V2 = 'rest-timer-silent-v2';
+export const REST_TIMER_NOTIFICATION_VIBRATION_PATTERN = [0, 350, 120, 300, 120, 350] as const;
 
 let restTimerNotificationId: string | null = null;
-let channelSetupPromise: Promise<void> | null = null;
-let lastChannelVibrationEnabled: boolean | null = null;
+let channelSetupPromiseByMode: Record<'vibrate' | 'silent', Promise<void> | null> = {
+    vibrate: null,
+    silent: null,
+};
+
+function getRestTimerChannelId(vibrationEnabled: boolean): string {
+    return vibrationEnabled ? REST_TIMER_CHANNEL_ID_V2 : REST_TIMER_SILENT_CHANNEL_ID_V2;
+}
 
 export async function ensureRestTimerNotificationChannel(vibrationEnabled: boolean): Promise<void> {
     if (Platform.OS !== 'android') return;
 
-    if (lastChannelVibrationEnabled === vibrationEnabled && channelSetupPromise) {
-        await channelSetupPromise;
+    const modeKey = vibrationEnabled ? 'vibrate' : 'silent';
+    const existingSetup = channelSetupPromiseByMode[modeKey];
+    if (existingSetup) {
+        await existingSetup;
         return;
     }
 
-    lastChannelVibrationEnabled = vibrationEnabled;
-    channelSetupPromise = Notifications.setNotificationChannelAsync(REST_TIMER_CHANNEL_ID, {
+    channelSetupPromiseByMode[modeKey] = Notifications.setNotificationChannelAsync(getRestTimerChannelId(vibrationEnabled), {
         name: 'Rest timer',
-        importance: Notifications.AndroidImportance.DEFAULT,
+        importance: Notifications.AndroidImportance.HIGH,
         sound: null,
         vibrationPattern: vibrationEnabled ? [...REST_TIMER_NOTIFICATION_VIBRATION_PATTERN] : null,
         enableVibrate: vibrationEnabled,
     }).then(() => undefined);
 
-    await channelSetupPromise;
+    await channelSetupPromiseByMode[modeKey];
 }
 
 export async function requestRestTimerNotificationPermission(): Promise<boolean> {
@@ -56,7 +65,7 @@ export async function scheduleRestTimerNotification(
     const content = {
         title: 'Rest complete',
         body: 'Time to lift.',
-        channelId: REST_TIMER_CHANNEL_ID,
+        channelId: getRestTimerChannelId(vibrationEnabled),
     } as Notifications.NotificationContentInput;
     const id = await Notifications.scheduleNotificationAsync({
         content,
@@ -76,6 +85,8 @@ export async function cancelRestTimerNotification(): Promise<void> {
 
 export function resetRestTimerNotificationState(): void {
     restTimerNotificationId = null;
-    channelSetupPromise = null;
-    lastChannelVibrationEnabled = null;
+    channelSetupPromiseByMode = {
+        vibrate: null,
+        silent: null,
+    };
 }

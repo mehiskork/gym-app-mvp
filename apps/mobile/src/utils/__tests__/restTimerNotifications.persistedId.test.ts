@@ -5,7 +5,7 @@ jest.mock('react-native', () => ({
 jest.mock(
     'expo-notifications',
     () => ({
-        AndroidImportance: { DEFAULT: 'default' },
+        AndroidImportance: { HIGH: 'high' },
         setNotificationChannelAsync: jest.fn().mockResolvedValue(null),
         getPermissionsAsync: jest.fn(),
         scheduleNotificationAsync: jest.fn(),

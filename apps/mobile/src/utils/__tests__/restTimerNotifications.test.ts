@@ -5,7 +5,7 @@ jest.mock('react-native', () => ({
 jest.mock(
     'expo-notifications',
     () => ({
-        AndroidImportance: { DEFAULT: 'default' },
+        AndroidImportance: { HIGH: 'high' },
         setNotificationChannelAsync: jest.fn(),
         getPermissionsAsync: jest.fn(),
         requestPermissionsAsync: jest.fn(),
@@ -26,7 +26,9 @@ import {
     requestRestTimerNotificationPermission,
     resetRestTimerNotificationState,
     REST_TIMER_CHANNEL_ID,
+    REST_TIMER_CHANNEL_ID_V2,
     REST_TIMER_NOTIFICATION_VIBRATION_PATTERN,
+    REST_TIMER_SILENT_CHANNEL_ID_V2,
     scheduleRestTimerNotification,
 } from '../restTimerNotifications';
 
@@ -57,9 +59,9 @@ describe('restTimerNotifications', () => {
 
         await scheduleRestTimerNotification(75.4, true);
 
-        expect(Notifications.setNotificationChannelAsync).toHaveBeenCalledWith(REST_TIMER_CHANNEL_ID, {
+        expect(Notifications.setNotificationChannelAsync).toHaveBeenCalledWith(REST_TIMER_CHANNEL_ID_V2, {
             name: 'Rest timer',
-            importance: Notifications.AndroidImportance.DEFAULT,
+            importance: Notifications.AndroidImportance.HIGH,
             sound: null,
             vibrationPattern: [...REST_TIMER_NOTIFICATION_VIBRATION_PATTERN],
             enableVibrate: true,
@@ -68,7 +70,7 @@ describe('restTimerNotifications', () => {
             content: {
                 title: 'Rest complete',
                 body: 'Time to lift.',
-                channelId: REST_TIMER_CHANNEL_ID,
+                channelId: REST_TIMER_CHANNEL_ID_V2,
             },
             trigger: { seconds: 75, type: 'timeInterval' },
         });
@@ -80,13 +82,17 @@ describe('restTimerNotifications', () => {
 
         await scheduleRestTimerNotification(20, false);
 
-        expect(Notifications.setNotificationChannelAsync).toHaveBeenCalledWith(REST_TIMER_CHANNEL_ID, {
+        expect(Notifications.setNotificationChannelAsync).toHaveBeenCalledWith(REST_TIMER_SILENT_CHANNEL_ID_V2, {
             name: 'Rest timer',
-            importance: Notifications.AndroidImportance.DEFAULT,
+            importance: Notifications.AndroidImportance.HIGH,
             sound: null,
             vibrationPattern: null,
             enableVibrate: false,
         });
+    });
+
+    it('uses a versioned legacy export for backwards compatibility', () => {
+        expect(REST_TIMER_CHANNEL_ID).toBe('rest-timer');
     });
     it('restarts by canceling the previous scheduled notification', async () => {
         (Notifications.getPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'granted' });
