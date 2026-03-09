@@ -1,13 +1,16 @@
 jest.mock('expo-haptics', () => ({
+    impactAsync: jest.fn(),
     notificationAsync: jest.fn(),
+    ImpactFeedbackStyle: { Heavy: 'heavy' },
     NotificationFeedbackType: { Success: 'success' },
 }));
 
-import { notificationAsync } from 'expo-haptics';
+import { impactAsync, notificationAsync } from 'expo-haptics';
 import { maybeTriggerRestTimerHaptics } from '../restTimer';
 
 describe('maybeTriggerRestTimerHaptics', () => {
     beforeEach(() => {
+        (impactAsync as jest.Mock).mockReset();
         (notificationAsync as jest.Mock).mockReset();
     });
 
@@ -17,6 +20,7 @@ describe('maybeTriggerRestTimerHaptics', () => {
         await maybeTriggerRestTimerHaptics(0, true, ref);
         await maybeTriggerRestTimerHaptics(0, true, ref);
 
+        expect(impactAsync).toHaveBeenCalledTimes(1);
         expect(notificationAsync).toHaveBeenCalledTimes(1);
         expect(ref.current).toBe(true);
     });
@@ -26,6 +30,7 @@ describe('maybeTriggerRestTimerHaptics', () => {
 
         await maybeTriggerRestTimerHaptics(0, false, ref);
 
+        expect(impactAsync).not.toHaveBeenCalled();
         expect(notificationAsync).not.toHaveBeenCalled();
     });
 });

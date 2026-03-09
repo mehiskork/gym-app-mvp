@@ -6,23 +6,30 @@ import {
     setRestTimerNotificationId,
 } from '../db/appMetaRepo';
 
-
 export const REST_TIMER_CHANNEL_ID = 'rest-timer';
+export const REST_TIMER_NOTIFICATION_VIBRATION_PATTERN = [0, 300, 120, 220] as const;
 
 let restTimerNotificationId: string | null = null;
 let channelSetupPromise: Promise<void> | null = null;
+let lastChannelVibrationEnabled: boolean | null = null;
 
-export async function ensureRestTimerNotificationChannel(): Promise<void> {
+export async function ensureRestTimerNotificationChannel(vibrationEnabled: boolean): Promise<void> {
     if (Platform.OS !== 'android') return;
-    if (!channelSetupPromise) {
-        channelSetupPromise = Notifications.setNotificationChannelAsync(REST_TIMER_CHANNEL_ID, {
-            name: 'Rest timer',
-            importance: Notifications.AndroidImportance.DEFAULT,
-            sound: null,
-            vibrationPattern: null,
-            enableVibrate: false,
-        }).then(() => undefined);
+
+    if (lastChannelVibrationEnabled === vibrationEnabled && channelSetupPromise) {
+        await channelSetupPromise;
+        return;
     }
+
+    lastChannelVibrationEnabled = vibrationEnabled;
+    channelSetupPromise = Notifications.setNotificationChannelAsync(REST_TIMER_CHANNEL_ID, {
+        name: 'Rest timer',
+        importance: Notifications.AndroidImportance.DEFAULT,
+        sound: null,
+        vibrationPattern: vibrationEnabled ? [...REST_TIMER_NOTIFICATION_VIBRATION_PATTERN] : null,
+        enableVibrate: vibrationEnabled,
+    }).then(() => undefined);
+
     await channelSetupPromise;
 }
 
@@ -33,10 +40,13 @@ export async function requestRestTimerNotificationPermission(): Promise<boolean>
     return requested.status === 'granted';
 }
 
-export async function scheduleRestTimerNotification(remainingSeconds: number): Promise<void> {
+export async function scheduleRestTimerNotification(
+    remainingSeconds: number,
+    vibrationEnabled = true,
+): Promise<void> {
     const permissions = await Notifications.getPermissionsAsync();
     if (permissions.status !== 'granted') return;
-    await ensureRestTimerNotificationChannel();
+    await ensureRestTimerNotificationChannel(vibrationEnabled);
     await cancelRestTimerNotification();
     const seconds = Math.max(0, Math.floor(remainingSeconds));
     const trigger = {
@@ -67,4 +77,5 @@ export async function cancelRestTimerNotification(): Promise<void> {
 export function resetRestTimerNotificationState(): void {
     restTimerNotificationId = null;
     channelSetupPromise = null;
+    lastChannelVibrationEnabled = null;
 }

@@ -103,10 +103,10 @@ export function SettingsScreen() {
         return;
       }
 
-      await ensureRestTimerNotificationChannel();
+      await ensureRestTimerNotificationChannel(settings.restTimerVibration);
       setSettings(updateSettings({ restTimerNotifications: true }));
     },
-    [setSettings],
+    [setSettings, settings.restTimerVibration],
   );
 
   return (

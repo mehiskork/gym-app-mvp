@@ -20,13 +20,13 @@ jest.mock('../../db/appMetaRepo', () => ({
     setRestTimerNotificationId: jest.fn().mockResolvedValue(undefined),
 }));
 
-
 import * as Notifications from 'expo-notifications';
 import {
     cancelRestTimerNotification,
     requestRestTimerNotificationPermission,
     resetRestTimerNotificationState,
     REST_TIMER_CHANNEL_ID,
+    REST_TIMER_NOTIFICATION_VIBRATION_PATTERN,
     scheduleRestTimerNotification,
 } from '../restTimerNotifications';
 
@@ -55,8 +55,15 @@ describe('restTimerNotifications', () => {
         (Notifications.getPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'granted' });
         (Notifications.scheduleNotificationAsync as jest.Mock).mockResolvedValue('notification-1');
 
-        await scheduleRestTimerNotification(75.4);
+        await scheduleRestTimerNotification(75.4, true);
 
+        expect(Notifications.setNotificationChannelAsync).toHaveBeenCalledWith(REST_TIMER_CHANNEL_ID, {
+            name: 'Rest timer',
+            importance: Notifications.AndroidImportance.DEFAULT,
+            sound: null,
+            vibrationPattern: [...REST_TIMER_NOTIFICATION_VIBRATION_PATTERN],
+            enableVibrate: true,
+        });
         expect(Notifications.scheduleNotificationAsync).toHaveBeenCalledWith({
             content: {
                 title: 'Rest complete',
@@ -67,14 +74,28 @@ describe('restTimerNotifications', () => {
         });
     });
 
+    it('disables vibration on channel when vibration setting is off', async () => {
+        (Notifications.getPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'granted' });
+        (Notifications.scheduleNotificationAsync as jest.Mock).mockResolvedValue('notification-1');
+
+        await scheduleRestTimerNotification(20, false);
+
+        expect(Notifications.setNotificationChannelAsync).toHaveBeenCalledWith(REST_TIMER_CHANNEL_ID, {
+            name: 'Rest timer',
+            importance: Notifications.AndroidImportance.DEFAULT,
+            sound: null,
+            vibrationPattern: null,
+            enableVibrate: false,
+        });
+    });
     it('restarts by canceling the previous scheduled notification', async () => {
         (Notifications.getPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'granted' });
         (Notifications.scheduleNotificationAsync as jest.Mock)
             .mockResolvedValueOnce('notification-1')
             .mockResolvedValueOnce('notification-2');
 
-        await scheduleRestTimerNotification(30);
-        await scheduleRestTimerNotification(45);
+        await scheduleRestTimerNotification(30, true);
+        await scheduleRestTimerNotification(45, true);
 
         expect(Notifications.cancelScheduledNotificationAsync).toHaveBeenCalledWith('notification-1');
         expect(Notifications.scheduleNotificationAsync).toHaveBeenCalledTimes(2);
@@ -84,7 +105,7 @@ describe('restTimerNotifications', () => {
         (Notifications.getPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'granted' });
         (Notifications.scheduleNotificationAsync as jest.Mock).mockResolvedValue('notification-1');
 
-        await scheduleRestTimerNotification(10);
+        await scheduleRestTimerNotification(10, true);
         await cancelRestTimerNotification();
 
         expect(Notifications.cancelScheduledNotificationAsync).toHaveBeenCalledWith('notification-1');

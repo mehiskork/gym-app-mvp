@@ -15,7 +15,7 @@ export default function App() {
     runMigrations();
     seedCuratedExercises();
     repairStaleInFlightOps(120);
-    void ensureRestTimerNotificationChannel();
+    void ensureRestTimerNotificationChannel(false);
 
   }, []);
 

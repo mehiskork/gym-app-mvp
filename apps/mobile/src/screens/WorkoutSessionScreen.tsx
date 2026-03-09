@@ -291,7 +291,7 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
                         if (!done && settings.autoStartRestTimer) {
                           startRestTimer(sessionId, settings.defaultRestSeconds, ex.exercise_name);
                           if (settings.restTimerNotifications) {
-                            void scheduleRestTimerNotification(settings.defaultRestSeconds);
+                            void scheduleRestTimerNotification(settings.defaultRestSeconds, settings.restTimerVibration);
                           }
                         }
                         load();
