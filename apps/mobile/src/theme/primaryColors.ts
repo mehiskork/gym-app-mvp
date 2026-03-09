@@ -1,6 +1,6 @@
 import { tokens } from './tokens';
 
-export type PrimaryColorKey = 'orange' | 'cyan' | 'purple' | 'lime' | 'pink';
+export type PrimaryColorKey = 'orange' | 'cyan' | 'purple' | 'lime' | 'pink' | 'crimson';
 
 export type PrimaryColorOption = {
     key: PrimaryColorKey;
@@ -51,6 +51,14 @@ export const PRIMARY_COLOR_OPTIONS: readonly PrimaryColorOption[] = [
         primarySoft: 'rgba(255, 110, 180, 0.2)',
         primaryBorder: 'rgba(255, 110, 180, 0.5)',
         primaryTextOnColor: '#2D0E22',
+    },
+    {
+        key: 'crimson',
+        label: 'Crimson',
+        primary: '#EF4444',
+        primarySoft: 'rgba(239, 68, 68, 0.2)',
+        primaryBorder: 'rgba(239, 68, 68, 0.5)',
+        primaryTextOnColor: '#FDF2F2',
     },
 ] as const;
 
