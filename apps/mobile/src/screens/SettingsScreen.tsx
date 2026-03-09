@@ -4,7 +4,17 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
-import { Badge, BottomSheetModal, Button, Card, IconChip, ListRow, Screen, Text, ToggleRow } from '../ui';
+import {
+  Badge,
+  BottomSheetModal,
+  Button,
+  Card,
+  IconChip,
+  ListRow,
+  Screen,
+  Text,
+  ToggleRow,
+} from '../ui';
 import { tokens } from '../theme/tokens';
 import { VersionTapUnlock } from '../components/VersionTapUnlock';
 import { isDebugUnlocked, setDebugUnlocked } from '../utils/debugUnlock';
@@ -32,6 +42,7 @@ const REST_TIME_OPTIONS = [
 export function SettingsScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { colors, primaryColorKey, setPrimaryColorKey } = useAppTheme();
+  const selectedSwatchFill = colors.primarySoft.replace(/\d*\.?\d+\)$/, '0.12)');
   const [debugUnlocked, setDebugUnlockedState] = useState(false);
   const [claimed, setClaimedState] = useState(false);
   const [settings, setSettings] = useState(getSettings());
@@ -133,9 +144,7 @@ export function SettingsScreen() {
           <ToggleRow
             title="Auto-start Timer"
             value={settings.autoStartRestTimer}
-            onValueChange={(value) =>
-              setSettings(updateSettings({ autoStartRestTimer: value }))
-            }
+            onValueChange={(value) => setSettings(updateSettings({ autoStartRestTimer: value }))}
             variant="flat"
           />
           <ToggleRow
@@ -147,9 +156,7 @@ export function SettingsScreen() {
           <ToggleRow
             title="Vibration"
             value={settings.restTimerVibration}
-            onValueChange={(value) =>
-              setSettings(updateSettings({ restTimerVibration: value }))
-            }
+            onValueChange={(value) => setSettings(updateSettings({ restTimerVibration: value }))}
             variant="flat"
           />
           <ToggleRow
@@ -187,7 +194,7 @@ export function SettingsScreen() {
                   borderRadius: tokens.radius.md,
                   borderWidth: 1,
                   borderColor: selected ? option.primaryBorder : colors.border,
-                  backgroundColor: selected ? option.primarySoft : colors.surface2,
+                  backgroundColor: selected ? selectedSwatchFill : colors.surface2,
                   paddingVertical: tokens.spacing.xs,
                   paddingHorizontal: tokens.spacing.sm,
                   gap: tokens.spacing.xs,
@@ -195,7 +202,13 @@ export function SettingsScreen() {
                   justifyContent: 'center',
                 }}
               >
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                  }}
+                >
                   <View
                     style={{
                       width: 16,
@@ -245,7 +258,7 @@ export function SettingsScreen() {
             <View style={{ flex: 1 }}>
               <Button title="Start Workout" size="sm" />
             </View>
-            <Badge label="Goal" variant="goal" />
+            <Badge label="PR" variant="pr" />
             <IconChip variant="primarySoft" size={40}>
               <Ionicons name="home" size={18} color={colors.primary} />
             </IconChip>
@@ -264,9 +277,7 @@ export function SettingsScreen() {
         }}
       >
         <Text variant="subtitle">Account</Text>
-        <Text color={colors.textSecondary}>
-          Account: {claimed ? 'Linked' : 'Guest'}
-        </Text>
+        <Text color={colors.textSecondary}>Account: {claimed ? 'Linked' : 'Guest'}</Text>
         <Button title="Link to account" onPress={() => navigation.navigate('ClaimStart')} />
         {debugUnlocked ? (
           <Button

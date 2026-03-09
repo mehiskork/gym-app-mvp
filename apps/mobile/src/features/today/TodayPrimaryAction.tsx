@@ -28,7 +28,13 @@ export function TodayPrimaryAction({
     const { colors } = useAppTheme();
     if (hasActiveWorkout) {
         return (
-            <Card variant="tinted" style={{ borderColor: colors.primaryBorder, backgroundColor: colors.primarySoft }}>
+            <Card
+                variant="tinted"
+                style={{
+                    borderColor: colors.primaryBorder.replace(/\d*\.?\d+\)$/, '0.28)'),
+                    backgroundColor: colors.primarySoft,
+                }}
+            >
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.md }}>
                     <IconChip variant="primarySoft" size={56}>
                         <Ionicons name="flame" size={26} color={colors.primary} />
@@ -51,7 +57,13 @@ export function TodayPrimaryAction({
                 accessibilityLabel="Start workout"
                 style={({ pressed }) => [pressed ? { opacity: 0.94 } : null]}
             >
-                <Card variant="tinted" style={{ borderColor: colors.primaryBorder, backgroundColor: colors.primarySoft }}>
+                <Card
+                    variant="tinted"
+                    style={{
+                        borderColor: colors.primaryBorder.replace(/\d*\.?\d+\)$/, '0.28)'),
+                        backgroundColor: colors.primarySoft,
+                    }}
+                >
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.md }}>
                         <IconChip variant="primarySoft" size={56}>
                             <Ionicons name="barbell" size={26} color={colors.primary} />
@@ -66,7 +78,6 @@ export function TodayPrimaryAction({
             </Pressable>
         );
     }
-
     return (
         <Card variant="dashed">
             <EmptyState

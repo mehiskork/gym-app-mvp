@@ -2,6 +2,7 @@ import React from 'react';
 import type { ReactNode } from 'react';
 import { Pressable, View } from 'react-native';
 
+import { useAppTheme } from '../theme/theme';
 import { tokens } from '../theme/tokens';
 import { Text } from './Text';
 
@@ -13,6 +14,8 @@ type SectionHeaderProps = {
 };
 
 export function SectionHeader({ title, actionLabel, onAction, actionNode }: SectionHeaderProps) {
+    const { colors } = useAppTheme();
+
     return (
         <View
             style={{
@@ -22,14 +25,14 @@ export function SectionHeader({ title, actionLabel, onAction, actionNode }: Sect
                 marginBottom: tokens.spacing.sm,
             }}
         >
-            <Text variant="label" color={tokens.colors.mutedText}>
+            <Text variant="label" color={colors.mutedText}>
                 {title}
             </Text>
             {actionNode ? (
                 actionNode
             ) : actionLabel && onAction ? (
                 <Pressable onPress={onAction} style={({ pressed }) => [pressed ? { opacity: 0.7 } : null]}>
-                    <Text variant="label" color={tokens.colors.primary}>
+                    <Text variant="label" color={colors.primary}>
                         {actionLabel}
                     </Text>
                 </Pressable>

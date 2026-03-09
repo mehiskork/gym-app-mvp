@@ -18,6 +18,7 @@ const Tab = createBottomTabNavigator<TabParamList>();
 export function MainTabs() {
   const insets = useSafeAreaInsets();
   const { colors } = useAppTheme();
+  const activeTabBackground = colors.primarySoft.replace(/\d*\.?\d+\)$/, '0.12)');
 
   return (
     <Tab.Navigator
@@ -32,7 +33,7 @@ export function MainTabs() {
         },
         sceneContainerStyle: { backgroundColor: colors.bg },
         tabBarActiveTintColor: colors.primary,
-        tabBarActiveBackgroundColor: colors.primarySoft,
+        tabBarActiveBackgroundColor: activeTabBackground,
         tabBarInactiveTintColor: colors.mutedText,
         tabBarStyle: {
           backgroundColor: colors.surface,
@@ -44,6 +45,11 @@ export function MainTabs() {
         tabBarLabelStyle: {
           fontSize: 11,
           fontWeight: '600',
+        },
+        tabBarItemStyle: {
+          marginHorizontal: tokens.spacing.xs,
+          marginVertical: tokens.spacing.xs,
+          borderRadius: tokens.radius.md,
         },
         tabBarIconStyle: {
           marginTop: tokens.spacing.xs,
@@ -78,8 +84,16 @@ export function MainTabs() {
         component={WorkoutPlansScreen}
         options={{ title: 'Plans', tabBarLabel: 'Workout Plans' }}
       />
-      <Tab.Screen name={TAB_ROUTES.History} component={HistoryScreen} options={{ title: 'History' }} />
-      <Tab.Screen name={TAB_ROUTES.Settings} component={SettingsScreen} options={{ title: 'Settings' }} />
+      <Tab.Screen
+        name={TAB_ROUTES.History}
+        component={HistoryScreen}
+        options={{ title: 'History' }}
+      />
+      <Tab.Screen
+        name={TAB_ROUTES.Settings}
+        component={SettingsScreen}
+        options={{ title: 'Settings' }}
+      />
     </Tab.Navigator>
   );
 }
