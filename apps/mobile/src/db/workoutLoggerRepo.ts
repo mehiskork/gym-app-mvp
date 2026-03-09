@@ -5,6 +5,8 @@ import { enqueueOutboxOp } from './outboxRepo';
 import { DEFAULT_REST_SECONDS, type WorkoutSessionStatus } from './constants';
 import { fetchSessionDetail } from './sessionDetailRepo';
 
+const EXERCISE_POSITION_SHIFT_OFFSET = 1_000_000;
+
 export type LoggerSession = {
   id: string;
   title: string;
@@ -225,12 +227,12 @@ export function swapWorkoutSessionExercise(input: {
     exec(
       `
       UPDATE workout_session_exercise
-      SET position = position + 1, updated_at = datetime('now')
+      SET position = position + ?, updated_at = datetime('now')
       WHERE workout_session_id = ?
         AND deleted_at IS NULL
         AND position > ?;
     `,
-      [workoutSessionId, current.position],
+      [EXERCISE_POSITION_SHIFT_OFFSET, workoutSessionId, current.position],
     );
 
     const insertedId = newId('wse');
@@ -252,6 +254,17 @@ export function swapWorkoutSessionExercise(input: {
         replacementExerciseName,
         current.position + 1,
       ],
+    );
+
+    exec(
+      `
+      UPDATE workout_session_exercise
+      SET position = position - ?, updated_at = datetime('now')
+      WHERE workout_session_id = ?
+        AND deleted_at IS NULL
+        AND position > ?;
+    `,
+      [EXERCISE_POSITION_SHIFT_OFFSET - 1, workoutSessionId, current.position + EXERCISE_POSITION_SHIFT_OFFSET],
     );
 
     const setId = newId('set');

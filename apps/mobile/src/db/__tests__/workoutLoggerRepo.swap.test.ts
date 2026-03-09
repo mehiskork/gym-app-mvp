@@ -12,19 +12,21 @@ jest.mock('../outboxRepo', () => ({
 }));
 
 jest.mock('../../utils/ids', () => ({
-    newId: jest
-        .fn()
-        .mockReturnValueOnce('wse-inserted')
-        .mockReturnValueOnce('set-inserted'),
+    newId: jest.fn(),
 }));
 
 import { exec, query } from '../db';
+import { newId } from '../../utils/ids';
 import { swapWorkoutSessionExercise } from '../workoutLoggerRepo';
 
 describe('swapWorkoutSessionExercise', () => {
     beforeEach(() => {
         (exec as jest.Mock).mockReset();
         (query as jest.Mock).mockReset();
+        (newId as jest.Mock)
+            .mockReset()
+            .mockReturnValueOnce('wse-inserted')
+            .mockReturnValueOnce('set-inserted');
     });
 
     it('replaces exercise in place when no completed sets exist', () => {
@@ -62,7 +64,7 @@ describe('swapWorkoutSessionExercise', () => {
             replacementExerciseName: 'Incline Bench Press',
         });
 
-        expect(exec).toHaveBeenCalledWith(expect.stringContaining('SET position = position + 1'), ['ws-1', 2]);
+        expect(exec).toHaveBeenCalledWith(expect.stringContaining('SET position = position + ?'), [1000000, 'ws-1', 2]);
         expect(exec).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO workout_session_exercise'), [
             'wse-inserted',
             'ws-1',
@@ -72,4 +74,33 @@ describe('swapWorkoutSessionExercise', () => {
         ]);
         expect(result.focusExerciseId).toBe('wse-inserted');
     });
+
+    it('inserts replacement below when completed sets exist and current is last', () => {
+        (query as jest.Mock)
+            .mockReturnValueOnce([{ id: 'wse-last', position: 5 }])
+            .mockReturnValueOnce([{ n: 2 }])
+            .mockReturnValueOnce([{ id: 'wse-inserted' }])
+            .mockReturnValueOnce([{ id: 'set-inserted' }]);
+
+        const result = swapWorkoutSessionExercise({
+            workoutSessionId: 'ws-1',
+            workoutSessionExerciseId: 'wse-last',
+            replacementExerciseId: 'ex-9',
+            replacementExerciseName: 'Cable Row',
+        });
+
+        expect(exec).toHaveBeenCalledWith(expect.stringContaining('SET position = position + ?'), [1000000, 'ws-1', 5]);
+        expect(exec).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO workout_session_exercise'), [
+            'wse-inserted',
+            'ws-1',
+            'ex-9',
+            'Cable Row',
+            6,
+        ]);
+        expect(exec).toHaveBeenCalledWith(expect.stringContaining('SET position = position - ?'), [999999, 'ws-1', 1000005]);
+        expect(result.focusExerciseId).toBe('wse-inserted');
+    });
 });
+
+
+
