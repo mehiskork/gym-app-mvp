@@ -189,7 +189,9 @@ export function getSessionDetail(sessionId: string): {
     ended_at: detail.session.ended_at,
   };
 
-  const exercises: SessionExerciseRow[] = detail.exercises.map((exercise) => ({
+  const performedExercises = detail.exercises.filter((exercise) => exercise.sets.length > 0);
+
+  const exercises: SessionExerciseRow[] = performedExercises.map((exercise) => ({
     id: exercise.id,
     exercise_id: exercise.exercise_id,
     exercise_name: exercise.exercise_name,
@@ -197,7 +199,7 @@ export function getSessionDetail(sessionId: string): {
   }));
 
 
-  const sets: SessionSetRow[] = detail.exercises.flatMap((exercise) => exercise.sets);
+  const sets: SessionSetRow[] = performedExercises.flatMap((exercise) => exercise.sets);
 
   return { session, exercises, sets };
 }

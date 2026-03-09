@@ -37,6 +37,27 @@ export type LoggerSet = {
 
 export type RestoreWorkoutSetInput = LoggerSet;
 
+function enqueueWorkoutSessionExerciseSnapshot(wseId: string, opType: 'upsert' | 'delete' = 'upsert') {
+  const row = query<Record<string, unknown>>(
+    `
+    SELECT *
+    FROM workout_session_exercise
+    WHERE id = ?
+    LIMIT 1;
+  `,
+    [wseId],
+  )[0];
+
+  if (!row) return;
+
+  enqueueOutboxOp({
+    entityType: 'workout_session_exercise',
+    entityId: wseId,
+    opType,
+    payloadJson: JSON.stringify(row),
+  });
+}
+
 function normalizeDeletedSetIndices(wseId: string): string[] {
   const deleted = query<{ id: string }>(
     `
@@ -152,6 +173,112 @@ export function getWorkoutLoggerData(sessionId: string): {
 
   return { session, exercises };
 }
+
+export function swapWorkoutSessionExercise(input: {
+  workoutSessionId: string;
+  workoutSessionExerciseId: string;
+  replacementExerciseId: string;
+  replacementExerciseName: string;
+}): { focusExerciseId: string } {
+  const { workoutSessionId, workoutSessionExerciseId, replacementExerciseId, replacementExerciseName } = input;
+
+  return inTransaction(() => {
+    const current = query<{ id: string; position: number }>(
+      `
+      SELECT id, position
+      FROM workout_session_exercise
+      WHERE id = ? AND workout_session_id = ? AND deleted_at IS NULL
+      LIMIT 1;
+    `,
+      [workoutSessionExerciseId, workoutSessionId],
+    )[0];
+
+    if (!current) {
+      throw new Error('swapWorkoutSessionExercise: current session exercise not found');
+    }
+
+    const completedSets =
+      query<{ n: number }>(
+        `
+        SELECT COUNT(*) AS n
+        FROM workout_set
+        WHERE workout_session_exercise_id = ?
+          AND deleted_at IS NULL
+          AND is_completed = 1;
+      `,
+        [workoutSessionExerciseId],
+      )[0]?.n ?? 0;
+
+    if (completedSets === 0) {
+      exec(
+        `
+        UPDATE workout_session_exercise
+        SET exercise_id = ?, exercise_name = ?, updated_at = datetime('now')
+        WHERE id = ?;
+      `,
+        [replacementExerciseId, replacementExerciseName, workoutSessionExerciseId],
+      );
+      enqueueWorkoutSessionExerciseSnapshot(workoutSessionExerciseId);
+      return { focusExerciseId: workoutSessionExerciseId };
+    }
+
+    exec(
+      `
+      UPDATE workout_session_exercise
+      SET position = position + 1, updated_at = datetime('now')
+      WHERE workout_session_id = ?
+        AND deleted_at IS NULL
+        AND position > ?;
+    `,
+      [workoutSessionId, current.position],
+    );
+
+    const insertedId = newId('wse');
+    exec(
+      `
+      INSERT INTO workout_session_exercise (
+        id,
+        workout_session_id,
+        exercise_id,
+        exercise_name,
+        position,
+        notes
+      ) VALUES (?, ?, ?, ?, ?, NULL);
+    `,
+      [
+        insertedId,
+        workoutSessionId,
+        replacementExerciseId,
+        replacementExerciseName,
+        current.position + 1,
+      ],
+    );
+
+    const setId = newId('set');
+    exec(
+      `
+      INSERT INTO workout_set (
+        id,
+        workout_session_exercise_id,
+        set_index,
+        weight,
+        reps,
+        rpe,
+        rest_seconds,
+        notes,
+        is_completed
+      ) VALUES (?, ?, 1, 0, 0, NULL, ?, NULL, 0);
+    `,
+      [setId, insertedId, DEFAULT_REST_SECONDS],
+    );
+
+    enqueueWorkoutSessionExerciseSnapshot(insertedId);
+    enqueueWorkoutSetSnapshot(setId);
+
+    return { focusExerciseId: insertedId };
+  });
+}
+
 
 export function addWorkoutSet(wseId: string): string {
   return inTransaction(() => {

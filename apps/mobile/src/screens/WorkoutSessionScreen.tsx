@@ -179,6 +179,13 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
     return { totalSets, completedSets };
   }, [exercises]);
 
+  const currentExerciseId = useMemo(() => {
+    const firstIncomplete = exercises.find((exercise) =>
+      exercise.sets.some((set) => set.is_completed !== 1),
+    );
+    return firstIncomplete?.id ?? exercises[0]?.id ?? null;
+  }, [exercises]);
+
   const durationMinutes = useMemo(() => {
     if (!session?.started_at) return 0;
     const startTime = parseTimestampMs(session.started_at);
@@ -267,6 +274,16 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
                     void Haptics.selectionAsync();
                     load();
                   }}
+                  onSwap={
+                    ex.id === currentExerciseId
+                      ? () =>
+                        navigation.navigate('ExercisePicker', {
+                          swapSessionExerciseId: ex.id,
+                          swapSessionId: sessionId,
+                          returnTo: 'WorkoutSession',
+                        })
+                      : undefined
+                  }
                 >
                   {ex.sets.map((set) => (
                     <SetRow

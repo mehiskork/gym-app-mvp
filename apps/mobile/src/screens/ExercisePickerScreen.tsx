@@ -11,12 +11,16 @@ import { listExercises, type ExerciseRow } from '../db/exerciseRepo';
 
 import { getOrCreateLocalUserId } from '../db/appMetaRepo';
 import { addExerciseToDay } from '../db/dayExerciseRepo';
+import { swapWorkoutSessionExercise } from '../db/workoutLoggerRepo';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ExercisePicker'>;
 
 export function ExercisePickerScreen({ route, navigation }: Props) {
   const dayId = route.params?.dayId ?? null;
-  const isBrowseOnly = !dayId;
+  const swapSessionExerciseId = route.params?.swapSessionExerciseId ?? null;
+  const swapSessionId = route.params?.swapSessionId ?? null;
+  const isSwapMode = !!swapSessionExerciseId && !!swapSessionId;
+  const isBrowseOnly = !dayId && !isSwapMode;
 
   const [q, setQ] = useState('');
   const [all, setAll] = useState<ExerciseRow[]>([]);
@@ -86,20 +90,35 @@ export function ExercisePickerScreen({ route, navigation }: Props) {
                 }
 
                 try {
+                  if (isSwapMode && swapSessionExerciseId && swapSessionId) {
+                    swapWorkoutSessionExercise({
+                      workoutSessionId: swapSessionId,
+                      workoutSessionExerciseId: swapSessionExerciseId,
+                      replacementExerciseId: item.id,
+                      replacementExerciseName: item.name,
+                    });
+                    navigation.goBack();
+                    return;
+                  }
+
+                  if (!dayId) return;
                   addExerciseToDay({ dayId, exerciseId: item.id });
                   navigation.goBack();
                 } catch (e) {
                   const msg = e instanceof Error ? e.message : String(e);
-                  Alert.alert('Failed to add exercise', msg);
+                  Alert.alert(
+                    isSwapMode ? 'Failed to swap exercise' : 'Failed to add exercise',
+                    msg,
+                  );
                 }
               }}
               style={({ pressed }) => [{ flex: 1 }, pressed ? { opacity: 0.85 } : null]}
-              accessibilityLabel={`${isBrowseOnly ? 'View' : 'Add'} ${item.name}`}
+              accessibilityLabel={`${isBrowseOnly ? 'View' : isSwapMode ? 'Swap to' : 'Add'} ${item.name}`}
             >
               <Text variant="subtitle">{item.name}</Text>
               <Text variant="muted">{item.is_custom ? 'Custom' : 'Curated'}</Text>
               <Text variant="muted">
-                {isBrowseOnly ? 'Tap to view details' : 'Tap to add to day'}
+                {isBrowseOnly ? 'Tap to view details' : isSwapMode ? 'Tap to swap' : 'Tap to add to day'}
               </Text>
             </Pressable>
 

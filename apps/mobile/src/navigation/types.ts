@@ -29,7 +29,14 @@ export type RootStackParamList = {
     mode?: 'edit' | 'startSession';
   };
 
-  ExercisePicker: { dayId?: string } | undefined;
+  ExercisePicker:
+  | {
+    dayId?: string;
+    swapSessionExerciseId?: string;
+    swapSessionId?: string;
+    returnTo?: 'WorkoutSession';
+  }
+  | undefined;
 
   ClaimStart: undefined;
   ClaimConfirm: undefined;

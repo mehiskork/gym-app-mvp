@@ -6,12 +6,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { Card, Text } from '../../ui';
 import { tokens } from '../../theme/tokens';
 
-
 type ExerciseCardProps = {
     name: string;
     subtitle?: string | null;
     onAddSet: () => void;
     onPressTitle?: () => void;
+    onSwap?: () => void;
     children: ReactNode;
 };
 
@@ -20,13 +20,14 @@ export function ExerciseCard({
     subtitle,
     onAddSet,
     onPressTitle,
+    onSwap,
     children,
 }: ExerciseCardProps) {
     const hasSets = React.Children.count(children) > 0;
 
     return (
         <Card style={{ gap: tokens.spacing.md }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.md }}>
+            <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: tokens.spacing.md }}>
                 <View style={{ flex: 1, gap: tokens.spacing.xs }}>
                     <Pressable
                         onPress={onPressTitle}
@@ -40,7 +41,28 @@ export function ExerciseCard({
                         </Text>
                     ) : null}
                 </View>
-
+                {onSwap ? (
+                    <Pressable
+                        onPress={onSwap}
+                        accessibilityLabel={`Swap ${name}`}
+                        style={({ pressed }) => [
+                            {
+                                minHeight: 32,
+                                paddingHorizontal: tokens.spacing.sm,
+                                borderWidth: 1,
+                                borderColor: tokens.colors.border,
+                                borderRadius: tokens.radius.sm,
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                            },
+                            pressed ? { opacity: 0.8 } : null,
+                        ]}
+                    >
+                        <Text variant="muted" style={{ fontSize: tokens.typography.caption.fontSize }}>
+                            Swap
+                        </Text>
+                    </Pressable>
+                ) : null}
             </View>
             <View style={{ gap: tokens.spacing.sm }}>
                 {hasSets ? (
@@ -118,7 +140,6 @@ export function ExerciseCard({
                     </View>
                 </Pressable>
             </View>
-
         </Card>
     );
 }
