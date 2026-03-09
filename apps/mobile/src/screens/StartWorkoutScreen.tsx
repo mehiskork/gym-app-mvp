@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { TAB_ROUTES } from '../navigation/routes';
 import type { RootStackParamList } from '../navigation/types';
 import { Screen, Card, EmptyState, Button, ListRow, IconChip } from '../ui';
+import { useAppTheme } from '../theme/theme';
 import { tokens } from '../theme/tokens';
 import {
   listWorkoutPlansWithSessionCounts,
@@ -24,6 +25,7 @@ function formatSessionCountSubtitle(sessionCount: number): string {
 
 export function StartWorkoutScreen({ navigation }: Props) {
   const [plans, setPlans] = useState<WorkoutPlanWithSessionCountRow[]>([]);
+  const { colors } = useAppTheme();
 
   const load = useCallback(() => {
     setPlans(listWorkoutPlansWithSessionCounts());
@@ -45,7 +47,7 @@ export function StartWorkoutScreen({ navigation }: Props) {
       {plans.length === 0 ? (
         <Card>
           <EmptyState
-            icon={<Ionicons name="barbell-outline" size={24} color={tokens.colors.mutedText} />}
+            icon={<Ionicons name="barbell-outline" size={24} color={colors.primary} />}
             title="No plans yet"
             description="Create your first plan or browse templates to get started."
             action={
@@ -75,8 +77,8 @@ export function StartWorkoutScreen({ navigation }: Props) {
               subtitle={formatSessionCountSubtitle(item.sessionCount)}
               showChevron={item.sessionCount > 0}
               left={
-                <IconChip variant="muted" size={40}>
-                  <Ionicons name="barbell-outline" size={18} color={tokens.colors.mutedText} />
+                <IconChip variant="primarySoft" size={40}>
+                  <Ionicons name="barbell-outline" size={18} color={colors.primary} />
                 </IconChip>
               }
               onPress={

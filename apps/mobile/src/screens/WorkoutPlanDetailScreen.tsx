@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import type { RootStackParamList } from '../navigation/types';
 import { Screen, Card, EmptyState, Text, ListRow, IconChip, Button, Input } from '../ui';
+import { useAppTheme } from '../theme/theme';
 import { tokens } from '../theme/tokens';
 import {
   addDayToWorkoutPlan,
@@ -27,6 +28,7 @@ export function WorkoutPlanDetailScreen({ route, navigation }: Props) {
   const [days, setDays] = useState<WorkoutPlanDayRow[]>([]);
   const [planName, setPlanName] = useState('');
   const [pickerNotice, setPickerNotice] = useState<string | null>(null);
+  const { colors } = useAppTheme();
   const load = useCallback(() => {
     const nextPlan = getWorkoutPlanById(workoutPlanId);
     setPlan(nextPlan);
@@ -147,8 +149,8 @@ export function WorkoutPlanDetailScreen({ route, navigation }: Props) {
                   title={day.name ?? `Session ${day.day_index}`}
                   subtitle={isPickerMode ? undefined : 'Tap to edit'}
                   left={
-                    <IconChip variant="muted" size={40}>
-                      <Ionicons name="calendar-outline" size={18} color={tokens.colors.mutedText} />
+                    <IconChip variant="primarySoft" size={40}>
+                      <Ionicons name="calendar-outline" size={18} color={colors.primary} />
                     </IconChip>
                   }
                   showChevron
@@ -160,7 +162,7 @@ export function WorkoutPlanDetailScreen({ route, navigation }: Props) {
             <Card>
               <EmptyState
                 icon={
-                  <Ionicons name="calendar-outline" size={24} color={tokens.colors.mutedText} />
+                  <Ionicons name="calendar-outline" size={24} color={colors.primary} />
                 }
                 title="No sessions yet"
                 description="Add your first session to start logging."

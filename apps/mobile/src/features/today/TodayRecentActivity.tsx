@@ -3,6 +3,7 @@ import { View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 import { tokens } from '../../theme/tokens';
+import { useAppTheme } from '../../theme/theme';
 import { Badge, Card, EmptyState, IconChip, ListRow, SectionHeader, Text } from '../../ui';
 import { formatDate, formatVolume } from './format';
 import { parseTimestampMs } from '../../utils/timestamp';
@@ -24,6 +25,7 @@ type TodayRecentActivityProps = {
 
 export function TodayRecentActivity({ sessions, onViewAll, onOpenSession }: TodayRecentActivityProps) {
     const hasSessions = sessions.length > 0;
+    const { colors } = useAppTheme();
 
     return (
         <View style={{ gap: tokens.spacing.sm }}>
@@ -45,8 +47,8 @@ export function TodayRecentActivity({ sessions, onViewAll, onOpenSession }: Toda
                                 title={session.title}
                                 subtitle={subtitle}
                                 left={
-                                    <IconChip variant="muted" size={40}>
-                                        <Ionicons name="barbell" size={20} color={tokens.colors.mutedText} />
+                                    <IconChip variant="primarySoft" size={40}>
+                                        <Ionicons name="barbell" size={20} color={colors.primary} />
                                     </IconChip>
                                 }
                                 right={

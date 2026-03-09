@@ -81,7 +81,7 @@ export function TodayPrimaryAction({
     return (
         <Card variant="dashed">
             <EmptyState
-                icon={<Ionicons name="calendar-outline" size={26} color={tokens.colors.mutedText} />}
+                icon={<Ionicons name="calendar-outline" size={26} color={colors.primary} />}
                 title="No plan yet"
                 description="Create or import a plan to start logging workouts."
                 action={

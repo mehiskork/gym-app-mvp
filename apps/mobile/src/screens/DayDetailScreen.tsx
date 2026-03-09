@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import type { RootStackParamList } from '../navigation/types';
 import { Button, Card, EmptyState, IconChip, Input, ListRow, Screen, Text } from '../ui';
+import { useAppTheme } from '../theme/theme';
 import { tokens } from '../theme/tokens';
 import {
   deleteDayExercise,
@@ -28,6 +29,7 @@ export function DayDetailScreen({ route, navigation }: Props) {
   const [savedName, setSavedName] = useState<string>('');
   const [items, setItems] = useState<DayExerciseRow[]>([]);
   const [startNotice, setStartNotice] = useState<string | null>(null);
+  const { colors } = useAppTheme();
 
   const load = useCallback(() => {
     const day = getDayById(dayId);
@@ -125,8 +127,8 @@ export function DayDetailScreen({ route, navigation }: Props) {
         title={item.exercise_name}
         subtitle={isStartSessionMode ? 'View exercise' : 'Tap to view'}
         left={
-          <IconChip variant="muted" size={40}>
-            <Ionicons name="barbell-outline" size={18} color={tokens.colors.mutedText} />
+          <IconChip variant="primarySoft" size={40}>
+            <Ionicons name="barbell-outline" size={18} color={colors.primary} />
           </IconChip>
         }
         onPress={() => navigation.navigate('ExerciseDetail', { exerciseId: item.exercise_id })}
@@ -229,7 +231,7 @@ export function DayDetailScreen({ route, navigation }: Props) {
   const emptyState = (
     <Card>
       <EmptyState
-        icon={<Ionicons name="barbell-outline" size={24} color={tokens.colors.mutedText} />}
+        icon={<Ionicons name="barbell-outline" size={24} color={colors.primary} />}
         title="No exercises yet"
         description="Add your first exercise to start logging."
         action={

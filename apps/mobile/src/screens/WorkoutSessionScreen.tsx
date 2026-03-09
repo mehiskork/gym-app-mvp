@@ -10,6 +10,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TAB_ROUTES } from '../navigation/routes';
 import type { RootStackParamList } from '../navigation/types';
 import { Button, Card, EmptyState, IconButton, IconChip, Screen, Snackbar, Text } from '../ui';
+import { useAppTheme } from '../theme/theme';
 import { tokens } from '../theme/tokens';
 import { completeSession } from '../db/workoutSessionRepo';
 import {
@@ -68,6 +69,7 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
   const [settings, setSettings] = useState(getSettings());
 
   const [finishOpen, setFinishOpen] = useState(false);
+  const { colors } = useAppTheme();
   const [isFinishing, setIsFinishing] = useState(false);
   const insets = useSafeAreaInsets();
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -245,7 +247,7 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
           {exercises.length === 0 ? (
             <Card>
               <EmptyState
-                icon={<Ionicons name="barbell-outline" size={24} color={tokens.colors.mutedText} />}
+                icon={<Ionicons name="barbell-outline" size={24} color={colors.primary} />}
                 title="No exercises yet"
                 description="Add exercises to start logging your sets."
               />
