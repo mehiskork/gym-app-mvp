@@ -52,7 +52,7 @@ export function ToggleRow({
                 value={value}
                 onValueChange={onValueChange}
                 trackColor={{ false: colors.border, true: colors.primary }}
-                thumbColor={colors.surface}
+                thumbColor={colors.thumb}
                 ios_backgroundColor={colors.border}
             />
         </View>

@@ -260,7 +260,7 @@ export function SettingsScreen() {
             </View>
             <Badge label="PR" variant="pr" />
             <IconChip variant="primarySoft" size={40}>
-              <Ionicons name="home" size={18} color={colors.primary} />
+              <Ionicons name="barbell" size={18} color={colors.primary} />
             </IconChip>
           </View>
         </View>

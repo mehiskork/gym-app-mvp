@@ -49,6 +49,7 @@ export const tokens = {
     background: '#0B0D10',
     textSecondary: '#A3A9B4',
     primaryText: '#1B1208',
+    thumb: '#545555',
   },
   touchTargetMin: 44,
   layout: {

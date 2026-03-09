@@ -1,4 +1,5 @@
 import React from 'react';
+import { Ionicons } from '@expo/vector-icons';
 import { View } from 'react-native';
 
 import { useAppTheme } from '../theme/theme';
@@ -39,8 +40,12 @@ export function Badge({ label, variant = 'planned' }: BadgeProps) {
                 backgroundColor: style.backgroundColor,
                 borderWidth: style.borderColor ? 1 : 0,
                 borderColor: style.borderColor,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: tokens.spacing.xs,
             }}
         >
+            {variant === 'pr' ? <Ionicons name="trophy" size={12} color={style.color} /> : null}
             <Text variant="label" color={style.color}>
                 {label}
             </Text>
