@@ -4,6 +4,7 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { Screen, Card, EmptyState, ListRow, IconChip, Button, IconButton, Text } from '../ui';
+import { useAppTheme } from '../theme/theme';
 import { tokens } from '../theme/tokens';
 import {
   createWorkoutPlan,
@@ -37,6 +38,7 @@ type Nav = NativeStackNavigationProp<RootStackParamList>;
 
 export function WorkoutPlansScreen() {
   const navigation = useNavigation<Nav>();
+  const { colors } = useAppTheme();
 
   const [workoutPlans, setWorkoutPlans] = useState<WorkoutPlanWithSessionCountRow[]>([]);
 
@@ -108,7 +110,7 @@ export function WorkoutPlansScreen() {
           ListEmptyComponent={
             <Card>
               <EmptyState
-                icon={<Ionicons name="barbell-outline" size={24} color={tokens.colors.mutedText} />}
+                icon={<Ionicons name="barbell-outline" size={24} color={colors.primary} />}
                 title="No workout plans yet"
                 description="Create a plan or browse templates to get started."
               />
@@ -123,8 +125,8 @@ export function WorkoutPlansScreen() {
                 subtitle={formatSessionCountSubtitle(item.sessionCount)}
                 showChevron={hasSessions}
                 left={
-                  <IconChip variant="muted" size={40}>
-                    <Ionicons name="barbell-outline" size={18} color={tokens.colors.mutedText} />
+                  <IconChip variant="primarySoft" size={40}>
+                    <Ionicons name="barbell-outline" size={18} color={colors.primary} />
                   </IconChip>
                 }
                 onPress={

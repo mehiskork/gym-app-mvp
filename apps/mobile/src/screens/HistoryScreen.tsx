@@ -110,8 +110,8 @@ export function HistoryScreen() {
             ]}
             accessibilityLabel="Delete all history"
           >
-            <Ionicons name="trash-outline" size={18} color={tokens.colors.textSecondary} />
-            <Text color={tokens.colors.textSecondary}>Delete all</Text>
+            <Ionicons name="trash-outline" size={18} color={tokens.colors.destructive} />
+            <Text color={tokens.colors.destructive}>Delete all</Text>
           </Pressable>
         </View>
 
@@ -251,7 +251,7 @@ export function HistoryScreen() {
                 ]}
                 accessibilityLabel="Delete workout from history"
               >
-                <Ionicons name="trash-outline" size={20} color={tokens.colors.textSecondary} />
+                <Ionicons name="trash-outline" size={20} color={tokens.colors.destructive} />
               </Pressable>
             </View>
           ))}
