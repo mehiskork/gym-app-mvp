@@ -7,7 +7,17 @@ import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 
 import type { RootStackParamList } from '../navigation/types';
-import { Button, Card, EmptyState, IconChip, Input, ListRow, Screen, Text } from '../ui';
+import {
+  Button,
+  Card,
+  EmptyState,
+  IconChip,
+  Input,
+  ListRow,
+  Screen,
+  Text,
+  DestructiveConfirmDialog,
+} from '../ui';
 import { useAppTheme } from '../theme/theme';
 import { tokens } from '../theme/tokens';
 import {
@@ -18,7 +28,11 @@ import {
   reorderDayExercises,
   type DayExerciseRow,
 } from '../db/dayExerciseRepo';
-import { createSessionFromPlanDay, getInProgressSession, getSessionById } from '../db/workoutSessionRepo';
+import {
+  createSessionFromPlanDay,
+  getInProgressSession,
+  getSessionById,
+} from '../db/workoutSessionRepo';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'DayDetail'>;
 
@@ -29,6 +43,7 @@ export function DayDetailScreen({ route, navigation }: Props) {
   const [savedName, setSavedName] = useState<string>('');
   const [items, setItems] = useState<DayExerciseRow[]>([]);
   const [startNotice, setStartNotice] = useState<string | null>(null);
+  const [deleteExerciseTarget, setDeleteExerciseTarget] = useState<DayExerciseRow | null>(null);
   const { colors } = useAppTheme();
 
   const load = useCallback(() => {
@@ -104,22 +119,16 @@ export function DayDetailScreen({ route, navigation }: Props) {
     }
   }, [dayId, dayNameInput, savedName]);
 
-  const confirmDeleteExercise = useCallback(
-    (row: DayExerciseRow) => {
-      Alert.alert('Delete exercise?', `"${row.exercise_name}" will be removed from this day.`, [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => {
-            deleteDayExercise(row.id);
-            load();
-          },
-        },
-      ]);
-    },
-    [load],
-  );
+  const confirmDeleteExercise = useCallback((row: DayExerciseRow) => {
+    setDeleteExerciseTarget(row);
+  }, []);
+
+  const handleDeleteExercise = useCallback(() => {
+    if (!deleteExerciseTarget) return;
+    deleteDayExercise(deleteExerciseTarget.id);
+    setDeleteExerciseTarget(null);
+    load();
+  }, [deleteExerciseTarget, load]);
 
   const renderItem = useCallback(
     ({ item, drag, isActive }: RenderItemParams<DayExerciseRow>) => (
@@ -133,47 +142,49 @@ export function DayDetailScreen({ route, navigation }: Props) {
         }
         onPress={() => navigation.navigate('ExerciseDetail', { exerciseId: item.exercise_id })}
         showChevron
-        right={isStartSessionMode ? undefined : (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.xs }}>
-            <Pressable
-              onPress={() => confirmDeleteExercise(item)}
-              style={({ pressed }) => [
-                {
-                  minHeight: tokens.touchTargetMin,
-                  minWidth: tokens.touchTargetMin,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  borderRadius: tokens.radius.sm,
-                  borderWidth: 1,
-                  borderColor: tokens.colors.border,
-                },
-                pressed ? { opacity: 0.85 } : null,
-              ]}
-              accessibilityLabel="Delete exercise"
-            >
-              <Ionicons name="trash-outline" size={18} color={tokens.colors.mutedText} />
-            </Pressable>
-            <Pressable
-              onLongPress={drag}
-              delayLongPress={150}
-              style={({ pressed }) => [
-                {
-                  minHeight: tokens.touchTargetMin,
-                  minWidth: tokens.touchTargetMin,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  borderRadius: tokens.radius.sm,
-                  borderWidth: 1,
-                  borderColor: tokens.colors.border,
-                },
-                pressed ? { opacity: 0.85 } : null,
-              ]}
-              accessibilityLabel="Reorder exercise"
-            >
-              <Ionicons name="reorder-three-outline" size={18} color={tokens.colors.mutedText} />
-            </Pressable>
-          </View>
-        )}
+        right={
+          isStartSessionMode ? undefined : (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.xs }}>
+              <Pressable
+                onPress={() => confirmDeleteExercise(item)}
+                style={({ pressed }) => [
+                  {
+                    minHeight: tokens.touchTargetMin,
+                    minWidth: tokens.touchTargetMin,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    borderRadius: tokens.radius.sm,
+                    borderWidth: 1,
+                    borderColor: tokens.colors.border,
+                  },
+                  pressed ? { opacity: 0.85 } : null,
+                ]}
+                accessibilityLabel="Delete exercise"
+              >
+                <Ionicons name="trash-outline" size={18} color={tokens.colors.mutedText} />
+              </Pressable>
+              <Pressable
+                onLongPress={drag}
+                delayLongPress={150}
+                style={({ pressed }) => [
+                  {
+                    minHeight: tokens.touchTargetMin,
+                    minWidth: tokens.touchTargetMin,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    borderRadius: tokens.radius.sm,
+                    borderWidth: 1,
+                    borderColor: tokens.colors.border,
+                  },
+                  pressed ? { opacity: 0.85 } : null,
+                ]}
+                accessibilityLabel="Reorder exercise"
+              >
+                <Ionicons name="reorder-three-outline" size={18} color={tokens.colors.mutedText} />
+              </Pressable>
+            </View>
+          )
+        }
         style={
           isActive
             ? {
@@ -183,12 +194,10 @@ export function DayDetailScreen({ route, navigation }: Props) {
               shadowOpacity: 0.18,
               shadowRadius: 10,
               shadowOffset: { width: 0, height: 6 },
-
             }
             : undefined
         }
       />
-
     ),
     [confirmDeleteExercise, isStartSessionMode, navigation],
   );
@@ -204,11 +213,9 @@ export function DayDetailScreen({ route, navigation }: Props) {
               value={dayNameInput}
               onChangeText={setDayNameInput}
               placeholder="e.g., Push"
-
               returnKeyType="done"
               onSubmitEditing={commitDayName}
               onEndEditing={commitDayName}
-
             />
           </View>
           <Text variant="muted">
@@ -258,6 +265,15 @@ export function DayDetailScreen({ route, navigation }: Props) {
           {header}
           {emptyState}
         </View>
+        <DestructiveConfirmDialog
+          visible={deleteExerciseTarget !== null}
+          title="Delete exercise?"
+          body={`"${deleteExerciseTarget?.exercise_name ?? 'This exercise'}" will be removed from this day.`}
+          confirmLabel="Delete"
+          cancelLabel="Cancel"
+          onClose={() => setDeleteExerciseTarget(null)}
+          onConfirm={handleDeleteExercise}
+        />
       </Screen>
     );
   }
@@ -269,7 +285,6 @@ export function DayDetailScreen({ route, navigation }: Props) {
         keyExtractor={(x) => x.id}
         renderItem={renderItem}
         ListHeaderComponent={header}
-
         ItemSeparatorComponent={() => <View style={{ height: tokens.spacing.sm }} />}
         contentContainerStyle={{
           padding: tokens.spacing.lg,
@@ -295,6 +310,15 @@ export function DayDetailScreen({ route, navigation }: Props) {
             }
         }
         keyboardShouldPersistTaps="handled"
+      />
+      <DestructiveConfirmDialog
+        visible={deleteExerciseTarget !== null}
+        title="Delete exercise?"
+        body={`"${deleteExerciseTarget?.exercise_name ?? 'This exercise'}" will be removed from this day.`}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        onClose={() => setDeleteExerciseTarget(null)}
+        onConfirm={handleDeleteExercise}
       />
     </Screen>
   );

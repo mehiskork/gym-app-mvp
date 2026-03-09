@@ -3,7 +3,17 @@ import { Alert, FlatList, View } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
-import { Screen, Card, EmptyState, ListRow, IconChip, Button, IconButton, Text } from '../ui';
+import {
+  Screen,
+  Card,
+  EmptyState,
+  ListRow,
+  IconChip,
+  Button,
+  IconButton,
+  Text,
+  DestructiveConfirmDialog,
+} from '../ui';
 import { useAppTheme } from '../theme/theme';
 import { tokens } from '../theme/tokens';
 import {
@@ -41,6 +51,9 @@ export function WorkoutPlansScreen() {
   const { colors } = useAppTheme();
 
   const [workoutPlans, setWorkoutPlans] = useState<WorkoutPlanWithSessionCountRow[]>([]);
+  const [deletePlanTarget, setDeletePlanTarget] = useState<WorkoutPlanWithSessionCountRow | null>(
+    null,
+  );
 
   const load = useCallback(() => {
     setWorkoutPlans(listWorkoutPlansWithSessionCounts());
@@ -64,18 +77,16 @@ export function WorkoutPlansScreen() {
   };
 
   const confirmDelete = (plan: WorkoutPlanWithSessionCountRow) => {
-    Alert.alert('Delete workout plan?', `"${plan.name}" will be deleted from this device.`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: () => {
-          deleteWorkoutPlan(plan.id);
-          load();
-        },
-      },
-    ]);
+    setDeletePlanTarget(plan);
   };
+
+  const handleDeletePlan = useCallback(() => {
+    if (!deletePlanTarget) return;
+    deleteWorkoutPlan(deletePlanTarget.id);
+    setDeletePlanTarget(null);
+    load();
+  }, [deletePlanTarget, load]);
+
 
   return (
     <Screen
@@ -147,6 +158,15 @@ export function WorkoutPlansScreen() {
           }}
         />
       </View>
+      <DestructiveConfirmDialog
+        visible={deletePlanTarget !== null}
+        title="Delete workout plan?"
+        body={`"${deletePlanTarget?.name ?? 'This plan'}" will be deleted from this device.`}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        onClose={() => setDeletePlanTarget(null)}
+        onConfirm={handleDeletePlan}
+      />
     </Screen>
   );
 }

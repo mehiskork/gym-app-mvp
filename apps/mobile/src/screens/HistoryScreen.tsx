@@ -1,11 +1,11 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { Alert, Pressable, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 
 import type { RootStackParamList } from '../navigation/types';
-import { Screen, Text } from '../ui';
+import { DestructiveConfirmDialog, Screen, Text } from '../ui';
 import { tokens } from '../theme/tokens';
 import { formatDateTime, formatVolume, formatWeekLabel } from '../utils/format';
 
@@ -25,8 +25,6 @@ import {
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
-
-
 export function HistoryScreen() {
   const navigation = useNavigation<Nav>();
 
@@ -34,6 +32,9 @@ export function HistoryScreen() {
   const [weekly, setWeekly] = useState<WeeklyVolumeRow[]>([]);
   const [thisWeek, setThisWeek] = useState<ReturnType<typeof getThisWeekSummary> | null>(null);
   const [weeklyExercises, setWeeklyExercises] = useState<WeeklyExerciseRow[]>([]);
+
+  const [deleteSessionTarget, setDeleteSessionTarget] = useState<CompletedSessionRow | null>(null);
+  const [deleteAllVisible, setDeleteAllVisible] = useState(false);
 
   const load = useCallback(() => {
     setSessions(listCompletedSessions(50));
@@ -52,39 +53,25 @@ export function HistoryScreen() {
 
   const canDeleteAll = sessions.length > 0;
 
-  const confirmDeleteOne = useCallback(
-    (s: CompletedSessionRow) => {
-      Alert.alert('Delete workout?', 'This will remove the workout from your history.', [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => {
-            deleteSession(s.id);
-            load();
-          },
-        },
-      ]);
-    },
-    [load],
-  );
+  const confirmDeleteOne = useCallback((s: CompletedSessionRow) => {
+    setDeleteSessionTarget(s);
+  }, []);
 
   const confirmDeleteAll = useCallback(() => {
-    Alert.alert(
-      'Delete all history?',
-      'This will remove all completed workouts from your history.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete all',
-          style: 'destructive',
-          onPress: () => {
-            deleteAllCompletedSessions();
-            load();
-          },
-        },
-      ],
-    );
+    setDeleteAllVisible(true);
+  }, []);
+
+  const handleConfirmDeleteOne = useCallback(() => {
+    if (!deleteSessionTarget) return;
+    deleteSession(deleteSessionTarget.id);
+    setDeleteSessionTarget(null);
+    load();
+  }, [deleteSessionTarget, load]);
+
+  const handleConfirmDeleteAll = useCallback(() => {
+    deleteAllCompletedSessions();
+    setDeleteAllVisible(false);
+    load();
   }, [load]);
 
   const header = useMemo(
@@ -257,6 +244,25 @@ export function HistoryScreen() {
           ))}
         </View>
       ) : null}
+
+      <DestructiveConfirmDialog
+        visible={deleteSessionTarget !== null}
+        title="Delete workout?"
+        body="This will remove the workout from your history."
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        onClose={() => setDeleteSessionTarget(null)}
+        onConfirm={handleConfirmDeleteOne}
+      />
+      <DestructiveConfirmDialog
+        visible={deleteAllVisible}
+        title="Delete all history?"
+        body="This will remove all completed workouts from your history."
+        confirmLabel="Delete all"
+        cancelLabel="Cancel"
+        onClose={() => setDeleteAllVisible(false)}
+        onConfirm={handleConfirmDeleteAll}
+      />
     </Screen>
   );
 }

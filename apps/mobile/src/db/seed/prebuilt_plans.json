@@ -1135,18 +1135,18 @@
             ]
           },
           {
-            "exercise_id": "ex_cable_chest_fly",
+            "exercise_id": "ex_pec_deck",
             "sets": [
               {
-                "reps": 15,
+                "reps": 10,
                 "rest_seconds": 60
               },
               {
-                "reps": 15,
+                "reps": 10,
                 "rest_seconds": 60
               },
               {
-                "reps": 15,
+                "reps": 10,
                 "rest_seconds": 60
               }
             ]

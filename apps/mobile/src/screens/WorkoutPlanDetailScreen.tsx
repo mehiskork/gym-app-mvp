@@ -5,7 +5,17 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 
 import type { RootStackParamList } from '../navigation/types';
-import { Screen, Card, EmptyState, Text, ListRow, IconChip, Button, Input } from '../ui';
+import {
+  Screen,
+  Card,
+  EmptyState,
+  Text,
+  ListRow,
+  IconChip,
+  Button,
+  Input,
+  DestructiveConfirmDialog,
+} from '../ui';
 import { useAppTheme } from '../theme/theme';
 import { tokens } from '../theme/tokens';
 import {
@@ -28,6 +38,7 @@ export function WorkoutPlanDetailScreen({ route, navigation }: Props) {
   const [days, setDays] = useState<WorkoutPlanDayRow[]>([]);
   const [planName, setPlanName] = useState('');
   const [pickerNotice, setPickerNotice] = useState<string | null>(null);
+  const [deletePlanVisible, setDeletePlanVisible] = useState(false);
   const { colors } = useAppTheme();
   const load = useCallback(() => {
     const nextPlan = getWorkoutPlanById(workoutPlanId);
@@ -71,22 +82,14 @@ export function WorkoutPlanDetailScreen({ route, navigation }: Props) {
   }, [load, navigation, workoutPlanId]);
 
   const confirmDeletePlan = useCallback(() => {
-    Alert.alert(
-      'Delete workout plan?',
-      `"${plan?.name ?? 'This plan'}" will be deleted from this device.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => {
-            deleteWorkoutPlan(workoutPlanId);
-            navigation.goBack();
-          },
-        },
-      ],
-    );
-  }, [navigation, plan?.name, workoutPlanId]);
+    setDeletePlanVisible(true);
+  }, []);
+
+  const handleDeletePlan = useCallback(() => {
+    deleteWorkoutPlan(workoutPlanId);
+    setDeletePlanVisible(false);
+    navigation.goBack();
+  }, [navigation, workoutPlanId]);
 
   const sessionCountLabel = `${days.length} session${days.length === 1 ? '' : 's'}`;
   const isPickerMode = mode === 'pickSessionToStart';
@@ -161,9 +164,7 @@ export function WorkoutPlanDetailScreen({ route, navigation }: Props) {
           ) : (
             <Card>
               <EmptyState
-                icon={
-                  <Ionicons name="calendar-outline" size={24} color={colors.primary} />
-                }
+                icon={<Ionicons name="calendar-outline" size={24} color={colors.primary} />}
                 title="No sessions yet"
                 description="Add your first session to start logging."
                 action={
@@ -194,6 +195,15 @@ export function WorkoutPlanDetailScreen({ route, navigation }: Props) {
           />
         </Card>
       )}
+      <DestructiveConfirmDialog
+        visible={deletePlanVisible}
+        title="Delete workout plan?"
+        body={`"${plan?.name ?? 'This plan'}" will be deleted from this device.`}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        onClose={() => setDeletePlanVisible(false)}
+        onConfirm={handleDeletePlan}
+      />
     </Screen>
   );
 }
