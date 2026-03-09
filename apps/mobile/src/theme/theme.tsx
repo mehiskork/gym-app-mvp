@@ -7,8 +7,9 @@ import { tokens } from './tokens';
 
 type ThemeColors = Omit<typeof tokens.colors, 'primary' | 'onPrimary'> & {
     primary: string;
-    onPrimary: string;
-    primaryTint: string;
+    primarySoft: string;
+    primaryBorder: string;
+    primaryTextOnColor: string;
 };
 
 type AppTheme = {
@@ -18,15 +19,6 @@ type AppTheme = {
 };
 
 const ThemeContext = createContext<AppTheme | null>(null);
-
-function withAlpha(hex: string, alpha: number): string {
-    const normalized = hex.replace('#', '');
-    if (normalized.length !== 6) return hex;
-    const r = Number.parseInt(normalized.slice(0, 2), 16);
-    const g = Number.parseInt(normalized.slice(2, 4), 16);
-    const b = Number.parseInt(normalized.slice(4, 6), 16);
-    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-}
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
     const [primaryColorKey, setPrimaryColorKeyState] = useState<PrimaryColorKey>(
@@ -44,12 +36,19 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
             },
             colors: {
                 ...tokens.colors,
-                primary: selected.value,
-                onPrimary: selected.onPrimary,
-                primaryTint: withAlpha(selected.value, 0.16),
+                primary: selected.primary,
+                primarySoft: selected.primarySoft,
+                primaryBorder: selected.primaryBorder,
+                primaryTextOnColor: selected.primaryTextOnColor,
             },
         }),
-        [primaryColorKey, selected.onPrimary, selected.value],
+        [
+            primaryColorKey,
+            selected.primary,
+            selected.primaryBorder,
+            selected.primarySoft,
+            selected.primaryTextOnColor,
+        ],
     );
 
     return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;

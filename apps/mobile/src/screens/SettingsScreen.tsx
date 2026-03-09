@@ -168,7 +168,7 @@ export function SettingsScreen() {
         <Text variant="subtitle" style={{ marginBottom: tokens.spacing.sm }}>
           Appearance
         </Text>
-        <Text variant="muted" style={{ marginBottom: tokens.spacing.md }}>
+        <Text variant="muted" style={{ marginBottom: tokens.spacing.sm }}>
           Primary Color
         </Text>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm }}>
@@ -183,31 +183,43 @@ export function SettingsScreen() {
                 }}
                 style={{
                   width: '31%',
-                  minWidth: 92,
+                  minWidth: 90,
                   borderRadius: tokens.radius.md,
                   borderWidth: 1,
-                  borderColor: selected ? option.value : colors.border,
-                  backgroundColor: colors.surface2,
-                  paddingVertical: tokens.spacing.sm,
+                  borderColor: selected ? option.primaryBorder : colors.border,
+                  backgroundColor: selected ? option.primarySoft : colors.surface2,
+                  paddingVertical: tokens.spacing.xs,
                   paddingHorizontal: tokens.spacing.sm,
-                  gap: tokens.spacing.sm,
+                  gap: tokens.spacing.xs,
+                  minHeight: 62,
+                  justifyContent: 'center',
                 }}
               >
-                <View
-                  style={{
-                    width: 22,
-                    height: 22,
-                    borderRadius: 11,
-                    backgroundColor: option.value,
-                    borderWidth: 1,
-                    borderColor: selected ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.35)',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  {selected ? <Ionicons name="checkmark" size={14} color={option.onPrimary} /> : null}
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <View
+                    style={{
+                      width: 16,
+                      height: 16,
+                      borderRadius: 8,
+                      backgroundColor: option.primary,
+                    }}
+                  />
+                  {selected ? (
+                    <View
+                      style={{
+                        width: 14,
+                        height: 14,
+                        borderRadius: 7,
+                        backgroundColor: option.primary,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <Ionicons name="checkmark" size={10} color={option.primaryTextOnColor} />
+                    </View>
+                  ) : null}
                 </View>
-                <Text variant="body" style={{ color: colors.text }}>
+                <Text variant="body" style={{ color: colors.text, fontSize: 12 }}>
                   {option.label}
                 </Text>
               </Pressable>
@@ -221,7 +233,7 @@ export function SettingsScreen() {
             borderRadius: tokens.radius.md,
             borderWidth: 1,
             borderColor: colors.border,
-            backgroundColor: colors.surface2,
+            backgroundColor: colors.surface,
             padding: tokens.spacing.md,
             gap: tokens.spacing.sm,
           }}
@@ -229,13 +241,13 @@ export function SettingsScreen() {
           <Text variant="label" color={colors.mutedText}>
             Live preview
           </Text>
-          <View style={{ flexDirection: 'row', gap: tokens.spacing.sm, alignItems: 'center' }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.sm }}>
             <View style={{ flex: 1 }}>
-              <Button title="Primary Button" size="sm" />
+              <Button title="Start Workout" size="sm" />
             </View>
-            <Badge label="Chip" variant="goal" />
-            <IconChip variant="primarySolid" size={40}>
-              <Ionicons name="home" size={18} color={colors.onPrimary} />
+            <Badge label="Goal" variant="goal" />
+            <IconChip variant="primarySoft" size={40}>
+              <Ionicons name="home" size={18} color={colors.primary} />
             </IconChip>
           </View>
         </View>

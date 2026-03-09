@@ -322,7 +322,7 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
           }}
         >
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.md }}>
-            <IconChip variant="primaryTint" size={40}>
+            <IconChip variant="primarySoft" size={40}>
               <Ionicons name="timer-outline" size={20} color={tokens.colors.primary} />
             </IconChip>
             <View style={{ flex: 1 }}>

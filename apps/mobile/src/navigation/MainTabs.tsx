@@ -32,6 +32,7 @@ export function MainTabs() {
         },
         sceneContainerStyle: { backgroundColor: colors.bg },
         tabBarActiveTintColor: colors.primary,
+        tabBarActiveBackgroundColor: colors.primarySoft,
         tabBarInactiveTintColor: colors.mutedText,
         tabBarStyle: {
           backgroundColor: colors.surface,

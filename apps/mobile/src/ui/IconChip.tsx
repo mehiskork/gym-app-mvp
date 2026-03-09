@@ -6,7 +6,7 @@ import { View } from 'react-native';
 import { useAppTheme } from '../theme/theme';
 import { tokens } from '../theme/tokens';
 
-type Variant = 'primarySolid' | 'primaryTint' | 'muted';
+type Variant = 'primarySolid' | 'primarySoft' | 'muted';
 
 type IconChipProps = {
     children: ReactNode;
@@ -21,16 +21,18 @@ const sizeStyles: Record<number, ViewStyle> = {
     56: { width: 56, height: 56, borderRadius: tokens.radius.xl },
 };
 
-
-
 export function IconChip({ children, variant = 'muted', size = 44, style }: IconChipProps) {
     const { colors } = useAppTheme();
     const variantStyles: Record<Variant, ViewStyle> = {
         primarySolid: {
             backgroundColor: colors.primary,
+            borderWidth: 1,
+            borderColor: colors.primaryBorder,
         },
-        primaryTint: {
-            backgroundColor: colors.primaryTint,
+        primarySoft: {
+            backgroundColor: colors.primarySoft,
+            borderWidth: 1,
+            borderColor: colors.primaryBorder,
         },
         muted: {
             backgroundColor: colors.surface2,
@@ -41,9 +43,5 @@ export function IconChip({ children, variant = 'muted', size = 44, style }: Icon
         justifyContent: 'center',
     };
 
-    return (
-        <View style={[baseStyle, sizeStyles[size] ?? sizeStyles[44], variantStyles[variant], style]}>
-            {children}
-        </View>
-    );
+    return <View style={[baseStyle, sizeStyles[size] ?? sizeStyles[44], variantStyles[variant], style]}>{children}</View>;
 }

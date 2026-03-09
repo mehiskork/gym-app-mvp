@@ -2,6 +2,7 @@ import React from 'react';
 import type { ReactNode } from 'react';
 import { View } from 'react-native';
 
+import { useAppTheme } from '../theme/theme';
 import { tokens } from '../theme/tokens';
 import { Card } from './Card';
 import { Text } from './Text';
@@ -17,19 +18,22 @@ type StatCardProps = {
 };
 
 export function StatCard({ label, value, icon, trend = null, trendLabel }: StatCardProps) {
+    const { colors } = useAppTheme();
     const resolvedTrendLabel = trendLabel ?? (trend === 'down' ? 'Declining' : 'Improving');
-    const trendColor = trend === 'down' ? tokens.colors.warning : tokens.colors.success;
+    const trendColor = trend === 'down' ? colors.warning : colors.success;
 
     return (
-        <Card>
+        <Card style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Text variant="label" color={tokens.colors.mutedText}>
+                <Text variant="label" color={colors.mutedText}>
                     {label}
                 </Text>
                 {icon ? (
                     <View
                         style={{
-                            backgroundColor: tokens.colors.surface2,
+                            backgroundColor: colors.primarySoft,
+                            borderColor: colors.primaryBorder,
+                            borderWidth: 1,
                             borderRadius: tokens.radius.lg,
                             padding: tokens.spacing.sm,
                         }}

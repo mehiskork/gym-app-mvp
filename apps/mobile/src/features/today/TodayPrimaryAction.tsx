@@ -2,6 +2,7 @@ import React from 'react';
 import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
+import { useAppTheme } from '../../theme/theme';
 import { tokens } from '../../theme/tokens';
 import { Button, Card, EmptyState, IconChip, Text } from '../../ui';
 
@@ -24,12 +25,13 @@ export function TodayPrimaryAction({
     onBrowsePlans,
     onCreatePlan,
 }: TodayPrimaryActionProps) {
+    const { colors } = useAppTheme();
     if (hasActiveWorkout) {
         return (
-            <Card variant="tinted">
+            <Card variant="tinted" style={{ borderColor: colors.primaryBorder, backgroundColor: colors.primarySoft }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.md }}>
-                    <IconChip variant="primaryTint" size={56}>
-                        <Ionicons name="flame" size={26} color={tokens.colors.primary} />
+                    <IconChip variant="primarySoft" size={56}>
+                        <Ionicons name="flame" size={26} color={colors.primary} />
                     </IconChip>
                     <View style={{ flex: 1, gap: tokens.spacing.xs }}>
                         <Text variant="subtitle">Active Session</Text>
@@ -47,18 +49,18 @@ export function TodayPrimaryAction({
                 onPress={onStart}
                 accessibilityRole="button"
                 accessibilityLabel="Start workout"
-                style={({ pressed }) => [pressed ? { opacity: 0.9 } : null]}
+                style={({ pressed }) => [pressed ? { opacity: 0.94 } : null]}
             >
-                <Card variant="tinted">
+                <Card variant="tinted" style={{ borderColor: colors.primaryBorder, backgroundColor: colors.primarySoft }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.md }}>
-                        <IconChip variant="primaryTint" size={56}>
-                            <Ionicons name="barbell" size={26} color={tokens.colors.primary} />
+                        <IconChip variant="primarySoft" size={56}>
+                            <Ionicons name="barbell" size={26} color={colors.primary} />
                         </IconChip>
                         <View style={{ flex: 1, gap: tokens.spacing.xs }}>
                             <Text variant="subtitle">Start Training</Text>
                             <Text variant="muted">Pick today&apos;s plan and go.</Text>
                         </View>
-                        <Ionicons name="play" size={20} color={tokens.colors.primary} />
+                        <Ionicons name="play" size={18} color={colors.primary} />
                     </View>
                 </Card>
             </Pressable>

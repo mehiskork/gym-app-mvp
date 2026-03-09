@@ -39,7 +39,6 @@ const sizeStyles: Record<Size, ViewStyle> = {
     },
 };
 
-
 export function Button({
     title,
     children,
@@ -57,23 +56,27 @@ export function Button({
     const variantStyles: Record<Variant, ViewStyle> = {
         primary: {
             backgroundColor: colors.primary,
-            borderColor: colors.primary,
+            borderColor: colors.primaryBorder,
+            borderWidth: 1,
         },
         secondary: {
             backgroundColor: colors.secondary,
             borderColor: colors.border,
+            borderWidth: 1,
         },
         ghost: {
             backgroundColor: 'transparent',
             borderColor: colors.border,
+            borderWidth: 1,
         },
         destructive: {
             backgroundColor: colors.danger,
             borderColor: colors.danger,
+            borderWidth: 1,
         },
     };
     const variantTextColors: Record<Variant, string> = {
-        primary: colors.onPrimary,
+        primary: colors.primaryTextOnColor,
         secondary: colors.onSecondary,
         ghost: colors.text,
         destructive: colors.text,
@@ -96,12 +99,11 @@ export function Button({
                     alignItems: 'center',
                     justifyContent: 'center',
                     borderRadius: tokens.radius.md,
-                    borderWidth: variant === 'ghost' || variant === 'secondary' ? 1 : 0,
                     opacity: isDisabled ? 0.6 : 1,
                 },
                 sizeStyles[size],
                 variantStyles[variant],
-                pressed && !isDisabled ? { opacity: 0.85 } : null,
+                pressed && !isDisabled ? { opacity: 0.9 } : null,
                 style as ViewStyle,
             ]}
         >

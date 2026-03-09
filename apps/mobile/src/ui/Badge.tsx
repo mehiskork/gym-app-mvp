@@ -12,14 +12,13 @@ type BadgeProps = {
     variant?: Variant;
 };
 
-
 export function Badge({ label, variant = 'planned' }: BadgeProps) {
     const { colors } = useAppTheme();
-    const variantStyles: Record<Variant, { backgroundColor: string; color: string }> = {
-        pr: { backgroundColor: colors.warning, color: colors.onPrimary },
-        completed: { backgroundColor: colors.success, color: colors.onPrimary },
+    const variantStyles: Record<Variant, { backgroundColor: string; color: string; borderColor?: string }> = {
+        pr: { backgroundColor: colors.warning, color: colors.primaryTextOnColor },
+        completed: { backgroundColor: colors.success, color: colors.text },
         planned: { backgroundColor: colors.secondary, color: colors.onSecondary },
-        goal: { backgroundColor: colors.primary, color: colors.onPrimary },
+        goal: { backgroundColor: colors.primarySoft, color: colors.text, borderColor: colors.primaryBorder },
     };
     const style = variantStyles[variant];
 
@@ -31,6 +30,8 @@ export function Badge({ label, variant = 'planned' }: BadgeProps) {
                 paddingHorizontal: tokens.spacing.sm,
                 paddingVertical: tokens.spacing.xs,
                 backgroundColor: style.backgroundColor,
+                borderWidth: style.borderColor ? 1 : 0,
+                borderColor: style.borderColor,
             }}
         >
             <Text variant="label" color={style.color}>

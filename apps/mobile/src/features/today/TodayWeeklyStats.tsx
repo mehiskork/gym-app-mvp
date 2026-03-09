@@ -2,6 +2,7 @@ import React from 'react';
 import { View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
+import { useAppTheme } from '../../theme/theme';
 import { tokens } from '../../theme/tokens';
 import { SectionHeader, StatCard } from '../../ui';
 import { formatVolume } from './format';
@@ -12,6 +13,8 @@ type TodayWeeklyStatsProps = {
 };
 
 export function TodayWeeklyStats({ workouts, totalKg }: TodayWeeklyStatsProps) {
+    const { colors } = useAppTheme();
+
     return (
         <View style={{ gap: tokens.spacing.sm }}>
             <SectionHeader title="This Week" />
@@ -20,14 +23,14 @@ export function TodayWeeklyStats({ workouts, totalKg }: TodayWeeklyStatsProps) {
                     <StatCard
                         label="Workouts"
                         value={workouts.toString()}
-                        icon={<Ionicons name="calendar" size={18} color={tokens.colors.primary} />}
+                        icon={<Ionicons name="calendar" size={18} color={colors.primary} />}
                     />
                 </View>
                 <View style={{ flex: 1 }}>
                     <StatCard
                         label="Volume"
                         value={`${formatVolume(totalKg)} kg`}
-                        icon={<Ionicons name="stats-chart" size={18} color={tokens.colors.primary} />}
+                        icon={<Ionicons name="stats-chart" size={18} color={colors.primary} />}
                     />
                 </View>
             </View>
