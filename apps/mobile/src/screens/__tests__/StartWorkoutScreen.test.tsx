@@ -3,6 +3,11 @@ jest.mock('react', () => {
     return {
         ...actual,
         useState: jest.fn(),
+        useContext: jest.fn(() => ({
+            primaryColorKey: 'blue',
+            setPrimaryColorKey: jest.fn(),
+            colors: new Proxy({}, { get: () => '#000000' }),
+        })),
         useCallback: (fn: () => unknown) => fn,
         useMemo: (fn: () => unknown) => fn(),
     };

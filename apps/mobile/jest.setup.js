@@ -1,8 +1,5 @@
 global.__DEV__ = true;
 
-const React = require('react');
-
-jest.spyOn(React, 'useState');
 
 
 jest.mock('@react-navigation/native', () => ({
@@ -27,3 +24,27 @@ jest.mock(
     }),
     { virtual: true },
 );
+jest.mock('expo-sqlite', () => {
+    const createResult = () => {
+        const rows = [];
+        rows[Symbol.iterator] = function* iterator() {
+            for (const row of []) yield row;
+        };
+        return rows;
+    };
+
+    return {
+        openDatabaseSync: jest.fn(() => ({
+            execSync: jest.fn(),
+            prepareSync: jest.fn(() => ({
+                executeSync: jest.fn(() => createResult()),
+                finalizeSync: jest.fn(),
+            })),
+        })),
+    };
+});
+
+
+jest.mock('uuid', () => ({
+    v4: jest.fn(() => '00000000-0000-4000-8000-000000000000'),
+}));

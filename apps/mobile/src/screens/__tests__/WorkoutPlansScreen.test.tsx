@@ -3,6 +3,11 @@ jest.mock('react', () => {
     return {
         ...actual,
         useState: jest.fn(),
+        useContext: jest.fn(() => ({
+            primaryColorKey: 'blue',
+            setPrimaryColorKey: jest.fn(),
+            colors: new Proxy({}, { get: () => '#000000' }),
+        })),
         useCallback: (fn: () => unknown) => fn,
         useMemo: (fn: () => unknown) => fn(),
     };
@@ -114,6 +119,7 @@ describe('WorkoutPlansScreen', () => {
 
     beforeEach(() => {
         useStateMock.mockReset();
+        useStateMock.mockImplementation((initial) => [initial, jest.fn()]);
         (listWorkoutPlans as jest.Mock).mockReset();
         (createWorkoutPlan as jest.Mock).mockReset();
         (useNavigation as jest.Mock).mockReturnValue({ navigate: jest.fn() });
