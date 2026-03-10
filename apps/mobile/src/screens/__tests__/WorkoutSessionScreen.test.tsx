@@ -97,6 +97,10 @@ jest.mock('../../utils/restTimerNotifications', () => ({
     scheduleRestTimerNotification: jest.fn(),
 }));
 
+jest.mock('../../theme/theme', () => ({
+    useAppTheme: () => ({ colors: { primary: '#000' } }),
+}));
+
 
 import React from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
@@ -332,6 +336,126 @@ describe('WorkoutSessionScreen', () => {
 
         expect(startRestTimer).toHaveBeenCalledWith('session-1', 150, 'Bench Press');
     });
+
+    it('renders swap on every exercise card and targets the tapped exercise', () => {
+        const session = {
+            id: 'session-6',
+            title: 'Full Body',
+            status: 'in_progress',
+            started_at: '2024-01-06T00:00:00Z',
+            rest_timer_end_at: null,
+            rest_timer_seconds: null,
+            rest_timer_label: null,
+        };
+
+        const exercises = [
+            {
+                id: 'exercise-1',
+                exercise_id: 'bench-press',
+                exercise_name: 'Bench Press',
+                position: 1,
+                sets: [
+                    {
+                        id: 'set-1',
+                        workout_session_exercise_id: 'exercise-1',
+                        set_index: 1,
+                        weight: 100,
+                        reps: 5,
+                        rpe: null,
+                        rest_seconds: 90,
+                        notes: null,
+                        is_completed: 1,
+                    },
+                ],
+            },
+            {
+                id: 'exercise-2',
+                exercise_id: 'dumbbell-row',
+                exercise_name: 'Dumbbell Row',
+                position: 2,
+                sets: [
+                    {
+                        id: 'set-2',
+                        workout_session_exercise_id: 'exercise-2',
+                        set_index: 1,
+                        weight: null,
+                        reps: null,
+                        rpe: null,
+                        rest_seconds: 90,
+                        notes: null,
+                        is_completed: 0,
+                    },
+                ],
+            },
+            {
+                id: 'exercise-3',
+                exercise_id: 'squat',
+                exercise_name: 'Squat',
+                position: 3,
+                sets: [
+                    {
+                        id: 'set-3',
+                        workout_session_exercise_id: 'exercise-3',
+                        set_index: 1,
+                        weight: null,
+                        reps: null,
+                        rpe: null,
+                        rest_seconds: 90,
+                        notes: null,
+                        is_completed: 0,
+                    },
+                ],
+            },
+        ];
+
+        useStateMock.mockImplementationOnce(() => [session, jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [exercises, jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [0, jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [
+            {
+                defaultRestSeconds: 120,
+                autoStartRestTimer: true,
+                restTimerVibration: true,
+                keepScreenOn: true,
+                restTimerNotifications: false,
+            },
+            jest.fn(),
+        ]);
+        useStateMock.mockImplementationOnce(() => [false, jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [false, jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [{ visible: false, payload: null }, jest.fn()]);
+        (getWorkoutLoggerData as jest.Mock).mockReturnValue({ session, exercises });
+
+        const navigation: Nav = {
+            navigate: jest.fn(),
+            dispatch: jest.fn(),
+            setOptions: jest.fn(),
+            addListener: jest.fn(),
+        };
+        const element = WorkoutSessionScreen({
+            navigation,
+            route: { key: 'WorkoutSession', name: 'WorkoutSession', params: { sessionId: 'session-6' } },
+        } as never);
+
+        type ExerciseCardProps = React.ComponentProps<typeof ExerciseCard>;
+        const exerciseCards = findElementsByType(element, ExerciseCard) as Array<
+            React.ReactElement<ExerciseCardProps>
+        >;
+
+        expect(exerciseCards).toHaveLength(3);
+        exerciseCards.forEach((card) => {
+            expect(card.props.onSwap).toEqual(expect.any(Function));
+        });
+
+        exerciseCards[1]?.props.onSwap?.();
+
+        expect(navigation.navigate).toHaveBeenCalledWith('ExercisePicker', {
+            swapSessionExerciseId: 'exercise-2',
+            swapSessionId: 'session-6',
+            returnTo: 'WorkoutSession',
+        });
+    });
+
 
     it('renders the finish button in the footer and opens the finish sheet', () => {
         const session = {

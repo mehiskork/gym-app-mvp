@@ -274,15 +274,12 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
                     void Haptics.selectionAsync();
                     load();
                   }}
-                  onSwap={
-                    ex.id === currentExerciseId
-                      ? () =>
-                        navigation.navigate('ExercisePicker', {
-                          swapSessionExerciseId: ex.id,
-                          swapSessionId: sessionId,
-                          returnTo: 'WorkoutSession',
-                        })
-                      : undefined
+                  onSwap={() =>
+                    navigation.navigate('ExercisePicker', {
+                      swapSessionExerciseId: ex.id,
+                      swapSessionId: sessionId,
+                      returnTo: 'WorkoutSession',
+                    })
                   }
                 >
                   {ex.sets.map((set) => (
