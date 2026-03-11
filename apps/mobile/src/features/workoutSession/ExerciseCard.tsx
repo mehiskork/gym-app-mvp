@@ -49,15 +49,25 @@ export function ExerciseCard({
                             {
                                 minHeight: 32,
                                 paddingHorizontal: tokens.spacing.sm,
+                                backgroundColor: tokens.colors.surface,
                                 borderWidth: 1,
                                 borderColor: tokens.colors.border,
                                 borderRadius: tokens.radius.sm,
+                                flexDirection: 'row',
                                 alignItems: 'center',
                                 justifyContent: 'center',
+                                gap: tokens.spacing.xs,
                             },
                             pressed ? { opacity: 0.8 } : null,
                         ]}
                     >
+                        <Ionicons
+                            name="swap-horizontal"
+                            size={14}
+                            color={tokens.colors.mutedText}
+                            accessibilityElementsHidden
+                            importantForAccessibility="no"
+                        />
                         <Text variant="muted" style={{ fontSize: tokens.typography.caption.fontSize }}>
                             Swap
                         </Text>
