@@ -76,6 +76,7 @@ export function SetRow({
                         <TextInput
                             testID="weight-input"
                             defaultValue={formatOptionalNumber(set.weight, 2)}
+                            selectTextOnFocus
                             keyboardType="decimal-pad"
                             placeholder="0"
                             placeholderTextColor={tokens.colors.textSecondary}
@@ -88,6 +89,7 @@ export function SetRow({
                         <TextInput
                             testID="reps-input"
                             defaultValue={set.reps === null ? '' : String(set.reps)}
+                            selectTextOnFocus
                             keyboardType="number-pad"
                             placeholder="0"
                             placeholderTextColor={tokens.colors.textSecondary}

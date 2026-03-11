@@ -190,3 +190,64 @@ describe('SetRow layout sizing', () => {
         expect(repsStyle).toMatchObject({ textAlign: 'center' });
     });
 });
+
+describe('SetRow input focus behavior', () => {
+    it('enables select-all on focus for weight and reps inputs so next digit replaces value', () => {
+        const element = SetRow({
+            set: createSet(),
+            onWeightEndEditing: jest.fn(),
+            onRepsEndEditing: jest.fn(),
+            onToggleComplete: jest.fn(),
+            onDelete: jest.fn(),
+        });
+
+        const weightInput = findElementByTestId<{ selectTextOnFocus?: boolean }>(element, 'weight-input');
+        const repsInput = findElementByTestId<{ selectTextOnFocus?: boolean }>(element, 'reps-input');
+
+        expect(weightInput?.props.selectTextOnFocus).toBe(true);
+        expect(repsInput?.props.selectTextOnFocus).toBe(true);
+    });
+
+    it('keeps existing values unchanged on focus without editing', () => {
+        const element = SetRow({
+            set: createSet(),
+            onWeightEndEditing: jest.fn(),
+            onRepsEndEditing: jest.fn(),
+            onToggleComplete: jest.fn(),
+            onDelete: jest.fn(),
+        });
+
+        const weightInput = findElementByTestId<{ defaultValue?: string }>(element, 'weight-input');
+        const repsInput = findElementByTestId<{ defaultValue?: string }>(element, 'reps-input');
+
+        expect(weightInput?.props.defaultValue).toBe('100');
+        expect(repsInput?.props.defaultValue).toBe('8');
+    });
+
+    it('keeps select-all enabled on repeated renders/focus cycles', () => {
+        const firstRender = SetRow({
+            set: createSet(),
+            onWeightEndEditing: jest.fn(),
+            onRepsEndEditing: jest.fn(),
+            onToggleComplete: jest.fn(),
+            onDelete: jest.fn(),
+        });
+        const secondRender = SetRow({
+            set: createSet(),
+            onWeightEndEditing: jest.fn(),
+            onRepsEndEditing: jest.fn(),
+            onToggleComplete: jest.fn(),
+            onDelete: jest.fn(),
+        });
+
+        const firstWeight = findElementByTestId<{ selectTextOnFocus?: boolean }>(firstRender, 'weight-input');
+        const secondWeight = findElementByTestId<{ selectTextOnFocus?: boolean }>(secondRender, 'weight-input');
+        const firstReps = findElementByTestId<{ selectTextOnFocus?: boolean }>(firstRender, 'reps-input');
+        const secondReps = findElementByTestId<{ selectTextOnFocus?: boolean }>(secondRender, 'reps-input');
+
+        expect(firstWeight?.props.selectTextOnFocus).toBe(true);
+        expect(secondWeight?.props.selectTextOnFocus).toBe(true);
+        expect(firstReps?.props.selectTextOnFocus).toBe(true);
+        expect(secondReps?.props.selectTextOnFocus).toBe(true);
+    });
+});
