@@ -334,8 +334,7 @@ export function createSessionFromPlanDay(input: { workoutPlanId: string; dayId: 
             [
               setId,
               wseId,
-              plannedSet.set_index,
-              0, setPosition + 1,
+              setPosition + 1,
               historicalSet?.weight ?? 0,
               historicalSet?.reps ?? plannedSet?.target_reps_min ?? 0,
               historicalSet?.rest_seconds ?? plannedSet?.rest_seconds ?? DEFAULT_REST_SECONDS,

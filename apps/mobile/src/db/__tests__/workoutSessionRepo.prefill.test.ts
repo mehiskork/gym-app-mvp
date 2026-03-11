@@ -146,6 +146,38 @@ describe('createSessionFromPlanDay prefill', () => {
         expect(historyQuery?.[1]).toEqual(['day-1', 'bench', 'pde-bench', 'day-1', 'bench', 'pde-bench']);
     });
 
+    it('is eligible to immediately reuse a just-completed same-day session for prefill lookup', () => {
+        setupScenario({
+            exercises: [
+                {
+                    dayExerciseId: 'pde-bench',
+                    exerciseId: 'bench',
+                    exerciseName: 'Bench',
+                    position: 1,
+                    plannedSets: [{ set_index: 1, target_reps_min: 8, rest_seconds: 120 }],
+                    historicalSets: [{ weight: 77.5, reps: 5, rest_seconds: 150 }],
+                },
+            ],
+        });
+
+        (newId as jest.Mock)
+            .mockReturnValueOnce('ws-1')
+            .mockReturnValueOnce('wse-1')
+            .mockReturnValueOnce('set-1');
+
+        createSessionFromPlanDay({ workoutPlanId: 'plan-1', dayId: 'day-1' });
+
+        const historySql = String(
+            (query as jest.Mock).mock.calls.find((call) =>
+                String(call[0]).includes('SELECT hws2.id'),
+            )?.[0] ?? '',
+        );
+
+        expect(historySql).toContain("hws2.status = 'completed'");
+        expect(historySql).toContain('ORDER BY COALESCE(hws2.ended_at, hws2.started_at) DESC, hws2.started_at DESC');
+        expect(historySql).not.toContain('hws2.ended_at IS NOT NULL');
+    });
+
     it('keeps plan defaults for sets not present in history', () => {
         setupScenario({
             exercises: [
@@ -293,5 +325,41 @@ describe('createSessionFromPlanDay prefill', () => {
         expect(setInserts).toHaveLength(3);
         expect(setInserts[0][1]).toEqual(['set-1', 'wse-1', 1, 0, 5, 150]);
         expect(setInserts[2][1]).toEqual(['set-3', 'wse-1', 3, 0, 5, 150]);
+    });
+    it('uses per-set plan default reps when history is missing (not set row index)', () => {
+        setupScenario({
+            exercises: [
+                {
+                    dayExerciseId: 'pde-bench',
+                    exerciseId: 'bench',
+                    exerciseName: 'Bench',
+                    position: 1,
+                    plannedSets: [
+                        { set_index: 1, target_reps_min: 5, rest_seconds: 120 },
+                        { set_index: 2, target_reps_min: 8, rest_seconds: 135 },
+                        { set_index: 3, target_reps_min: 12, rest_seconds: 150 },
+                    ],
+                    historicalSets: [],
+                },
+            ],
+        });
+
+        (newId as jest.Mock)
+            .mockReturnValueOnce('ws-1')
+            .mockReturnValueOnce('wse-1')
+            .mockReturnValueOnce('set-1')
+            .mockReturnValueOnce('set-2')
+            .mockReturnValueOnce('set-3');
+
+        createSessionFromPlanDay({ workoutPlanId: 'plan-1', dayId: 'day-1' });
+
+        const setInserts = (exec as jest.Mock).mock.calls.filter((call) =>
+            String(call[0]).includes('INSERT INTO workout_set'),
+        );
+
+        expect(setInserts).toHaveLength(3);
+        expect(setInserts[0][1]).toEqual(['set-1', 'wse-1', 1, 0, 5, 120]);
+        expect(setInserts[1][1]).toEqual(['set-2', 'wse-1', 2, 0, 8, 135]);
+        expect(setInserts[2][1]).toEqual(['set-3', 'wse-1', 3, 0, 12, 150]);
     });
 });
