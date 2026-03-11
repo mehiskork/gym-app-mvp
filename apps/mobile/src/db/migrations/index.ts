@@ -11,6 +11,7 @@ import { migration010_sync_foundations } from './010_sync_foundations';
 import { migration011_outbox_inflight } from './011_outbox_inflight';
 import { migration012_sync_state_delta_count } from './012_sync_state_delta_count';
 import { migration013_sync_run } from './013_sync_run';
+import { migration014_wse_source_day_exercise } from './014_wse_source_day_exercise';
 
 export type Migration = {
   id: number;
@@ -32,4 +33,5 @@ export const migrations: Migration[] = [
   migration011_outbox_inflight,
   migration012_sync_state_delta_count,
   migration013_sync_run,
+  migration014_wse_source_day_exercise,
 ];

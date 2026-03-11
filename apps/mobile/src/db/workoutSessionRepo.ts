@@ -19,11 +19,61 @@ export type WorkoutSessionRow = {
 export type WorkoutSessionExerciseRow = {
   id: string;
   workout_session_id: string;
+  source_program_day_exercise_id: string | null;
   exercise_id: string;
   exercise_name: string;
   position: number;
   notes: string | null;
 };
+
+type SetSeed = {
+  weight: number;
+  reps: number;
+  rest_seconds: number;
+};
+
+function getHistoricalCompletedSetsForPlannedExercise(input: {
+  dayId: string;
+  programDayExerciseId: string;
+  plannedExerciseId: string;
+}): SetSeed[] {
+  const { dayId, programDayExerciseId, plannedExerciseId } = input;
+
+  return query<SetSeed>(
+    `
+    SELECT hs.weight, hs.reps, hs.rest_seconds
+    FROM workout_set hs
+    JOIN workout_session_exercise hwse ON hwse.id = hs.workout_session_exercise_id
+    JOIN workout_session hws ON hws.id = hwse.workout_session_id
+    WHERE hs.deleted_at IS NULL
+      AND hs.is_completed = 1
+      AND hws.deleted_at IS NULL
+      AND hws.status = '${WORKOUT_SESSION_STATUS.COMPLETED}'
+      AND hws.source_program_day_id = ?
+      AND hwse.deleted_at IS NULL
+      AND hwse.exercise_id = ?
+      AND hwse.source_program_day_exercise_id = ?
+      AND hws.id = (
+        SELECT hws2.id
+        FROM workout_session hws2
+        JOIN workout_session_exercise hwse2 ON hwse2.workout_session_id = hws2.id
+        JOIN workout_set hs2 ON hs2.workout_session_exercise_id = hwse2.id
+        WHERE hws2.deleted_at IS NULL
+          AND hws2.status = '${WORKOUT_SESSION_STATUS.COMPLETED}'
+          AND hws2.source_program_day_id = ?
+          AND hwse2.deleted_at IS NULL
+          AND hwse2.exercise_id = ?
+          AND hwse2.source_program_day_exercise_id = ?
+          AND hs2.deleted_at IS NULL
+          AND hs2.is_completed = 1
+        ORDER BY COALESCE(hws2.ended_at, hws2.started_at) DESC, hws2.started_at DESC
+        LIMIT 1
+      )
+    ORDER BY hs.set_index ASC;
+  `,
+    [dayId, plannedExerciseId, programDayExerciseId, dayId, plannedExerciseId, programDayExerciseId],
+  );
+}
 
 function enqueueWorkoutSessionSnapshot(sessionId: string) {
   const row = query<Record<string, unknown>>(
@@ -134,6 +184,7 @@ export function listSessionExercises(sessionId: string): WorkoutSessionExerciseR
     SELECT
       id,
       workout_session_id,
+      source_program_day_exercise_id,
       exercise_id,
       exercise_name,
       position,
@@ -229,13 +280,14 @@ export function createSessionFromPlanDay(input: { workoutPlanId: string; dayId: 
         INSERT INTO workout_session_exercise (
           id,
           workout_session_id,
+            source_program_day_exercise_id,
           exercise_id,
           exercise_name,
           position,
           notes
-        ) VALUES (?, ?, ?, ?, ?, NULL);
+        ) VALUES (?, ?, ?, ?, ?, ?, NULL);
       `,
-        [wseId, sessionId, row.exercise_id, row.exercise_name, row.position],
+        [wseId, sessionId, row.day_exercise_id, row.exercise_id, row.exercise_name, row.position],
       );
 
       enqueueWorkoutSessionExerciseSnapshot(wseId);
@@ -253,8 +305,17 @@ export function createSessionFromPlanDay(input: { workoutPlanId: string; dayId: 
       `,
         [row.day_exercise_id],
       );
+      const historicalSets = getHistoricalCompletedSetsForPlannedExercise({
+        dayId,
+        programDayExerciseId: row.day_exercise_id,
+        plannedExerciseId: row.exercise_id,
+      });
       if (plannedSets.length > 0) {
-        for (const plannedSet of plannedSets) {
+        const targetSetCount = Math.max(plannedSets.length, historicalSets.length);
+
+        for (let setPosition = 0; setPosition < targetSetCount; setPosition += 1) {
+          const historicalSet = historicalSets[setPosition];
+          const plannedSet = plannedSets[setPosition] ?? plannedSets[plannedSets.length - 1];
           const setId = newId('set');
           exec(
             `
@@ -274,9 +335,10 @@ export function createSessionFromPlanDay(input: { workoutPlanId: string; dayId: 
               setId,
               wseId,
               plannedSet.set_index,
-              0,
-              plannedSet.target_reps_min ?? 0,
-              plannedSet.rest_seconds ?? DEFAULT_REST_SECONDS,
+              0, setPosition + 1,
+              historicalSet?.weight ?? 0,
+              historicalSet?.reps ?? plannedSet?.target_reps_min ?? 0,
+              historicalSet?.rest_seconds ?? plannedSet?.rest_seconds ?? DEFAULT_REST_SECONDS,
             ],
           );
           enqueueWorkoutSetSnapshot(setId);
