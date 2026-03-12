@@ -151,7 +151,7 @@ export function listDaysForWorkoutPlan(workoutPlanId: string): WorkoutPlanDayRow
 }
 
 function isDefaultDayName(name: string | null) {
-  return name === null || /^Day\s-?\d+$/.test(name);
+  return name === null || /^(Day|Session)\s-?\d+$/.test(name);
 }
 
 function compactActiveDays(programWeekId: string) {
@@ -180,7 +180,7 @@ function compactActiveDays(programWeekId: string) {
 
     if (isDefaultDayName(rows[i].name)) {
       exec("UPDATE program_day SET name = ?, updated_at = datetime('now') WHERE id = ?", [
-        `Day ${i + 1}`,
+        `Session ${i + 1}`,
         id,
       ]);
     }
@@ -215,7 +215,7 @@ export function addDayToWorkoutPlan(workoutPlanId: string): string {
       INSERT INTO program_day (id, program_week_id, day_index, name)
       VALUES (?, ?, ?, ?);
     `,
-      [dayId, weekId, nextIndex, `Day ${nextIndex}`],
+      [dayId, weekId, nextIndex, `Session ${nextIndex}`],
     );
 
     return dayId;

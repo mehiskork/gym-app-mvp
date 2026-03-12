@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import type { TextInputProps, TextStyle, ViewStyle } from 'react-native';
 import { TextInput, View } from 'react-native';
 
+import { useAppTheme } from '../theme/theme';
 import { tokens } from '../theme/tokens';
 import { Text } from './Text';
 
@@ -31,6 +32,7 @@ export function Input({
     ...props
 }: InputProps) {
     const [focused, setFocused] = useState(false);
+    const { colors } = useAppTheme();
 
     const handleFocus: TextInputProps['onFocus'] = (event) => {
         setFocused(true);
@@ -59,7 +61,7 @@ export function Input({
                         paddingHorizontal: tokens.spacing.md,
                         borderRadius: tokens.radius.md,
                         borderWidth: 1,
-                        borderColor: focused ? tokens.colors.primary : tokens.colors.border,
+                        borderColor: focused ? colors.primary : tokens.colors.border,
                         backgroundColor: tokens.colors.surface,
                         flexDirection: 'row',
                         alignItems: 'center',

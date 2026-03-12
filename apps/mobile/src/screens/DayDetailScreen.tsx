@@ -70,7 +70,7 @@ export function DayDetailScreen({ route, navigation }: Props) {
 
   useFocusEffect(
     useCallback(() => {
-      navigation.setOptions({ title: 'Day' });
+      navigation.setOptions({ title: 'Session' });
     }, [navigation]),
   );
 
@@ -113,7 +113,7 @@ export function DayDetailScreen({ route, navigation }: Props) {
       renameDay(dayId, nextDbValue);
       setSavedName(next);
     } catch (e) {
-      const message = e instanceof Error ? e.message : 'Failed to rename day';
+      const message = e instanceof Error ? e.message : 'Failed to rename session';
       Alert.alert('Error', message);
       setDayNameInput(savedName);
     }
@@ -208,7 +208,7 @@ export function DayDetailScreen({ route, navigation }: Props) {
         <View style={{ gap: tokens.spacing.md }}>
           <View style={{ gap: tokens.spacing.xs }}>
             <Input
-              label="Day name"
+              label="Session name"
               maxLength={50}
               value={dayNameInput}
               onChangeText={setDayNameInput}
@@ -268,7 +268,7 @@ export function DayDetailScreen({ route, navigation }: Props) {
         <DestructiveConfirmDialog
           visible={deleteExerciseTarget !== null}
           title="Delete exercise?"
-          body={`"${deleteExerciseTarget?.exercise_name ?? 'This exercise'}" will be removed from this day.`}
+          body={`"${deleteExerciseTarget?.exercise_name ?? 'This exercise'}" will be removed from this session.`}
           confirmLabel="Delete"
           cancelLabel="Cancel"
           onClose={() => setDeleteExerciseTarget(null)}
@@ -314,7 +314,7 @@ export function DayDetailScreen({ route, navigation }: Props) {
       <DestructiveConfirmDialog
         visible={deleteExerciseTarget !== null}
         title="Delete exercise?"
-        body={`"${deleteExerciseTarget?.exercise_name ?? 'This exercise'}" will be removed from this day.`}
+        body={`"${deleteExerciseTarget?.exercise_name ?? 'This exercise'}" will be removed from this session.`}
         confirmLabel="Delete"
         cancelLabel="Cancel"
         onClose={() => setDeleteExerciseTarget(null)}

@@ -118,7 +118,7 @@ export function ExercisePickerScreen({ route, navigation }: Props) {
               <Text variant="subtitle">{item.name}</Text>
               <Text variant="muted">{item.is_custom ? 'Custom' : 'Curated'}</Text>
               <Text variant="muted">
-                {isBrowseOnly ? 'Tap to view details' : isSwapMode ? 'Tap to swap' : 'Tap to add to day'}
+                {isBrowseOnly ? 'Tap to view details' : isSwapMode ? 'Tap to swap' : 'Tap to add to session'}
               </Text>
             </Pressable>
 
