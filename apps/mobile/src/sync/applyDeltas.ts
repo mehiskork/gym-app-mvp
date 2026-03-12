@@ -163,6 +163,7 @@ const tableConfigs: Record<string, TableConfig> = {
         columns: [
             'id',
             'workout_session_id',
+            'source_program_day_exercise_id',
             'exercise_id',
             'exercise_name',
             'position',

@@ -23,7 +23,6 @@ export const migration003_workout_sessions: Migration = {
     CREATE TABLE IF NOT EXISTS workout_session_exercise (
       id TEXT PRIMARY KEY NOT NULL,
       workout_session_id TEXT NOT NULL,
-      source_program_day_exercise_id TEXT,
       exercise_id TEXT NOT NULL,
       exercise_name TEXT NOT NULL,
       position INTEGER NOT NULL,
