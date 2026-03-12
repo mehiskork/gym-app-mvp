@@ -1,27 +1,22 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
+import { Alert, Pressable, ScrollView, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
 
 import type { RootStackParamList } from '../navigation/types';
-import { Screen } from '../ui/Screen';
-import { Text } from '../ui/Text';
+import { Button, DestructiveConfirmDialog, Screen, Text } from '../ui';
 import { tokens } from '../theme/tokens';
 import {
+  deleteCustomExerciseIfUnused,
   getExerciseById,
+  getExerciseDeletionState,
   listExerciseSessionsWithSets,
+  type ExerciseDeletionState,
   type SessionWithSets,
 } from '../db/exerciseDetailRepo';
-import {
-  durationSeconds,
-  formatDateTime,
-  formatDurationSeconds,
-  formatKg,
-} from '../utils/format';
+import { durationSeconds, formatDateTime, formatDurationSeconds, formatKg } from '../utils/format';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ExerciseDetail'>;
-
-
 
 function formatSetLine(weight: number | null, reps: number | null) {
   const w = weight ?? 0;
@@ -51,13 +46,24 @@ function computeVolume(sets: { weight: number | null; reps: number | null }[]) {
   }, 0);
 }
 
+const NON_DELETABLE_STATE: ExerciseDeletionState = {
+  canRequestDelete: false,
+  canDelete: false,
+  blockReason: null,
+};
+
+
 export function ExerciseDetailScreen({ route, navigation }: Props) {
   const { exerciseId } = route.params;
 
   const [name, setName] = useState<string>('Exercise');
   const [sessions, setSessions] = useState<SessionWithSets[]>([]);
+  const [deleteState, setDeleteState] = useState<ExerciseDeletionState>(NON_DELETABLE_STATE);
+  const [confirmVisible, setConfirmVisible] = useState(false);
+
 
   const load = useCallback(() => {
+    setDeleteState(getExerciseDeletionState(exerciseId));
     const ex = getExerciseById(exerciseId);
     setName(ex?.name ?? 'Exercise');
 
@@ -88,7 +94,6 @@ export function ExerciseDetailScreen({ route, navigation }: Props) {
   const metrics = useMemo(() => {
     if (sessions.length === 0) return null;
 
-    // Flatten sets with session timestamp for display
     const all = sessions.flatMap((sess) =>
       sess.sets.map((s) => ({
         ...s,
@@ -96,14 +101,12 @@ export function ExerciseDetailScreen({ route, navigation }: Props) {
       })),
     );
 
-    // Prefer completed sets; if none completed, fall back to all sets
     const completedValid = all.filter((s) => s.is_completed === 1 && isValidSet(s.weight, s.reps));
     const anyValid = all.filter((s) => isValidSet(s.weight, s.reps));
     const pool = completedValid.length > 0 ? completedValid : anyValid;
 
     if (pool.length === 0) return null;
 
-    // Best e1RM set
     let best = pool[0];
     let bestE1 = epleyE1RM(best.weight as number, best.reps as number);
 
@@ -115,7 +118,6 @@ export function ExerciseDetailScreen({ route, navigation }: Props) {
       }
     }
 
-    // Per-session volume (prefer completed sets; fall back if none completed)
     const volumes = sessions.map((sess) => {
       const completed = sess.sets.filter((x) => x.is_completed === 1);
       const vol = computeVolume(completed.length > 0 ? completed : sess.sets);
@@ -139,11 +141,48 @@ export function ExerciseDetailScreen({ route, navigation }: Props) {
     };
   }, [sessions]);
 
+  const handleDelete = useCallback(() => {
+    try {
+      deleteCustomExerciseIfUnused(exerciseId);
+      setConfirmVisible(false);
+      navigation.goBack();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to delete exercise.';
+      Alert.alert('Unable to delete exercise', message);
+      setConfirmVisible(false);
+      setDeleteState(getExerciseDeletionState(exerciseId));
+    }
+  }, [exerciseId, navigation]);
+
+
   return (
     <Screen bottomInset="none" style={{ flex: 1 }}>
       <ScrollView
         contentContainerStyle={{ gap: tokens.spacing.lg, paddingBottom: tokens.spacing.xl }}
       >
+        {deleteState.canRequestDelete ? (
+          <View
+            style={{
+              padding: tokens.spacing.md,
+              backgroundColor: tokens.colors.surface,
+              borderRadius: tokens.radius.md,
+              borderWidth: 1,
+              borderColor: tokens.colors.border,
+              gap: tokens.spacing.sm,
+            }}
+          >
+            <Text variant="subtitle">Delete custom exercise</Text>
+            {!deleteState.canDelete && deleteState.blockReason ? (
+              <Text variant="muted">{deleteState.blockReason}</Text>
+            ) : null}
+            <Button
+              title="Delete exercise"
+              variant="destructive"
+              disabled={!deleteState.canDelete}
+              onPress={() => setConfirmVisible(true)}
+            />
+          </View>
+        ) : null}
         <View
           style={{
             padding: tokens.spacing.md,
@@ -204,12 +243,8 @@ export function ExerciseDetailScreen({ route, navigation }: Props) {
             <Text variant="muted">No history yet for this exercise.</Text>
           ) : (
             <>
-              <Text variant="muted">
-                {formatDateTime(last.ended_at ?? last.started_at)}
-              </Text>
-              {lastDuration ? (
-                <Text variant="muted">Duration: {lastDuration}</Text>
-              ) : null}
+              <Text variant="muted">{formatDateTime(last.ended_at ?? last.started_at)}</Text>
+              {lastDuration ? <Text variant="muted">Duration: {lastDuration}</Text> : null}
 
               <View style={{ gap: tokens.spacing.xs }}>
                 {last.sets.length === 0 ? (
@@ -260,9 +295,7 @@ export function ExerciseDetailScreen({ route, navigation }: Props) {
                 accessibilityLabel={`Open session ${sess.title}`}
               >
                 <Text variant="subtitle">{sess.title}</Text>
-                <Text variant="muted">
-                  {formatDateTime(sess.ended_at ?? sess.started_at)}
-                </Text>
+                <Text variant="muted">{formatDateTime(sess.ended_at ?? sess.started_at)}</Text>
 
                 {sess.sets.length > 0 ? (
                   <Text variant="muted">
@@ -280,6 +313,16 @@ export function ExerciseDetailScreen({ route, navigation }: Props) {
           )}
         </View>
       </ScrollView>
+
+      <DestructiveConfirmDialog
+        visible={confirmVisible}
+        title="Delete exercise?"
+        body="This will permanently delete this custom exercise."
+        confirmLabel="Delete"
+        onClose={() => setConfirmVisible(false)}
+        onConfirm={handleDelete}
+      />
+
     </Screen>
   );
 }
