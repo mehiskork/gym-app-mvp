@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { Alert, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
@@ -19,6 +19,10 @@ import {
 import { useAppTheme } from '../theme/theme';
 import { tokens } from '../theme/tokens';
 import {
+  formatLastCompletedLabel,
+  getRecommendedPlanDayId,
+} from '../features/workoutPlanSessionPicker/recommendation';
+import {
   addDayToWorkoutPlan,
   deleteWorkoutPlan,
   getWorkoutPlanById,
@@ -27,7 +31,12 @@ import {
   type WorkoutPlanRow,
   updateWorkoutPlanName,
 } from '../db/workoutPlanRepo';
-import { createSessionFromPlanDay, getInProgressSession } from '../db/workoutSessionRepo';
+import {
+  createSessionFromPlanDay,
+  getInProgressSession,
+  getLastCompletedAtByPlanDay,
+  getMostRecentCompletedDayIdForPlan,
+} from '../db/workoutSessionRepo';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'WorkoutPlanDetail'>;
 
@@ -36,6 +45,7 @@ export function WorkoutPlanDetailScreen({ route, navigation }: Props) {
   const mode = route.params.mode ?? 'edit';
   const [plan, setPlan] = useState<WorkoutPlanRow | null>(null);
   const [days, setDays] = useState<WorkoutPlanDayRow[]>([]);
+  const [lastCompletedByDayId, setLastCompletedByDayId] = useState<Record<string, string>>({});
   const [planName, setPlanName] = useState('');
   const [pickerNotice, setPickerNotice] = useState<string | null>(null);
   const [deletePlanVisible, setDeletePlanVisible] = useState(false);
@@ -44,6 +54,7 @@ export function WorkoutPlanDetailScreen({ route, navigation }: Props) {
     const nextPlan = getWorkoutPlanById(workoutPlanId);
     setPlan(nextPlan);
     setDays(nextPlan ? listDaysForWorkoutPlan(workoutPlanId) : []);
+    setLastCompletedByDayId(nextPlan ? getLastCompletedAtByPlanDay(workoutPlanId) : {});
     setPlanName(nextPlan?.name ?? '');
   }, [workoutPlanId]);
 
@@ -93,6 +104,21 @@ export function WorkoutPlanDetailScreen({ route, navigation }: Props) {
 
   const sessionCountLabel = `${days.length} session${days.length === 1 ? '' : 's'}`;
   const isPickerMode = mode === 'pickSessionToStart';
+  const recommendedDayId = useMemo(() => {
+    if (!isPickerMode) return null;
+
+    const inProgressSession = getInProgressSession();
+    const inProgressDayId =
+      inProgressSession?.source_workout_plan_id === workoutPlanId
+        ? inProgressSession.source_program_day_id
+        : null;
+
+    return getRecommendedPlanDayId({
+      days,
+      mostRecentCompletedDayId: getMostRecentCompletedDayIdForPlan(workoutPlanId),
+      inProgressDayId,
+    });
+  }, [days, isPickerMode, workoutPlanId]);
   const handleDayPress = useCallback(
     (dayId: string) => {
       if (isPickerMode) {
@@ -150,11 +176,27 @@ export function WorkoutPlanDetailScreen({ route, navigation }: Props) {
                 <ListRow
                   key={day.id}
                   title={day.name ?? `Session ${day.day_index}`}
-                  subtitle={isPickerMode ? undefined : 'Tap to edit'}
+                  subtitle={
+                    isPickerMode
+                      ? formatLastCompletedLabel(lastCompletedByDayId[day.id] ?? null)
+                      : 'Tap to edit'
+                  }
                   left={
                     <IconChip variant="primarySoft" size={40}>
                       <Ionicons name="calendar-outline" size={18} color={colors.primary} />
                     </IconChip>
+                  }
+                  right={
+                    isPickerMode && recommendedDayId === day.id ? (
+                      <Text variant="label" color={tokens.colors.mutedText}>
+                        Recommended
+                      </Text>
+                    ) : undefined
+                  }
+                  style={
+                    isPickerMode && recommendedDayId === day.id
+                      ? { borderColor: colors.primary, backgroundColor: tokens.colors.surface2 }
+                      : undefined
                   }
                   showChevron
                   onPress={() => handleDayPress(day.id)}

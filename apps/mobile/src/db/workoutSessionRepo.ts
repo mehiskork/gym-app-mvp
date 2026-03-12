@@ -3,8 +3,11 @@ import { inTransaction } from './tx';
 import { newId } from '../utils/ids';
 import { detectAndStorePrsForSession } from './prRepo';
 import { enqueueOutboxOp } from './outboxRepo';
-import { DEFAULT_REST_SECONDS, WORKOUT_SESSION_STATUS, type WorkoutSessionStatus } from './constants';
-
+import {
+  DEFAULT_REST_SECONDS,
+  WORKOUT_SESSION_STATUS,
+  type WorkoutSessionStatus,
+} from './constants';
 
 export type WorkoutSessionRow = {
   id: string;
@@ -25,6 +28,16 @@ export type WorkoutSessionExerciseRow = {
   position: number;
   notes: string | null;
 };
+
+type MostRecentCompletedDayForPlanRow = {
+  source_program_day_id: string;
+};
+
+type LastCompletedForPlanDayRow = {
+  day_id: string;
+  last_completed_at: string;
+};
+
 
 type SetSeed = {
   weight: number;
@@ -71,7 +84,14 @@ function getHistoricalCompletedSetsForPlannedExercise(input: {
       )
     ORDER BY hs.set_index ASC;
   `,
-    [dayId, plannedExerciseId, programDayExerciseId, dayId, plannedExerciseId, programDayExerciseId],
+    [
+      dayId,
+      plannedExerciseId,
+      programDayExerciseId,
+      dayId,
+      plannedExerciseId,
+      programDayExerciseId,
+    ],
   );
 }
 
@@ -156,6 +176,46 @@ export function getInProgressSession(): WorkoutSessionRow | null {
   `,
   );
   return rows[0] ?? null;
+}
+
+export function getMostRecentCompletedDayIdForPlan(workoutPlanId: string): string | null {
+  const rows = query<MostRecentCompletedDayForPlanRow>(
+    `
+    SELECT source_program_day_id
+    FROM workout_session
+    WHERE deleted_at IS NULL
+      AND status = '${WORKOUT_SESSION_STATUS.COMPLETED}'
+      AND source_workout_plan_id = ?
+      AND source_program_day_id IS NOT NULL
+    ORDER BY COALESCE(ended_at, started_at) DESC, started_at DESC
+    LIMIT 1;
+  `,
+    [workoutPlanId],
+  );
+
+  return rows[0]?.source_program_day_id ?? null;
+}
+
+export function getLastCompletedAtByPlanDay(workoutPlanId: string): Record<string, string> {
+  const rows = query<LastCompletedForPlanDayRow>(
+    `
+    SELECT
+      source_program_day_id AS day_id,
+      MAX(COALESCE(ended_at, started_at)) AS last_completed_at
+    FROM workout_session
+    WHERE deleted_at IS NULL
+      AND status = '${WORKOUT_SESSION_STATUS.COMPLETED}'
+      AND source_workout_plan_id = ?
+      AND source_program_day_id IS NOT NULL
+    GROUP BY source_program_day_id;
+  `,
+    [workoutPlanId],
+  );
+
+  return rows.reduce<Record<string, string>>((acc, row) => {
+    acc[row.day_id] = row.last_completed_at;
+    return acc;
+  }, {});
 }
 
 export function getSessionById(sessionId: string): WorkoutSessionRow | null {
