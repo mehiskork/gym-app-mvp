@@ -14,6 +14,7 @@ type SetRowProps = {
     onRepsEndEditing: (value: string) => void;
     onToggleComplete: () => void;
     onDelete: () => void;
+    onEditFocus?: (metrics: { pageY: number; height: number }) => void;
 };
 
 export function SetRow({
@@ -22,8 +23,10 @@ export function SetRow({
     onRepsEndEditing,
     onToggleComplete,
     onDelete,
+    onEditFocus,
 }: SetRowProps) {
     const [rowWidth, setRowWidth] = React.useState(0);
+    const rowRef = React.useRef<View | null>(null);
     const completed = set.is_completed === 1;
     const rowStyle = completed ? styles.completedRow : styles.row;
     const inputStyle = completed ? styles.completedInput : styles.input;
@@ -57,9 +60,15 @@ export function SetRow({
         [rowWidth],
     );
 
+    const handleEditFocus = React.useCallback(() => {
+        if (!onEditFocus || !rowRef.current) return;
+        rowRef.current.measureInWindow((_x, pageY, _width, height) => {
+            onEditFocus({ pageY, height });
+        });
+    }, [onEditFocus]);
 
     return (
-        <View style={rowStyle} onLayout={handleRowLayout}>
+        <View ref={rowRef} style={rowStyle} onLayout={handleRowLayout}>
             <View style={[styles.leftCluster, { gap: setInputGap }]}>
                 <View style={[styles.setLabel, { width: setColWidth }]}>
                     <Text
@@ -82,6 +91,7 @@ export function SetRow({
                             placeholderTextColor={tokens.colors.textSecondary}
                             style={[inputStyle, { width: inputWidth, paddingHorizontal: inputPadding }]}
                             onEndEditing={(e) => onWeightEndEditing(e.nativeEvent.text)}
+                            onFocus={handleEditFocus}
                         />
                     </View>
 
@@ -95,6 +105,7 @@ export function SetRow({
                             placeholderTextColor={tokens.colors.textSecondary}
                             style={[inputStyle, { width: inputWidth, paddingHorizontal: inputPadding }]}
                             onEndEditing={(e) => onRepsEndEditing(e.nativeEvent.text)}
+                            onFocus={handleEditFocus}
                         />
                     </View>
                 </View>

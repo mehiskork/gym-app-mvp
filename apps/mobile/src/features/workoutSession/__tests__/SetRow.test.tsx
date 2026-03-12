@@ -3,6 +3,7 @@ jest.mock('react', () => {
     return {
         ...actual,
         useState: jest.fn(),
+        useRef: jest.fn(() => ({ current: null })),
         useCallback: (fn: () => unknown) => fn,
     };
 });

@@ -166,6 +166,7 @@ describe('WorkoutSessionScreen', () => {
 
     beforeEach(() => {
         useStateMock.mockReset();
+        useStateMock.mockImplementation((initial: unknown) => [initial, jest.fn()]);
         (updateWorkoutSet as jest.Mock).mockReset();
         (getWorkoutLoggerData as jest.Mock).mockReset();
         (startRestTimer as jest.Mock).mockReset();

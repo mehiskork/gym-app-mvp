@@ -191,6 +191,7 @@ describe('WorkoutSessionScreen finish modal', () => {
 
     beforeEach(() => {
         useStateMock.mockReset();
+        useStateMock.mockImplementation((initial: unknown) => [initial, jest.fn()]);
         (getWorkoutLoggerData as jest.Mock).mockReset();
         (completeSession as jest.Mock).mockReset();
         (clearRestTimer as jest.Mock).mockReset();

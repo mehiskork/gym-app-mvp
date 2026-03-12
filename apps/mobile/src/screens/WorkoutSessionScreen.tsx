@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
+import { Alert, Dimensions, Keyboard, KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { CommonActions, useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -73,8 +73,12 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
   const [isFinishing, setIsFinishing] = useState(false);
   const insets = useSafeAreaInsets();
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const scrollViewRef = useRef<ScrollView | null>(null);
+  const scrollOffsetYRef = useRef(0);
+  const activeRowMetricsRef = useRef<{ pageY: number; height: number } | null>(null);
   const restHapticsRef = useRef(false);
   const isExitingToHomeRef = useRef(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   const resetToHome = useCallback((showMessage = false) => {
     if (isExitingToHomeRef.current) return;
@@ -141,6 +145,24 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
       restHapticsRef,
     );
   }, [remainingSeconds, settings.restTimerVibration, timerActive]);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const showSub = Keyboard.addListener(showEvent, (event) => {
+      setKeyboardHeight(event.endCoordinates.height);
+    });
+    const hideSub = Keyboard.addListener(hideEvent, () => {
+      setKeyboardHeight(0);
+    });
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
 
   useEffect(() => {
     if (isFocused && settings.keepScreenOn && session?.status === 'in_progress') {
@@ -226,6 +248,33 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
     ? baseScrollPaddingTop + REST_TIMER_HEIGHT + tokens.spacing.lg
     : baseScrollPaddingTop;
   const restTimerTop = tokens.spacing.xs - insets.top;
+  const keyboardOpen = keyboardHeight > 0;
+  const keyboardSpacer = keyboardOpen ? keyboardHeight + tokens.spacing.lg : 0;
+
+  const handleSetEditFocus = useCallback(
+    ({ pageY, height }: { pageY: number; height: number }) => {
+      activeRowMetricsRef.current = { pageY, height };
+      if (!keyboardOpen) return;
+      const viewportBottom =
+        (Platform.OS === 'ios' ? 0 : insets.bottom) +
+        tokens.touchTargetMin +
+        tokens.spacing.md;
+      const visibleBottom = pageY + height;
+      const keyboardTop = Dimensions.get('window').height - keyboardHeight - viewportBottom;
+      if (visibleBottom <= keyboardTop) return;
+      const neededOffset = visibleBottom - keyboardTop + tokens.spacing.sm;
+      scrollViewRef.current?.scrollTo({
+        y: Math.max(0, scrollOffsetYRef.current + neededOffset),
+        animated: true,
+      });
+    },
+    [insets.bottom, keyboardHeight, keyboardOpen],
+  );
+
+  useEffect(() => {
+    if (!keyboardOpen || !activeRowMetricsRef.current) return;
+    handleSetEditFocus(activeRowMetricsRef.current);
+  }, [handleSetEditFocus, keyboardOpen]);
   if (!session) {
     return (
       <Screen style={{ justifyContent: 'center' }}>
@@ -241,10 +290,15 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
         style={{ flex: 1 }}
       >
         <ScrollView
+          ref={scrollViewRef}
+          onScroll={(event) => {
+            scrollOffsetYRef.current = event.nativeEvent.contentOffset.y;
+          }}
+          scrollEventThrottle={16}
           contentContainerStyle={{
             paddingHorizontal: tokens.spacing.lg,
             paddingTop: scrollPaddingTop,
-            paddingBottom: bottomStackHeight + tokens.spacing.lg,
+            paddingBottom: bottomStackHeight + keyboardSpacer + tokens.spacing.lg,
             gap: tokens.spacing.md,
           }}
           showsVerticalScrollIndicator={false}
@@ -315,6 +369,7 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
                         snackbarUndo.showUndo(set);
                         load();
                       }}
+                      onEditFocus={handleSetEditFocus}
                     />
                   ))}
                 </ExerciseCard>
@@ -376,35 +431,37 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
           </View>
         </Card>
       ) : null}
-      <View
-        style={{
-          position: 'absolute',
-          left: 0,
-          right: 0,
-          bottom: bottomStackOffset,
-          paddingHorizontal: tokens.spacing.lg,
-          paddingTop: footerPaddingTop,
-          paddingBottom: footerPaddingBottom,
-          backgroundColor: tokens.colors.surface,
-          borderTopWidth: 1,
-          borderTopColor: tokens.colors.border,
-        }}
-      >
-        <Snackbar
-          visible={snackbarUndo.visible}
-          message="Set deleted"
-          actionLabel="UNDO"
-          onAction={snackbarUndo.onUndoAction}
-          minHeight={CTA_HEIGHT}
-          style={{ marginBottom: snackbarUndo.visible ? CTA_STACK_GAP : 0 }}
-        />
-        <Button
-          title="Finish workout"
-          variant="primary"
-          onPress={() => setFinishOpen(true)}
-          style={{ height: CTA_HEIGHT }}
-        />
-      </View>
+      {keyboardOpen ? null : (
+        <View
+          style={{
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            bottom: bottomStackOffset,
+            paddingHorizontal: tokens.spacing.lg,
+            paddingTop: footerPaddingTop,
+            paddingBottom: footerPaddingBottom,
+            backgroundColor: tokens.colors.surface,
+            borderTopWidth: 1,
+            borderTopColor: tokens.colors.border,
+          }}
+        >
+          <Snackbar
+            visible={snackbarUndo.visible}
+            message="Set deleted"
+            actionLabel="UNDO"
+            onAction={snackbarUndo.onUndoAction}
+            minHeight={CTA_HEIGHT}
+            style={{ marginBottom: snackbarUndo.visible ? CTA_STACK_GAP : 0 }}
+          />
+          <Button
+            title="Finish workout"
+            variant="primary"
+            onPress={() => setFinishOpen(true)}
+            style={{ height: CTA_HEIGHT }}
+          />
+        </View>
+      )}
       {FinishWorkoutSheet({
         visible: finishOpen,
         onClose: handleCloseFinish,
