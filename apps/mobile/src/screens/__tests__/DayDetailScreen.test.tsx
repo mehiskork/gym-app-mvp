@@ -83,9 +83,11 @@ jest.mock('../../db/workoutSessionRepo', () => ({
 
 import React from 'react';
 import DraggableFlatList, { type RenderItemParams } from 'react-native-draggable-flatlist';
+import { Ionicons } from '@expo/vector-icons';
 import { Button, EmptyState, ListRow, Screen } from '../../ui';
 import { DayDetailScreen } from '../DayDetailScreen';
 import { createSessionFromPlanDay, getInProgressSession, getSessionById } from '../../db/workoutSessionRepo';
+import { tokens } from '../../theme/tokens';
 
 
 type Nav = {
@@ -160,6 +162,30 @@ describe('DayDetailScreen', () => {
 
         expect(row.props.title).toBe('Bench Press');
     });
+
+    it('uses destructive red for the exercise delete icon', () => {
+        const items = [{ id: 'day-ex-1', program_day_id: 'day-1', exercise_id: 'bench', exercise_name: 'Bench Press', position: 1, notes: null }];
+        useStateMock.mockImplementationOnce(() => ['Push', jest.fn()]);
+        useStateMock.mockImplementationOnce(() => ['Push', jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [items, jest.fn()]);
+
+        const navigation: Nav = { navigate: jest.fn(), replace: jest.fn(), setOptions: jest.fn() };
+        const element = DayDetailScreen({
+            navigation,
+            route: { key: 'DayDetail', name: 'DayDetail', params: { dayId: 'day-1' } },
+        } as never);
+
+        const lists = findElementsByType<React.ComponentProps<typeof DraggableFlatList>>(element, DraggableFlatList);
+        const renderItem = lists[0]?.props.renderItem as ((params: RenderItemParams<(typeof items)[number]>) => React.ReactElement);
+        const rowNode = renderItem({ item: items[0], drag: jest.fn(), isActive: false, getIndex: () => 0 });
+
+        const row = rowNode as React.ReactElement<React.ComponentProps<typeof ListRow>>;
+        const icons = findElementsByType<{ name: string; color?: string }>(row.props.right, Ionicons);
+        const deleteIcon = icons.find((icon) => icon.props.name === 'trash-outline');
+
+        expect(deleteIcon?.props.color).toBe(tokens.colors.destructive);
+    });
+
 
     it('starts a workout in start-session mode', () => {
         (createSessionFromPlanDay as jest.Mock).mockReturnValue('session-1');

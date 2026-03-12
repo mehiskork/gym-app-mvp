@@ -161,7 +161,7 @@ export function DayDetailScreen({ route, navigation }: Props) {
                 ]}
                 accessibilityLabel="Delete exercise"
               >
-                <Ionicons name="trash-outline" size={18} color={tokens.colors.mutedText} />
+                <Ionicons name="trash-outline" size={18} color={tokens.colors.destructive} />
               </Pressable>
               <Pressable
                 onLongPress={drag}
