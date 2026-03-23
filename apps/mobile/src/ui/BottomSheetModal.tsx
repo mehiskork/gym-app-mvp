@@ -1,6 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
-import { Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, View } from 'react-native';
+import {
+    Keyboard,
+    KeyboardAvoidingView,
+    Modal,
+    Platform,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    View,
+    useWindowDimensions,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -21,6 +31,12 @@ type BottomSheetModalProps = {
 export function getSheetKeyboardOffset(keyboardHeight: number, bottomInset: number): number {
     return Math.max(0, keyboardHeight - bottomInset);
 }
+
+export function getSheetMaxHeight(windowHeight: number, keyboardOffset: number): number {
+    const verticalMargin = tokens.spacing.xxl * 2;
+    return Math.max(240, windowHeight - keyboardOffset - verticalMargin);
+}
+
 export function BottomSheetModal({
     visible,
     title,
@@ -32,6 +48,7 @@ export function BottomSheetModal({
     keyboardAware = false,
 }: BottomSheetModalProps) {
     const insets = useSafeAreaInsets();
+    const { height: windowHeight } = useWindowDimensions();
     const [keyboardHeight, setKeyboardHeight] = useState(0);
 
     useEffect(() => {
@@ -52,6 +69,7 @@ export function BottomSheetModal({
     }, [keyboardAware]);
 
     const keyboardOffset = keyboardAware ? getSheetKeyboardOffset(keyboardHeight, insets.bottom) : 0;
+    const maxSheetHeight = keyboardAware ? getSheetMaxHeight(windowHeight, keyboardOffset) : undefined;
 
     return (
         <Modal
@@ -76,7 +94,6 @@ export function BottomSheetModal({
                 <KeyboardAvoidingView
                     behavior={Platform.OS === 'ios' ? 'padding' : undefined}
                     style={{
-
                         width: '100%',
                         marginBottom: keyboardOffset,
                     }}
@@ -100,6 +117,7 @@ export function BottomSheetModal({
                             alignSelf: 'center',
                             width: '100%',
                             maxWidth: maxWidth ?? undefined,
+                            maxHeight: maxSheetHeight,
                         }}
                     >
                         <View
@@ -130,7 +148,17 @@ export function BottomSheetModal({
                                 <Ionicons name="close" size={20} color={tokens.colors.text} />
                             </Pressable>
                         </View>
-                        {children}
+                        {keyboardAware ? (
+                            <ScrollView
+                                keyboardShouldPersistTaps="handled"
+                                style={{ flexGrow: 0 }}
+                                contentContainerStyle={{ paddingBottom: tokens.spacing.xs }}
+                            >
+                                {children}
+                            </ScrollView>
+                        ) : (
+                            children
+                        )}
                         {actions ? <View style={{ marginTop: tokens.spacing.lg }}>{actions}</View> : null}
                     </View>
                 </KeyboardAvoidingView>

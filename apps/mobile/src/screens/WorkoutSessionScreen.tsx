@@ -490,24 +490,8 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
         visible={Boolean(editingExercise)}
         title={editingExercise ? `${editingExercise.exercise_name} comment` : 'Exercise comment'}
         keyboardAware
-        onClose={() => {
-          setCommentEditorExerciseId(null);
-          setCommentDraft('');
-        }}
-      >
-        <View style={{ gap: tokens.spacing.md }}>
-          <Input
-            value={commentDraft}
-            onChangeText={(value) => setCommentDraft(value.slice(0, MAX_EXERCISE_COMMENT_LENGTH))}
-            placeholder="Add an informational comment"
-            maxLength={MAX_EXERCISE_COMMENT_LENGTH}
-            editable={canEditComment}
-            multiline
-            textAlignVertical="top"
-            inputStyle={{ minHeight: 90, paddingVertical: tokens.spacing.sm }}
-            helperText={`${commentDraft.length}/${MAX_EXERCISE_COMMENT_LENGTH}`}
-          />
-          {canEditComment ? (
+        actions={
+          canEditComment ? (
             <View style={{ flexDirection: 'row', gap: tokens.spacing.sm }}>
               <Button
                 title="Clear"
@@ -536,9 +520,27 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
             </View>
           ) : (
             <Text variant="muted">Comments are read-only after workout completion.</Text>
-          )}
+          )
+        }
+        onClose={() => {
+          setCommentEditorExerciseId(null);
+          setCommentDraft('');
+        }}
+      >
+        <View>
+          <Input
+            value={commentDraft}
+            onChangeText={(value) => setCommentDraft(value.slice(0, MAX_EXERCISE_COMMENT_LENGTH))}
+            placeholder="Add an informational comment"
+            maxLength={MAX_EXERCISE_COMMENT_LENGTH}
+            editable={canEditComment}
+            multiline
+            textAlignVertical="top"
+            inputStyle={{ minHeight: 90, paddingVertical: tokens.spacing.sm }}
+            helperText={`${commentDraft.length}/${MAX_EXERCISE_COMMENT_LENGTH}`}
+          />
         </View>
-      </BottomSheetModal>
-    </Screen>
+      </BottomSheetModal >
+    </Screen >
   );
 }
