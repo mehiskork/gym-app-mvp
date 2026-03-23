@@ -124,6 +124,9 @@ export function SessionDetailScreen({ route, navigation }: Props) {
 
           <Text variant="muted">{formatDateTime(session.started_at)}</Text>
           {dur ? <Text variant="muted">Duration: {dur}</Text> : null}
+          {session.workout_note?.trim() ? (
+            <Text variant="muted">Workout note: {session.workout_note.trim()}</Text>
+          ) : null}
         </View>
 
         {exercises.map((ex) => {

@@ -15,6 +15,7 @@ export type LoggerSession = {
   rest_timer_end_at: string | null;
   rest_timer_seconds: number | null;
   rest_timer_label: string | null;
+  workout_note: string | null;
 };
 
 export type LoggerExercise = {
@@ -164,6 +165,7 @@ export function getWorkoutLoggerData(sessionId: string): {
     rest_timer_end_at: detail.session.rest_timer_end_at,
     rest_timer_seconds: detail.session.rest_timer_seconds,
     rest_timer_label: detail.session.rest_timer_label,
+    workout_note: detail.session.workout_note,
   };
 
   const exercises: LoggerExercise[] = detail.exercises.map((exercise) => ({

@@ -12,6 +12,7 @@ export const migration003_workout_sessions: Migration = {
       status TEXT NOT NULL CHECK (status IN ('in_progress','completed','discarded')),
       started_at TEXT NOT NULL,
       ended_at TEXT,
+      workout_note TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now')),
       deleted_at TEXT

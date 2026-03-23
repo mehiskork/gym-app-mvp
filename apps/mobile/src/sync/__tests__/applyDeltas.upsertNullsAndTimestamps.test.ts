@@ -56,4 +56,27 @@ describe('applyDeltas null upsert + timestamp handling', () => {
         expect(exec).not.toHaveBeenCalled();
         expect(result.skipped).toBe(1);
     });
+    it('upserts workout_session workout_note from sync payload', () => {
+        (query as jest.Mock).mockReturnValue([]);
+
+        const delta: SyncDelta = {
+            entityType: 'workout_session',
+            entityId: 'ws-1',
+            opType: 'upsert',
+            payload: {
+                id: 'ws-1',
+                title: 'Push Day',
+                status: 'completed',
+                started_at: '2026-03-01T10:00:00Z',
+                ended_at: '2026-03-01T11:00:00Z',
+                workout_note: 'Synced note',
+            },
+        };
+
+        applyDeltas([delta]);
+
+        const [sql, values] = (exec as jest.Mock).mock.calls[0];
+        expect(sql).toContain('workout_note');
+        expect(values).toContain('Synced note');
+    });
 });

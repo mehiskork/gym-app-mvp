@@ -149,6 +149,7 @@ const tableConfigs: Record<string, TableConfig> = {
             'status',
             'started_at',
             'ended_at',
+            'workout_note',
             'created_at',
             'updated_at',
             'deleted_at',

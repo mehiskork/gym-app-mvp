@@ -17,6 +17,7 @@ export type WorkoutSessionRow = {
   status: WorkoutSessionStatus;
   started_at: string;
   ended_at: string | null;
+  workout_note: string | null;
 };
 
 export type WorkoutSessionExerciseRow = {
@@ -168,7 +169,8 @@ export function getInProgressSession(): WorkoutSessionRow | null {
       title,
       status,
       started_at,
-      ended_at
+      ended_at,
+      workout_note
     FROM workout_session
     WHERE status = '${WORKOUT_SESSION_STATUS.IN_PROGRESS}' AND deleted_at IS NULL
     ORDER BY started_at DESC
@@ -228,7 +230,8 @@ export function getSessionById(sessionId: string): WorkoutSessionRow | null {
       title,
       status,
       started_at,
-      ended_at
+      ended_at,
+      workout_note
     FROM workout_session
     WHERE id = ? AND deleted_at IS NULL
     LIMIT 1;
@@ -323,8 +326,9 @@ export function createSessionFromPlanDay(input: { workoutPlanId: string; dayId: 
         source_program_day_id,
         title,
         status,
-        started_at
-       ) VALUES (?, ?, ?, ?, '${WORKOUT_SESSION_STATUS.IN_PROGRESS}', datetime('now'));
+        started_at,
+        workout_note
+       ) VALUES (?, ?, ?, ?, '${WORKOUT_SESSION_STATUS.IN_PROGRESS}', datetime('now'), NULL);
     `,
       [sessionId, workoutPlanId, dayId, title],
     );
@@ -428,15 +432,40 @@ export function createSessionFromPlanDay(input: { workoutPlanId: string; dayId: 
   });
 }
 
-export function completeSession(sessionId: string) {
+function normalizeWorkoutNote(note: string | null | undefined): string | null {
+  if (typeof note !== 'string') return null;
+  const trimmed = note.trim();
+  if (!trimmed) return null;
+  return trimmed.slice(0, 200);
+}
+
+export function updateWorkoutSessionNote(sessionId: string, note: string | null) {
+  inTransaction(() => {
+    const normalized = normalizeWorkoutNote(note);
+    exec(
+      `
+      UPDATE workout_session
+       SET workout_note = ?, updated_at = datetime('now')
+      WHERE id = ?
+        AND status = '${WORKOUT_SESSION_STATUS.IN_PROGRESS}'
+        AND deleted_at IS NULL;
+    `,
+      [normalized, sessionId],
+    );
+
+    enqueueWorkoutSessionSnapshot(sessionId);
+  });
+}
+
+export function completeSession(sessionId: string, workoutNote: string | null = null) {
   inTransaction(() => {
     exec(
       `
       UPDATE workout_session
-       SET status = '${WORKOUT_SESSION_STATUS.COMPLETED}', ended_at = datetime('now'), updated_at = datetime('now')
+       SET status = '${WORKOUT_SESSION_STATUS.COMPLETED}', ended_at = datetime('now'), workout_note = ?, updated_at = datetime('now')
       WHERE id = ? AND deleted_at IS NULL;
     `,
-      [sessionId],
+      [normalizeWorkoutNote(workoutNote), sessionId],
     );
     enqueueWorkoutSessionSnapshot(sessionId);
 

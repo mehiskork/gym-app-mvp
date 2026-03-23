@@ -52,7 +52,7 @@ describe('SessionDetailScreen comments', () => {
     });
 
     it('shows exercise comment in history details', () => {
-        const session = { id: 's-1', title: 'Push Day', started_at: '2026-01-01T00:00:00Z', ended_at: '2026-01-01T01:00:00Z' };
+        const session = { id: 's-1', title: 'Push Day', started_at: '2026-01-01T00:00:00Z', ended_at: '2026-01-01T01:00:00Z', workout_note: 'Solid pace' };
         const exercises = [{ id: 'wse-1', exercise_id: 'bench', exercise_name: 'Bench Press', position: 1, notes: 'Controlled tempo' }];
         const sets: SessionSetRow[] = [];
 
@@ -69,5 +69,7 @@ describe('SessionDetailScreen comments', () => {
 
         expect(JSON.stringify(element)).toContain('Comment: ');
         expect(JSON.stringify(element)).toContain('Controlled tempo');
+        expect(JSON.stringify(element)).toContain('Workout note: ');
+        expect(JSON.stringify(element)).toContain('Solid pace');
     });
 });

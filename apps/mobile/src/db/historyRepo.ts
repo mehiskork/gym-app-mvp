@@ -8,6 +8,7 @@ export type CompletedSessionRow = {
   title: string;
   started_at: string;
   ended_at: string | null;
+  workout_note: string | null;
 };
 
 export type RecentSessionSummaryRow = {
@@ -42,7 +43,7 @@ export type SessionSetRow = {
 export function listCompletedSessions(limit = 50): CompletedSessionRow[] {
   return query<CompletedSessionRow>(
     `
-    SELECT id, title, started_at, ended_at
+     SELECT id, title, started_at, ended_at, workout_note
     FROM workout_session
     WHERE status = '${WORKOUT_SESSION_STATUS.COMPLETED}' AND deleted_at IS NULL
     ORDER BY COALESCE(ended_at, started_at) DESC
@@ -56,7 +57,7 @@ export function listRecentSessionSummaries(limit = 3): RecentSessionSummaryRow[]
   return query<RecentSessionSummaryRow>(
     `
     WITH completed_sessions AS (
-      SELECT id, title, started_at, ended_at
+     SELECT id, title, started_at, ended_at, workout_note
       FROM workout_session
       WHERE status = '${WORKOUT_SESSION_STATUS.COMPLETED}' AND deleted_at IS NULL
       ORDER BY COALESCE(ended_at, started_at) DESC
@@ -188,6 +189,7 @@ export function getSessionDetail(sessionId: string): {
     title: detail.session.title,
     started_at: detail.session.started_at,
     ended_at: detail.session.ended_at,
+    workout_note: detail.session.workout_note,
   };
 
   const performedExercises = detail.exercises.filter((exercise) => exercise.sets.length > 0);

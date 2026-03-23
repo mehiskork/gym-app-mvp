@@ -2,7 +2,7 @@ import React from 'react';
 import type { ReactNode } from 'react';
 import { View } from 'react-native';
 
-import { BottomSheetModal, Button, Text } from '../../ui';
+import { BottomSheetModal, Button, Input, Text } from '../../ui';
 import { tokens } from '../../theme/tokens';
 
 type FinishWorkoutSheetProps = {
@@ -13,7 +13,12 @@ type FinishWorkoutSheetProps = {
     totalSets: number;
     durationMinutes: number;
     isFinishing?: boolean;
+    workoutNote: string;
+    onWorkoutNoteChange: (value: string) => void;
+    noteEditable?: boolean;
 };
+
+const MAX_WORKOUT_NOTE_LENGTH = 200;
 
 const formatDuration = (minutes: number) => {
     const rounded = Math.max(0, Math.round(minutes));
@@ -42,6 +47,9 @@ export function FinishWorkoutSheet({
     totalSets,
     durationMinutes,
     isFinishing = false,
+    workoutNote,
+    onWorkoutNoteChange,
+    noteEditable = true,
 }: FinishWorkoutSheetProps) {
     const incompleteSets = Math.max(0, totalSets - completedSets);
     const message =
@@ -50,7 +58,7 @@ export function FinishWorkoutSheet({
             : 'Finish and save this workout?';
 
     return (
-        <BottomSheetModal visible={visible} title="Finish Workout?" onClose={onClose} testID="finish-sheet">
+        <BottomSheetModal visible={visible} title="Finish Workout?" onClose={onClose} testID="finish-sheet" keyboardAware>
             <View style={{ gap: tokens.spacing.lg }}>
                 <View
                     style={{
@@ -64,6 +72,18 @@ export function FinishWorkoutSheet({
                     <View style={{ height: 48, width: 1, backgroundColor: tokens.colors.border }} />
                     {StatColumn({ label: 'Duration', value: formatDuration(durationMinutes) })}
                 </View>
+                <Input
+                    label="Workout note (optional)"
+                    value={workoutNote}
+                    onChangeText={(value) => onWorkoutNoteChange(value.slice(0, MAX_WORKOUT_NOTE_LENGTH))}
+                    placeholder="Add an optional note for this session"
+                    maxLength={MAX_WORKOUT_NOTE_LENGTH}
+                    editable={noteEditable}
+                    multiline
+                    textAlignVertical="top"
+                    inputStyle={{ minHeight: 90, paddingVertical: tokens.spacing.sm }}
+                    helperText={`${workoutNote.length}/${MAX_WORKOUT_NOTE_LENGTH}`}
+                />
                 <Text variant="body" color={tokens.colors.mutedText} style={{ textAlign: 'center' }}>
                     {message}
                 </Text>

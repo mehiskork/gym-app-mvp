@@ -12,7 +12,7 @@ import type { RootStackParamList } from '../navigation/types';
 import { BottomSheetModal, Button, Card, EmptyState, IconButton, IconChip, Input, Screen, Snackbar, Text } from '../ui';
 import { useAppTheme } from '../theme/theme';
 import { tokens } from '../theme/tokens';
-import { completeSession } from '../db/workoutSessionRepo';
+import { completeSession, updateWorkoutSessionNote } from '../db/workoutSessionRepo';
 import {
   addWorkoutSet,
   clearRestTimer,
@@ -47,6 +47,7 @@ const CTA_HEIGHT = tokens.touchTargetMin + tokens.spacing.sm;
 const CTA_STACK_GAP = tokens.spacing.sm;
 const KEEP_AWAKE_TAG = 'workout-session';
 const MAX_EXERCISE_COMMENT_LENGTH = 200;
+const MAX_WORKOUT_NOTE_LENGTH = 200;
 
 function parseNumber(input: string): number | null {
   const trimmed = input.trim();
@@ -83,6 +84,7 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [commentEditorExerciseId, setCommentEditorExerciseId] = useState<string | null>(null);
   const [commentDraft, setCommentDraft] = useState('');
+  const [workoutNoteDraft, setWorkoutNoteDraft] = useState('');
 
   const resetToHome = useCallback((showMessage = false) => {
     if (isExitingToHomeRef.current) return;
@@ -105,6 +107,7 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
     }
     setSession(data.session);
     setExercises(data.exercises);
+    setWorkoutNoteDraft(data.session.workout_note ?? '');
   }, [resetToHome, sessionId]);
 
   const snackbarUndo = useSnackbarUndo<LoggerSet>({
@@ -225,7 +228,7 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
     setIsFinishing(true);
     setFinishOpen(false);
     try {
-      completeSession(sessionId);
+      completeSession(sessionId, workoutNoteDraft);
       clearRestTimer(sessionId);
       void cancelRestTimerNotification();
       load();
@@ -233,12 +236,20 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
     } finally {
       setIsFinishing(false);
     }
-  }, [load, navigation, sessionId]);
+  }, [load, navigation, sessionId, workoutNoteDraft]);
 
   const handleCloseFinish = useCallback(() => {
     if (isFinishing) return;
     setFinishOpen(false);
   }, [isFinishing]);
+
+  const handleWorkoutNoteChange = useCallback((value: string) => {
+    const normalized = value.slice(0, MAX_WORKOUT_NOTE_LENGTH);
+    setWorkoutNoteDraft(normalized);
+    if (session?.status !== 'in_progress') return;
+    updateWorkoutSessionNote(sessionId, normalized);
+  }, [session?.status, sessionId]);
+
 
   const editingExercise = useMemo(
     () => exercises.find((exercise) => exercise.id === commentEditorExerciseId) ?? null,
@@ -485,6 +496,9 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
         totalSets: totals.totalSets,
         durationMinutes,
         isFinishing,
+        workoutNote: workoutNoteDraft,
+        onWorkoutNoteChange: handleWorkoutNoteChange,
+        noteEditable: session.status === 'in_progress',
       })}
       <BottomSheetModal
         visible={Boolean(editingExercise)}

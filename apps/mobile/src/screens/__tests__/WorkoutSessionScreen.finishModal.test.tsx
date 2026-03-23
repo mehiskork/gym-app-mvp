@@ -89,6 +89,7 @@ jest.mock('../../db/workoutLoggerRepo', () => ({
 
 jest.mock('../../db/workoutSessionRepo', () => ({
     completeSession: jest.fn(),
+    updateWorkoutSessionNote: jest.fn(),
 }));
 
 jest.mock('../../db/settingsRepo', () => ({
@@ -104,9 +105,9 @@ import React from 'react';
 
 import { WorkoutSessionScreen } from '../WorkoutSessionScreen';
 import { TAB_ROUTES } from '../../navigation/routes';
-import { Button, Text } from '../../ui';
+import { Button, Input, Text } from '../../ui';
 import { clearRestTimer, getWorkoutLoggerData } from '../../db/workoutLoggerRepo';
-import { completeSession } from '../../db/workoutSessionRepo';
+import { completeSession, updateWorkoutSessionNote } from '../../db/workoutSessionRepo';
 import { getSettings } from '../../db/settingsRepo';
 
 type Nav = {
@@ -134,7 +135,7 @@ const findElementsByType = <P,>(
 const setupBaseState = (options?: {
     finishOpen?: boolean;
     exercises?: Array<unknown>;
-    session?: { started_at: string; id: string; title: string; status: string };
+    session?: { started_at: string; id: string; title: string; status: string; workout_note: string | null };
 }) => {
     const session =
         options?.session ??
@@ -146,6 +147,7 @@ const setupBaseState = (options?: {
             rest_timer_end_at: null,
             rest_timer_seconds: null,
             rest_timer_label: null,
+            workout_note: '',
         } as const);
 
     const exercises =
@@ -194,6 +196,7 @@ describe('WorkoutSessionScreen finish modal', () => {
         useStateMock.mockImplementation((initial: unknown) => [initial, jest.fn()]);
         (getWorkoutLoggerData as jest.Mock).mockReset();
         (completeSession as jest.Mock).mockReset();
+        (updateWorkoutSessionNote as jest.Mock).mockReset();
         (clearRestTimer as jest.Mock).mockReset();
         (getSettings as jest.Mock).mockReturnValue({
             defaultRestSeconds: 120,
@@ -368,8 +371,101 @@ describe('WorkoutSessionScreen finish modal', () => {
         expect(setFinishOpen).toHaveBeenCalledWith(false);
 
         finishButton?.props.onPress?.({} as never);
-        expect(completeSession).toHaveBeenCalledWith(session.id);
+        expect(completeSession).toHaveBeenCalledWith(session.id, '');
         expect(clearRestTimer).toHaveBeenCalledWith(session.id);
         expect(navigation.navigate).toHaveBeenCalledWith('MainTabs', { screen: TAB_ROUTES.Home });
+    });
+
+    it('passes workout note to completeSession when finishing', () => {
+        const { session, exercises } = setupBaseState();
+
+        useStateMock.mockImplementationOnce(() => [session, jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [exercises, jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [0, jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [
+            {
+                defaultRestSeconds: 120,
+                autoStartRestTimer: true,
+                restTimerVibration: true,
+                keepScreenOn: true,
+                restTimerNotifications: false,
+            },
+            jest.fn(),
+        ]);
+        useStateMock.mockImplementationOnce(() => [true, jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [false, jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [0, jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+        useStateMock.mockImplementationOnce(() => ['', jest.fn()]);
+        useStateMock.mockImplementationOnce(() => ['Felt strong today', jest.fn()]);
+
+        (getWorkoutLoggerData as jest.Mock).mockReturnValue({ session, exercises });
+
+        const navigation: Nav = { navigate: jest.fn(), setOptions: jest.fn() };
+        const element = WorkoutSessionScreen({
+            navigation,
+            route: { key: 'WorkoutSession', name: 'WorkoutSession', params: { sessionId: session.id } },
+        } as never);
+
+        const buttons = findElementsByType(element, Button) as Array<React.ReactElement<React.ComponentProps<typeof Button>>>;
+        const finishButton = buttons.find((button) => button.props.title === 'Finish');
+
+        finishButton?.props.onPress?.({} as never);
+        expect(completeSession).toHaveBeenCalledWith(session.id, 'Felt strong today');
+    });
+
+    it('updates workout note draft, enforces 200 chars, and reuses draft on reopen', () => {
+        const longNote = 'x'.repeat(250);
+        const { session, exercises } = setupBaseState({
+            session: {
+                id: 'session-5',
+                title: 'Strength',
+                status: 'in_progress',
+                started_at: '2024-01-01T00:00:00Z',
+                workout_note: 'Existing draft',
+            },
+        });
+
+        const setWorkoutNoteDraft = jest.fn();
+
+        useStateMock.mockImplementationOnce(() => [session, jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [exercises, jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [0, jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [
+            {
+                defaultRestSeconds: 120,
+                autoStartRestTimer: true,
+                restTimerVibration: true,
+                keepScreenOn: true,
+                restTimerNotifications: false,
+            },
+            jest.fn(),
+        ]);
+        useStateMock.mockImplementationOnce(() => [true, jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [false, jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [0, jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+        useStateMock.mockImplementationOnce(() => ['', jest.fn()]);
+        useStateMock.mockImplementationOnce(() => ['Existing draft', setWorkoutNoteDraft]);
+
+        (getWorkoutLoggerData as jest.Mock).mockReturnValue({ session, exercises });
+
+        const navigation: Nav = { navigate: jest.fn(), setOptions: jest.fn() };
+        const element = WorkoutSessionScreen({
+            navigation,
+            route: { key: 'WorkoutSession', name: 'WorkoutSession', params: { sessionId: session.id } },
+        } as never);
+
+        const inputs = findElementsByType(element, Input) as Array<
+            React.ReactElement<{ label?: string; onChangeText?: (value: string) => void }>
+        >;
+
+        const noteInput = inputs.find((input) => input.props.label === 'Workout note (optional)');
+        expect(noteInput).toBeDefined();
+
+        noteInput?.props.onChangeText?.(longNote);
+
+        expect(setWorkoutNoteDraft).toHaveBeenCalledWith('x'.repeat(200));
+        expect(updateWorkoutSessionNote).toHaveBeenCalledWith(session.id, 'x'.repeat(200));
     });
 });

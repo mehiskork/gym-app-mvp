@@ -6,6 +6,7 @@ export type SessionDetailSession = {
     status: string;
     started_at: string;
     ended_at: string | null;
+    workout_note: string | null;
     rest_timer_end_at: string | null;
     rest_timer_seconds: number | null;
     rest_timer_label: string | null;
@@ -44,6 +45,7 @@ export function fetchSessionDetail(sessionId: string): {
       status,
       started_at,
       ended_at,
+      workout_note,
       rest_timer_end_at,
       rest_timer_seconds,
       rest_timer_label

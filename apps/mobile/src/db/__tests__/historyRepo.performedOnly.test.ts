@@ -14,6 +14,7 @@ describe('historyRepo getSessionDetail', () => {
                 title: 'Push',
                 started_at: '2026-01-01',
                 ended_at: '2026-01-01',
+                workout_note: 'Nice session',
             },
             exercises: [
                 {
@@ -21,6 +22,7 @@ describe('historyRepo getSessionDetail', () => {
                     exercise_id: 'ex-1',
                     exercise_name: 'Bench Press',
                     position: 1,
+                    notes: null,
                     sets: [],
                 },
                 {
@@ -28,6 +30,7 @@ describe('historyRepo getSessionDetail', () => {
                     exercise_id: 'ex-2',
                     exercise_name: 'Incline Bench Press',
                     position: 2,
+                    notes: null,
                     sets: [
                         {
                             id: 'set-1',
@@ -53,6 +56,7 @@ describe('historyRepo getSessionDetail', () => {
                 exercise_id: 'ex-2',
                 exercise_name: 'Incline Bench Press',
                 position: 2,
+                notes: null,
             },
         ]);
         expect(detail?.sets).toHaveLength(1);
