@@ -10,6 +10,9 @@ type ExerciseCardProps = {
     name: string;
     subtitle?: string | null;
     onAddSet: () => void;
+    onCommentPress?: () => void;
+    commentButtonLabel?: 'Add comment' | 'View comment';
+    commentDisabled?: boolean;
     onPressTitle?: () => void;
     onSwap?: () => void;
     children: ReactNode;
@@ -19,6 +22,9 @@ export function ExerciseCard({
     name,
     subtitle,
     onAddSet,
+    onCommentPress,
+    commentButtonLabel = 'Add comment',
+    commentDisabled = false,
     onPressTitle,
     onSwap,
     children,
@@ -125,31 +131,56 @@ export function ExerciseCard({
                     </View>
                 ) : null}
                 {children}
-                <Pressable
-                    testID="exercise-card-add-set"
-                    onPress={onAddSet}
-                    style={({ pressed }) => [
-                        {
-                            minHeight: tokens.touchTargetMin,
-                            borderWidth: 1,
-                            borderStyle: 'dashed',
-                            borderColor: tokens.colors.border,
-                            borderRadius: tokens.radius.md,
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            marginTop: tokens.spacing.sm,
-                        },
-                        pressed ? { opacity: 0.85 } : null,
-                    ]}
-                >
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.sm }}>
-                        <Ionicons name="add" size={16} color={tokens.colors.mutedText} />
+                <View style={{ flexDirection: 'row', gap: tokens.spacing.sm, marginTop: tokens.spacing.sm }}>
+                    <Pressable
+                        testID="exercise-card-comment"
+                        onPress={onCommentPress}
+                        disabled={commentDisabled}
+                        style={({ pressed }) => [
+                            {
+                                flex: 1,
+                                minHeight: tokens.touchTargetMin,
+                                borderWidth: 1,
+                                borderColor: tokens.colors.border,
+                                borderRadius: tokens.radius.md,
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                opacity: commentDisabled ? 0.6 : 1,
+                            },
+                            pressed && !commentDisabled ? { opacity: 0.85 } : null,
+                        ]}
+                    >
                         <Text variant="muted" color={tokens.colors.mutedText}>
-                            Add Set
+                            {commentButtonLabel}
+
                         </Text>
-                    </View>
-                </Pressable>
+                    </Pressable>
+                    <Pressable
+                        testID="exercise-card-add-set"
+                        onPress={onAddSet}
+                        style={({ pressed }) => [
+                            {
+                                flex: 1,
+                                minHeight: tokens.touchTargetMin,
+                                borderWidth: 1,
+                                borderStyle: 'dashed',
+                                borderColor: tokens.colors.border,
+                                borderRadius: tokens.radius.md,
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                            },
+                            pressed ? { opacity: 0.85 } : null,
+                        ]}
+                    >
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.sm }}>
+                            <Ionicons name="add" size={16} color={tokens.colors.mutedText} />
+                            <Text variant="muted" color={tokens.colors.mutedText}>
+                                Add Set
+                            </Text>
+                        </View>
+                    </Pressable>
+                </View>
             </View>
-        </Card>
+        </Card >
     );
 }

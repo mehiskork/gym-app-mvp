@@ -149,6 +149,7 @@ export function SessionDetailScreen({ route, navigation }: Props) {
               >
                 <Text variant="subtitle">{ex.exercise_name}</Text>
               </Pressable>
+              {ex.notes?.trim() ? <Text variant="muted">Comment: {ex.notes.trim()}</Text> : null}
 
               {exSets.length === 0 ? (
                 <Text variant="muted">No sets logged.</Text>

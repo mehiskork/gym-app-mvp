@@ -24,6 +24,7 @@ export type SessionExerciseRow = {
   exercise_id: string;
   exercise_name: string;
   position: number;
+  notes: string | null;
 };
 
 export type SessionSetRow = {
@@ -196,6 +197,7 @@ export function getSessionDetail(sessionId: string): {
     exercise_id: exercise.exercise_id,
     exercise_name: exercise.exercise_name,
     position: exercise.position,
+    notes: exercise.notes,
   }));
 
 

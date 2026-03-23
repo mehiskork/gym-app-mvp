@@ -52,7 +52,7 @@ describe('swapWorkoutSessionExercise', () => {
 
     it('inserts replacement below when completed sets exist', () => {
         (query as jest.Mock)
-            .mockReturnValueOnce([{ id: 'wse-1', position: 2 }])
+            .mockReturnValueOnce([{ id: 'wse-1', position: 2, notes: 'original comment' }])
             .mockReturnValueOnce([{ n: 1 }])
             .mockReturnValueOnce([{ id: 'wse-inserted' }])
             .mockReturnValueOnce([{ id: 'set-inserted' }]);
@@ -72,7 +72,7 @@ describe('swapWorkoutSessionExercise', () => {
             'Incline Bench Press',
             3,
         ]);
-        expect(result.focusExerciseId).toBe('wse-inserted');
+        expect(exec).toHaveBeenCalledWith(expect.stringContaining('VALUES (?, ?, ?, ?, ?, NULL);'), expect.any(Array));
     });
 
     it('inserts replacement below when completed sets exist and current is last', () => {
@@ -101,6 +101,3 @@ describe('swapWorkoutSessionExercise', () => {
         expect(result.focusExerciseId).toBe('wse-inserted');
     });
 });
-
-
-

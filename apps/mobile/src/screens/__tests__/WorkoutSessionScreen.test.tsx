@@ -82,6 +82,7 @@ jest.mock('../../db/workoutLoggerRepo', () => ({
     getWorkoutLoggerData: jest.fn(),
     startRestTimer: jest.fn(),
     updateWorkoutSet: jest.fn(),
+    updateWorkoutSessionExerciseComment: jest.fn(),
 }));
 
 jest.mock('../../db/workoutSessionRepo', () => ({
@@ -878,5 +879,34 @@ describe('WorkoutSessionScreen', () => {
         expect(setLabels).toHaveLength(1);
         expect(weightLabels).toHaveLength(1);
         expect(repLabels).toHaveLength(1);
+    });
+    it('shows Add comment label when no exercise comment exists', () => {
+        const element = ExerciseCard({
+            name: 'Deadlift',
+            subtitle: null,
+            onAddSet: jest.fn(),
+            onCommentPress: jest.fn(),
+            commentButtonLabel: 'Add comment',
+            children: [],
+        });
+        const texts = findElementsByType(element, Text) as Array<
+            React.ReactElement<{ children?: React.ReactNode }>
+        >;
+        expect(texts.some((text) => text.props.children === 'Add comment')).toBe(true);
+    });
+
+    it('shows View comment label when exercise comment exists', () => {
+        const element = ExerciseCard({
+            name: 'Deadlift',
+            subtitle: null,
+            onAddSet: jest.fn(),
+            onCommentPress: jest.fn(),
+            commentButtonLabel: 'View comment',
+            children: [],
+        });
+        const texts = findElementsByType(element, Text) as Array<
+            React.ReactElement<{ children?: React.ReactNode }>
+        >;
+        expect(texts.some((text) => text.props.children === 'View comment')).toBe(true);
     });
 });

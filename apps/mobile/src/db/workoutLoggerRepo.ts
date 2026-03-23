@@ -23,6 +23,7 @@ export type LoggerExercise = {
   exercise_name: string;
   position: number;
   sets: LoggerSet[];
+  notes: string | null;
 };
 
 export type LoggerSet = {
@@ -171,6 +172,7 @@ export function getWorkoutLoggerData(sessionId: string): {
     exercise_name: exercise.exercise_name,
     position: exercise.position,
     sets: exercise.sets,
+    notes: exercise.notes,
   }));
 
   return { session, exercises };
@@ -345,6 +347,45 @@ export function addWorkoutSet(wseId: string): string {
     enqueueWorkoutSetSnapshot(id);
 
     return id;
+  });
+}
+
+export function updateWorkoutSessionExerciseComment(
+  wseId: string,
+  comment: string | null,
+) {
+  inTransaction(() => {
+    const row = query<{ status: WorkoutSessionStatus }>(
+      `
+      SELECT ws.status AS status
+      FROM workout_session_exercise wse
+      JOIN workout_session ws ON ws.id = wse.workout_session_id
+      WHERE wse.id = ?
+        AND wse.deleted_at IS NULL
+        AND ws.deleted_at IS NULL
+      LIMIT 1;
+    `,
+      [wseId],
+    )[0];
+
+    if (!row) {
+      throw new Error('updateWorkoutSessionExerciseComment: session exercise not found');
+    }
+    if (row.status !== 'in_progress') return;
+
+    const trimmed = comment?.trim() ?? '';
+    const normalized = trimmed.length === 0 ? null : trimmed.slice(0, 200);
+
+    exec(
+      `
+      UPDATE workout_session_exercise
+      SET notes = ?, updated_at = datetime('now')
+      WHERE id = ? AND deleted_at IS NULL;
+    `,
+      [normalized, wseId],
+    );
+
+    enqueueWorkoutSessionExerciseSnapshot(wseId);
   });
 }
 

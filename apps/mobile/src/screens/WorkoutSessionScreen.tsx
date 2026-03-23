@@ -9,7 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { TAB_ROUTES } from '../navigation/routes';
 import type { RootStackParamList } from '../navigation/types';
-import { Button, Card, EmptyState, IconButton, IconChip, Screen, Snackbar, Text } from '../ui';
+import { BottomSheetModal, Button, Card, EmptyState, IconButton, IconChip, Input, Screen, Snackbar, Text } from '../ui';
 import { useAppTheme } from '../theme/theme';
 import { tokens } from '../theme/tokens';
 import { completeSession } from '../db/workoutSessionRepo';
@@ -19,6 +19,7 @@ import {
   getWorkoutLoggerData,
   startRestTimer,
   updateWorkoutSet,
+  updateWorkoutSessionExerciseComment,
   deleteWorkoutSet,
   restoreWorkoutSet,
   type LoggerExercise,
@@ -45,6 +46,7 @@ const REST_TIMER_HEIGHT = tokens.touchTargetMin + tokens.spacing.xl;
 const CTA_HEIGHT = tokens.touchTargetMin + tokens.spacing.sm;
 const CTA_STACK_GAP = tokens.spacing.sm;
 const KEEP_AWAKE_TAG = 'workout-session';
+const MAX_EXERCISE_COMMENT_LENGTH = 200;
 
 function parseNumber(input: string): number | null {
   const trimmed = input.trim();
@@ -79,6 +81,8 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
   const restHapticsRef = useRef(false);
   const isExitingToHomeRef = useRef(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [commentEditorExerciseId, setCommentEditorExerciseId] = useState<string | null>(null);
+  const [commentDraft, setCommentDraft] = useState('');
 
   const resetToHome = useCallback((showMessage = false) => {
     if (isExitingToHomeRef.current) return;
@@ -236,6 +240,11 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
     setFinishOpen(false);
   }, [isFinishing]);
 
+  const editingExercise = useMemo(
+    () => exercises.find((exercise) => exercise.id === commentEditorExerciseId) ?? null,
+    [commentEditorExerciseId, exercises],
+  );
+
   const footerPaddingBottom = Math.max(insets.bottom, tokens.spacing.sm);
   const footerPaddingTop = tokens.spacing.sm;
   const footerHeight = CTA_HEIGHT + footerPaddingTop + footerPaddingBottom;
@@ -282,6 +291,7 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
       </Screen>
     );
   }
+  const canEditComment = session.status === 'in_progress';
 
   return (
     <Screen padded={false} bottomInset="none" contentStyle={{ paddingTop: 0 }}>
@@ -320,6 +330,11 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
                   key={ex.id}
                   name={ex.exercise_name}
                   subtitle={getExerciseSubtitle(ex)}
+                  commentButtonLabel={ex.notes?.trim() ? 'View comment' : 'Add comment'}
+                  onCommentPress={() => {
+                    setCommentEditorExerciseId(ex.id);
+                    setCommentDraft(ex.notes ?? '');
+                  }}
                   onPressTitle={() =>
                     navigation.navigate('ExerciseDetail', { exerciseId: ex.exercise_id })
                   }
@@ -471,6 +486,58 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
         durationMinutes,
         isFinishing,
       })}
+      <BottomSheetModal
+        visible={Boolean(editingExercise)}
+        title={editingExercise ? `${editingExercise.exercise_name} comment` : 'Exercise comment'}
+        onClose={() => {
+          setCommentEditorExerciseId(null);
+          setCommentDraft('');
+        }}
+      >
+        <View style={{ gap: tokens.spacing.md }}>
+          <Input
+            value={commentDraft}
+            onChangeText={(value) => setCommentDraft(value.slice(0, MAX_EXERCISE_COMMENT_LENGTH))}
+            placeholder="Add an informational comment"
+            maxLength={MAX_EXERCISE_COMMENT_LENGTH}
+            editable={canEditComment}
+            multiline
+            textAlignVertical="top"
+            inputStyle={{ minHeight: 90, paddingVertical: tokens.spacing.sm }}
+            helperText={`${commentDraft.length}/${MAX_EXERCISE_COMMENT_LENGTH}`}
+          />
+          {canEditComment ? (
+            <View style={{ flexDirection: 'row', gap: tokens.spacing.sm }}>
+              <Button
+                title="Clear"
+                variant="ghost"
+                style={{ flex: 1 }}
+                onPress={() => {
+                  if (!editingExercise) return;
+                  updateWorkoutSessionExerciseComment(editingExercise.id, null);
+                  load();
+                  setCommentEditorExerciseId(null);
+                  setCommentDraft('');
+                }}
+              />
+              <Button
+                title="Save"
+                variant="primary"
+                style={{ flex: 1 }}
+                onPress={() => {
+                  if (!editingExercise) return;
+                  updateWorkoutSessionExerciseComment(editingExercise.id, commentDraft);
+                  load();
+                  setCommentEditorExerciseId(null);
+                  setCommentDraft('');
+                }}
+              />
+            </View>
+          ) : (
+            <Text variant="muted">Comments are read-only after workout completion.</Text>
+          )}
+        </View>
+      </BottomSheetModal>
     </Screen>
   );
 }
