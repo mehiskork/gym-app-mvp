@@ -676,6 +676,389 @@
     ]
   },
   {
+    "id": "prebuilt_4day_glutes_back_lower_upper",
+    "name": "4-Day Split (Glutes / Back+Shoulders / Lower / Upper+Arms+Abs)",
+    "days": [
+      {
+        "name": "Session 1 — Glutes / Hips",
+        "exercises": [
+          {
+            "exercise_id": "ex_hip_abduction_leaning_forward",
+            "sets": [
+              {
+                "reps": 0
+              },
+              {
+                "reps": 0
+              },
+              {
+                "reps": 0
+              },
+              {
+                "reps": 0
+              }
+            ]
+          },
+          {
+            "exercise_id": "ex_belted_sumo_squat",
+            "sets": [
+              {
+                "reps": 0
+              },
+              {
+                "reps": 0
+              },
+              {
+                "reps": 0
+              }
+            ]
+          },
+          {
+            "exercise_id": "ex_reverse_hack_squat",
+            "sets": [
+              {
+                "reps": 0
+              },
+              {
+                "reps": 0
+              },
+              {
+                "reps": 0
+              }
+            ]
+          },
+          {
+            "exercise_id": "ex_split_squat_bulgarian",
+            "sets": [
+              {
+                "reps": 0
+              },
+              {
+                "reps": 0
+              },
+              {
+                "reps": 0
+              }
+            ]
+          },
+          {
+            "exercise_id": "ex_cable_kickback_straight_leg",
+            "sets": [
+              {
+                "reps": 0
+              },
+              {
+                "reps": 0
+              },
+              {
+                "reps": 0
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Session 2 — Back + Shoulders",
+        "exercises": [
+          {
+            "exercise_id": "ex_lat_pulldown_wide_grip",
+            "sets": [
+              {
+                "reps": 0
+              },
+              {
+                "reps": 0
+              },
+              {
+                "reps": 0
+              },
+              {
+                "reps": 0
+              }
+            ]
+          },
+          {
+            "exercise_id": "ex_seated_cable_row",
+            "sets": [
+              {
+                "reps": 0
+              },
+              {
+                "reps": 0
+              },
+              {
+                "reps": 0
+              }
+            ]
+          },
+          {
+            "exercise_id": "ex_single_arm_db_row_supported",
+            "sets": [
+              {
+                "reps": 0
+              },
+              {
+                "reps": 0
+              },
+              {
+                "reps": 0
+              }
+            ]
+          },
+          {
+            "exercise_id": "ex_lateral_raises",
+            "sets": [
+              {
+                "reps": 0
+              },
+              {
+                "reps": 0
+              },
+              {
+                "reps": 0
+              }
+            ]
+          },
+          {
+            "exercise_id": "ex_reverse_fly_dumbbell",
+            "sets": [
+              {
+                "reps": 0
+              },
+              {
+                "reps": 0
+              },
+              {
+                "reps": 0
+              }
+            ]
+          },
+          {
+            "exercise_id": "ex_front_raise_dumbbell",
+            "sets": [
+              {
+                "reps": 0
+              },
+              {
+                "reps": 0
+              },
+              {
+                "reps": 0
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Session 3 — Lower Body",
+        "exercises": [
+          {
+            "exercise_id": "ex_hack_squat_machine_rdl",
+            "sets": [
+              {
+                "reps": 0
+              },
+              {
+                "reps": 0
+              },
+              {
+                "reps": 0
+              }
+            ]
+          },
+          {
+            "exercise_id": "ex_hip_thrust",
+            "sets": [
+              {
+                "reps": 0
+              },
+              {
+                "reps": 0
+              },
+              {
+                "reps": 0
+              },
+              {
+                "reps": 0
+              }
+            ]
+          },
+          {
+            "exercise_id": "ex_leg_curl_lying",
+            "sets": [
+              {
+                "reps": 0
+              },
+              {
+                "reps": 0
+              },
+              {
+                "reps": 0
+              }
+            ]
+          },
+          {
+            "exercise_id": "ex_walking_lunge_dumbbell",
+            "sets": [
+              {
+                "reps": 0
+              },
+              {
+                "reps": 0
+              },
+              {
+                "reps": 0
+              },
+              {
+                "reps": 0
+              }
+            ]
+          },
+          {
+            "exercise_id": "ex_hip_abduction_machine",
+            "sets": [
+              {
+                "reps": 0
+              },
+              {
+                "reps": 0
+              },
+              {
+                "reps": 0
+              }
+            ]
+          },
+          {
+            "exercise_id": "ex_cable_side_kick",
+            "sets": [
+              {
+                "reps": 0
+              },
+              {
+                "reps": 0
+              },
+              {
+                "reps": 0
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Session 4 — Shoulders + Chest + Arms + Abs",
+        "exercises": [
+          {
+            "exercise_id": "ex_shoulder_press_machine",
+            "sets": [
+              {
+                "reps": 0
+              },
+              {
+                "reps": 0
+              },
+              {
+                "reps": 0
+              },
+              {
+                "reps": 0
+              }
+            ]
+          },
+          {
+            "exercise_id": "ex_chest_fly_machine",
+            "sets": [
+              {
+                "reps": 0
+              },
+              {
+                "reps": 0
+              },
+              {
+                "reps": 0
+              }
+            ]
+          },
+          {
+            "exercise_id": "ex_chest_press_machine",
+            "sets": [
+              {
+                "reps": 0
+              },
+              {
+                "reps": 0
+              },
+              {
+                "reps": 0
+              }
+            ]
+          },
+          {
+            "exercise_id": "ex_biceps_curls",
+            "sets": [
+              {
+                "reps": 0
+              },
+              {
+                "reps": 0
+              },
+              {
+                "reps": 0
+              },
+              {
+                "reps": 0
+              }
+            ]
+          },
+          {
+            "exercise_id": "ex_triceps_pushdown",
+            "sets": [
+              {
+                "reps": 0
+              },
+              {
+                "reps": 0
+              },
+              {
+                "reps": 0
+              },
+              {
+                "reps": 0
+              }
+            ]
+          },
+          {
+            "exercise_id": "ex_plank",
+            "sets": [
+              {
+                "reps": 0
+              },
+              {
+                "reps": 0
+              },
+              {
+                "reps": 0
+              }
+            ]
+          },
+          {
+            "exercise_id": "ex_crunches",
+            "sets": [
+              {
+                "reps": 0
+              },
+              {
+                "reps": 0
+              },
+              {
+                "reps": 0
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
     "id": "prebuilt_upper_lower_4_day",
     "name": "Upper / Lower",
     "description": "Upper/lower split",
