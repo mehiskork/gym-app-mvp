@@ -35,6 +35,9 @@ jest.mock('react-native', () => {
             React.createElement('Pressable', props, children),
         View: ({ children, ...props }: { children?: React.ReactNode }) =>
             React.createElement('View', props, children),
+        ScrollView: ({ children, ...props }: { children?: React.ReactNode }) =>
+            React.createElement('ScrollView', props, children),
+        useWindowDimensions: () => ({ width: 360, height: 800, scale: 2, fontScale: 1 }),
         StyleSheet: {
             absoluteFillObject: {},
         },
@@ -45,7 +48,11 @@ jest.mock('react-native', () => {
 import React from 'react';
 import { Keyboard, Platform } from 'react-native';
 
-import { BottomSheetModal, getSheetKeyboardOffset } from '../BottomSheetModal';
+import {
+    BottomSheetModal,
+    getAndroidKeyboardOffsetFromVisibleArea,
+    getSheetKeyboardOffset,
+} from '../BottomSheetModal';
 
 describe('BottomSheetModal keyboard behavior', () => {
     beforeEach(() => {
@@ -55,6 +62,11 @@ describe('BottomSheetModal keyboard behavior', () => {
     it('computes sheet offset from keyboard height and inset', () => {
         expect(getSheetKeyboardOffset(300, 20)).toBe(280);
         expect(getSheetKeyboardOffset(10, 20)).toBe(0);
+    });
+
+    it('computes Android offset from actual visible area', () => {
+        expect(getAndroidKeyboardOffsetFromVisibleArea(800, 500)).toBe(300);
+        expect(getAndroidKeyboardOffsetFromVisibleArea(800, undefined)).toBe(0);
     });
 
     it('subscribes to iOS keyboard show/hide events when keyboardAware', () => {

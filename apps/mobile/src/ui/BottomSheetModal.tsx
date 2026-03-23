@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import {
     Keyboard,
+    KeyboardEvent,
     KeyboardAvoidingView,
     Modal,
     Platform,
@@ -32,6 +33,11 @@ export function getSheetKeyboardOffset(keyboardHeight: number, bottomInset: numb
     return Math.max(0, keyboardHeight - bottomInset);
 }
 
+export function getAndroidKeyboardOffsetFromVisibleArea(windowHeight: number, keyboardTopY?: number): number {
+    if (keyboardTopY == null || Number.isNaN(keyboardTopY)) return 0;
+    return Math.max(0, windowHeight - keyboardTopY);
+}
+
 export function getSheetMaxHeight(windowHeight: number, keyboardOffset: number): number {
     const verticalMargin = tokens.spacing.xxl * 2;
     return Math.max(240, windowHeight - keyboardOffset - verticalMargin);
@@ -55,7 +61,13 @@ export function BottomSheetModal({
         if (!keyboardAware) return;
         const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
         const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
-        const showSub = Keyboard.addListener(showEvent, (event) => {
+        const showSub = Keyboard.addListener(showEvent, (event: KeyboardEvent) => {
+            const keyboardTopY = event.endCoordinates?.screenY;
+            if (Platform.OS === 'android') {
+                const imeOffset = getAndroidKeyboardOffsetFromVisibleArea(windowHeight, keyboardTopY);
+                setKeyboardHeight(imeOffset || event.endCoordinates.height);
+                return;
+            }
             setKeyboardHeight(event.endCoordinates.height);
         });
         const hideSub = Keyboard.addListener(hideEvent, () => {
@@ -66,9 +78,13 @@ export function BottomSheetModal({
             showSub.remove();
             hideSub.remove();
         };
-    }, [keyboardAware]);
+    }, [keyboardAware, windowHeight]);
 
-    const keyboardOffset = keyboardAware ? getSheetKeyboardOffset(keyboardHeight, insets.bottom) : 0;
+    const keyboardOffset = keyboardAware
+        ? Platform.OS === 'android'
+            ? keyboardHeight
+            : getSheetKeyboardOffset(keyboardHeight, insets.bottom)
+        : 0;
     const maxSheetHeight = keyboardAware ? getSheetMaxHeight(windowHeight, keyboardOffset) : undefined;
 
     return (
