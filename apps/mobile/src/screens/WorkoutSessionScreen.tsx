@@ -489,6 +489,7 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
       <BottomSheetModal
         visible={Boolean(editingExercise)}
         title={editingExercise ? `${editingExercise.exercise_name} comment` : 'Exercise comment'}
+        keyboardAware
         onClose={() => {
           setCommentEditorExerciseId(null);
           setCommentDraft('');
