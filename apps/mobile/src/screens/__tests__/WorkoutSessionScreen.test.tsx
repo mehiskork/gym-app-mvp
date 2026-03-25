@@ -87,6 +87,7 @@ jest.mock('../../db/workoutLoggerRepo', () => ({
 
 jest.mock('../../db/workoutSessionRepo', () => ({
     completeSession: jest.fn(),
+    updateWorkoutSessionNote: jest.fn(),
 }));
 
 jest.mock('../../db/settingsRepo', () => ({
@@ -459,7 +460,7 @@ describe('WorkoutSessionScreen', () => {
     });
 
 
-    it('renders the finish button in the footer and opens the finish sheet', () => {
+    it('renders add exercise next to finish workout in the footer and opens the finish sheet', () => {
         const session = {
             id: 'session-2',
             title: 'Leg Day',
@@ -504,7 +505,15 @@ describe('WorkoutSessionScreen', () => {
 
         type ButtonProps = React.ComponentProps<typeof Button>;
         const buttons = findElementsByType(element, Button) as Array<React.ReactElement<ButtonProps>>;
+        const addExerciseButton = buttons.find((button) => button.props.title === 'Add exercise');
         const finishButton = buttons.find((button) => button.props.title === 'Finish workout');
+
+        expect(addExerciseButton?.props.variant).toBe('secondary');
+        addExerciseButton?.props.onPress?.({} as never);
+        expect(navigation.navigate).toHaveBeenCalledWith('ExercisePicker', {
+            addToSessionId: 'session-2',
+            returnTo: 'WorkoutSession',
+        });
 
         expect(finishButton?.props.variant).toBe('primary');
         finishButton?.props.onPress?.({} as never);

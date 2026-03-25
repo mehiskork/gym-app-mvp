@@ -481,10 +481,23 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
             style={{ marginBottom: snackbarUndo.visible ? CTA_STACK_GAP : 0 }}
           />
           <Button
+            title="Add exercise"
+            variant="secondary"
+            disabled={session.status !== 'in_progress'}
+            onPress={() =>
+              navigation.navigate('ExercisePicker', {
+                addToSessionId: sessionId,
+                returnTo: 'WorkoutSession',
+              })
+            }
+            style={{ height: CTA_HEIGHT, flex: 1 }}
+          />
+          <View style={{ width: tokens.spacing.sm }} />
+          <Button
             title="Finish workout"
             variant="primary"
             onPress={() => setFinishOpen(true)}
-            style={{ height: CTA_HEIGHT }}
+            style={{ height: CTA_HEIGHT, flex: 1 }}
           />
         </View>
       )}

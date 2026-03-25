@@ -296,6 +296,82 @@ export function swapWorkoutSessionExercise(input: {
   });
 }
 
+export function appendWorkoutSessionExercise(input: {
+  workoutSessionId: string;
+  exerciseId: string;
+  exerciseName: string;
+}): { focusExerciseId: string } {
+  const { workoutSessionId, exerciseId, exerciseName } = input;
+
+  return inTransaction(() => {
+    const session = query<{ id: string }>(
+      `
+      SELECT id
+      FROM workout_session
+      WHERE id = ?
+        AND status = 'in_progress'
+        AND deleted_at IS NULL
+      LIMIT 1;
+    `,
+      [workoutSessionId],
+    )[0];
+
+    if (!session) {
+      throw new Error('appendWorkoutSessionExercise: workout session not found');
+    }
+
+    const maxPosition =
+      query<{ max_position: number | null }>(
+        `
+        SELECT MAX(position) AS max_position
+        FROM workout_session_exercise
+        WHERE workout_session_id = ? AND deleted_at IS NULL;
+      `,
+        [workoutSessionId],
+      )[0]?.max_position ?? 0;
+
+    const insertedId = newId('wse');
+    exec(
+      `
+      INSERT INTO workout_session_exercise (
+        id,
+        workout_session_id,
+        source_program_day_exercise_id,
+        exercise_id,
+        exercise_name,
+        position,
+        notes
+      ) VALUES (?, ?, NULL, ?, ?, ?, NULL);
+    `,
+      [insertedId, workoutSessionId, exerciseId, exerciseName, maxPosition + 1],
+    );
+
+    const setId = newId('set');
+    exec(
+      `
+      INSERT INTO workout_set (
+        id,
+        workout_session_exercise_id,
+        set_index,
+        weight,
+        reps,
+        rpe,
+        rest_seconds,
+        notes,
+        is_completed
+      ) VALUES (?, ?, 1, 0, 0, NULL, ?, NULL, 0);
+    `,
+      [setId, insertedId, DEFAULT_REST_SECONDS],
+    );
+
+    enqueueWorkoutSessionExerciseSnapshot(insertedId);
+    enqueueWorkoutSetSnapshot(setId);
+
+    return { focusExerciseId: insertedId };
+  });
+}
+
+
 
 export function addWorkoutSet(wseId: string): string {
   return inTransaction(() => {

@@ -11,7 +11,7 @@ import { listExercises, type ExerciseRow } from '../db/exerciseRepo';
 
 import { getOrCreateLocalUserId } from '../db/appMetaRepo';
 import { addExerciseToDay } from '../db/dayExerciseRepo';
-import { swapWorkoutSessionExercise } from '../db/workoutLoggerRepo';
+import { appendWorkoutSessionExercise, swapWorkoutSessionExercise } from '../db/workoutLoggerRepo';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ExercisePicker'>;
 
@@ -19,8 +19,10 @@ export function ExercisePickerScreen({ route, navigation }: Props) {
   const dayId = route.params?.dayId ?? null;
   const swapSessionExerciseId = route.params?.swapSessionExerciseId ?? null;
   const swapSessionId = route.params?.swapSessionId ?? null;
+  const addToSessionId = route.params?.addToSessionId ?? null;
   const isSwapMode = !!swapSessionExerciseId && !!swapSessionId;
-  const isBrowseOnly = !dayId && !isSwapMode;
+  const isAddToSessionMode = !!addToSessionId && !isSwapMode;
+  const isBrowseOnly = !dayId && !isSwapMode && !isAddToSessionMode;
 
   const [q, setQ] = useState('');
   const [all, setAll] = useState<ExerciseRow[]>([]);
@@ -101,6 +103,16 @@ export function ExercisePickerScreen({ route, navigation }: Props) {
                     return;
                   }
 
+                  if (isAddToSessionMode && addToSessionId) {
+                    appendWorkoutSessionExercise({
+                      workoutSessionId: addToSessionId,
+                      exerciseId: item.id,
+                      exerciseName: item.name,
+                    });
+                    navigation.goBack();
+                    return;
+                  }
+
                   if (!dayId) return;
                   addExerciseToDay({ dayId, exerciseId: item.id });
                   navigation.goBack();
@@ -118,7 +130,13 @@ export function ExercisePickerScreen({ route, navigation }: Props) {
               <Text variant="subtitle">{item.name}</Text>
               <Text variant="muted">{item.is_custom ? 'Custom' : 'Curated'}</Text>
               <Text variant="muted">
-                {isBrowseOnly ? 'Tap to view details' : isSwapMode ? 'Tap to swap' : 'Tap to add to session'}
+                {isBrowseOnly
+                  ? 'Tap to view details'
+                  : isSwapMode
+                    ? 'Tap to swap'
+                    : isAddToSessionMode
+                      ? 'Tap to add to workout'
+                      : 'Tap to add to session'}
               </Text>
             </Pressable>
 
