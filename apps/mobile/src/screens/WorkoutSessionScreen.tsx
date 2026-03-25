@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Dimensions, Keyboard, KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
+import { Dimensions, Keyboard, KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { CommonActions, useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -86,10 +86,9 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
   const [commentDraft, setCommentDraft] = useState('');
   const [workoutNoteDraft, setWorkoutNoteDraft] = useState('');
 
-  const resetToHome = useCallback((showMessage = false) => {
+  const resetToHome = useCallback(() => {
     if (isExitingToHomeRef.current) return;
     isExitingToHomeRef.current = true;
-    if (showMessage) Alert.alert('Workout session unavailable', 'Returning to Home.');
     navigation.dispatch(
       CommonActions.reset({
         index: 0,
@@ -102,7 +101,7 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
     if (!data) {
       setSession(null);
       setExercises([]);
-      resetToHome(true);
+      resetToHome();
       return;
     }
     setSession(data.session);
@@ -232,11 +231,11 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
       clearRestTimer(sessionId);
       void cancelRestTimerNotification();
       load();
-      navigation.navigate('MainTabs', { screen: TAB_ROUTES.Home });
+      resetToHome();
     } finally {
       setIsFinishing(false);
     }
-  }, [load, navigation, sessionId, workoutNoteDraft]);
+  }, [load, resetToHome, sessionId, workoutNoteDraft]);
 
   const handleCloseFinish = useCallback(() => {
     if (isFinishing) return;

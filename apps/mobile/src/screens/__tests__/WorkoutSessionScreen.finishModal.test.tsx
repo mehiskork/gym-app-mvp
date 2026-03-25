@@ -16,6 +16,9 @@ jest.mock('react', () => {
 });
 
 jest.mock('@react-navigation/native', () => ({
+    CommonActions: {
+        reset: jest.fn((payload: unknown) => ({ type: 'RESET', payload })),
+    },
     useFocusEffect: jest.fn(),
     useIsFocused: () => true,
 }));
@@ -102,6 +105,7 @@ jest.mock('../../utils/restTimerNotifications', () => ({
 }));
 
 import React from 'react';
+import { CommonActions } from '@react-navigation/native';
 
 import { WorkoutSessionScreen } from '../WorkoutSessionScreen';
 import { TAB_ROUTES } from '../../navigation/routes';
@@ -112,6 +116,7 @@ import { getSettings } from '../../db/settingsRepo';
 
 type Nav = {
     navigate: jest.Mock;
+    dispatch: jest.Mock;
     setOptions: jest.Mock;
 };
 
@@ -205,6 +210,7 @@ describe('WorkoutSessionScreen finish modal', () => {
             keepScreenOn: true,
             restTimerNotifications: false,
         });
+        (CommonActions.reset as jest.Mock).mockClear();
     });
 
     it('opens the finish sheet when tapping Finish workout', () => {
@@ -230,7 +236,7 @@ describe('WorkoutSessionScreen finish modal', () => {
 
         (getWorkoutLoggerData as jest.Mock).mockReturnValue({ session, exercises });
 
-        const navigation: Nav = { navigate: jest.fn(), setOptions: jest.fn() };
+        const navigation: Nav = { navigate: jest.fn(), dispatch: jest.fn(), setOptions: jest.fn() };
         const element = WorkoutSessionScreen({
             navigation,
             route: { key: 'WorkoutSession', name: 'WorkoutSession', params: { sessionId: session.id } },
@@ -266,7 +272,7 @@ describe('WorkoutSessionScreen finish modal', () => {
 
         (getWorkoutLoggerData as jest.Mock).mockReturnValue({ session, exercises });
 
-        const navigation: Nav = { navigate: jest.fn(), setOptions: jest.fn() };
+        const navigation: Nav = { navigate: jest.fn(), dispatch: jest.fn(), setOptions: jest.fn() };
         const element = WorkoutSessionScreen({
             navigation,
             route: { key: 'WorkoutSession', name: 'WorkoutSession', params: { sessionId: session.id } },
@@ -301,7 +307,7 @@ describe('WorkoutSessionScreen finish modal', () => {
 
         (getWorkoutLoggerData as jest.Mock).mockReturnValue({ session, exercises });
 
-        const navigation: Nav = { navigate: jest.fn(), setOptions: jest.fn() };
+        const navigation: Nav = { navigate: jest.fn(), dispatch: jest.fn(), setOptions: jest.fn() };
         const element = WorkoutSessionScreen({
             navigation,
             route: { key: 'WorkoutSession', name: 'WorkoutSession', params: { sessionId: session.id } },
@@ -357,7 +363,7 @@ describe('WorkoutSessionScreen finish modal', () => {
 
         (getWorkoutLoggerData as jest.Mock).mockReturnValue({ session, exercises });
 
-        const navigation: Nav = { navigate: jest.fn(), setOptions: jest.fn() };
+        const navigation: Nav = { navigate: jest.fn(), dispatch: jest.fn(), setOptions: jest.fn() };
         const element = WorkoutSessionScreen({
             navigation,
             route: { key: 'WorkoutSession', name: 'WorkoutSession', params: { sessionId: session.id } },
@@ -373,7 +379,17 @@ describe('WorkoutSessionScreen finish modal', () => {
         finishButton?.props.onPress?.({} as never);
         expect(completeSession).toHaveBeenCalledWith(session.id, '');
         expect(clearRestTimer).toHaveBeenCalledWith(session.id);
-        expect(navigation.navigate).toHaveBeenCalledWith('MainTabs', { screen: TAB_ROUTES.Home });
+        expect(CommonActions.reset).toHaveBeenCalledWith({
+            index: 0,
+            routes: [{ name: 'MainTabs', params: { screen: TAB_ROUTES.Home } }],
+        });
+        expect(navigation.dispatch).toHaveBeenCalledWith({
+            type: 'RESET',
+            payload: {
+                index: 0,
+                routes: [{ name: 'MainTabs', params: { screen: TAB_ROUTES.Home } }],
+            },
+        });
     });
 
     it('passes workout note to completeSession when finishing', () => {
@@ -401,7 +417,7 @@ describe('WorkoutSessionScreen finish modal', () => {
 
         (getWorkoutLoggerData as jest.Mock).mockReturnValue({ session, exercises });
 
-        const navigation: Nav = { navigate: jest.fn(), setOptions: jest.fn() };
+        const navigation: Nav = { navigate: jest.fn(), dispatch: jest.fn(), setOptions: jest.fn() };
         const element = WorkoutSessionScreen({
             navigation,
             route: { key: 'WorkoutSession', name: 'WorkoutSession', params: { sessionId: session.id } },
@@ -450,7 +466,7 @@ describe('WorkoutSessionScreen finish modal', () => {
 
         (getWorkoutLoggerData as jest.Mock).mockReturnValue({ session, exercises });
 
-        const navigation: Nav = { navigate: jest.fn(), setOptions: jest.fn() };
+        const navigation: Nav = { navigate: jest.fn(), dispatch: jest.fn(), setOptions: jest.fn() };
         const element = WorkoutSessionScreen({
             navigation,
             route: { key: 'WorkoutSession', name: 'WorkoutSession', params: { sessionId: session.id } },
