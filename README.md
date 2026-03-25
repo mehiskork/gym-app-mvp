@@ -115,9 +115,12 @@ This is not just a sync engine with screens on top. The repo also captures produ
 
 ## Next planned steps
 
+## Next planned steps
+
 - continue real-world gym testing and fix friction found through use
-- improve release readiness and store submission workflow
-- harden production-oriented backend and sync edges where needed
+- prepare the project for Google Play and App Store release
+- add a CI/CD pipeline to automate backend tests, mobile type checks, and release validation
+- improve internal testing, store assets, and submission workflow
 - keep polishing workout planning, session flow, and exercise management
 
 ---
