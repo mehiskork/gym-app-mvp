@@ -718,7 +718,7 @@ describe('WorkoutSessionScreen', () => {
     });
 
 
-    it('resets to Home when session detail is missing', () => {
+    it('silently resets to Home when session detail is missing', () => {
         const { Alert } = require('react-native');
         useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
         useStateMock.mockImplementationOnce(() => [[], jest.fn()]);
@@ -752,7 +752,7 @@ describe('WorkoutSessionScreen', () => {
             } as never),
         ).not.toThrow();
 
-        expect(Alert.alert).toHaveBeenCalledWith('Workout session unavailable', 'Returning to Home.');
+        expect(Alert.alert).not.toHaveBeenCalled();
         expect(CommonActions.reset).toHaveBeenCalledWith({
             index: 0,
             routes: [{ name: 'MainTabs', params: { screen: TAB_ROUTES.Home } }],
