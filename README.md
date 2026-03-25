@@ -113,6 +113,15 @@ This is not just a sync engine with screens on top. The repo also captures produ
 
 ---
 
+## Next planned steps
+
+- continue real-world gym testing and fix friction found through use
+- improve release readiness and store submission workflow
+- harden production-oriented backend and sync edges where needed
+- keep polishing workout planning, session flow, and exercise management
+
+---
+
 ## Repository structure
 
 ```text
@@ -141,9 +150,5 @@ docs/
   product-rules.md
   local-development.md
 
-  ## Next planned steps
 
-- continue real-world gym testing and fix friction found through use
-- improve release readiness and store submission workflow
-- harden production-oriented backend and sync edges where needed
-- keep polishing workout planning, session flow, and exercise management
+
