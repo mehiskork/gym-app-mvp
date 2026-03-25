@@ -507,8 +507,15 @@ describe('WorkoutSessionScreen', () => {
         const buttons = findElementsByType(element, Button) as Array<React.ReactElement<ButtonProps>>;
         const addExerciseButton = buttons.find((button) => button.props.title === 'Add exercise');
         const finishButton = buttons.find((button) => button.props.title === 'Finish workout');
+        const views = findElementsByType(element, View) as Array<React.ReactElement<{ style?: StyleProp<ViewStyle> }>>;
+        const footerView = views.find((view) => {
+            const style = StyleSheet.flatten(view.props.style) as ViewStyle | undefined;
+            return style?.position === 'absolute' && style?.borderTopWidth === 1;
+        });
 
         expect(addExerciseButton?.props.variant).toBe('secondary');
+        expect(footerView).toBeDefined();
+        expect((StyleSheet.flatten(footerView?.props.style) as ViewStyle | undefined)?.flexDirection).toBe('row');
         addExerciseButton?.props.onPress?.({} as never);
         expect(navigation.navigate).toHaveBeenCalledWith('ExercisePicker', {
             addToSessionId: 'session-2',

@@ -461,6 +461,8 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
         <View
           style={{
             position: 'absolute',
+            flexDirection: 'row',
+            alignItems: 'center',
             left: 0,
             right: 0,
             bottom: bottomStackOffset,
