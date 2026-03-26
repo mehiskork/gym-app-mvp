@@ -113,6 +113,7 @@ import { CommonActions, useFocusEffect } from '@react-navigation/native';
 
 import { WorkoutSessionScreen } from '../WorkoutSessionScreen';
 import { TAB_ROUTES } from '../../navigation/routes';
+import { CardioSummaryEditor } from '../../features/workoutSession/CardioSummaryEditor';
 import { ExerciseCard } from '../../features/workoutSession/ExerciseCard';
 import { SetRow } from '../../features/workoutSession/SetRow';
 import { Button, Card, IconButton, Text } from '../../ui';
@@ -339,6 +340,77 @@ describe('WorkoutSessionScreen', () => {
         setRows[0]?.props.onToggleComplete();
 
         expect(startRestTimer).toHaveBeenCalledWith('session-1', 150, 'Bench Press');
+    });
+
+    it('passes keyboard-safe focus handling to cardio inputs', () => {
+        const session = {
+            id: 'session-1',
+            title: 'Cardio Day',
+            status: 'in_progress',
+            started_at: '2024-01-01T00:00:00Z',
+            rest_timer_end_at: null,
+            rest_timer_seconds: null,
+            rest_timer_label: null,
+        };
+
+        const exercises = [
+            {
+                id: 'exercise-1',
+                exercise_id: 'bike',
+                exercise_name: 'Bike',
+                exercise_type: 'cardio',
+                cardio_profile: 'bike',
+                cardio_summary: {
+                    duration_seconds: null,
+                    distance_km: null,
+                    speed_kph: null,
+                    incline_percent: null,
+                    resistance_level: null,
+                    pace_seconds_per_km: null,
+                    floors: null,
+                    stair_level: null,
+                },
+                sets: [],
+                notes: null,
+                position: 1,
+            },
+        ];
+
+        useStateMock.mockImplementationOnce(() => [session, jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [exercises, jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [0, jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [
+            {
+                defaultRestSeconds: 120,
+                autoStartRestTimer: true,
+                restTimerVibration: true,
+                keepScreenOn: true,
+                restTimerNotifications: false,
+            },
+            jest.fn(),
+        ]);
+        useStateMock.mockImplementationOnce(() => [false, jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [false, jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [{ visible: false, payload: null }, jest.fn()]);
+        (getWorkoutLoggerData as jest.Mock).mockReturnValue({ session, exercises });
+
+        const navigation: Nav = {
+            navigate: jest.fn(),
+            dispatch: jest.fn(),
+            setOptions: jest.fn(),
+            addListener: jest.fn(),
+        };
+        const element = WorkoutSessionScreen({
+            navigation,
+            route: { key: 'WorkoutSession', name: 'WorkoutSession', params: { sessionId: 'session-1' } },
+        } as never);
+
+        type CardioSummaryEditorProps = React.ComponentProps<typeof CardioSummaryEditor>;
+        const editors = findElementsByType(element, CardioSummaryEditor) as Array<
+            React.ReactElement<CardioSummaryEditorProps>
+        >;
+        expect(editors).toHaveLength(1);
+        expect(typeof editors[0]?.props.onEditFocus).toBe('function');
     });
 
     it('renders swap on every exercise card and targets the tapped exercise', () => {

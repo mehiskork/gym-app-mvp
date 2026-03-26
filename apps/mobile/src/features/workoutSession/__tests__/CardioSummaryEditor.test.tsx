@@ -1,3 +1,12 @@
+jest.mock('react', () => {
+    const actual = jest.requireActual('react');
+    return {
+        ...actual,
+        useRef: () => ({ current: {} }),
+        useCallback: (fn: () => unknown) => fn,
+    };
+});
+
 jest.mock('react-native', () => {
     const React = require('react');
     return {
@@ -125,5 +134,28 @@ describe('CardioSummaryEditor', () => {
                 lineHeight: tokens.typography.subtitle.fontSize + 6,
             });
         }
+    });
+    it('wires focus handling so cardio fields can participate in keyboard-safe scrolling', () => {
+        const onEditFocus = jest.fn();
+        const element = CardioSummaryEditor({
+            profile: 'bike',
+            summary: {
+                duration_seconds: null,
+                distance_km: null,
+                speed_kph: null,
+                incline_percent: null,
+                resistance_level: null,
+                pace_seconds_per_km: null,
+                floors: null,
+                stair_level: null,
+            },
+            editable: true,
+            onFieldEndEditing: jest.fn(),
+            onEditFocus,
+        });
+
+        const inputs = findByLabel<{ onFocus?: () => void }>(element);
+        expect(inputs).toHaveLength(3);
+        expect(inputs.every((input) => typeof input.props.onFocus === 'function')).toBe(true);
     });
 });

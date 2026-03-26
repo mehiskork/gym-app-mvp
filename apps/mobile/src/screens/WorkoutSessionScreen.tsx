@@ -404,6 +404,7 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
                       profile={ex.cardio_profile}
                       summary={ex.cardio_summary}
                       editable={session.status === 'in_progress'}
+                      onEditFocus={handleSetEditFocus}
                       onFieldEndEditing={(field, value) => {
                         updateWorkoutSessionExerciseCardioSummary(ex.id, {
                           [field]: parseCardioNumber(field, value),

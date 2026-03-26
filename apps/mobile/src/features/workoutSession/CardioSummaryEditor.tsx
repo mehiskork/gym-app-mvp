@@ -10,6 +10,8 @@ type CardioSummaryEditorProps = {
     summary: CardioSummary;
     editable: boolean;
     onFieldEndEditing: (field: keyof CardioSummary, value: string) => void;
+    onEditFocus?: (metrics: { pageY: number; height: number }) => void;
+
 };
 
 const cardioValueInputStyle = {
@@ -57,14 +59,34 @@ function fieldsForProfile(profile: CardioProfile | null): Array<{ key: keyof Car
     }
 }
 
-export function CardioSummaryEditor({ profile, summary, editable, onFieldEndEditing }: CardioSummaryEditorProps) {
+export function CardioSummaryEditor({
+    profile,
+    summary,
+    editable,
+    onFieldEndEditing,
+    onEditFocus,
+}: CardioSummaryEditorProps) {
     const fields = fieldsForProfile(profile);
+    const fieldRefs = React.useRef<Partial<Record<keyof CardioSummary, View | null>>>({});
     const rows = fields.reduce<Array<Array<{ key: keyof CardioSummary; label: string }>>>((acc, field, index) => {
         const rowIndex = Math.floor(index / 2);
         if (!acc[rowIndex]) acc[rowIndex] = [];
         acc[rowIndex].push(field);
         return acc;
     }, []);
+
+    const handleFieldFocus = React.useCallback(
+        (field: keyof CardioSummary) => {
+            if (!onEditFocus) return;
+            const fieldRef = fieldRefs.current[field];
+            if (!fieldRef) return;
+            fieldRef.measureInWindow((_x, pageY, _width, height) => {
+                onEditFocus({ pageY, height });
+            });
+        },
+        [onEditFocus],
+    );
+
     return (
         <View style={{ gap: tokens.spacing.sm }}>
             {rows.map((row, rowIndex) => (
@@ -73,7 +95,13 @@ export function CardioSummaryEditor({ profile, summary, editable, onFieldEndEdit
                     style={{ flexDirection: 'row', gap: tokens.spacing.sm }}
                 >
                     {row.map((field) => (
-                        <View key={field.key} style={{ flex: 1 }}>
+                        <View
+                            key={field.key}
+                            ref={(node) => {
+                                fieldRefs.current[field.key] = node;
+                            }}
+                            style={{ flex: 1 }}
+                        >
                             <Input
                                 label={field.label}
                                 defaultValue={
@@ -86,6 +114,7 @@ export function CardioSummaryEditor({ profile, summary, editable, onFieldEndEdit
                                 keyboardType="decimal-pad"
                                 editable={editable}
                                 inputStyle={cardioValueInputStyle}
+                                onFocus={() => handleFieldFocus(field.key)}
                                 onEndEditing={(event) => onFieldEndEditing(field.key, event.nativeEvent.text)}
                             />
                         </View>
