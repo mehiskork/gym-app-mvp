@@ -4,6 +4,7 @@ import { newId } from '../utils/ids';
 import { enqueueOutboxOp } from './outboxRepo';
 import { DEFAULT_REST_SECONDS, type WorkoutSessionStatus } from './constants';
 import { fetchSessionDetail } from './sessionDetailRepo';
+import { EXERCISE_TYPE, type CardioProfile, type CardioSummary, type ExerciseType } from './exerciseTypes';
 
 const EXERCISE_POSITION_SHIFT_OFFSET = 1_000_000;
 
@@ -22,9 +23,12 @@ export type LoggerExercise = {
   id: string; // workout_session_exercise.id
   exercise_id: string;
   exercise_name: string;
+  exercise_type: ExerciseType;
+  cardio_profile: CardioProfile | null;
   position: number;
   sets: LoggerSet[];
   notes: string | null;
+  cardio_summary: CardioSummary;
 };
 
 export type LoggerSet = {
@@ -172,9 +176,21 @@ export function getWorkoutLoggerData(sessionId: string): {
     id: exercise.id,
     exercise_id: exercise.exercise_id,
     exercise_name: exercise.exercise_name,
+    exercise_type: exercise.exercise_type,
+    cardio_profile: exercise.cardio_profile,
     position: exercise.position,
     sets: exercise.sets,
     notes: exercise.notes,
+    cardio_summary: {
+      duration_seconds: exercise.cardio_duration_seconds,
+      distance_km: exercise.cardio_distance_km,
+      speed_kph: exercise.cardio_speed_kph,
+      incline_percent: exercise.cardio_incline_percent,
+      resistance_level: exercise.cardio_resistance_level,
+      pace_seconds_per_km: exercise.cardio_pace_seconds_per_km,
+      floors: exercise.cardio_floors,
+      stair_level: exercise.cardio_stair_level,
+    },
   }));
 
   return { session, exercises };
@@ -187,6 +203,7 @@ export function swapWorkoutSessionExercise(input: {
   replacementExerciseName: string;
 }): { focusExerciseId: string } {
   const { workoutSessionId, workoutSessionExerciseId, replacementExerciseId, replacementExerciseName } = input;
+  const replacementMeta = getExerciseMeta(replacementExerciseId);
 
   return inTransaction(() => {
     const current = query<{ id: string; position: number }>(
@@ -219,10 +236,16 @@ export function swapWorkoutSessionExercise(input: {
       exec(
         `
         UPDATE workout_session_exercise
-        SET exercise_id = ?, exercise_name = ?, updated_at = datetime('now')
+         SET exercise_id = ?, exercise_name = ?, exercise_type = ?, cardio_profile = ?, updated_at = datetime('now')
         WHERE id = ?;
       `,
-        [replacementExerciseId, replacementExerciseName, workoutSessionExerciseId],
+        [
+          replacementExerciseId,
+          replacementExerciseName,
+          replacementMeta.exercise_type,
+          replacementMeta.cardio_profile,
+          workoutSessionExerciseId,
+        ],
       );
       enqueueWorkoutSessionExerciseSnapshot(workoutSessionExerciseId);
       return { focusExerciseId: workoutSessionExerciseId };
@@ -247,15 +270,19 @@ export function swapWorkoutSessionExercise(input: {
         workout_session_id,
         exercise_id,
         exercise_name,
+         exercise_type,
+        cardio_profile,
         position,
         notes
-      ) VALUES (?, ?, ?, ?, ?, NULL);
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL);
     `,
       [
         insertedId,
         workoutSessionId,
         replacementExerciseId,
         replacementExerciseName,
+        replacementMeta.exercise_type,
+        replacementMeta.cardio_profile,
         current.position + 1,
       ],
     );
@@ -271,26 +298,29 @@ export function swapWorkoutSessionExercise(input: {
       [EXERCISE_POSITION_SHIFT_OFFSET - 1, workoutSessionId, current.position + EXERCISE_POSITION_SHIFT_OFFSET],
     );
 
-    const setId = newId('set');
-    exec(
-      `
-      INSERT INTO workout_set (
-        id,
-        workout_session_exercise_id,
-        set_index,
-        weight,
-        reps,
-        rpe,
-        rest_seconds,
-        notes,
-        is_completed
-      ) VALUES (?, ?, 1, 0, 0, NULL, ?, NULL, 0);
-    `,
-      [setId, insertedId, DEFAULT_REST_SECONDS],
-    );
+    let setId: string | null = null;
+    if (replacementMeta.exercise_type === EXERCISE_TYPE.STRENGTH) {
+      setId = newId('set');
+      exec(
+        `
+        INSERT INTO workout_set (
+          id,
+          workout_session_exercise_id,
+          set_index,
+          weight,
+          reps,
+          rpe,
+          rest_seconds,
+          notes,
+          is_completed
+        ) VALUES (?, ?, 1, 0, 0, NULL, ?, NULL, 0);
+      `,
+        [setId, insertedId, DEFAULT_REST_SECONDS],
+      );
+    }
 
     enqueueWorkoutSessionExerciseSnapshot(insertedId);
-    enqueueWorkoutSetSnapshot(setId);
+    if (setId) enqueueWorkoutSetSnapshot(setId);
 
     return { focusExerciseId: insertedId };
   });
@@ -302,6 +332,7 @@ export function appendWorkoutSessionExercise(input: {
   exerciseName: string;
 }): { focusExerciseId: string } {
   const { workoutSessionId, exerciseId, exerciseName } = input;
+  const exerciseMeta = getExerciseMeta(exerciseId);
 
   return inTransaction(() => {
     const session = query<{ id: string }>(
@@ -339,38 +370,69 @@ export function appendWorkoutSessionExercise(input: {
         source_program_day_exercise_id,
         exercise_id,
         exercise_name,
+         exercise_type,
+        cardio_profile,
         position,
         notes
-      ) VALUES (?, ?, NULL, ?, ?, ?, NULL);
+       ) VALUES (?, ?, NULL, ?, ?, ?, ?, ?, NULL);
     `,
-      [insertedId, workoutSessionId, exerciseId, exerciseName, maxPosition + 1],
+      [
+        insertedId,
+        workoutSessionId,
+        exerciseId,
+        exerciseName,
+        exerciseMeta.exercise_type,
+        exerciseMeta.cardio_profile,
+        maxPosition + 1,
+      ],
     );
 
-    const setId = newId('set');
-    exec(
-      `
-      INSERT INTO workout_set (
-        id,
-        workout_session_exercise_id,
-        set_index,
-        weight,
-        reps,
-        rpe,
-        rest_seconds,
-        notes,
-        is_completed
-      ) VALUES (?, ?, 1, 0, 0, NULL, ?, NULL, 0);
-    `,
-      [setId, insertedId, DEFAULT_REST_SECONDS],
-    );
+    let setId: string | null = null;
+    if (exerciseMeta.exercise_type === EXERCISE_TYPE.STRENGTH) {
+      setId = newId('set');
+      exec(
+        `
+        INSERT INTO workout_set (
+          id,
+          workout_session_exercise_id,
+          set_index,
+          weight,
+          reps,
+          rpe,
+          rest_seconds,
+          notes,
+          is_completed
+        ) VALUES (?, ?, 1, 0, 0, NULL, ?, NULL, 0);
+      `,
+        [setId, insertedId, DEFAULT_REST_SECONDS],
+      );
+    }
 
     enqueueWorkoutSessionExerciseSnapshot(insertedId);
-    enqueueWorkoutSetSnapshot(setId);
+    if (setId) enqueueWorkoutSetSnapshot(setId);
 
     return { focusExerciseId: insertedId };
   });
 }
 
+function getExerciseMeta(exerciseId: string): {
+  exercise_type: ExerciseType;
+  cardio_profile: CardioProfile | null;
+} {
+  const row = query<{ exercise_type: ExerciseType; cardio_profile: CardioProfile | null }>(
+    `
+    SELECT exercise_type, cardio_profile
+    FROM exercise
+    WHERE id = ? AND deleted_at IS NULL
+    LIMIT 1;
+  `,
+    [exerciseId],
+  )[0];
+  if (!row) {
+    throw new Error('exercise not found');
+  }
+  return row;
+}
 
 
 export function addWorkoutSet(wseId: string): string {
@@ -425,6 +487,45 @@ export function addWorkoutSet(wseId: string): string {
     enqueueWorkoutSetSnapshot(id);
 
     return id;
+  });
+}
+
+export function updateWorkoutSessionExerciseCardioSummary(
+  wseId: string,
+  patch: Partial<CardioSummary>,
+) {
+  const entries = Object.entries(patch).filter(([, value]) => value !== undefined);
+  if (entries.length === 0) return;
+  const cols = entries.map(([key]) => `cardio_${key} = ?`).join(', ');
+  const params = entries.map(([, value]) => value);
+
+  inTransaction(() => {
+    const row = query<{ status: WorkoutSessionStatus; exercise_type: ExerciseType }>(
+      `
+      SELECT ws.status AS status, wse.exercise_type AS exercise_type
+      FROM workout_session_exercise wse
+      JOIN workout_session ws ON ws.id = wse.workout_session_id
+      WHERE wse.id = ?
+        AND wse.deleted_at IS NULL
+        AND ws.deleted_at IS NULL
+      LIMIT 1;
+    `,
+      [wseId],
+    )[0];
+
+    if (!row) throw new Error('cardio exercise not found');
+    if (row.status !== 'in_progress') return;
+    if (row.exercise_type !== EXERCISE_TYPE.CARDIO) return;
+
+    exec(
+      `
+      UPDATE workout_session_exercise
+      SET ${cols}, updated_at = datetime('now')
+      WHERE id = ? AND deleted_at IS NULL;
+    `,
+      [...params, wseId],
+    );
+    enqueueWorkoutSessionExerciseSnapshot(wseId);
   });
 }
 

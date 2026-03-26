@@ -302,5 +302,35 @@
   {
     "id": "ex_rear_delt_raise",
     "name": "Rear Delt Raise"
+  },
+  {
+    "id": "ex_treadmill_run",
+    "name": "Treadmill Run",
+    "exercise_type": "cardio",
+    "cardio_profile": "treadmill"
+  },
+  {
+    "id": "ex_stationary_bike",
+    "name": "Stationary Bike",
+    "exercise_type": "cardio",
+    "cardio_profile": "bike"
+  },
+  {
+    "id": "ex_rowing_machine",
+    "name": "Rowing Machine",
+    "exercise_type": "cardio",
+    "cardio_profile": "ergometer"
+  },
+  {
+    "id": "ex_stair_climber",
+    "name": "Stair Climber",
+    "exercise_type": "cardio",
+    "cardio_profile": "stairs"
+  },
+  {
+    "id": "ex_elliptical_trainer",
+    "name": "Elliptical Trainer",
+    "exercise_type": "cardio",
+    "cardio_profile": "elliptical"
   }
 ]

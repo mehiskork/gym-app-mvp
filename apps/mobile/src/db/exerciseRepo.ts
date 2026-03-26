@@ -2,6 +2,7 @@ import { exec, query } from './db';
 import { newId } from '../utils/ids';
 import { getOrCreateLocalUserId } from './appMetaRepo';
 import { inTransaction } from './tx';
+import { EXERCISE_TYPE, type CardioProfile, type ExerciseType } from './exerciseTypes';
 
 export type ExerciseRow = {
   id: string;
@@ -9,6 +10,8 @@ export type ExerciseRow = {
   normalized_name: string;
   is_custom: number;
   owner_user_id: string | null;
+  exercise_type: ExerciseType;
+  cardio_profile: CardioProfile | null;
 };
 
 function normalizeName(name: string) {
@@ -18,7 +21,7 @@ function normalizeName(name: string) {
 export function listExercises(ownerUserId: string): ExerciseRow[] {
   return query<ExerciseRow>(
     `
-    SELECT id, name, normalized_name, is_custom, owner_user_id
+    SELECT id, name, normalized_name, is_custom, owner_user_id, exercise_type, cardio_profile
     FROM exercise
     WHERE deleted_at IS NULL
       AND (
@@ -42,9 +45,10 @@ export function createCustomExercise(name: string): string {
     `
     INSERT INTO exercise (
       id, name, normalized_name, is_custom, owner_user_id
-    ) VALUES (?, ?, ?, 1, ?);
+        , exercise_type, cardio_profile
+    ) VALUES (?, ?, ?, 1, ?, ?, NULL);
   `,
-    [id, trimmed, normalizeName(trimmed), ownerUserId],
+    [id, trimmed, normalizeName(trimmed), ownerUserId, EXERCISE_TYPE.STRENGTH],
   );
 
   return id;

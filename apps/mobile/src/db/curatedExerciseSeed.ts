@@ -2,6 +2,7 @@ import { inTransaction } from './tx';
 
 import curatedJson from './seed/curated_exercises.json';
 import { exec } from './db';
+import { EXERCISE_TYPE, type CardioProfile, type ExerciseType } from './exerciseTypes';
 
 type CuratedExercise = {
   id: string;
@@ -9,6 +10,8 @@ type CuratedExercise = {
   equipment?: string | null;
   primary_muscle?: string | null;
   notes?: string | null;
+  exercise_type?: ExerciseType;
+  cardio_profile?: CardioProfile | null;
 };
 
 // Force the JSON to the shape we expect
@@ -29,8 +32,8 @@ export function seedCuratedExercises() {
         `
         INSERT OR IGNORE INTO exercise (
           id, name, normalized_name, is_custom, owner_user_id,
-          equipment, primary_muscle, notes
-        ) VALUES (?, ?, ?, 0, NULL, ?, ?, ?);
+          equipment, primary_muscle, notes, exercise_type, cardio_profile
+        ) VALUES (?, ?, ?, 0, NULL, ?, ?, ?, ?, ?);
       `,
         [
           ex.id,
@@ -39,6 +42,8 @@ export function seedCuratedExercises() {
           ex.equipment ?? null,
           ex.primary_muscle ?? null,
           ex.notes ?? null,
+          ex.exercise_type ?? EXERCISE_TYPE.STRENGTH,
+          ex.cardio_profile ?? null,
         ],
       );
 
@@ -52,6 +57,8 @@ export function seedCuratedExercises() {
           equipment = ?,
           primary_muscle = ?,
           notes = ?,
+            exercise_type = ?,
+          cardio_profile = ?,
           updated_at = datetime('now')
         WHERE id = ? AND is_custom = 0 AND deleted_at IS NULL;
       `,
@@ -61,6 +68,8 @@ export function seedCuratedExercises() {
           ex.equipment ?? null,
           ex.primary_muscle ?? null,
           ex.notes ?? null,
+          ex.exercise_type ?? EXERCISE_TYPE.STRENGTH,
+          ex.cardio_profile ?? null,
           ex.id,
         ],
       );

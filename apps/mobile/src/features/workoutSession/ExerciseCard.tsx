@@ -15,6 +15,7 @@ type ExerciseCardProps = {
     commentDisabled?: boolean;
     onPressTitle?: () => void;
     onSwap?: () => void;
+    showAddSet?: boolean;
     children: ReactNode;
 };
 
@@ -27,6 +28,7 @@ export function ExerciseCard({
     commentDisabled = false,
     onPressTitle,
     onSwap,
+    showAddSet = true,
     children,
 }: ExerciseCardProps) {
     const hasSets = React.Children.count(children) > 0;
@@ -155,30 +157,32 @@ export function ExerciseCard({
 
                         </Text>
                     </Pressable>
-                    <Pressable
-                        testID="exercise-card-add-set"
-                        onPress={onAddSet}
-                        style={({ pressed }) => [
-                            {
-                                flex: 1,
-                                minHeight: tokens.touchTargetMin,
-                                borderWidth: 1,
-                                borderStyle: 'dashed',
-                                borderColor: tokens.colors.border,
-                                borderRadius: tokens.radius.md,
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                            },
-                            pressed ? { opacity: 0.85 } : null,
-                        ]}
-                    >
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.sm }}>
-                            <Ionicons name="add" size={16} color={tokens.colors.mutedText} />
-                            <Text variant="muted" color={tokens.colors.mutedText}>
-                                Add Set
-                            </Text>
-                        </View>
-                    </Pressable>
+                    {showAddSet ? (
+                        <Pressable
+                            testID="exercise-card-add-set"
+                            onPress={onAddSet}
+                            style={({ pressed }) => [
+                                {
+                                    flex: 1,
+                                    minHeight: tokens.touchTargetMin,
+                                    borderWidth: 1,
+                                    borderStyle: 'dashed',
+                                    borderColor: tokens.colors.border,
+                                    borderRadius: tokens.radius.md,
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                },
+                                pressed ? { opacity: 0.85 } : null,
+                            ]}
+                        >
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.sm }}>
+                                <Ionicons name="add" size={16} color={tokens.colors.mutedText} />
+                                <Text variant="muted" color={tokens.colors.mutedText}>
+                                    Add Set
+                                </Text>
+                            </View>
+                        </Pressable>
+                    ) : null}
                 </View>
             </View>
         </Card >

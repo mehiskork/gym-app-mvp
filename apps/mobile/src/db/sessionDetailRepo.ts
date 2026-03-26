@@ -1,4 +1,5 @@
 import { query } from './db';
+import type { CardioProfile, ExerciseType } from './exerciseTypes';
 
 export type SessionDetailSession = {
     id: string;
@@ -16,9 +17,19 @@ export type SessionDetailExercise = {
     id: string;
     exercise_id: string;
     exercise_name: string;
+    exercise_type: ExerciseType;
+    cardio_profile: CardioProfile | null;
     position: number;
     notes: string | null;
     sets: SessionDetailSet[];
+    cardio_duration_seconds: number | null;
+    cardio_distance_km: number | null;
+    cardio_speed_kph: number | null;
+    cardio_incline_percent: number | null;
+    cardio_resistance_level: number | null;
+    cardio_pace_seconds_per_km: number | null;
+    cardio_floors: number | null;
+    cardio_stair_level: number | null;
 };
 
 export type SessionDetailSet = {
@@ -64,8 +75,18 @@ export function fetchSessionDetail(sessionId: string): {
       id,
       exercise_id,
       exercise_name,
+       exercise_type,
+      cardio_profile,
       position,
-      notes
+      notes,
+      cardio_duration_seconds,
+      cardio_distance_km,
+      cardio_speed_kph,
+      cardio_incline_percent,
+      cardio_resistance_level,
+      cardio_pace_seconds_per_km,
+      cardio_floors,
+      cardio_stair_level
     FROM workout_session_exercise
     WHERE workout_session_id = ? AND deleted_at IS NULL
     ORDER BY position ASC;

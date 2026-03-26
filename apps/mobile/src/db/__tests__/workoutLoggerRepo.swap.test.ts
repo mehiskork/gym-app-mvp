@@ -31,6 +31,7 @@ describe('swapWorkoutSessionExercise', () => {
 
     it('replaces exercise in place when no completed sets exist', () => {
         (query as jest.Mock)
+            .mockReturnValueOnce([{ exercise_type: 'strength', cardio_profile: null }])
             .mockReturnValueOnce([{ id: 'wse-1', position: 2 }])
             .mockReturnValueOnce([{ n: 0 }])
             .mockReturnValueOnce([{ id: 'wse-1' }]);
@@ -45,6 +46,8 @@ describe('swapWorkoutSessionExercise', () => {
         expect(exec).toHaveBeenCalledWith(expect.stringContaining('UPDATE workout_session_exercise'), [
             'ex-2',
             'Incline Bench Press',
+            'strength',
+            null,
             'wse-1',
         ]);
         expect(result.focusExerciseId).toBe('wse-1');
@@ -52,6 +55,7 @@ describe('swapWorkoutSessionExercise', () => {
 
     it('inserts replacement below when completed sets exist', () => {
         (query as jest.Mock)
+            .mockReturnValueOnce([{ exercise_type: 'strength', cardio_profile: null }])
             .mockReturnValueOnce([{ id: 'wse-1', position: 2, notes: 'original comment' }])
             .mockReturnValueOnce([{ n: 1 }])
             .mockReturnValueOnce([{ id: 'wse-inserted' }])
@@ -70,13 +74,16 @@ describe('swapWorkoutSessionExercise', () => {
             'ws-1',
             'ex-2',
             'Incline Bench Press',
+            'strength',
+            null,
             3,
         ]);
-        expect(exec).toHaveBeenCalledWith(expect.stringContaining('VALUES (?, ?, ?, ?, ?, NULL);'), expect.any(Array));
+        expect(exec).toHaveBeenCalledWith(expect.stringContaining('VALUES (?, ?, ?, ?, ?, ?, ?, NULL);'), expect.any(Array));
     });
 
     it('inserts replacement below when completed sets exist and current is last', () => {
         (query as jest.Mock)
+            .mockReturnValueOnce([{ exercise_type: 'strength', cardio_profile: null }])
             .mockReturnValueOnce([{ id: 'wse-last', position: 5 }])
             .mockReturnValueOnce([{ n: 2 }])
             .mockReturnValueOnce([{ id: 'wse-inserted' }])
@@ -95,6 +102,8 @@ describe('swapWorkoutSessionExercise', () => {
             'ws-1',
             'ex-9',
             'Cable Row',
+            'strength',
+            null,
             6,
         ]);
         expect(exec).toHaveBeenCalledWith(expect.stringContaining('SET position = position - ?'), [999999, 'ws-1', 1000005]);

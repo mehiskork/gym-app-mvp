@@ -31,6 +31,7 @@ describe('appendWorkoutSessionExercise', () => {
 
     it('appends exercise to the end with one default set', () => {
         (query as jest.Mock)
+            .mockReturnValueOnce([{ exercise_type: 'strength', cardio_profile: null }])
             .mockReturnValueOnce([{ id: 'ws-1' }])
             .mockReturnValueOnce([{ max_position: 4 }])
             .mockReturnValueOnce([{ id: 'wse-new' }])
@@ -47,6 +48,8 @@ describe('appendWorkoutSessionExercise', () => {
             'ws-1',
             'ex-7',
             'Chest Supported Row',
+            'strength',
+            null,
             5,
         ]);
         expect(exec).toHaveBeenCalledWith(expect.stringContaining('VALUES (?, ?, 1, 0, 0, NULL, ?, NULL, 0);'), [
@@ -59,6 +62,7 @@ describe('appendWorkoutSessionExercise', () => {
 
     it('keeps append session-only by nulling source planned slot identity', () => {
         (query as jest.Mock)
+            .mockReturnValueOnce([{ exercise_type: 'strength', cardio_profile: null }])
             .mockReturnValueOnce([{ id: 'ws-1' }])
             .mockReturnValueOnce([{ max_position: null }])
             .mockReturnValueOnce([{ id: 'wse-new' }])
@@ -77,12 +81,15 @@ describe('appendWorkoutSessionExercise', () => {
             'ws-1',
             'ex-1',
             'Bench Press',
+            'strength',
+            null,
             1,
         ]);
     });
 
     it('allows duplicate exercises in the same workout session', () => {
         (query as jest.Mock)
+            .mockReturnValueOnce([{ exercise_type: 'strength', cardio_profile: null }])
             .mockReturnValueOnce([{ id: 'ws-1' }])
             .mockReturnValueOnce([{ max_position: 2 }])
             .mockReturnValueOnce([{ id: 'wse-new' }])
@@ -101,6 +108,8 @@ describe('appendWorkoutSessionExercise', () => {
             'ws-1',
             'ex-2',
             'Incline Dumbbell Press',
+            'strength',
+            null,
             3,
         ]);
     });

@@ -16,18 +16,21 @@ import { completeSession, updateWorkoutSessionNote } from '../db/workoutSessionR
 import {
   addWorkoutSet,
   clearRestTimer,
+  deleteWorkoutSet,
   getWorkoutLoggerData,
+  restoreWorkoutSet,
   startRestTimer,
   updateWorkoutSet,
   updateWorkoutSessionExerciseComment,
-  deleteWorkoutSet,
-  restoreWorkoutSet,
+  updateWorkoutSessionExerciseCardioSummary,
   type LoggerExercise,
   type LoggerSession,
   type LoggerSet,
 } from '../db/workoutLoggerRepo';
+import { EXERCISE_TYPE, type CardioSummary } from '../db/exerciseTypes';
 import { formatRestCountdown, getRemainingSeconds } from '../utils/format';
 import { parseTimestampMs } from '../utils/timestamp';
+import { CardioSummaryEditor } from '../features/workoutSession/CardioSummaryEditor';
 import { ExerciseCard } from '../features/workoutSession/ExerciseCard';
 import { SetRow } from '../features/workoutSession/SetRow';
 import { FinishWorkoutSheet } from '../features/workoutSession/FinishWorkoutSheet';
@@ -57,9 +60,19 @@ function parseNumber(input: string): number | null {
 }
 
 function getExerciseSubtitle(exercise: LoggerExercise): string | null {
+  if (exercise.exercise_type === EXERCISE_TYPE.CARDIO) {
+    return exercise.cardio_profile ? `${exercise.cardio_profile} summary` : 'Cardio summary';
+  }
   if (exercise.sets.length === 0) return null;
   const completed = exercise.sets.filter((set) => set.is_completed === 1).length;
   return `${completed}/${exercise.sets.length} sets complete`;
+}
+
+function parseCardioNumber(field: keyof CardioSummary, input: string): number | null {
+  const value = parseNumber(input);
+  if (value === null) return null;
+  if (field === 'duration_seconds' || field === 'floors') return Math.max(0, Math.floor(value));
+  return value;
 }
 
 export function WorkoutSessionScreen({ route, navigation }: Props) {
@@ -199,9 +212,17 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
   );
 
   const totals = useMemo(() => {
-    const totalSets = exercises.reduce((sum, exercise) => sum + exercise.sets.length, 0);
+    const totalSets = exercises.reduce(
+      (sum, exercise) =>
+        sum + (exercise.exercise_type === EXERCISE_TYPE.STRENGTH ? exercise.sets.length : 0),
+      0,
+    );
     const completedSets = exercises.reduce(
-      (sum, exercise) => sum + exercise.sets.filter((set) => set.is_completed === 1).length,
+      (sum, exercise) =>
+        sum +
+        (exercise.exercise_type === EXERCISE_TYPE.STRENGTH
+          ? exercise.sets.filter((set) => set.is_completed === 1).length
+          : 0),
       0,
     );
     return { totalSets, completedSets };
@@ -348,7 +369,9 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
                   onPressTitle={() =>
                     navigation.navigate('ExerciseDetail', { exerciseId: ex.exercise_id })
                   }
+                  showAddSet={ex.exercise_type === EXERCISE_TYPE.STRENGTH}
                   onAddSet={() => {
+                    if (ex.exercise_type !== EXERCISE_TYPE.STRENGTH) return;
                     addWorkoutSet(ex.id);
                     void Haptics.selectionAsync();
                     load();
@@ -361,42 +384,56 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
                     })
                   }
                 >
-                  {ex.sets.map((set) => (
-                    <SetRow
-                      key={set.id}
-                      set={set}
-                      onWeightEndEditing={(value) => {
-                        updateWorkoutSet(set.id, { weight: parseNumber(value) });
-                        load();
-                      }}
-                      onRepsEndEditing={(value) => {
-                        const n = parseNumber(value);
-                        updateWorkoutSet(set.id, {
-                          reps: n === null ? null : Math.max(0, Math.floor(n)),
+                  {ex.exercise_type === EXERCISE_TYPE.CARDIO ? (
+                    <CardioSummaryEditor
+                      profile={ex.cardio_profile}
+                      summary={ex.cardio_summary}
+                      editable={session.status === 'in_progress'}
+                      onFieldEndEditing={(field, value) => {
+                        updateWorkoutSessionExerciseCardioSummary(ex.id, {
+                          [field]: parseCardioNumber(field, value),
                         });
                         load();
                       }}
-                      onToggleComplete={() => {
-                        const done = set.is_completed === 1;
-                        updateWorkoutSet(set.id, { is_completed: done ? 0 : 1 });
-                        void Haptics.selectionAsync();
-                        // Start rest timer when marking done
-                        if (!done && settings.autoStartRestTimer) {
-                          startRestTimer(sessionId, settings.defaultRestSeconds, ex.exercise_name);
-                          if (settings.restTimerNotifications) {
-                            void scheduleRestTimerNotification(settings.defaultRestSeconds, settings.restTimerVibration);
-                          }
-                        }
-                        load();
-                      }}
-                      onDelete={() => {
-                        deleteWorkoutSet(set.id);
-                        snackbarUndo.showUndo(set);
-                        load();
-                      }}
-                      onEditFocus={handleSetEditFocus}
+
                     />
-                  ))}
+                  ) : (
+                    ex.sets.map((set) => (
+                      <SetRow
+                        key={set.id}
+                        set={set}
+                        onWeightEndEditing={(value) => {
+                          updateWorkoutSet(set.id, { weight: parseNumber(value) });
+                          load();
+                        }}
+                        onRepsEndEditing={(value) => {
+                          const n = parseNumber(value);
+                          updateWorkoutSet(set.id, {
+                            reps: n === null ? null : Math.max(0, Math.floor(n)),
+                          });
+                          load();
+                        }}
+                        onToggleComplete={() => {
+                          const done = set.is_completed === 1;
+                          updateWorkoutSet(set.id, { is_completed: done ? 0 : 1 });
+                          void Haptics.selectionAsync();
+                          if (!done && settings.autoStartRestTimer) {
+                            startRestTimer(sessionId, settings.defaultRestSeconds, ex.exercise_name);
+                            if (settings.restTimerNotifications) {
+                              void scheduleRestTimerNotification(settings.defaultRestSeconds, settings.restTimerVibration);
+                            }
+                          }
+                          load();
+                        }}
+                        onDelete={() => {
+                          deleteWorkoutSet(set.id);
+                          snackbarUndo.showUndo(set);
+                          load();
+                        }}
+                        onEditFocus={handleSetEditFocus}
+                      />
+                    ))
+                  )}
                 </ExerciseCard>
               );
             })

@@ -8,6 +8,7 @@ import {
   WORKOUT_SESSION_STATUS,
   type WorkoutSessionStatus,
 } from './constants';
+import { EXERCISE_TYPE, type CardioProfile, type ExerciseType } from './exerciseTypes';
 
 export type WorkoutSessionRow = {
   id: string;
@@ -26,6 +27,8 @@ export type WorkoutSessionExerciseRow = {
   source_program_day_exercise_id: string | null;
   exercise_id: string;
   exercise_name: string;
+  exercise_type: ExerciseType;
+  cardio_profile: CardioProfile | null;
   position: number;
   notes: string | null;
 };
@@ -250,6 +253,8 @@ export function listSessionExercises(sessionId: string): WorkoutSessionExerciseR
       source_program_day_exercise_id,
       exercise_id,
       exercise_name,
+       exercise_type,
+      cardio_profile,
       position,
       notes
     FROM workout_session_exercise
@@ -298,13 +303,17 @@ export function createSessionFromPlanDay(input: { workoutPlanId: string; dayId: 
       day_exercise_id: string;
       exercise_id: string;
       exercise_name: string;
+      exercise_type: ExerciseType;
+      cardio_profile: CardioProfile | null;
       position: number;
     }>(
       `
       SELECT
       pde.id AS day_exercise_id,
-        pde.exercise_id AS exercise_id,
+      pde.exercise_id AS exercise_id,
         e.name AS exercise_name,
+        e.exercise_type AS exercise_type,
+        e.cardio_profile AS cardio_profile,
         pde.position AS position
       FROM program_day_exercise pde
       JOIN exercise e ON e.id = pde.exercise_id
@@ -347,14 +356,29 @@ export function createSessionFromPlanDay(input: { workoutPlanId: string; dayId: 
             source_program_day_exercise_id,
           exercise_id,
           exercise_name,
+           exercise_type,
+          cardio_profile,
           position,
           notes
-        ) VALUES (?, ?, ?, ?, ?, ?, NULL);
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL);
       `,
-        [wseId, sessionId, row.day_exercise_id, row.exercise_id, row.exercise_name, row.position],
+        [
+          wseId,
+          sessionId,
+          row.day_exercise_id,
+          row.exercise_id,
+          row.exercise_name,
+          row.exercise_type,
+          row.cardio_profile,
+          row.position,
+        ],
       );
 
       enqueueWorkoutSessionExerciseSnapshot(wseId);
+
+      if (row.exercise_type === EXERCISE_TYPE.CARDIO) {
+        continue;
+      }
 
       const plannedSets = query<{
         set_index: number;

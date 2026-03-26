@@ -2,6 +2,7 @@ import { exec, query } from './db';
 import { inTransaction } from './tx';
 import { WORKOUT_SESSION_STATUS } from './constants';
 import { fetchSessionDetail } from './sessionDetailRepo';
+import type { CardioProfile, ExerciseType } from './exerciseTypes';
 
 export type CompletedSessionRow = {
   id: string;
@@ -24,8 +25,18 @@ export type SessionExerciseRow = {
   id: string;
   exercise_id: string;
   exercise_name: string;
+  exercise_type: ExerciseType;
+  cardio_profile: CardioProfile | null;
   position: number;
   notes: string | null;
+  cardio_duration_seconds: number | null;
+  cardio_distance_km: number | null;
+  cardio_speed_kph: number | null;
+  cardio_incline_percent: number | null;
+  cardio_resistance_level: number | null;
+  cardio_pace_seconds_per_km: number | null;
+  cardio_floors: number | null;
+  cardio_stair_level: number | null;
 };
 
 export type SessionSetRow = {
@@ -192,14 +203,28 @@ export function getSessionDetail(sessionId: string): {
     workout_note: detail.session.workout_note,
   };
 
-  const performedExercises = detail.exercises.filter((exercise) => exercise.sets.length > 0);
+  const performedExercises = detail.exercises.filter(
+    (exercise) =>
+      exercise.sets.length > 0 ||
+      exercise.exercise_type === 'cardio',
+  );
 
   const exercises: SessionExerciseRow[] = performedExercises.map((exercise) => ({
     id: exercise.id,
     exercise_id: exercise.exercise_id,
     exercise_name: exercise.exercise_name,
+    exercise_type: exercise.exercise_type,
+    cardio_profile: exercise.cardio_profile,
     position: exercise.position,
     notes: exercise.notes,
+    cardio_duration_seconds: exercise.cardio_duration_seconds,
+    cardio_distance_km: exercise.cardio_distance_km,
+    cardio_speed_kph: exercise.cardio_speed_kph,
+    cardio_incline_percent: exercise.cardio_incline_percent,
+    cardio_resistance_level: exercise.cardio_resistance_level,
+    cardio_pace_seconds_per_km: exercise.cardio_pace_seconds_per_km,
+    cardio_floors: exercise.cardio_floors,
+    cardio_stair_level: exercise.cardio_stair_level,
   }));
 
 

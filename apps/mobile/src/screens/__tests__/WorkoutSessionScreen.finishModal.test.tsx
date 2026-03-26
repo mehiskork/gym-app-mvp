@@ -88,6 +88,8 @@ jest.mock('../../db/workoutLoggerRepo', () => ({
     getWorkoutLoggerData: jest.fn(),
     startRestTimer: jest.fn(),
     updateWorkoutSet: jest.fn(),
+    updateWorkoutSessionExerciseComment: jest.fn(),
+    updateWorkoutSessionExerciseCardioSummary: jest.fn(),
 }));
 
 jest.mock('../../db/workoutSessionRepo', () => ({
