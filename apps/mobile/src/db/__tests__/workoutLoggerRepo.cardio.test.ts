@@ -36,7 +36,7 @@ describe('workoutLoggerRepo cardio', () => {
         appendWorkoutSessionExercise({
             workoutSessionId: 'ws-1',
             exerciseId: 'ex_treadmill_run',
-            exerciseName: 'Treadmill Run',
+            exerciseName: 'Treadmill',
         });
 
         const sqlStatements = (exec as jest.Mock).mock.calls.map((call) => String(call[0]));

@@ -52,23 +52,38 @@ function fieldsForProfile(profile: CardioProfile | null): Array<{ key: keyof Car
 
 export function CardioSummaryEditor({ profile, summary, editable, onFieldEndEditing }: CardioSummaryEditorProps) {
     const fields = fieldsForProfile(profile);
+    const rows = fields.reduce<Array<Array<{ key: keyof CardioSummary; label: string }>>>((acc, field, index) => {
+        const rowIndex = Math.floor(index / 2);
+        if (!acc[rowIndex]) acc[rowIndex] = [];
+        acc[rowIndex].push(field);
+        return acc;
+    }, []);
     return (
         <View style={{ gap: tokens.spacing.sm }}>
-            {fields.map((field) => (
-                <Input
-                    key={field.key}
-                    label={field.label}
-                    defaultValue={
-                        summary[field.key] === null
-                            ? ''
-                            : field.key === 'duration_seconds'
-                                ? String((summary.duration_seconds ?? 0) / 60)
-                                : String(summary[field.key])
-                    }
-                    keyboardType="decimal-pad"
-                    editable={editable}
-                    onEndEditing={(event) => onFieldEndEditing(field.key, event.nativeEvent.text)}
-                />
+            {rows.map((row, rowIndex) => (
+                <View
+                    key={`row-${rowIndex}`}
+                    style={{ flexDirection: 'row', gap: tokens.spacing.sm }}
+                >
+                    {row.map((field) => (
+                        <View key={field.key} style={{ flex: 1 }}>
+                            <Input
+                                label={field.label}
+                                defaultValue={
+                                    summary[field.key] === null
+                                        ? ''
+                                        : field.key === 'duration_seconds'
+                                            ? String((summary.duration_seconds ?? 0) / 60)
+                                            : String(summary[field.key])
+                                }
+                                keyboardType="decimal-pad"
+                                editable={editable}
+                                onEndEditing={(event) => onFieldEndEditing(field.key, event.nativeEvent.text)}
+                            />
+                        </View>
+                    ))}
+                    {row.length === 1 ? <View style={{ flex: 1 }} /> : null}
+                </View>
             ))}
         </View>
     );

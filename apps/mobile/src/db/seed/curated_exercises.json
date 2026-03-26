@@ -305,13 +305,13 @@
   },
   {
     "id": "ex_treadmill_run",
-    "name": "Treadmill Run",
+    "name": "Treadmill",
     "exercise_type": "cardio",
     "cardio_profile": "treadmill"
   },
   {
     "id": "ex_stationary_bike",
-    "name": "Stationary Bike",
+    "name": "Bike",
     "exercise_type": "cardio",
     "cardio_profile": "bike"
   },
@@ -323,7 +323,7 @@
   },
   {
     "id": "ex_stair_climber",
-    "name": "Stair Climber",
+    "name": "Stairs",
     "exercise_type": "cardio",
     "cardio_profile": "stairs"
   },

@@ -27,7 +27,7 @@ import {
   type LoggerSession,
   type LoggerSet,
 } from '../db/workoutLoggerRepo';
-import { EXERCISE_TYPE, type CardioSummary } from '../db/exerciseTypes';
+import { EXERCISE_TYPE, type CardioProfile, type CardioSummary } from '../db/exerciseTypes';
 import { formatRestCountdown, getRemainingSeconds } from '../utils/format';
 import { parseTimestampMs } from '../utils/timestamp';
 import { CardioSummaryEditor } from '../features/workoutSession/CardioSummaryEditor';
@@ -64,6 +64,21 @@ function getExerciseSubtitle(exercise: LoggerExercise): string | null {
   if (exercise.sets.length === 0) return null;
   const completed = exercise.sets.filter((set) => set.is_completed === 1).length;
   return `${completed}/${exercise.sets.length} sets complete`;
+}
+
+const cardioDisplayNames: Record<CardioProfile, string> = {
+  treadmill: 'Treadmill',
+  bike: 'Bike',
+  ergometer: 'Ergometer',
+  stairs: 'Stairs',
+  elliptical: 'Elliptical',
+};
+
+function getExerciseDisplayName(exercise: LoggerExercise): string {
+  if (exercise.exercise_type === EXERCISE_TYPE.CARDIO && exercise.cardio_profile) {
+    return cardioDisplayNames[exercise.cardio_profile];
+  }
+  return exercise.exercise_name;
 }
 
 function parseCardioNumber(field: keyof CardioSummary, input: string): number | null {
@@ -358,7 +373,7 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
               return (
                 <ExerciseCard
                   key={ex.id}
-                  name={ex.exercise_name}
+                  name={getExerciseDisplayName(ex)}
                   subtitle={getExerciseSubtitle(ex)}
                   commentButtonLabel={ex.notes?.trim() ? 'View comment' : 'Add comment'}
                   onCommentPress={() => {

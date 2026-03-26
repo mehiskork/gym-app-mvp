@@ -30,6 +30,23 @@ const findByLabel = <P,>(node: React.ReactNode, acc: Array<React.ReactElement<P>
     return acc;
 };
 
+const findRowViews = (node: React.ReactNode, acc: Array<React.ReactElement<{ style?: { flexDirection?: string } }>> = []) => {
+    if (!node) return acc;
+    if (Array.isArray(node)) {
+        node.forEach((child) => findRowViews(child, acc));
+        return acc;
+    }
+    if (React.isValidElement(node)) {
+        const style = (node.props as { style?: { flexDirection?: string } }).style;
+        if (style?.flexDirection === 'row') {
+            acc.push(node as React.ReactElement<{ style?: { flexDirection?: string } }>);
+        }
+        return findRowViews((node.props as { children?: React.ReactNode }).children, acc);
+    }
+    return acc;
+};
+
+
 describe('CardioSummaryEditor', () => {
     it('renders treadmill-specific fields', () => {
         const element = CardioSummaryEditor({
@@ -50,7 +67,9 @@ describe('CardioSummaryEditor', () => {
 
         const inputs = findByLabel<{ label?: string; placeholder?: string }>(element);
         const labels = inputs.map((input) => input.props.label);
+        const rows = findRowViews(element);
         expect(labels).toEqual(['Duration (min)', 'Distance (km)', 'Speed (km/h)', 'Incline (%)']);
+        expect(rows).toHaveLength(2);
         expect(inputs.every((input) => input.props.placeholder === undefined)).toBe(true);
     });
 
@@ -72,8 +91,10 @@ describe('CardioSummaryEditor', () => {
         });
 
         const inputs = findByLabel<{ label?: string; placeholder?: string }>(element);
+        const rows = findRowViews(element);
         const labels = inputs.map((input) => input.props.label);
         expect(labels).toEqual(['Duration (min)', 'Floors', 'Level']);
+        expect(rows).toHaveLength(2);
         expect(inputs.every((input) => input.props.placeholder === undefined)).toBe(true);
     });
 });

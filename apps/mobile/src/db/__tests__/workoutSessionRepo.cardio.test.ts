@@ -55,7 +55,7 @@ describe('createSessionFromPlanDay cardio behavior', () => {
                 {
                     day_exercise_id: 'pde-1',
                     exercise_id: 'ex_treadmill_run',
-                    exercise_name: 'Treadmill Run',
+                    exercise_name: 'Treadmill',
                     exercise_type: 'cardio',
                     cardio_profile: 'treadmill',
                     position: 1,
