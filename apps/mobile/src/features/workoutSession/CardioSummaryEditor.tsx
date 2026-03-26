@@ -12,6 +12,13 @@ type CardioSummaryEditorProps = {
     onFieldEndEditing: (field: keyof CardioSummary, value: string) => void;
 };
 
+const cardioValueInputStyle = {
+    fontSize: tokens.typography.subtitle.fontSize + 2,
+    fontWeight: tokens.typography.subtitle.fontWeight,
+    lineHeight: tokens.typography.subtitle.fontSize + 6,
+};
+
+
 function fieldsForProfile(profile: CardioProfile | null): Array<{ key: keyof CardioSummary; label: string }> {
     switch (profile) {
         case 'treadmill':
@@ -78,6 +85,7 @@ export function CardioSummaryEditor({ profile, summary, editable, onFieldEndEdit
                                 }
                                 keyboardType="decimal-pad"
                                 editable={editable}
+                                inputStyle={cardioValueInputStyle}
                                 onEndEditing={(event) => onFieldEndEditing(field.key, event.nativeEvent.text)}
                             />
                         </View>

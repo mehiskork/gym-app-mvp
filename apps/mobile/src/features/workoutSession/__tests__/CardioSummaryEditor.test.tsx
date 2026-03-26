@@ -8,6 +8,7 @@ jest.mock('react-native', () => {
 
 import React from 'react';
 import { CardioSummaryEditor } from '../CardioSummaryEditor';
+import { tokens } from '../../../theme/tokens';
 
 jest.mock('../../../ui', () => {
     const React = require('react');
@@ -96,5 +97,33 @@ describe('CardioSummaryEditor', () => {
         expect(labels).toEqual(['Duration (min)', 'Floors', 'Level']);
         expect(rows).toHaveLength(2);
         expect(inputs.every((input) => input.props.placeholder === undefined)).toBe(true);
+    });
+
+    it('uses strength-matching value typography for cardio inputs', () => {
+        const element = CardioSummaryEditor({
+            profile: 'bike',
+            summary: {
+                duration_seconds: null,
+                distance_km: null,
+                speed_kph: null,
+                incline_percent: null,
+                resistance_level: null,
+                pace_seconds_per_km: null,
+                floors: null,
+                stair_level: null,
+            },
+            editable: true,
+            onFieldEndEditing: jest.fn(),
+        });
+
+        const inputs = findByLabel<{ inputStyle?: { fontSize?: number; fontWeight?: string; lineHeight?: number } }>(element);
+        expect(inputs).toHaveLength(3);
+        for (const input of inputs) {
+            expect(input.props.inputStyle).toEqual({
+                fontSize: tokens.typography.subtitle.fontSize + 2,
+                fontWeight: tokens.typography.subtitle.fontWeight,
+                lineHeight: tokens.typography.subtitle.fontSize + 6,
+            });
+        }
     });
 });
