@@ -193,6 +193,22 @@ describe('SetRow layout sizing', () => {
 });
 
 describe('SetRow input focus behavior', () => {
+    it('applies explicit max lengths to weight and reps fields', () => {
+        const element = SetRow({
+            set: createSet(),
+            onWeightEndEditing: jest.fn(),
+            onRepsEndEditing: jest.fn(),
+            onToggleComplete: jest.fn(),
+            onDelete: jest.fn(),
+        });
+
+        const weightInput = findElementByTestId<{ maxLength?: number }>(element, 'weight-input');
+        const repsInput = findElementByTestId<{ maxLength?: number }>(element, 'reps-input');
+
+        expect(weightInput?.props.maxLength).toBe(6);
+        expect(repsInput?.props.maxLength).toBe(3);
+    });
+
     it('enables select-all on focus for weight and reps inputs so next digit replaces value', () => {
         const element = SetRow({
             set: createSet(),

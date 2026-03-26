@@ -58,6 +58,97 @@ const findRowViews = (node: React.ReactNode, acc: Array<React.ReactElement<{ sty
 
 
 describe('CardioSummaryEditor', () => {
+    it('applies explicit max lengths for cardio value inputs', () => {
+        const treadmillElement = CardioSummaryEditor({
+            profile: 'treadmill',
+            summary: {
+                duration_seconds: null,
+                distance_km: null,
+                speed_kph: null,
+                incline_percent: null,
+                resistance_level: null,
+                pace_seconds_per_km: null,
+                floors: null,
+                stair_level: null,
+            },
+            editable: true,
+            onFieldEndEditing: jest.fn(),
+        });
+        const treadmillInputs = findByLabel<{ label?: string; maxLength?: number }>(treadmillElement);
+        expect(treadmillInputs.map((input) => [input.props.label, input.props.maxLength])).toEqual([
+            ['Duration (min)', 3],
+            ['Distance (km)', 5],
+            ['Speed (km/h)', 5],
+            ['Incline (%)', 4],
+        ]);
+
+        const bikeElement = CardioSummaryEditor({
+            profile: 'bike',
+            summary: {
+                duration_seconds: null,
+                distance_km: null,
+                speed_kph: null,
+                incline_percent: null,
+                resistance_level: null,
+                pace_seconds_per_km: null,
+                floors: null,
+                stair_level: null,
+            },
+            editable: true,
+            onFieldEndEditing: jest.fn(),
+        });
+        const bikeInputs = findByLabel<{ label?: string; maxLength?: number }>(bikeElement);
+        expect(bikeInputs.map((input) => [input.props.label, input.props.maxLength])).toEqual([
+            ['Duration (min)', 3],
+            ['Distance (km)', 5],
+            ['Resistance', 4],
+        ]);
+
+        const ergometerElement = CardioSummaryEditor({
+            profile: 'ergometer',
+            summary: {
+                duration_seconds: null,
+                distance_km: null,
+                speed_kph: null,
+                incline_percent: null,
+                resistance_level: null,
+                pace_seconds_per_km: null,
+                floors: null,
+                stair_level: null,
+            },
+            editable: true,
+            onFieldEndEditing: jest.fn(),
+        });
+        const ergometerInputs = findByLabel<{ label?: string; maxLength?: number }>(ergometerElement);
+        expect(ergometerInputs.map((input) => [input.props.label, input.props.maxLength])).toEqual([
+            ['Duration (min)', 3],
+            ['Distance (km)', 5],
+            ['Pace', 5],
+        ]);
+
+        const stairsElement = CardioSummaryEditor({
+            profile: 'stairs',
+            summary: {
+                duration_seconds: null,
+                distance_km: null,
+                speed_kph: null,
+                incline_percent: null,
+                resistance_level: null,
+                pace_seconds_per_km: null,
+                floors: null,
+                stair_level: null,
+            },
+            editable: true,
+            onFieldEndEditing: jest.fn(),
+        });
+        const stairsInputs = findByLabel<{ label?: string; maxLength?: number }>(stairsElement);
+        expect(stairsInputs.map((input) => [input.props.label, input.props.maxLength])).toEqual([
+            ['Duration (min)', 3],
+            ['Floors', 4],
+            ['Level', 4],
+        ]);
+    });
+
     it('renders treadmill-specific fields', () => {
         const element = CardioSummaryEditor({
             profile: 'treadmill',

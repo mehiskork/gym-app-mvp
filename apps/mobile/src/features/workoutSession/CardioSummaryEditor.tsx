@@ -20,6 +20,16 @@ const cardioValueInputStyle = {
     lineHeight: tokens.typography.subtitle.fontSize + 6,
 };
 
+const cardioFieldMaxLengths: Record<keyof CardioSummary, number> = {
+    duration_seconds: 3,
+    distance_km: 5,
+    speed_kph: 5,
+    incline_percent: 4,
+    resistance_level: 4,
+    pace_seconds_per_km: 5,
+    floors: 4,
+    stair_level: 4,
+};
 
 function fieldsForProfile(profile: CardioProfile | null): Array<{ key: keyof CardioSummary; label: string }> {
     switch (profile) {
@@ -104,6 +114,7 @@ export function CardioSummaryEditor({
                         >
                             <Input
                                 label={field.label}
+                                maxLength={cardioFieldMaxLengths[field.key]}
                                 defaultValue={
                                     summary[field.key] === null
                                         ? ''
