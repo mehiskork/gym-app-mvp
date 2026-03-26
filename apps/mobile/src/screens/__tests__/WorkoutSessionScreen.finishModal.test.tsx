@@ -115,6 +115,7 @@ import { Button, Input, Text } from '../../ui';
 import { clearRestTimer, getWorkoutLoggerData } from '../../db/workoutLoggerRepo';
 import { completeSession, updateWorkoutSessionNote } from '../../db/workoutSessionRepo';
 import { getSettings } from '../../db/settingsRepo';
+import { EXERCISE_TYPE } from '../../db/exerciseTypes';
 
 type Nav = {
     navigate: jest.Mock;
@@ -137,6 +138,18 @@ const findElementsByType = <P,>(
         return findElementsByType<P>(node.props.children, type, acc);
     }
     return acc;
+};
+
+const isElementWithChildren = (
+    node: React.ReactNode,
+): node is React.ReactElement<{ children?: React.ReactNode }> => React.isValidElement(node);
+
+const flattenTextChildren = (node: React.ReactNode): string => {
+    if (node === null || node === undefined || typeof node === 'boolean') return '';
+    if (typeof node === 'string' || typeof node === 'number') return String(node);
+    if (Array.isArray(node)) return node.map((child) => flattenTextChildren(child)).join('');
+    if (isElementWithChildren(node)) return flattenTextChildren(node.props.children);
+    return '';
 };
 
 const setupBaseState = (options?: {
@@ -164,6 +177,7 @@ const setupBaseState = (options?: {
                 id: 'exercise-1',
                 exercise_id: 'bench-press',
                 exercise_name: 'Bench Press',
+                exercise_type: EXERCISE_TYPE.STRENGTH,
                 position: 1,
                 sets: [
                     {
@@ -281,8 +295,8 @@ describe('WorkoutSessionScreen finish modal', () => {
         } as never);
 
         const texts = findElementsByType(element, Text) as Array<React.ReactElement<{ children?: React.ReactNode }>>;
-        expect(texts.some((text) => text.props.children === 1)).toBe(true);
-        expect(texts.some((text) => text.props.children === '2h 11m')).toBe(true);
+        expect(texts.some((text) => flattenTextChildren(text.props.children).trim() === '1')).toBe(true);
+        expect(texts.some((text) => flattenTextChildren(text.props.children).trim() === '2h 11m')).toBe(true);
 
         nowSpy.mockRestore();
     });
@@ -316,8 +330,12 @@ describe('WorkoutSessionScreen finish modal', () => {
         } as never);
 
         const texts = findElementsByType(element, Text) as Array<React.ReactElement<{ children?: React.ReactNode }>>;
-        expect(texts.some((text) => text.props.children === 'You have 1 incomplete sets. Finish anyway?')).toBe(true);
-        expect(texts.some((text) => text.props.children === 'Finish and save this workout?')).toBe(false);
+        expect(
+            texts.some(
+                (text) => flattenTextChildren(text.props.children).trim() === 'You have 1 incomplete sets. Finish anyway?',
+            ),
+        ).toBe(true);
+        expect(texts.some((text) => flattenTextChildren(text.props.children).trim() === 'Finish and save this workout?')).toBe(false);
     });
 
     it('closes when Keep Training is pressed and finishes when Finish is pressed', () => {
@@ -327,6 +345,7 @@ describe('WorkoutSessionScreen finish modal', () => {
                     id: 'exercise-1',
                     exercise_id: 'bench-press',
                     exercise_name: 'Bench Press',
+                    exercise_type: EXERCISE_TYPE.STRENGTH,
                     position: 1,
                     sets: [
                         {
