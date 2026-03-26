@@ -60,9 +60,7 @@ function parseNumber(input: string): number | null {
 }
 
 function getExerciseSubtitle(exercise: LoggerExercise): string | null {
-  if (exercise.exercise_type === EXERCISE_TYPE.CARDIO) {
-    return exercise.cardio_profile ? `${exercise.cardio_profile} summary` : 'Cardio summary';
-  }
+  if (exercise.exercise_type === EXERCISE_TYPE.CARDIO) return null;
   if (exercise.sets.length === 0) return null;
   const completed = exercise.sets.filter((set) => set.is_completed === 1).length;
   return `${completed}/${exercise.sets.length} sets complete`;
@@ -71,7 +69,8 @@ function getExerciseSubtitle(exercise: LoggerExercise): string | null {
 function parseCardioNumber(field: keyof CardioSummary, input: string): number | null {
   const value = parseNumber(input);
   if (value === null) return null;
-  if (field === 'duration_seconds' || field === 'floors') return Math.max(0, Math.floor(value));
+  if (field === 'duration_seconds') return Math.max(0, Math.floor(value * 60));
+  if (field === 'floors') return Math.max(0, Math.floor(value));
   return value;
 }
 
@@ -370,6 +369,7 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
                     navigation.navigate('ExerciseDetail', { exerciseId: ex.exercise_id })
                   }
                   showAddSet={ex.exercise_type === EXERCISE_TYPE.STRENGTH}
+                  showSetHeaders={ex.exercise_type === EXERCISE_TYPE.STRENGTH}
                   onAddSet={() => {
                     if (ex.exercise_type !== EXERCISE_TYPE.STRENGTH) return;
                     addWorkoutSet(ex.id);

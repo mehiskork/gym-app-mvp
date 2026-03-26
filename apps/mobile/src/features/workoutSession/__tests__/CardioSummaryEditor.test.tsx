@@ -48,9 +48,10 @@ describe('CardioSummaryEditor', () => {
             onFieldEndEditing: jest.fn(),
         });
 
-        const inputs = findByLabel<{ label?: string }>(element);
+        const inputs = findByLabel<{ label?: string; placeholder?: string }>(element);
         const labels = inputs.map((input) => input.props.label);
-        expect(labels).toEqual(['Duration (sec)', 'Distance (km)', 'Speed (km/h)', 'Incline (%)']);
+        expect(labels).toEqual(['Duration (min)', 'Distance (km)', 'Speed (km/h)', 'Incline (%)']);
+        expect(inputs.every((input) => input.props.placeholder === undefined)).toBe(true);
     });
 
     it('renders stairs-specific fields', () => {
@@ -70,8 +71,9 @@ describe('CardioSummaryEditor', () => {
             onFieldEndEditing: jest.fn(),
         });
 
-        const inputs = findByLabel<{ label?: string }>(element);
+        const inputs = findByLabel<{ label?: string; placeholder?: string }>(element);
         const labels = inputs.map((input) => input.props.label);
-        expect(labels).toEqual(['Duration (sec)', 'Floors', 'Level']);
+        expect(labels).toEqual(['Duration (min)', 'Floors', 'Level']);
+        expect(inputs.every((input) => input.props.placeholder === undefined)).toBe(true);
     });
 });

@@ -16,6 +16,7 @@ type ExerciseCardProps = {
     onPressTitle?: () => void;
     onSwap?: () => void;
     showAddSet?: boolean;
+    showSetHeaders?: boolean;
     children: ReactNode;
 };
 
@@ -29,6 +30,7 @@ export function ExerciseCard({
     onPressTitle,
     onSwap,
     showAddSet = true,
+    showSetHeaders = true,
     children,
 }: ExerciseCardProps) {
     const hasSets = React.Children.count(children) > 0;
@@ -83,7 +85,7 @@ export function ExerciseCard({
                 ) : null}
             </View>
             <View style={{ gap: tokens.spacing.sm }}>
-                {hasSets ? (
+                {hasSets && showSetHeaders ? (
                     <View
                         style={{
                             flexDirection: 'row',
