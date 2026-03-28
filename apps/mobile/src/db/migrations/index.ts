@@ -12,7 +12,7 @@ import { migration011_outbox_inflight } from './011_outbox_inflight';
 import { migration012_sync_state_delta_count } from './012_sync_state_delta_count';
 import { migration013_sync_run } from './013_sync_run';
 import { migration014_wse_source_day_exercise } from './014_wse_source_day_exercise';
-import { migration015_workout_session_note } from './015_workout_session_note';
+
 import { migration016_cardio_exercises } from './016_cardio_exercises';
 
 export type Migration = {
@@ -36,6 +36,5 @@ export const migrations: Migration[] = [
   migration012_sync_state_delta_count,
   migration013_sync_run,
   migration014_wse_source_day_exercise,
-  migration015_workout_session_note,
   migration016_cardio_exercises,
 ];
