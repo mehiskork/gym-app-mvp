@@ -203,16 +203,16 @@ export function getSessionDetail(sessionId: string): {
     workout_note: detail.session.workout_note,
   };
 
-  const hasPerformedStrengthSet = (sets: SessionSetRow[]): boolean =>
-    sets.some(
-      (set) =>
-        set.is_completed === 1 ||
-        set.weight !== null ||
-        set.reps !== null ||
-        set.rpe !== null ||
-        set.rest_seconds !== null ||
-        Boolean(set.notes?.trim()),
-    );
+  const isPerformedStrengthSet = (set: SessionSetRow): boolean =>
+    set.is_completed === 1 ||
+    set.weight !== null ||
+    set.reps !== null ||
+    set.rpe !== null ||
+    set.rest_seconds !== null ||
+    Boolean(set.notes?.trim());
+
+  const performedStrengthSets = (sets: SessionSetRow[]): SessionSetRow[] =>
+    sets.filter(isPerformedStrengthSet);
 
   const hasCardioSummary = (exercise: SessionExerciseRow): boolean =>
     exercise.cardio_duration_minutes !== null ||
@@ -227,13 +227,17 @@ export function getSessionDetail(sessionId: string): {
   // History should represent performed work only:
   // - strength: at least one set contains meaningful data (or is completed)
   // - cardio: at least one cardio summary field is populated
-  const performedExercises = detail.exercises.filter((exercise) =>
-    exercise.exercise_type === 'cardio'
-      ? hasCardioSummary(exercise)
-      : hasPerformedStrengthSet(exercise.sets),
-  );
+  const performedExercisesWithSets = detail.exercises
+    .map((exercise) => ({
+      exercise,
+      performedSets:
+        exercise.exercise_type === 'cardio' ? [] : performedStrengthSets(exercise.sets),
+    }))
+    .filter(({ exercise, performedSets }) =>
+      exercise.exercise_type === 'cardio' ? hasCardioSummary(exercise) : performedSets.length > 0,
+    );
 
-  const exercises: SessionExerciseRow[] = performedExercises.map((exercise) => ({
+  const exercises: SessionExerciseRow[] = performedExercisesWithSets.map(({ exercise }) => ({
     id: exercise.id,
     exercise_id: exercise.exercise_id,
     exercise_name: exercise.exercise_name,
@@ -252,7 +256,7 @@ export function getSessionDetail(sessionId: string): {
   }));
 
 
-  const sets: SessionSetRow[] = performedExercises.flatMap((exercise) => exercise.sets);
+  const sets: SessionSetRow[] = performedExercisesWithSets.flatMap(({ performedSets }) => performedSets);
 
   return { session, exercises, sets };
 }

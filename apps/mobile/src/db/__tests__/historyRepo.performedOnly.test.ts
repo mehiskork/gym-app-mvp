@@ -12,7 +12,7 @@ describe('historyRepo getSessionDetail', () => {
         (fetchSessionDetail as jest.Mock).mockReset();
     });
 
-    it('omits untouched strength placeholders with empty seeded sets', () => {
+    it('returns only performed strength sets when an exercise has placeholders', () => {
         (fetchSessionDetail as jest.Mock).mockReturnValue({
             session: {
                 id: 's1',
@@ -50,6 +50,28 @@ describe('historyRepo getSessionDetail', () => {
                             notes: null,
                             is_completed: 0,
                         },
+                        {
+                            id: 'set-empty-2',
+                            workout_session_exercise_id: 'wse-1',
+                            set_index: 2,
+                            weight: null,
+                            reps: null,
+                            rpe: null,
+                            rest_seconds: null,
+                            notes: null,
+                            is_completed: 0,
+                        },
+                        {
+                            id: 'set-logged-main',
+                            workout_session_exercise_id: 'wse-1',
+                            set_index: 3,
+                            weight: 60,
+                            reps: 8,
+                            rpe: null,
+                            rest_seconds: 120,
+                            notes: null,
+                            is_completed: 1,
+                        },
                     ],
                 },
                 {
@@ -70,7 +92,7 @@ describe('historyRepo getSessionDetail', () => {
                     cardio_stair_level: null,
                     sets: [
                         {
-                            id: 'set-logged-1',
+                            id: 'set-logged-secondary',
                             workout_session_exercise_id: 'wse-2',
                             set_index: 1,
                             weight: 100,
@@ -87,8 +109,71 @@ describe('historyRepo getSessionDetail', () => {
 
         const detail = getSessionDetail('s1');
 
-        expect(detail?.exercises.map((exercise) => exercise.id)).toEqual(['wse-2']);
-        expect(detail?.sets.map((set) => set.id)).toEqual(['set-logged-1']);
+        expect(detail?.exercises.map((exercise) => exercise.id)).toEqual(['wse-1', 'wse-2']);
+        expect(detail?.sets.filter((set) => set.workout_session_exercise_id === 'wse-1').map((set) => set.id)).toEqual([
+            'set-logged-main',
+        ]);
+        expect(detail?.sets.map((set) => set.id)).toEqual(['set-logged-main', 'set-logged-secondary']);
+    });
+
+    it('omits strength exercises that only contain untouched placeholder sets', () => {
+        (fetchSessionDetail as jest.Mock).mockReturnValue({
+            session: {
+                id: 's3',
+                title: 'Leg day',
+                started_at: '2026-01-03',
+                ended_at: '2026-01-03',
+                workout_note: null,
+            },
+            exercises: [
+                {
+                    id: 'wse-strength-placeholders',
+                    exercise_id: 'ex-legs-1',
+                    exercise_name: 'Back Squat',
+                    exercise_type: EXERCISE_TYPE.STRENGTH,
+                    cardio_profile: null,
+                    position: 1,
+                    notes: null,
+                    cardio_duration_minutes: null,
+                    cardio_distance_km: null,
+                    cardio_speed_kph: null,
+                    cardio_incline_percent: null,
+                    cardio_resistance_level: null,
+                    cardio_pace_seconds_per_km: null,
+                    cardio_floors: null,
+                    cardio_stair_level: null,
+                    sets: [
+                        {
+                            id: 'set-placeholder-1',
+                            workout_session_exercise_id: 'wse-strength-placeholders',
+                            set_index: 1,
+                            weight: null,
+                            reps: null,
+                            rpe: null,
+                            rest_seconds: null,
+                            notes: null,
+                            is_completed: 0,
+                        },
+                        {
+                            id: 'set-placeholder-2',
+                            workout_session_exercise_id: 'wse-strength-placeholders',
+                            set_index: 2,
+                            weight: null,
+                            reps: null,
+                            rpe: null,
+                            rest_seconds: null,
+                            notes: '   ',
+                            is_completed: 0,
+                        },
+                    ],
+                },
+            ],
+        });
+
+        const detail = getSessionDetail('s3');
+
+        expect(detail?.exercises).toEqual([]);
+        expect(detail?.sets).toEqual([]);
     });
 
     it('includes cardio only when cardio summary data is present', () => {
@@ -142,5 +227,6 @@ describe('historyRepo getSessionDetail', () => {
         const detail = getSessionDetail('s2');
 
         expect(detail?.exercises.map((exercise) => exercise.id)).toEqual(['wse-cardio-logged']);
+        expect(detail?.sets).toEqual([]);
     });
 });
