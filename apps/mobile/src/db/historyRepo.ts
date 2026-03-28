@@ -203,10 +203,34 @@ export function getSessionDetail(sessionId: string): {
     workout_note: detail.session.workout_note,
   };
 
-  const performedExercises = detail.exercises.filter(
-    (exercise) =>
-      exercise.sets.length > 0 ||
-      exercise.exercise_type === 'cardio',
+  const hasPerformedStrengthSet = (sets: SessionSetRow[]): boolean =>
+    sets.some(
+      (set) =>
+        set.is_completed === 1 ||
+        set.weight !== null ||
+        set.reps !== null ||
+        set.rpe !== null ||
+        set.rest_seconds !== null ||
+        Boolean(set.notes?.trim()),
+    );
+
+  const hasCardioSummary = (exercise: SessionExerciseRow): boolean =>
+    exercise.cardio_duration_minutes !== null ||
+    exercise.cardio_distance_km !== null ||
+    exercise.cardio_speed_kph !== null ||
+    exercise.cardio_incline_percent !== null ||
+    exercise.cardio_resistance_level !== null ||
+    exercise.cardio_pace_seconds_per_km !== null ||
+    exercise.cardio_floors !== null ||
+    exercise.cardio_stair_level !== null;
+
+  // History should represent performed work only:
+  // - strength: at least one set contains meaningful data (or is completed)
+  // - cardio: at least one cardio summary field is populated
+  const performedExercises = detail.exercises.filter((exercise) =>
+    exercise.exercise_type === 'cardio'
+      ? hasCardioSummary(exercise)
+      : hasPerformedStrengthSet(exercise.sets),
   );
 
   const exercises: SessionExerciseRow[] = performedExercises.map((exercise) => ({
