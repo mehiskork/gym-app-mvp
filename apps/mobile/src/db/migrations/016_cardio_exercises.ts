@@ -1,9 +1,9 @@
 import type { Migration } from './index';
 
 export const migration016_cardio_exercises: Migration = {
-    id: 16,
-    name: 'cardio_exercises',
-    up: `
+  id: 16,
+  name: 'cardio_exercises',
+  up: `
     ALTER TABLE exercise
       ADD COLUMN exercise_type TEXT NOT NULL DEFAULT 'strength'
       CHECK (exercise_type IN ('strength', 'cardio'));
@@ -21,7 +21,7 @@ export const migration016_cardio_exercises: Migration = {
       CHECK (cardio_profile IN ('treadmill', 'bike', 'ergometer', 'stairs', 'elliptical'));
 
     ALTER TABLE workout_session_exercise
-      ADD COLUMN cardio_duration_seconds INTEGER;
+      ADD COLUMN cardio_duration_minutes INTEGER;
     ALTER TABLE workout_session_exercise
       ADD COLUMN cardio_distance_km REAL;
     ALTER TABLE workout_session_exercise

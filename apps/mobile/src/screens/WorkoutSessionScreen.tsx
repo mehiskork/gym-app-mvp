@@ -84,7 +84,7 @@ function getExerciseDisplayName(exercise: LoggerExercise): string {
 function parseCardioNumber(field: keyof CardioSummary, input: string): number | null {
   const value = parseNumber(input);
   if (value === null) return null;
-  if (field === 'duration_seconds') return Math.max(0, Math.floor(value * 60));
+  if (field === 'duration_minutes') return Math.max(0, Math.floor(value));
   if (field === 'floors') return Math.max(0, Math.floor(value));
   return value;
 }

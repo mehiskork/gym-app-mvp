@@ -182,7 +182,7 @@ export function getWorkoutLoggerData(sessionId: string): {
     sets: exercise.sets,
     notes: exercise.notes,
     cardio_summary: {
-      duration_seconds: exercise.cardio_duration_seconds,
+      duration_minutes: exercise.cardio_duration_minutes,
       distance_km: exercise.cardio_distance_km,
       speed_kph: exercise.cardio_speed_kph,
       incline_percent: exercise.cardio_incline_percent,

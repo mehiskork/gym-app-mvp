@@ -361,7 +361,7 @@ describe('WorkoutSessionScreen', () => {
                 exercise_type: 'cardio',
                 cardio_profile: 'bike',
                 cardio_summary: {
-                    duration_seconds: null,
+                    duration_minutes: null,
                     distance_km: null,
                     speed_kph: null,
                     incline_percent: null,

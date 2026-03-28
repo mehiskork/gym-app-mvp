@@ -21,7 +21,7 @@ const cardioValueInputStyle = {
 };
 
 const cardioFieldMaxLengths: Record<keyof CardioSummary, number> = {
-    duration_seconds: 3,
+    duration_minutes: 3,
     distance_km: 5,
     speed_kph: 5,
     incline_percent: 4,
@@ -35,37 +35,37 @@ function fieldsForProfile(profile: CardioProfile | null): Array<{ key: keyof Car
     switch (profile) {
         case 'treadmill':
             return [
-                { key: 'duration_seconds', label: 'Duration (min)' },
+                { key: 'duration_minutes', label: 'Duration (min)' },
                 { key: 'distance_km', label: 'Distance (km)' },
                 { key: 'speed_kph', label: 'Speed (km/h)' },
                 { key: 'incline_percent', label: 'Incline (%)' },
             ];
         case 'bike':
             return [
-                { key: 'duration_seconds', label: 'Duration (min)' },
+                { key: 'duration_minutes', label: 'Duration (min)' },
                 { key: 'distance_km', label: 'Distance (km)' },
                 { key: 'resistance_level', label: 'Resistance' },
             ];
         case 'ergometer':
             return [
-                { key: 'duration_seconds', label: 'Duration (min)' },
+                { key: 'duration_minutes', label: 'Duration (min)' },
                 { key: 'distance_km', label: 'Distance (km)' },
                 { key: 'pace_seconds_per_km', label: 'Pace' },
             ];
         case 'stairs':
             return [
-                { key: 'duration_seconds', label: 'Duration (min)' },
+                { key: 'duration_minutes', label: 'Duration (min)' },
                 { key: 'floors', label: 'Floors' },
                 { key: 'stair_level', label: 'Level' },
             ];
         case 'elliptical':
             return [
-                { key: 'duration_seconds', label: 'Duration (min)' },
+                { key: 'duration_minutes', label: 'Duration (min)' },
                 { key: 'distance_km', label: 'Distance (km)' },
                 { key: 'resistance_level', label: 'Resistance' },
             ];
         default:
-            return [{ key: 'duration_seconds', label: 'Duration (min)' }];
+            return [{ key: 'duration_minutes', label: 'Duration (min)' }];
     }
 }
 
@@ -118,9 +118,7 @@ export function CardioSummaryEditor({
                                 defaultValue={
                                     summary[field.key] === null
                                         ? ''
-                                        : field.key === 'duration_seconds'
-                                            ? String((summary.duration_seconds ?? 0) / 60)
-                                            : String(summary[field.key])
+                                        : String(summary[field.key])
                                 }
                                 keyboardType="decimal-pad"
                                 editable={editable}

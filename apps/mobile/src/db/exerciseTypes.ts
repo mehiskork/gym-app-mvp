@@ -16,7 +16,7 @@ export const CARDIO_PROFILE = {
 export type CardioProfile = (typeof CARDIO_PROFILE)[keyof typeof CARDIO_PROFILE];
 
 export type CardioSummary = {
-    duration_seconds: number | null;
+    duration_minutes: number | null;
     distance_km: number | null;
     speed_kph: number | null;
     incline_percent: number | null;
@@ -27,7 +27,7 @@ export type CardioSummary = {
 };
 
 export const EMPTY_CARDIO_SUMMARY: CardioSummary = {
-    duration_seconds: null,
+    duration_minutes: null,
     distance_km: null,
     speed_kph: null,
     incline_percent: null,

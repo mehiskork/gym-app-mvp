@@ -22,7 +22,7 @@ export type SessionDetailExercise = {
     position: number;
     notes: string | null;
     sets: SessionDetailSet[];
-    cardio_duration_seconds: number | null;
+    cardio_duration_minutes: number | null;
     cardio_distance_km: number | null;
     cardio_speed_kph: number | null;
     cardio_incline_percent: number | null;
@@ -79,7 +79,7 @@ export function fetchSessionDetail(sessionId: string): {
       cardio_profile,
       position,
       notes,
-      cardio_duration_seconds,
+      cardio_duration_minutes,
       cardio_distance_km,
       cardio_speed_kph,
       cardio_incline_percent,

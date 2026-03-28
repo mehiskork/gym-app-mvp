@@ -173,7 +173,7 @@ const tableConfigs: Record<string, TableConfig> = {
             'cardio_profile',
             'position',
             'notes',
-            'cardio_duration_seconds',
+            'cardio_duration_minutes',
             'cardio_distance_km',
             'cardio_speed_kph',
             'cardio_incline_percent',

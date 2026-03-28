@@ -98,7 +98,7 @@ export function SessionDetailScreen({ route, navigation }: Props) {
   const dur = formatDurationSeconds(durationSeconds(session.started_at, session.ended_at));
   const formatCardio = (ex: SessionExerciseRow) => {
     const fields: string[] = [];
-    if (ex.cardio_duration_seconds !== null) fields.push(`Duration ${ex.cardio_duration_seconds}s`);
+    if (ex.cardio_duration_minutes !== null) fields.push(`Duration ${ex.cardio_duration_minutes} min`);
     if (ex.cardio_distance_km !== null) fields.push(`Distance ${ex.cardio_distance_km} km`);
     if (ex.cardio_speed_kph !== null) fields.push(`Speed ${ex.cardio_speed_kph} km/h`);
     if (ex.cardio_incline_percent !== null) fields.push(`Incline ${ex.cardio_incline_percent}%`);

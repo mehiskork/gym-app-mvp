@@ -62,7 +62,7 @@ describe('CardioSummaryEditor', () => {
         const treadmillElement = CardioSummaryEditor({
             profile: 'treadmill',
             summary: {
-                duration_seconds: null,
+                duration_minutes: null,
                 distance_km: null,
                 speed_kph: null,
                 incline_percent: null,
@@ -85,7 +85,7 @@ describe('CardioSummaryEditor', () => {
         const bikeElement = CardioSummaryEditor({
             profile: 'bike',
             summary: {
-                duration_seconds: null,
+                duration_minutes: null,
                 distance_km: null,
                 speed_kph: null,
                 incline_percent: null,
@@ -107,7 +107,7 @@ describe('CardioSummaryEditor', () => {
         const ergometerElement = CardioSummaryEditor({
             profile: 'ergometer',
             summary: {
-                duration_seconds: null,
+                duration_minutes: null,
                 distance_km: null,
                 speed_kph: null,
                 incline_percent: null,
@@ -129,7 +129,7 @@ describe('CardioSummaryEditor', () => {
         const stairsElement = CardioSummaryEditor({
             profile: 'stairs',
             summary: {
-                duration_seconds: null,
+                duration_minutes: null,
                 distance_km: null,
                 speed_kph: null,
                 incline_percent: null,
@@ -153,7 +153,7 @@ describe('CardioSummaryEditor', () => {
         const element = CardioSummaryEditor({
             profile: 'treadmill',
             summary: {
-                duration_seconds: null,
+                duration_minutes: null,
                 distance_km: null,
                 speed_kph: null,
                 incline_percent: null,
@@ -178,7 +178,7 @@ describe('CardioSummaryEditor', () => {
         const element = CardioSummaryEditor({
             profile: 'stairs',
             summary: {
-                duration_seconds: null,
+                duration_minutes: null,
                 distance_km: null,
                 speed_kph: null,
                 incline_percent: null,
@@ -203,7 +203,7 @@ describe('CardioSummaryEditor', () => {
         const element = CardioSummaryEditor({
             profile: 'bike',
             summary: {
-                duration_seconds: null,
+                duration_minutes: null,
                 distance_km: null,
                 speed_kph: null,
                 incline_percent: null,
@@ -231,7 +231,7 @@ describe('CardioSummaryEditor', () => {
         const element = CardioSummaryEditor({
             profile: 'bike',
             summary: {
-                duration_seconds: null,
+                duration_minutes: null,
                 distance_km: null,
                 speed_kph: null,
                 incline_percent: null,

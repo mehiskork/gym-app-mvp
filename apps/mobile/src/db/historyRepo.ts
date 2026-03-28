@@ -29,7 +29,7 @@ export type SessionExerciseRow = {
   cardio_profile: CardioProfile | null;
   position: number;
   notes: string | null;
-  cardio_duration_seconds: number | null;
+  cardio_duration_minutes: number | null;
   cardio_distance_km: number | null;
   cardio_speed_kph: number | null;
   cardio_incline_percent: number | null;
@@ -217,7 +217,7 @@ export function getSessionDetail(sessionId: string): {
     cardio_profile: exercise.cardio_profile,
     position: exercise.position,
     notes: exercise.notes,
-    cardio_duration_seconds: exercise.cardio_duration_seconds,
+    cardio_duration_minutes: exercise.cardio_duration_minutes,
     cardio_distance_km: exercise.cardio_distance_km,
     cardio_speed_kph: exercise.cardio_speed_kph,
     cardio_incline_percent: exercise.cardio_incline_percent,

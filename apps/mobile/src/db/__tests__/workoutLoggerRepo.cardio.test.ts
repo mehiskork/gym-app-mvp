@@ -50,13 +50,13 @@ describe('workoutLoggerRepo cardio', () => {
             .mockReturnValueOnce([{ id: 'wse-1' }]);
 
         updateWorkoutSessionExerciseCardioSummary('wse-1', {
-            duration_seconds: 1200,
+            duration_minutes: 20,
             distance_km: 4.2,
         });
 
         expect(exec).toHaveBeenCalledWith(
-            expect.stringContaining('cardio_duration_seconds = ?, cardio_distance_km = ?'),
-            [1200, 4.2, 'wse-1'],
+            expect.stringContaining('cardio_duration_minutes = ?, cardio_distance_km = ?'),
+            [20, 4.2, 'wse-1'],
         );
     });
 });
