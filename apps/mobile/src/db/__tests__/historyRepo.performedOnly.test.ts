@@ -43,8 +43,8 @@ describe('historyRepo getSessionDetail', () => {
                             id: 'set-empty-1',
                             workout_session_exercise_id: 'wse-1',
                             set_index: 1,
-                            weight: null,
-                            reps: null,
+                            weight: 0,
+                            reps: 6,
                             rpe: null,
                             rest_seconds: null,
                             notes: null,
@@ -176,6 +176,54 @@ describe('historyRepo getSessionDetail', () => {
         expect(detail?.sets).toEqual([]);
     });
 
+    it('excludes unchecked strength sets even when numbers are entered', () => {
+        (fetchSessionDetail as jest.Mock).mockReturnValue({
+            session: {
+                id: 's4',
+                title: 'Pull day',
+                started_at: '2026-01-04',
+                ended_at: '2026-01-04',
+                workout_note: null,
+            },
+            exercises: [
+                {
+                    id: 'wse-strength-unchecked-numeric',
+                    exercise_id: 'ex-pull-1',
+                    exercise_name: 'Barbell Row',
+                    exercise_type: EXERCISE_TYPE.STRENGTH,
+                    cardio_profile: null,
+                    position: 1,
+                    notes: null,
+                    cardio_duration_minutes: null,
+                    cardio_distance_km: null,
+                    cardio_speed_kph: null,
+                    cardio_incline_percent: null,
+                    cardio_resistance_level: null,
+                    cardio_pace_seconds_per_km: null,
+                    cardio_floors: null,
+                    cardio_stair_level: null,
+                    sets: [
+                        {
+                            id: 'set-unchecked-numeric-1',
+                            workout_session_exercise_id: 'wse-strength-unchecked-numeric',
+                            set_index: 1,
+                            weight: 80,
+                            reps: 6,
+                            rpe: 8,
+                            rest_seconds: 120,
+                            notes: 'felt strong',
+                            is_completed: 0,
+                        },
+                    ],
+                },
+            ],
+        });
+
+        const detail = getSessionDetail('s4');
+
+        expect(detail?.exercises).toEqual([]);
+        expect(detail?.sets).toEqual([]);
+    });
     it('includes cardio only when cardio summary data is present', () => {
         (fetchSessionDetail as jest.Mock).mockReturnValue({
             session: {
