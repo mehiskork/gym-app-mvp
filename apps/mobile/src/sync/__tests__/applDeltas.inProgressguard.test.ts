@@ -16,7 +16,7 @@ describe('applyDeltas in-progress workout_session guard', () => {
         jest.clearAllMocks();
     });
 
-    it('skips incoming IN_PROGRESS upsert when a different local session is in progress', () => {
+    it('skips incoming in_progress upsert when a different local session is in progress', () => {
         (query as jest.Mock)
             .mockReturnValueOnce([{ id: 'A' }])
             .mockReturnValueOnce([]);
@@ -27,7 +27,7 @@ describe('applyDeltas in-progress workout_session guard', () => {
             opType: 'upsert',
             payload: {
                 id: 'B',
-                status: 'IN_PROGRESS',
+                status: 'in_progress',
                 updated_at: '2026-03-01 08:00:00',
             },
         };
@@ -48,7 +48,7 @@ describe('applyDeltas in-progress workout_session guard', () => {
         expect(result.skipped).toBe(1);
     });
 
-    it('applies IN_PROGRESS upsert when incoming session matches local in-progress id', () => {
+    it('applies in_progress upsert when incoming session matches local in-progress id', () => {
         (query as jest.Mock)
             .mockReturnValueOnce([{ id: 'A' }])
             .mockReturnValueOnce([]);
@@ -59,7 +59,7 @@ describe('applyDeltas in-progress workout_session guard', () => {
             opType: 'upsert',
             payload: {
                 id: 'A',
-                status: 'IN_PROGRESS',
+                status: 'in_progress',
             },
         };
 

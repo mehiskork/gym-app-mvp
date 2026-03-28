@@ -80,4 +80,18 @@ describe('createSessionFromPlanDay cardio behavior', () => {
         expect(workoutSetInserts).toHaveLength(1);
         expect((exec as jest.Mock).mock.calls.some((call) => String(call[0]).includes('exercise_type'))).toBe(true);
     });
+    it('uses Session fallback title when day name is null', () => {
+        (query as jest.Mock)
+            .mockReturnValueOnce([])
+            .mockReturnValueOnce([{ day_name: null, day_index: 4 }])
+            .mockReturnValueOnce([])
+            .mockReturnValueOnce([]);
+
+        createSessionFromPlanDay({ workoutPlanId: 'plan-1', dayId: 'day-1' });
+
+        const sessionInsert = (exec as jest.Mock).mock.calls.find((call) =>
+            String(call[0]).includes('INSERT INTO workout_session'),
+        );
+        expect(sessionInsert?.[1]).toEqual(['ws-1', 'plan-1', 'day-1', 'Session 4']);
+    });
 });

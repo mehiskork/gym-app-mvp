@@ -22,6 +22,7 @@ import {
   testNestedTransactionRollback,
   validateStatusEnums,
   verifySyncState,
+  getWorkoutSessionExerciseSchemaHealth,
   getWeekStartDebugInfo,
   getSupportBundle,
 } from '../../db/debugRepo';
@@ -94,6 +95,9 @@ export function DebugScreen() {
   const [syncStateHealth, setSyncStateHealth] = useState<ReturnType<typeof verifySyncState> | null>(
     null,
   );
+  const [wseSchemaHealth, setWseSchemaHealth] = useState<
+    ReturnType<typeof getWorkoutSessionExerciseSchemaHealth> | null
+  >(null);
   const [weekStartDebug, setWeekStartDebug] = useState<
     ReturnType<typeof getWeekStartDebugInfo> | null
   >(null);
@@ -110,6 +114,7 @@ export function DebugScreen() {
     setSyncRuns(runs);
     if (__DEV__) {
       setSyncStateHealth(verifySyncState());
+      setWseSchemaHealth(getWorkoutSessionExerciseSchemaHealth());
       setWeekStartDebug(getWeekStartDebugInfo());
     }
   }, []);
@@ -467,8 +472,17 @@ export function DebugScreen() {
                   value={syncStateHealth.ok ? 'ok' : 'issue'}
                 />
               ) : null}
+              {devOnly && wseSchemaHealth ? (
+                <Row
+                  label="Cardio schema"
+                  value={wseSchemaHealth.ok ? 'ok' : 'issue'}
+                />
+              ) : null}
               {devOnly && syncStateHealth && !syncStateHealth.ok ? (
                 <Text variant="muted">{syncStateHealth.message}</Text>
+              ) : null}
+              {devOnly && wseSchemaHealth && !wseSchemaHealth.ok ? (
+                <Text variant="muted">{wseSchemaHealth.message}</Text>
               ) : null}
               <Row label="Device ID" value={syncInfo.deviceId} />
               <Row label="Has token" value={syncInfo.hasDeviceToken ? 'true' : 'false'} />

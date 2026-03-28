@@ -296,7 +296,7 @@ export function createSessionFromPlanDay(input: { workoutPlanId: string; dayId: 
 
     if (!day) throw new Error('createSessionFromPlanDay: day not found');
 
-    const title = day.day_name ?? `Day ${day.day_index}`;
+    const title = day.day_name ?? `Session ${day.day_index}`;
 
     // Read day exercises in order (snapshot exercise_name)
     const exRows = query<{

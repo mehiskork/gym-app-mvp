@@ -117,6 +117,7 @@ export function repairSessionsMissingSets(): number {
       SELECT wse.id
       FROM workout_session_exercise wse
       WHERE wse.deleted_at IS NULL
+      AND wse.exercise_type = 'strength'
         AND NOT EXISTS (
           SELECT 1
           FROM workout_set ws
@@ -246,7 +247,7 @@ export function verifySyncState(): { ok: boolean; message: string; missingColumn
   )[0];
 
   const cursor = cursorRow?.cursor ?? null;
-  const cursorValid = cursor !== null && /^\d+$/.test(cursor);
+  const cursorValid = cursor === null || /^\d+$/.test(cursor);
 
   const ok = missingColumns.length === 0 && cursorValid;
   const message = ok
@@ -257,6 +258,40 @@ export function verifySyncState(): { ok: boolean; message: string; missingColumn
   return { ok, message, missingColumns };
 }
 
+export type WorkoutSessionExerciseSchemaHealth = {
+  ok: boolean;
+  message: string;
+  missingColumns: string[];
+  hasLegacyCardioDurationSeconds: boolean;
+};
+
+export function getWorkoutSessionExerciseSchemaHealth(): WorkoutSessionExerciseSchemaHealth {
+  const columns = query<{ name: string }>(`PRAGMA table_info(workout_session_exercise);`).map(
+    (row) => row.name,
+  );
+
+  const required = [
+    'exercise_type',
+    'cardio_profile',
+    'cardio_duration_minutes',
+    'cardio_distance_km',
+    'cardio_speed_kph',
+    'cardio_incline_percent',
+    'cardio_resistance_level',
+    'cardio_pace_seconds_per_km',
+    'cardio_floors',
+    'cardio_stair_level',
+    'notes',
+  ];
+  const missingColumns = required.filter((name) => !columns.includes(name));
+  const hasLegacyCardioDurationSeconds = columns.includes('cardio_duration_seconds');
+  const ok = missingColumns.length === 0 && !hasLegacyCardioDurationSeconds;
+  const message = ok
+    ? 'workout_session_exercise cardio schema ok.'
+    : `workout_session_exercise schema issue: missing [${missingColumns.join(', ') || 'none'}], legacy cardio_duration_seconds=${hasLegacyCardioDurationSeconds}`;
+
+  return { ok, message, missingColumns, hasLegacyCardioDurationSeconds };
+}
 
 export function resetSyncCursorForDebug(): void {
   exec(
@@ -527,4 +562,3 @@ export function getSupportBundle(): SupportBundle {
     tableCounts: getTableCounts(),
   };
 }
-

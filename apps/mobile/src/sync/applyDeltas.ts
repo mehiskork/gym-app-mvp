@@ -390,9 +390,14 @@ function isForeignKeyError(err: unknown): boolean {
     return err.message.toLowerCase().includes('foreign key');
 }
 
+function normalizeWorkoutSessionStatus(status: unknown): string {
+    return typeof status === 'string' ? status.toLowerCase() : '';
+}
+
+
 function getExistingInProgressSessionId(): string | null {
     const row = query<{ id: string }>(
-        "SELECT id FROM workout_session WHERE status = 'IN_PROGRESS' LIMIT 1;",
+        "SELECT id FROM workout_session WHERE lower(status) = 'in_progress' LIMIT 1;",
     )[0];
     return row?.id ?? null;
 }
@@ -400,7 +405,7 @@ function getExistingInProgressSessionId(): string | null {
 function shouldSkipInProgressConflict(delta: SyncDelta, payload: Record<string, unknown>): boolean {
     if (delta.entityType !== 'workout_session') return false;
     if (delta.opType.toLowerCase() !== 'upsert') return false;
-    if (payload.status !== 'IN_PROGRESS') return false;
+    if (normalizeWorkoutSessionStatus(payload.status) !== 'in_progress') return false;
 
     const localInProgressId = getExistingInProgressSessionId();
     if (!localInProgressId) return false;
