@@ -18,6 +18,7 @@ import { appendWorkoutSessionExercise, swapWorkoutSessionExercise } from '../db/
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ExercisePicker'>;
 const BOTTOM_CTA_HEIGHT = tokens.touchTargetMin + tokens.spacing.sm;
+const TOP_CONTENT_PADDING = tokens.spacing.sm;
 
 export function ExercisePickerScreen({ route, navigation }: Props) {
   const dayId = route.params?.dayId ?? null;
@@ -50,7 +51,7 @@ export function ExercisePickerScreen({ route, navigation }: Props) {
   }, [all, q, exerciseTypeFilter, sourceFilter]);
 
   return (
-    <Screen bottomInset="none" style={{ paddingBottom: 0 }}>
+    <Screen bottomInset="none" style={{ paddingBottom: 0 }} contentStyle={{ paddingTop: TOP_CONTENT_PADDING }}>
       <View style={{ flex: 1, gap: tokens.spacing.md }}>
         <Input
           value={q}
@@ -114,7 +115,7 @@ export function ExercisePickerScreen({ route, navigation }: Props) {
           keyExtractor={(x) => x.id}
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={{
-            paddingBottom: BOTTOM_CTA_HEIGHT + insets.bottom + tokens.spacing.xl,
+            paddingBottom: BOTTOM_CTA_HEIGHT + tokens.spacing.lg + tokens.spacing.xl,
           }}
           ItemSeparatorComponent={() => <View style={{ height: tokens.spacing.sm }} />}
           renderItem={({ item }) => (
@@ -196,9 +197,9 @@ export function ExercisePickerScreen({ route, navigation }: Props) {
           position: 'absolute',
           left: 0,
           right: 0,
-          bottom: 0,
+          bottom: -insets.bottom,
           paddingHorizontal: tokens.spacing.lg,
-          paddingTop: tokens.spacing.sm,
+          paddingTop: tokens.spacing.xs,
           paddingBottom: Math.max(insets.bottom, tokens.spacing.sm),
           backgroundColor: tokens.colors.surface,
           borderTopWidth: 1,
@@ -206,11 +207,14 @@ export function ExercisePickerScreen({ route, navigation }: Props) {
         }}
       >
         <Button
-          title="Create custom exercise"
           variant="primary"
           onPress={() => navigation.navigate('CreateExercise')}
           style={{ height: BOTTOM_CTA_HEIGHT }}
-        />
+        >
+          <Text variant="subtitle" weight="700" color={tokens.colors.onPrimary}>
+            Create exercise
+          </Text>
+        </Button>
       </View>
     </Screen >
   );

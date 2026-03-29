@@ -99,11 +99,11 @@ describe('ExercisePickerScreen swap mode', () => {
         const element = ExercisePickerScreen({ navigation, route: { key: 'ExercisePicker', name: 'ExercisePicker', params: { swapSessionId: 's1', swapSessionExerciseId: 'wse-1' } } } as never);
 
         const buttons = findByType(element, Button);
-        const createCustomExercise = buttons.find((b) => (b.props as { title?: string }).title === 'Create custom exercise');
-        expect(createCustomExercise).toBeDefined();
-        expect((createCustomExercise?.props as { variant?: string }).variant).toBe('primary');
+        const primaryCta = buttons.find((b) => (b.props as { variant?: string }).variant === 'primary');
+        expect(primaryCta).toBeDefined();
 
         const textContent = JSON.stringify(element);
+        expect(textContent).toContain('Create exercise');
         expect(textContent).toContain('Strength');
         expect(textContent).toContain('Cardio');
         expect(textContent).toContain('Curated');
