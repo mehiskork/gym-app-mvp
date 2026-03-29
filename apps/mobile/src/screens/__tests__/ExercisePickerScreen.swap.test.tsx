@@ -74,18 +74,18 @@ describe('ExercisePickerScreen swap mode', () => {
         (listExercises as jest.Mock).mockReturnValue([{ id: 'ex-2', name: 'Incline Bench', is_custom: 1 }]);
     });
 
-    it('closes without changes when cancel is pressed', () => {
+    it('does not render a close button in swap mode', () => {
         useStateMock.mockImplementationOnce(() => ['', jest.fn()]);
         useStateMock.mockImplementationOnce(() => [[{ id: 'ex-2', name: 'Incline Bench', is_custom: 1 }], jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
 
         const navigation = { goBack: jest.fn(), navigate: jest.fn() };
         const element = ExercisePickerScreen({ navigation, route: { key: 'ExercisePicker', name: 'ExercisePicker', params: { swapSessionId: 's1', swapSessionExerciseId: 'wse-1' } } } as never);
 
         const buttons = findByType(element, Button);
         const closeButton = buttons.find((b) => (b.props as { title?: string }).title === 'Close');
-        (closeButton?.props as { onPress: () => void }).onPress();
-
-        expect(navigation.goBack).toHaveBeenCalled();
+        expect(closeButton).toBeUndefined();
         expect(swapWorkoutSessionExercise).not.toHaveBeenCalled();
     });
 

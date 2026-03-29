@@ -8,6 +8,8 @@ import type { RootStackParamList } from '../navigation/types';
 import { Button, IconButton, Input, Screen, Text } from '../ui';
 import { tokens } from '../theme/tokens';
 import { listExercises, type ExerciseRow } from '../db/exerciseRepo';
+import { EXERCISE_TYPE, type ExerciseType } from '../db/exerciseTypes';
+import { filterExercises, type ExerciseSourceFilter, toggleSingleSelect } from './exercisePickerFilters';
 
 import { getOrCreateLocalUserId } from '../db/appMetaRepo';
 import { addExerciseToDay } from '../db/dayExerciseRepo';
@@ -26,6 +28,8 @@ export function ExercisePickerScreen({ route, navigation }: Props) {
 
   const [q, setQ] = useState('');
   const [all, setAll] = useState<ExerciseRow[]>([]);
+  const [exerciseTypeFilter, setExerciseTypeFilter] = useState<ExerciseType | null>(null);
+  const [sourceFilter, setSourceFilter] = useState<ExerciseSourceFilter>(null);
 
   const load = useCallback(() => {
     const uid = getOrCreateLocalUserId();
@@ -39,25 +43,11 @@ export function ExercisePickerScreen({ route, navigation }: Props) {
   );
 
   const filtered = useMemo(() => {
-    const query = q.trim().toLowerCase();
-    if (!query) return all;
-    return all.filter((x) => x.name.toLowerCase().includes(query));
-  }, [all, q]);
+    return filterExercises(all, q, exerciseTypeFilter, sourceFilter);
+  }, [all, q, exerciseTypeFilter, sourceFilter]);
 
   return (
     <Screen bottomInset="none" style={{ gap: tokens.spacing.md }}>
-      <View style={{ flexDirection: 'row', gap: tokens.spacing.md }}>
-        <View style={{ flex: 1 }}>
-          <Button
-            title="New exercise"
-            variant="secondary"
-            onPress={() => navigation.navigate('CreateExercise')}
-          />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Button title="Close" variant="secondary" onPress={() => navigation.goBack()} />
-        </View>
-      </View>
 
       <Input
         value={q}
@@ -65,6 +55,108 @@ export function ExercisePickerScreen({ route, navigation }: Props) {
         placeholder="Search exercises"
         placeholderTextColor={tokens.colors.textSecondary}
       />
+
+      <Button
+        title="Create custom exercise"
+        variant="secondary"
+        onPress={() => navigation.navigate('CreateExercise')}
+      />
+
+      <View style={{ gap: tokens.spacing.sm }}>
+        <Text variant="muted">Type</Text>
+        <View style={{ flexDirection: 'row', gap: tokens.spacing.sm }}>
+          <Pressable
+            onPress={() =>
+              setExerciseTypeFilter(toggleSingleSelect(exerciseTypeFilter, EXERCISE_TYPE.STRENGTH))
+            }
+          >
+            <Text
+              variant="muted"
+              style={{
+                paddingVertical: tokens.spacing.sm,
+                paddingHorizontal: tokens.spacing.md,
+                borderRadius: tokens.radius.lg,
+                backgroundColor:
+                  exerciseTypeFilter === EXERCISE_TYPE.STRENGTH
+                    ? tokens.colors.secondary
+                    : tokens.colors.surface,
+                borderWidth: 1,
+                borderColor:
+                  exerciseTypeFilter === EXERCISE_TYPE.STRENGTH
+                    ? tokens.colors.primary
+                    : tokens.colors.border,
+              }}
+            >
+              Strength
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() =>
+              setExerciseTypeFilter(toggleSingleSelect(exerciseTypeFilter, EXERCISE_TYPE.CARDIO))
+            }
+          >
+            <Text
+              variant="muted"
+              style={{
+                paddingVertical: tokens.spacing.sm,
+                paddingHorizontal: tokens.spacing.md,
+                borderRadius: tokens.radius.lg,
+                backgroundColor:
+                  exerciseTypeFilter === EXERCISE_TYPE.CARDIO
+                    ? tokens.colors.secondary
+                    : tokens.colors.surface,
+                borderWidth: 1,
+                borderColor:
+                  exerciseTypeFilter === EXERCISE_TYPE.CARDIO
+                    ? tokens.colors.primary
+                    : tokens.colors.border,
+              }}
+            >
+              Cardio
+            </Text>
+          </Pressable>
+        </View>
+      </View>
+
+      <View style={{ gap: tokens.spacing.sm }}>
+        <Text variant="muted">Source</Text>
+        <View style={{ flexDirection: 'row', gap: tokens.spacing.sm }}>
+          <Pressable onPress={() => setSourceFilter(toggleSingleSelect(sourceFilter, 'curated'))}>
+            <Text
+              variant="muted"
+              style={{
+                paddingVertical: tokens.spacing.sm,
+                paddingHorizontal: tokens.spacing.md,
+                borderRadius: tokens.radius.lg,
+                backgroundColor:
+                  sourceFilter === 'curated' ? tokens.colors.secondary : tokens.colors.surface,
+                borderWidth: 1,
+                borderColor:
+                  sourceFilter === 'curated' ? tokens.colors.primary : tokens.colors.border,
+              }}
+            >
+              Curated
+            </Text>
+          </Pressable>
+          <Pressable onPress={() => setSourceFilter(toggleSingleSelect(sourceFilter, 'custom'))}>
+            <Text
+              variant="muted"
+              style={{
+                paddingVertical: tokens.spacing.sm,
+                paddingHorizontal: tokens.spacing.md,
+                borderRadius: tokens.radius.lg,
+                backgroundColor:
+                  sourceFilter === 'custom' ? tokens.colors.secondary : tokens.colors.surface,
+                borderWidth: 1,
+                borderColor:
+                  sourceFilter === 'custom' ? tokens.colors.primary : tokens.colors.border,
+              }}
+            >
+              Custom
+            </Text>
+          </Pressable>
+        </View>
+      </View>
 
       <FlatList
         data={filtered}
@@ -125,19 +217,10 @@ export function ExercisePickerScreen({ route, navigation }: Props) {
                 }
               }}
               style={({ pressed }) => [{ flex: 1 }, pressed ? { opacity: 0.85 } : null]}
-              accessibilityLabel={`${isBrowseOnly ? 'View' : isSwapMode ? 'Swap to' : 'Add'} ${item.name}`}
+              accessibilityLabel={`${isBrowseOnly ? 'View details for' : 'Select'} ${item.name}`}
             >
               <Text variant="subtitle">{item.name}</Text>
-              <Text variant="muted">{item.is_custom ? 'Custom' : 'Curated'}</Text>
-              <Text variant="muted">
-                {isBrowseOnly
-                  ? 'Tap to view details'
-                  : isSwapMode
-                    ? 'Tap to swap'
-                    : isAddToSessionMode
-                      ? 'Tap to add to workout'
-                      : 'Tap to add to session'}
-              </Text>
+
             </Pressable>
 
             <IconButton
