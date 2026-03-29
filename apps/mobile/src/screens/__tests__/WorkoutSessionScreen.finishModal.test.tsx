@@ -135,7 +135,12 @@ const findElementsByType = <P,>(
     }
     if (React.isValidElement<React.PropsWithChildren<P>>(node)) {
         if (node.type === type) acc.push(node as React.ReactElement<P>);
-        return findElementsByType<P>(node.props.children, type, acc);
+        Object.values(node.props ?? {}).forEach((value) => {
+            if (value && (React.isValidElement(value) || Array.isArray(value) || typeof value === 'string' || typeof value === 'number')) {
+                findElementsByType<P>(value, type, acc);
+            }
+        });
+        return acc;
     }
     return acc;
 };

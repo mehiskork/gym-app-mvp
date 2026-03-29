@@ -56,9 +56,37 @@ export function FinishWorkoutSheet({
         incompleteSets > 0
             ? `You have ${incompleteSets} incomplete sets. Finish anyway?`
             : 'Finish and save this workout?';
+    const actions = (
+        <View style={{ flexDirection: 'row', gap: tokens.spacing.md }}>
+            <View style={{ flex: 1 }}>
+                <Button
+                    title="Keep Training"
+                    variant="secondary"
+                    onPress={onClose}
+                    disabled={isFinishing}
+                />
+            </View>
+            <View style={{ flex: 1 }}>
+                <Button
+                    title="Finish"
+                    variant="primary"
+                    onPress={onFinish}
+                    disabled={isFinishing}
+                    loading={isFinishing}
+                />
+            </View>
+        </View>
+    );
 
     return (
-        <BottomSheetModal visible={visible} title="Finish Workout?" onClose={onClose} testID="finish-sheet" keyboardAware>
+        <BottomSheetModal
+            visible={visible}
+            title="Finish Workout?"
+            onClose={onClose}
+            testID="finish-sheet"
+            keyboardAware
+            actions={actions}
+        >
             <View style={{ gap: tokens.spacing.lg }}>
                 <View
                     style={{
@@ -87,25 +115,6 @@ export function FinishWorkoutSheet({
                 <Text variant="body" color={tokens.colors.mutedText} style={{ textAlign: 'center' }}>
                     {message}
                 </Text>
-                <View style={{ flexDirection: 'row', gap: tokens.spacing.md }}>
-                    <View style={{ flex: 1 }}>
-                        <Button
-                            title="Keep Training"
-                            variant="secondary"
-                            onPress={onClose}
-                            disabled={isFinishing}
-                        />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                        <Button
-                            title="Finish"
-                            variant="primary"
-                            onPress={onFinish}
-                            disabled={isFinishing}
-                            loading={isFinishing}
-                        />
-                    </View>
-                </View>
             </View>
         </BottomSheetModal>
     );
