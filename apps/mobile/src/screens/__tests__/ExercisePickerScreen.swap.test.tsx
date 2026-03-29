@@ -89,4 +89,28 @@ describe('ExercisePickerScreen swap mode', () => {
         expect(swapWorkoutSessionExercise).not.toHaveBeenCalled();
     });
 
+    it('renders chips in one row without group labels and pins a primary bottom CTA', () => {
+        useStateMock.mockImplementationOnce(() => ['', jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [[{ id: 'ex-2', name: 'Incline Bench', is_custom: 1 }], jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+        useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+
+        const navigation = { goBack: jest.fn(), navigate: jest.fn() };
+        const element = ExercisePickerScreen({ navigation, route: { key: 'ExercisePicker', name: 'ExercisePicker', params: { swapSessionId: 's1', swapSessionExerciseId: 'wse-1' } } } as never);
+
+        const buttons = findByType(element, Button);
+        const createCustomExercise = buttons.find((b) => (b.props as { title?: string }).title === 'Create custom exercise');
+        expect(createCustomExercise).toBeDefined();
+        expect((createCustomExercise?.props as { variant?: string }).variant).toBe('primary');
+
+        const textContent = JSON.stringify(element);
+        expect(textContent).toContain('Strength');
+        expect(textContent).toContain('Cardio');
+        expect(textContent).toContain('Curated');
+        expect(textContent).toContain('Custom');
+        expect(textContent).not.toContain('Type');
+        expect(textContent).not.toContain('Source');
+
+    });
+
 });
