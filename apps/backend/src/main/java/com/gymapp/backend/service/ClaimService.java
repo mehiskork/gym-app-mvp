@@ -1,5 +1,6 @@
 package com.gymapp.backend.service;
 
+import com.gymapp.backend.config.ClaimProperties;
 import com.gymapp.backend.controller.BadRequestException;
 import com.gymapp.backend.controller.ConflictCodeException;
 import com.gymapp.backend.model.ClaimConfirmResponse;
@@ -16,7 +17,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -30,8 +30,7 @@ public class ClaimService {
     private final PasswordEncoder passwordEncoder;
     private final ClaimCodeGenerator claimCodeGenerator;
 
-    @Value("${claim.codeTtlMinutes:10}")
-    private long codeTtlMinutes;
+    private final ClaimProperties claimProperties;
 
     public ClaimStartResponse startClaim(String deviceId, String guestUserId) {
         Instant now = Instant.now();
@@ -39,7 +38,7 @@ public class ClaimService {
 
         String code = claimCodeGenerator.generateCode();
         String secretHash = passwordEncoder.encode(code);
-        Instant expiresAt = now.plus(Duration.ofMinutes(codeTtlMinutes));
+        Instant expiresAt = now.plus(Duration.ofMinutes(claimProperties.getCodeTtlMinutes()));
         UUID claimId = UUID.randomUUID();
 
         claimRepository.insertClaim(

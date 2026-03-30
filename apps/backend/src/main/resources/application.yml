@@ -9,6 +9,10 @@ spring:
 server:
   port: ${PORT:8080}
 
+claim:
+  codeTtlMinutes: 10
+  devUserHeaderEnabled: false
+
 logging:
   level:
     org.springframework.web.filter.CommonsRequestLoggingFilter: INFO
@@ -22,4 +26,20 @@ rateLimit:
     refillPerSecond: 5
   claimConfirm:
     capacity: 5
-    refillPerSecond: 0.1
+     refillPerSecond: 0.1
+---
+spring:
+  config:
+    activate:
+      on-profile: dev
+
+claim:
+  devUserHeaderEnabled: true
+---
+spring:
+  config:
+    activate:
+      on-profile: test
+
+claim:
+  devUserHeaderEnabled: true
