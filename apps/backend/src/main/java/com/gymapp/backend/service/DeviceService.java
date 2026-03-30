@@ -41,8 +41,9 @@ public class DeviceService {
 
         String deviceToken = UUID.randomUUID().toString();
         String tokenHash = passwordEncoder.encode(deviceToken);
+        String tokenFingerprint = DeviceTokenRepository.TokenFingerprintUtils.fingerprint(deviceToken);
         Instant expiresAt = Instant.now().plus(TOKEN_TTL);
-        deviceTokenRepository.insertToken(tokenHash, deviceId, expiresAt);
+        deviceTokenRepository.insertToken(tokenHash, tokenFingerprint, deviceId, expiresAt);
 
         return new DeviceRegisterResponse(deviceToken, guestUserId);
     }

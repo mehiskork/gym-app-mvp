@@ -53,7 +53,7 @@ public class BearerDeviceAuthFilter extends OncePerRequestFilter {
             return;
         }
 
-        var lookup = deviceTokenRepository.findToken(token, Instant.now());
+        var lookup = resolveLookup(request, token);
         if (lookup.status() == DeviceTokenRepository.DeviceTokenStatus.NOT_FOUND) {
             writeUnauthorized(response, "AUTH_INVALID_TOKEN", "Invalid token");
             return;
@@ -70,6 +70,17 @@ public class BearerDeviceAuthFilter extends OncePerRequestFilter {
         SecurityContextHolder.getContext().setAuthentication(authn);
 
         filterChain.doFilter(request, response);
+    }
+
+    private DeviceTokenRepository.DeviceTokenLookupResult resolveLookup(HttpServletRequest request, String token) {
+        Object existingLookup = request.getAttribute(DeviceTokenRepository.TOKEN_LOOKUP_RESULT_REQUEST_ATTRIBUTE);
+        if (existingLookup instanceof DeviceTokenRepository.DeviceTokenLookupResult lookupResult) {
+            return lookupResult;
+        }
+
+        var lookup = deviceTokenRepository.findToken(token, Instant.now());
+        request.setAttribute(DeviceTokenRepository.TOKEN_LOOKUP_RESULT_REQUEST_ATTRIBUTE, lookup);
+        return lookup;
     }
 
     private boolean isDeviceProtectedPath(String requestUri) {

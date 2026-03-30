@@ -162,6 +162,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
         }
 
         var lookup = deviceTokenRepository.findToken(token, Instant.now());
+        request.setAttribute(DeviceTokenRepository.TOKEN_LOOKUP_RESULT_REQUEST_ATTRIBUTE, lookup);
         if (lookup.status() != DeviceTokenRepository.DeviceTokenStatus.VALID) {
             return null;
         }

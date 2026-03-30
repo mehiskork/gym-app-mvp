@@ -127,10 +127,13 @@ class DeviceTokenAuthTest {
 
     private void insertToken(String rawToken, String deviceId, Instant expiresAt) {
         String tokenHash = passwordEncoder.encode(rawToken);
+        String tokenFingerprint = com.gymapp.backend.repository.DeviceTokenRepository.TokenFingerprintUtils
+                .fingerprint(rawToken);
         OffsetDateTime expiresAtValue = OffsetDateTime.ofInstant(expiresAt, ZoneOffset.UTC);
         jdbcTemplate.update(
-                "INSERT INTO device_token (token_hash, device_id, expires_at) VALUES (?, ?, ?)",
+                "INSERT INTO device_token (token_hash, token_fingerprint, device_id, expires_at) VALUES (?, ?, ?, ?)",
                 tokenHash,
+                tokenFingerprint,
                 deviceId,
                 expiresAtValue);
     }
