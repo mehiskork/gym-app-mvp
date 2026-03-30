@@ -28,6 +28,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @Testcontainers
 class SyncServiceIT {
 
+    @SuppressWarnings("resource")
     @Container
     static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:15")
             .withDatabaseName("testdb")
