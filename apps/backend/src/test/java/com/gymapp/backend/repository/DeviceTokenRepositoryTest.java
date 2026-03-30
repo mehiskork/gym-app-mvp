@@ -21,6 +21,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+@SuppressWarnings({ "unchecked" })
 @ExtendWith(MockitoExtension.class)
 class DeviceTokenRepositoryTest {
 

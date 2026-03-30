@@ -12,8 +12,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Repository;
 
-import com.gymapp.backend.repository.DeviceTokenRepository.DeviceTokenLookupResult;
-
 @Repository
 @RequiredArgsConstructor
 public class DeviceTokenRepository {
