@@ -8,7 +8,9 @@ function hasLegacyCardioDurationSchemaDrift(): boolean {
   const columns = query<ColumnRow>(`PRAGMA table_info(workout_session_exercise);`).map(
     (row) => row.name,
   );
-  return columns.includes('cardio_duration_seconds') && !columns.includes('cardio_duration_minutes');
+  return (
+    columns.includes('cardio_duration_seconds') && !columns.includes('cardio_duration_minutes')
+  );
 }
 
 export function runMigrations() {
@@ -29,8 +31,8 @@ export function runMigrations() {
     if (m.id === 16 && hasLegacyCardioDurationSchemaDrift()) {
       throw new Error(
         'Cannot apply migration 16: detected legacy workout_session_exercise schema drift ' +
-        '(cardio_duration_seconds present while cardio_duration_minutes is missing). ' +
-        'Please reset local app DB and re-sync before retrying.',
+          '(cardio_duration_seconds present while cardio_duration_minutes is missing). ' +
+          'Please reset local app DB and re-sync before retrying.',
       );
     }
 

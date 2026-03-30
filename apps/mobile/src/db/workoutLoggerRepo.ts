@@ -4,7 +4,12 @@ import { newId } from '../utils/ids';
 import { enqueueOutboxOp } from './outboxRepo';
 import { DEFAULT_REST_SECONDS, type WorkoutSessionStatus } from './constants';
 import { fetchSessionDetail } from './sessionDetailRepo';
-import { EXERCISE_TYPE, type CardioProfile, type CardioSummary, type ExerciseType } from './exerciseTypes';
+import {
+  EXERCISE_TYPE,
+  type CardioProfile,
+  type CardioSummary,
+  type ExerciseType,
+} from './exerciseTypes';
 
 const EXERCISE_POSITION_SHIFT_OFFSET = 1_000_000;
 
@@ -45,7 +50,10 @@ export type LoggerSet = {
 
 export type RestoreWorkoutSetInput = LoggerSet;
 
-function enqueueWorkoutSessionExerciseSnapshot(wseId: string, opType: 'upsert' | 'delete' = 'upsert') {
+function enqueueWorkoutSessionExerciseSnapshot(
+  wseId: string,
+  opType: 'upsert' | 'delete' = 'upsert',
+) {
   const row = query<Record<string, unknown>>(
     `
     SELECT *
@@ -202,7 +210,12 @@ export function swapWorkoutSessionExercise(input: {
   replacementExerciseId: string;
   replacementExerciseName: string;
 }): { focusExerciseId: string } {
-  const { workoutSessionId, workoutSessionExerciseId, replacementExerciseId, replacementExerciseName } = input;
+  const {
+    workoutSessionId,
+    workoutSessionExerciseId,
+    replacementExerciseId,
+    replacementExerciseName,
+  } = input;
   const replacementMeta = getExerciseMeta(replacementExerciseId);
 
   return inTransaction(() => {
@@ -295,7 +308,11 @@ export function swapWorkoutSessionExercise(input: {
         AND deleted_at IS NULL
         AND position > ?;
     `,
-      [EXERCISE_POSITION_SHIFT_OFFSET - 1, workoutSessionId, current.position + EXERCISE_POSITION_SHIFT_OFFSET],
+      [
+        EXERCISE_POSITION_SHIFT_OFFSET - 1,
+        workoutSessionId,
+        current.position + EXERCISE_POSITION_SHIFT_OFFSET,
+      ],
     );
 
     let setId: string | null = null;
@@ -434,7 +451,6 @@ function getExerciseMeta(exerciseId: string): {
   return row;
 }
 
-
 export function addWorkoutSet(wseId: string): string {
   return inTransaction(() => {
     const compactedIds = compactActiveSets(wseId);
@@ -529,10 +545,7 @@ export function updateWorkoutSessionExerciseCardioSummary(
   });
 }
 
-export function updateWorkoutSessionExerciseComment(
-  wseId: string,
-  comment: string | null,
-) {
+export function updateWorkoutSessionExerciseComment(wseId: string, comment: string | null) {
   inTransaction(() => {
     const row = query<{ status: WorkoutSessionStatus }>(
       `
@@ -687,7 +700,6 @@ export function restoreWorkoutSet(set: RestoreWorkoutSetInput) {
     enqueueWorkoutSetSnapshot(set.id);
   });
 }
-
 
 export function startRestTimer(sessionId: string, seconds: number, label: string) {
   const clampedSeconds = Math.max(0, Math.floor(seconds));

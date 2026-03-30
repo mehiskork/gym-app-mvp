@@ -24,8 +24,6 @@ import { EXERCISE_TYPE } from '../db/exerciseTypes';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'SessionDetail'>;
 
-
-
 function formatPr(e: PrEventRow): string {
   if (e.pr_type === 'weight') return `Weight PR: ${formatNumber(e.value)} kg`;
   if (e.pr_type === 'volume') return `Volume PR: ${Math.round(e.value)} kg·reps`;
@@ -98,12 +96,15 @@ export function SessionDetailScreen({ route, navigation }: Props) {
   const dur = formatDurationSeconds(durationSeconds(session.started_at, session.ended_at));
   const formatCardio = (ex: SessionExerciseRow) => {
     const fields: string[] = [];
-    if (ex.cardio_duration_minutes !== null) fields.push(`Duration ${ex.cardio_duration_minutes} min`);
+    if (ex.cardio_duration_minutes !== null)
+      fields.push(`Duration ${ex.cardio_duration_minutes} min`);
     if (ex.cardio_distance_km !== null) fields.push(`Distance ${ex.cardio_distance_km} km`);
     if (ex.cardio_speed_kph !== null) fields.push(`Speed ${ex.cardio_speed_kph} km/h`);
     if (ex.cardio_incline_percent !== null) fields.push(`Incline ${ex.cardio_incline_percent}%`);
-    if (ex.cardio_resistance_level !== null) fields.push(`Resistance ${ex.cardio_resistance_level}`);
-    if (ex.cardio_pace_seconds_per_km !== null) fields.push(`Pace ${ex.cardio_pace_seconds_per_km}s/km`);
+    if (ex.cardio_resistance_level !== null)
+      fields.push(`Resistance ${ex.cardio_resistance_level}`);
+    if (ex.cardio_pace_seconds_per_km !== null)
+      fields.push(`Pace ${ex.cardio_pace_seconds_per_km}s/km`);
     if (ex.cardio_floors !== null) fields.push(`Floors ${ex.cardio_floors}`);
     if (ex.cardio_stair_level !== null) fields.push(`Level ${ex.cardio_stair_level}`);
     return fields;
@@ -133,7 +134,6 @@ export function SessionDetailScreen({ route, navigation }: Props) {
               ))}
             </View>
           ) : null}
-
 
           <Text variant="muted">{formatDateTime(session.started_at)}</Text>
           {dur ? <Text variant="muted">Duration: {dur}</Text> : null}
@@ -171,7 +171,11 @@ export function SessionDetailScreen({ route, navigation }: Props) {
                 formatCardio(ex).length === 0 ? (
                   <Text variant="muted">No cardio summary logged.</Text>
                 ) : (
-                  formatCardio(ex).map((line) => <Text key={line} variant="muted">{line}</Text>)
+                  formatCardio(ex).map((line) => (
+                    <Text key={line} variant="muted">
+                      {line}
+                    </Text>
+                  ))
                 )
               ) : exSets.length === 0 ? (
                 <Text variant="muted">No sets logged.</Text>

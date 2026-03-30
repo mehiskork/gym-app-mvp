@@ -1,5 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Dimensions, Keyboard, KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
+import {
+  Dimensions,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  View,
+} from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { CommonActions, useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -9,7 +16,18 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { TAB_ROUTES } from '../navigation/routes';
 import type { RootStackParamList } from '../navigation/types';
-import { BottomSheetModal, Button, Card, EmptyState, IconButton, IconChip, Input, Screen, Snackbar, Text } from '../ui';
+import {
+  BottomSheetModal,
+  Button,
+  Card,
+  EmptyState,
+  IconButton,
+  IconChip,
+  Input,
+  Screen,
+  Snackbar,
+  Text,
+} from '../ui';
 import { useAppTheme } from '../theme/theme';
 import { tokens } from '../theme/tokens';
 import { completeSession, updateWorkoutSessionNote } from '../db/workoutSessionRepo';
@@ -196,7 +214,6 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
     };
   }, []);
 
-
   useEffect(() => {
     if (isFocused && settings.keepScreenOn && session?.status === 'in_progress') {
       void activateKeepAwakeAsync(KEEP_AWAKE_TAG);
@@ -277,13 +294,15 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
     setFinishOpen(false);
   }, [isFinishing]);
 
-  const handleWorkoutNoteChange = useCallback((value: string) => {
-    const normalized = value.slice(0, MAX_WORKOUT_NOTE_LENGTH);
-    setWorkoutNoteDraft(normalized);
-    if (session?.status !== 'in_progress') return;
-    updateWorkoutSessionNote(sessionId, normalized);
-  }, [session?.status, sessionId]);
-
+  const handleWorkoutNoteChange = useCallback(
+    (value: string) => {
+      const normalized = value.slice(0, MAX_WORKOUT_NOTE_LENGTH);
+      setWorkoutNoteDraft(normalized);
+      if (session?.status !== 'in_progress') return;
+      updateWorkoutSessionNote(sessionId, normalized);
+    },
+    [session?.status, sessionId],
+  );
 
   const editingExercise = useMemo(
     () => exercises.find((exercise) => exercise.id === commentEditorExerciseId) ?? null,
@@ -310,9 +329,7 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
       activeRowMetricsRef.current = { pageY, height };
       if (!keyboardOpen) return;
       const viewportBottom =
-        (Platform.OS === 'ios' ? 0 : insets.bottom) +
-        tokens.touchTargetMin +
-        tokens.spacing.md;
+        (Platform.OS === 'ios' ? 0 : insets.bottom) + tokens.touchTargetMin + tokens.spacing.md;
       const visibleBottom = pageY + height;
       const keyboardTop = Dimensions.get('window').height - keyboardHeight - viewportBottom;
       if (visibleBottom <= keyboardTop) return;
@@ -411,7 +428,6 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
                         });
                         load();
                       }}
-
                     />
                   ) : (
                     ex.sets.map((set) => (
@@ -434,9 +450,16 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
                           updateWorkoutSet(set.id, { is_completed: done ? 0 : 1 });
                           void Haptics.selectionAsync();
                           if (!done && settings.autoStartRestTimer) {
-                            startRestTimer(sessionId, settings.defaultRestSeconds, ex.exercise_name);
+                            startRestTimer(
+                              sessionId,
+                              settings.defaultRestSeconds,
+                              ex.exercise_name,
+                            );
                             if (settings.restTimerNotifications) {
-                              void scheduleRestTimerNotification(settings.defaultRestSeconds, settings.restTimerVibration);
+                              void scheduleRestTimerNotification(
+                                settings.defaultRestSeconds,
+                                settings.restTimerVibration,
+                              );
                             }
                           }
                           load();
@@ -490,18 +513,17 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
                 setSession((prev) =>
                   prev
                     ? {
-                      ...prev,
-                      rest_timer_end_at: null,
-                      rest_timer_label: null,
-                      rest_timer_seconds: null,
-                    }
+                        ...prev,
+                        rest_timer_end_at: null,
+                        rest_timer_label: null,
+                        rest_timer_seconds: null,
+                      }
                     : prev,
                 );
 
                 clearRestTimer(sessionId);
                 void cancelRestTimerNotification();
               }}
-
               accessibilityLabel="Clear rest timer"
               variant="danger"
               icon={<Ionicons name="trash-outline" size={18} />}
@@ -621,7 +643,7 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
             helperText={`${commentDraft.length}/${MAX_EXERCISE_COMMENT_LENGTH}`}
           />
         </View>
-      </BottomSheetModal >
-    </Screen >
+      </BottomSheetModal>
+    </Screen>
   );
 }

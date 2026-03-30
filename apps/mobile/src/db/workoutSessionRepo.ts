@@ -42,7 +42,6 @@ type LastCompletedForPlanDayRow = {
   last_completed_at: string;
 };
 
-
 type SetSeed = {
   weight: number;
   reps: number;

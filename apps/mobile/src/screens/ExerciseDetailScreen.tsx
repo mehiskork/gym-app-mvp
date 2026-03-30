@@ -52,7 +52,6 @@ const NON_DELETABLE_STATE: ExerciseDeletionState = {
   blockReason: null,
 };
 
-
 export function ExerciseDetailScreen({ route, navigation }: Props) {
   const { exerciseId } = route.params;
 
@@ -60,7 +59,6 @@ export function ExerciseDetailScreen({ route, navigation }: Props) {
   const [sessions, setSessions] = useState<SessionWithSets[]>([]);
   const [deleteState, setDeleteState] = useState<ExerciseDeletionState>(NON_DELETABLE_STATE);
   const [confirmVisible, setConfirmVisible] = useState(false);
-
 
   const load = useCallback(() => {
     setDeleteState(getExerciseDeletionState(exerciseId));
@@ -153,7 +151,6 @@ export function ExerciseDetailScreen({ route, navigation }: Props) {
       setDeleteState(getExerciseDeletionState(exerciseId));
     }
   }, [exerciseId, navigation]);
-
 
   return (
     <Screen bottomInset="none" style={{ flex: 1 }}>
@@ -322,7 +319,6 @@ export function ExerciseDetailScreen({ route, navigation }: Props) {
         onClose={() => setConfirmVisible(false)}
         onConfirm={handleDelete}
       />
-
     </Screen>
   );
 }

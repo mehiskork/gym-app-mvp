@@ -14,7 +14,6 @@ import {
 } from '../db/workoutPlanRepo';
 import { getInProgressSession } from '../db/workoutSessionRepo';
 
-
 type Props = NativeStackScreenProps<RootStackParamList, 'StartWorkout'>;
 
 function formatSessionCountSubtitle(sessionCount: number): string {
@@ -55,7 +54,9 @@ export function StartWorkoutScreen({ navigation }: Props) {
                 <Button
                   title="Create a plan"
                   variant="secondary"
-                  onPress={() => navigation.navigate('MainTabs', { screen: TAB_ROUTES.WorkoutPlans })}
+                  onPress={() =>
+                    navigation.navigate('MainTabs', { screen: TAB_ROUTES.WorkoutPlans })
+                  }
                 />
                 <Button
                   title="Browse templates"
@@ -84,10 +85,10 @@ export function StartWorkoutScreen({ navigation }: Props) {
               onPress={
                 item.sessionCount > 0
                   ? () =>
-                    navigation.navigate('WorkoutPlanDetail', {
-                      workoutPlanId: item.id,
-                      mode: 'pickSessionToStart',
-                    })
+                      navigation.navigate('WorkoutPlanDetail', {
+                        workoutPlanId: item.id,
+                        mode: 'pickSessionToStart',
+                      })
                   : undefined
               }
             />

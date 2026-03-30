@@ -1,9 +1,9 @@
 import type { Migration } from './index';
 
 export const migration013_sync_run: Migration = {
-    id: 13,
-    name: 'sync run tracking',
-    up: `
+  id: 13,
+  name: 'sync run tracking',
+  up: `
     CREATE TABLE IF NOT EXISTS sync_run (
       id TEXT PRIMARY KEY,
       started_at TEXT NOT NULL DEFAULT (datetime('now')),

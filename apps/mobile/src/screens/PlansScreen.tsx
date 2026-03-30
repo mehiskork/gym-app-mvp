@@ -30,10 +30,7 @@ export function PlansScreen() {
     <Screen>
       <View style={{ gap: tokens.spacing.md, marginBottom: tokens.spacing.lg }}>
         <Text variant="title">Exercises</Text>
-        <Button
-          title="Add custom exercise"
-          onPress={() => navigation.navigate('CreateExercise')}
-        />
+        <Button title="Add custom exercise" onPress={() => navigation.navigate('CreateExercise')} />
       </View>
 
       <FlatList

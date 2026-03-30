@@ -115,9 +115,7 @@ export function PrebuiltPlansScreen() {
               <IconButton
                 onPress={() => handlePreview(item.id, item.existingPlanId)}
                 disabled={isBusy}
-
                 accessibilityLabel="View plan sessions"
-
                 icon={<Ionicons name="information-circle-outline" size={20} />}
               />
             </View>

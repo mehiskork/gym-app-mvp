@@ -24,7 +24,6 @@ export function normalizeCursor(value?: string | number | null): string {
   return String(Math.trunc(asNumber));
 }
 
-
 export function getSyncState(): SyncState {
   const row = query<SyncState>(
     `

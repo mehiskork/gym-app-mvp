@@ -45,18 +45,21 @@ export function TodayScreen() {
   );
 
   return (
-    <Screen
-      scroll
-      padded={false}
-      bottomInset="tabBar"
-    >
-
-      <View style={{ paddingHorizontal: tokens.spacing.lg, paddingTop: tokens.spacing.md, gap: tokens.spacing.lg }}>
+    <Screen scroll padded={false} bottomInset="tabBar">
+      <View
+        style={{
+          paddingHorizontal: tokens.spacing.lg,
+          paddingTop: tokens.spacing.md,
+          gap: tokens.spacing.lg,
+        }}
+      >
         <TodayPrimaryAction
           hasActiveWorkout={Boolean(inProgressId)}
           activeWorkoutTitle={inProgressTitle ?? undefined}
           onResume={
-            inProgressId ? () => navigation.navigate('WorkoutSession', { sessionId: inProgressId }) : undefined
+            inProgressId
+              ? () => navigation.navigate('WorkoutSession', { sessionId: inProgressId })
+              : undefined
           }
           hasPlans={hasPlans}
           onStart={() => navigation.navigate('StartWorkout')}
@@ -73,10 +76,10 @@ export function TodayScreen() {
             volume: session.volume,
             prs: session.prs,
           }))}
-         onViewAll={() => navigation.navigate('MainTabs', { screen: TAB_ROUTES.History })}
+          onViewAll={() => navigation.navigate('MainTabs', { screen: TAB_ROUTES.History })}
           onOpenSession={(sessionId) => navigation.navigate('SessionDetail', { sessionId })}
         />
       </View>
-    </Screen >
+    </Screen>
   );
 }

@@ -10,7 +10,11 @@ import { Button, IconButton, Input, Screen, Text } from '../ui';
 import { tokens } from '../theme/tokens';
 import { listExercises, type ExerciseRow } from '../db/exerciseRepo';
 import { EXERCISE_TYPE, type ExerciseType } from '../db/exerciseTypes';
-import { filterExercises, type ExerciseSourceFilter, toggleSingleSelect } from './exercisePickerFilters';
+import {
+  filterExercises,
+  type ExerciseSourceFilter,
+  toggleSingleSelect,
+} from './exercisePickerFilters';
 
 import { getOrCreateLocalUserId } from '../db/appMetaRepo';
 import { addExerciseToDay } from '../db/dayExerciseRepo';
@@ -51,7 +55,11 @@ export function ExercisePickerScreen({ route, navigation }: Props) {
   }, [all, q, exerciseTypeFilter, sourceFilter]);
 
   return (
-    <Screen bottomInset="none" style={{ paddingBottom: 0 }} contentStyle={{ paddingTop: TOP_CONTENT_PADDING }}>
+    <Screen
+      bottomInset="none"
+      style={{ paddingBottom: 0 }}
+      contentStyle={{ paddingTop: TOP_CONTENT_PADDING }}
+    >
       <View style={{ flex: 1, gap: tokens.spacing.md }}>
         <Input
           value={q}
@@ -66,7 +74,9 @@ export function ExercisePickerScreen({ route, navigation }: Props) {
               label: 'Strength',
               active: exerciseTypeFilter === EXERCISE_TYPE.STRENGTH,
               onPress: () =>
-                setExerciseTypeFilter(toggleSingleSelect(exerciseTypeFilter, EXERCISE_TYPE.STRENGTH)),
+                setExerciseTypeFilter(
+                  toggleSingleSelect(exerciseTypeFilter, EXERCISE_TYPE.STRENGTH),
+                ),
             },
             {
               label: 'Cardio',
@@ -175,7 +185,6 @@ export function ExercisePickerScreen({ route, navigation }: Props) {
                 accessibilityLabel={`${isBrowseOnly ? 'View details for' : 'Select'} ${item.name}`}
               >
                 <Text variant="subtitle">{item.name}</Text>
-
               </Pressable>
 
               <IconButton
@@ -216,6 +225,6 @@ export function ExercisePickerScreen({ route, navigation }: Props) {
           </Text>
         </Button>
       </View>
-    </Screen >
+    </Screen>
   );
 }

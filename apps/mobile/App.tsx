@@ -2,7 +2,6 @@ import React, { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { runMigrations } from './src/db/migrate';
 import { ThemeProvider } from './src/theme/theme';
@@ -16,7 +15,6 @@ export default function App() {
     seedCuratedExercises();
     repairStaleInFlightOps(120);
     void ensureRestTimerNotificationChannel(false);
-
   }, []);
 
   return (

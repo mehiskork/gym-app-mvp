@@ -249,7 +249,9 @@ export function getSessionDetail(sessionId: string): {
     cardio_stair_level: exercise.cardio_stair_level,
   }));
 
-  const sets: SessionSetRow[] = completedExercisesWithSets.flatMap(({ performedSets }) => performedSets);
+  const sets: SessionSetRow[] = completedExercisesWithSets.flatMap(
+    ({ performedSets }) => performedSets,
+  );
 
   return { session, exercises, sets };
 }

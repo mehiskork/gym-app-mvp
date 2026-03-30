@@ -30,7 +30,6 @@ import {
   SYNC_BATCH_LIMIT,
 } from './constants';
 
-
 function nextAttemptAtFromNow(seconds: number): string {
   const ms = seconds * 1000;
   return new Date(Date.now() + ms).toISOString();
@@ -53,8 +52,6 @@ function classifyErrorCode(err: unknown, httpStatus?: number | null): string {
 
   return 'unknown';
 }
-
-
 
 export async function registerDeviceIfNeeded(): Promise<void> {
   const baseUrl = getApiBaseUrl();

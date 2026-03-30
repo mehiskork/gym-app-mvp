@@ -107,7 +107,6 @@ export function claimOutboxOps(limit: number): OutboxOp[] {
   });
 }
 
-
 export function markOutboxOpsAcked(opIds: string[]) {
   if (opIds.length === 0) return;
 

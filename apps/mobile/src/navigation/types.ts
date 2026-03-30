@@ -30,18 +30,17 @@ export type RootStackParamList = {
   };
 
   ExercisePicker:
-  | {
-    dayId?: string;
-    swapSessionExerciseId?: string;
-    swapSessionId?: string;
-    addToSessionId?: string;
-    returnTo?: 'WorkoutSession';
-  }
-  | undefined;
+    | {
+        dayId?: string;
+        swapSessionExerciseId?: string;
+        swapSessionId?: string;
+        addToSessionId?: string;
+        returnTo?: 'WorkoutSession';
+      }
+    | undefined;
 
   ClaimStart: undefined;
   ClaimConfirm: undefined;
-
 
   Debug: undefined;
 };

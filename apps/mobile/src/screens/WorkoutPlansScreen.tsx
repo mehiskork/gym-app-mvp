@@ -87,7 +87,6 @@ export function WorkoutPlansScreen() {
     load();
   }, [deletePlanTarget, load]);
 
-
   return (
     <Screen
       scroll

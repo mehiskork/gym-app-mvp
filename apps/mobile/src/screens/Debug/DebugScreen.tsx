@@ -95,12 +95,12 @@ export function DebugScreen() {
   const [syncStateHealth, setSyncStateHealth] = useState<ReturnType<typeof verifySyncState> | null>(
     null,
   );
-  const [wseSchemaHealth, setWseSchemaHealth] = useState<
-    ReturnType<typeof getWorkoutSessionExerciseSchemaHealth> | null
-  >(null);
-  const [weekStartDebug, setWeekStartDebug] = useState<
-    ReturnType<typeof getWeekStartDebugInfo> | null
-  >(null);
+  const [wseSchemaHealth, setWseSchemaHealth] = useState<ReturnType<
+    typeof getWorkoutSessionExerciseSchemaHealth
+  > | null>(null);
+  const [weekStartDebug, setWeekStartDebug] = useState<ReturnType<
+    typeof getWeekStartDebugInfo
+  > | null>(null);
   const [syncRuns, setSyncRuns] = useState<ReturnType<typeof listSyncRuns>>([]);
 
   const refresh = useCallback(() => {
@@ -122,7 +122,7 @@ export function DebugScreen() {
   useFocusEffect(
     useCallback(() => {
       refresh();
-      return () => { };
+      return () => {};
     }, [refresh]),
   );
 
@@ -298,7 +298,6 @@ export function DebugScreen() {
           </Card>
         ) : null}
 
-
         <Card title="In-progress workout">
           {inProgress ? (
             <>
@@ -402,9 +401,7 @@ export function DebugScreen() {
               marginBottom: tokens.spacing.md,
             }}
           >
-            <Text style={{ fontWeight: '700' }}>
-              Test nested transaction rollback (dev-only)
-            </Text>
+            <Text style={{ fontWeight: '700' }}>Test nested transaction rollback (dev-only)</Text>
           </Pressable>
 
           <Pressable
@@ -467,16 +464,10 @@ export function DebugScreen() {
             <>
               <Row label="API Base URL" value={baseUrl} />
               {devOnly && syncStateHealth ? (
-                <Row
-                  label="Sync state schema"
-                  value={syncStateHealth.ok ? 'ok' : 'issue'}
-                />
+                <Row label="Sync state schema" value={syncStateHealth.ok ? 'ok' : 'issue'} />
               ) : null}
               {devOnly && wseSchemaHealth ? (
-                <Row
-                  label="Cardio schema"
-                  value={wseSchemaHealth.ok ? 'ok' : 'issue'}
-                />
+                <Row label="Cardio schema" value={wseSchemaHealth.ok ? 'ok' : 'issue'} />
               ) : null}
               {devOnly && syncStateHealth && !syncStateHealth.ok ? (
                 <Text variant="muted">{syncStateHealth.message}</Text>
@@ -496,7 +487,10 @@ export function DebugScreen() {
               <Row label="Cursor" value={syncInfo.syncState.cursor ?? '—'} />
               <Row label="Last sync" value={syncInfo.syncState.last_sync_at ?? '—'} />
               <Row label="Last error" value={truncate(syncInfo.syncState.last_error)} />
-              <Row label="Last delta count" value={String(syncInfo.syncState.last_delta_count ?? 0)} />
+              <Row
+                label="Last delta count"
+                value={String(syncInfo.syncState.last_delta_count ?? 0)}
+              />
               <Row
                 label="Last ack summary"
                 value={
@@ -516,8 +510,9 @@ export function DebugScreen() {
                   <View key={op.op_id} style={{ marginTop: tokens.spacing.sm }}>
                     <Text style={{ fontWeight: '600' }}>{op.op_id}</Text>
                     <Text variant="muted">
-                      {`${op.status} • attempts ${op.attempt_count} • next ${op.next_attempt_at ?? '—'
-                        }`}
+                      {`${op.status} • attempts ${op.attempt_count} • next ${
+                        op.next_attempt_at ?? '—'
+                      }`}
                     </Text>
                     <Text variant="muted">
                       {`created ${op.created_at} • error ${truncate(op.last_error, 80)}`}
@@ -635,7 +630,6 @@ export function DebugScreen() {
             <Text style={{ fontWeight: '700' }}>Reset cursor to 0 (dev-only)</Text>
           </Pressable>
 
-
           <Pressable
             disabled={!devOnly}
             onPress={() => {
@@ -678,15 +672,11 @@ export function DebugScreen() {
                 <Text style={{ fontWeight: '600' }}>
                   {`${new Date(run.started_at).toLocaleString()} • ${run.status}`}
                 </Text>
-                <Text variant="muted">
-                  {`ops ${run.ops_sent} • deltas ${run.deltas_applied}`}
-                </Text>
+                <Text variant="muted">{`ops ${run.ops_sent} • deltas ${run.deltas_applied}`}</Text>
                 <Text variant="muted">
                   {`cursor ${run.cursor_before ?? '—'} → ${run.cursor_after ?? '—'}`}
                 </Text>
-                <Text variant="muted">
-                  {`error ${run.error_code ?? '—'}`}
-                </Text>
+                <Text variant="muted">{`error ${run.error_code ?? '—'}`}</Text>
               </View>
             ))
           )}

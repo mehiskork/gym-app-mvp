@@ -9,46 +9,46 @@ import { Text } from './Text';
 type Variant = 'pr' | 'completed' | 'planned' | 'goal';
 
 type BadgeProps = {
-    label: string;
-    variant?: Variant;
+  label: string;
+  variant?: Variant;
 };
 
 export function Badge({ label, variant = 'planned' }: BadgeProps) {
-    const { colors } = useAppTheme();
-    const variantStyles: Record<
-        Variant,
-        { backgroundColor: string; color: string; borderColor?: string }
-    > = {
-        pr: { backgroundColor: tokens.colors.warning, color: tokens.colors.onPrimary },
-        completed: { backgroundColor: colors.success, color: colors.text },
-        planned: { backgroundColor: colors.secondary, color: colors.onSecondary },
-        goal: {
-            backgroundColor: colors.primarySoft,
-            color: colors.text,
-            borderColor: colors.primaryBorder,
-        },
-    };
-    const style = variantStyles[variant];
+  const { colors } = useAppTheme();
+  const variantStyles: Record<
+    Variant,
+    { backgroundColor: string; color: string; borderColor?: string }
+  > = {
+    pr: { backgroundColor: tokens.colors.warning, color: tokens.colors.onPrimary },
+    completed: { backgroundColor: colors.success, color: colors.text },
+    planned: { backgroundColor: colors.secondary, color: colors.onSecondary },
+    goal: {
+      backgroundColor: colors.primarySoft,
+      color: colors.text,
+      borderColor: colors.primaryBorder,
+    },
+  };
+  const style = variantStyles[variant];
 
-    return (
-        <View
-            style={{
-                alignSelf: 'flex-start',
-                borderRadius: tokens.radius.lg,
-                paddingHorizontal: tokens.spacing.sm,
-                paddingVertical: tokens.spacing.xs,
-                backgroundColor: style.backgroundColor,
-                borderWidth: style.borderColor ? 1 : 0,
-                borderColor: style.borderColor,
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: tokens.spacing.xs,
-            }}
-        >
-            {variant === 'pr' ? <Ionicons name="trophy" size={12} color={style.color} /> : null}
-            <Text variant="label" color={style.color}>
-                {label}
-            </Text>
-        </View>
-    );
+  return (
+    <View
+      style={{
+        alignSelf: 'flex-start',
+        borderRadius: tokens.radius.lg,
+        paddingHorizontal: tokens.spacing.sm,
+        paddingVertical: tokens.spacing.xs,
+        backgroundColor: style.backgroundColor,
+        borderWidth: style.borderColor ? 1 : 0,
+        borderColor: style.borderColor,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: tokens.spacing.xs,
+      }}
+    >
+      {variant === 'pr' ? <Ionicons name="trophy" size={12} color={style.color} /> : null}
+      <Text variant="label" color={style.color}>
+        {label}
+      </Text>
+    </View>
+  );
 }

@@ -7,36 +7,36 @@ import { tokens } from '../theme/tokens';
 import { Text } from './Text';
 
 type SectionHeaderProps = {
-    title: string;
-    actionLabel?: string;
-    onAction?: () => void;
-    actionNode?: ReactNode;
+  title: string;
+  actionLabel?: string;
+  onAction?: () => void;
+  actionNode?: ReactNode;
 };
 
 export function SectionHeader({ title, actionLabel, onAction, actionNode }: SectionHeaderProps) {
-    const { colors } = useAppTheme();
+  const { colors } = useAppTheme();
 
-    return (
-        <View
-            style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                marginBottom: tokens.spacing.sm,
-            }}
-        >
-            <Text variant="label" color={colors.mutedText}>
-                {title}
-            </Text>
-            {actionNode ? (
-                actionNode
-            ) : actionLabel && onAction ? (
-                <Pressable onPress={onAction} style={({ pressed }) => [pressed ? { opacity: 0.7 } : null]}>
-                    <Text variant="label" color={colors.primary}>
-                        {actionLabel}
-                    </Text>
-                </Pressable>
-            ) : null}
-        </View>
-    );
+  return (
+    <View
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: tokens.spacing.sm,
+      }}
+    >
+      <Text variant="label" color={colors.mutedText}>
+        {title}
+      </Text>
+      {actionNode ? (
+        actionNode
+      ) : actionLabel && onAction ? (
+        <Pressable onPress={onAction} style={({ pressed }) => [pressed ? { opacity: 0.7 } : null]}>
+          <Text variant="label" color={colors.primary}>
+            {actionLabel}
+          </Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
 }

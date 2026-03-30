@@ -38,7 +38,6 @@ export function CreateExerciseScreen({ navigation }: Props) {
           placeholder="e.g., Cable Fly"
           placeholderTextColor={tokens.colors.textSecondary}
           autoFocus
-
         />
       </View>
 
