@@ -13,6 +13,9 @@ claim:
   codeTtlMinutes: 10
   devUserHeaderEnabled: false
 
+sync:
+  maxOpsPerRequest: ${SYNC_MAX_OPS_PER_REQUEST:250}
+
 logging:
   level:
     org.springframework.web.filter.CommonsRequestLoggingFilter: INFO
@@ -21,6 +24,9 @@ rateLimit:
   sync:
     capacity: 30
     refillPerSecond: 10
+    maxBuckets: 20000
+    cleanupBatchSize: 200
+    staleAfterSeconds: 1800
   register:
     capacity: 20
     refillPerSecond: 5
@@ -35,6 +41,18 @@ spring:
 
 claim:
   devUserHeaderEnabled: true
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+
+claim:
+  devUserHeaderEnabled: false
 ---
 spring:
   config:

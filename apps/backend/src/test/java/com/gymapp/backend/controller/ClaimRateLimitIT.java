@@ -1,6 +1,7 @@
 package com.gymapp.backend.controller;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -73,6 +74,7 @@ class ClaimRateLimitIT {
         mockMvc.perform(request).andExpect(status().isBadRequest());
         mockMvc.perform(request)
                 .andExpect(status().isTooManyRequests())
-                .andExpect(jsonPath("$.code").value("RATE_LIMITED"));
+                .andExpect(jsonPath("$.code").value("RATE_LIMITED"))
+                .andExpect(header().string("Retry-After", "60"));
     }
 }

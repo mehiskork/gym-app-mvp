@@ -9,7 +9,9 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.time.Instant;
+import java.util.Iterator;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Value;
@@ -23,6 +25,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 public class RateLimitFilter extends OncePerRequestFilter {
     private static final String RATE_LIMITED_CODE = "RATE_LIMITED";
     private static final String RATE_LIMITED_MESSAGE = "Too many requests";
+    private static final long NANOS_PER_SECOND = 1_000_000_000L;
     private static final String SYNC_PREFIX = "sync:";
     private static final String SYNC_REMOTE_PREFIX = "syncRemote:";
 
@@ -35,6 +38,15 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
     @Value("${rateLimit.sync.refillPerSecond:10}")
     private double syncRefillPerSecond;
+
+    @Value("${rateLimit.sync.maxBuckets:20000}")
+    private int syncMaxBuckets;
+
+    @Value("${rateLimit.sync.cleanupBatchSize:200}")
+    private int syncCleanupBatchSize;
+
+    @Value("${rateLimit.sync.staleAfterSeconds:1800}")
+    private long syncStaleAfterSeconds;
 
     @Value("${rateLimit.register.capacity:20}")
     private int registerCapacity;
@@ -106,14 +118,33 @@ public class RateLimitFilter extends OncePerRequestFilter {
         if (key == null || key.isBlank()) {
             return false;
         }
+        boundedCleanup(System.nanoTime());
         TokenBucket bucket = buckets.computeIfAbsent(
                 key,
                 ignored -> new TokenBucket(capacity, refillPerSecond));
-        if (!bucket.tryConsume(System.nanoTime())) {
-            writeRateLimited(response);
+        long nowNanos = System.nanoTime();
+        if (!bucket.tryConsume(nowNanos)) {
+            writeRateLimited(response, bucket.retryAfterSeconds(nowNanos));
             return true;
         }
         return false;
+    }
+
+    private void boundedCleanup(long nowNanos) {
+        if (buckets.size() <= syncMaxBuckets) {
+            return;
+        }
+
+        long staleThresholdNanos = nowNanos - (syncStaleAfterSeconds * NANOS_PER_SECOND);
+        Iterator<java.util.Map.Entry<String, TokenBucket>> iterator = buckets.entrySet().iterator();
+        int removed = 0;
+        while (iterator.hasNext() && removed < syncCleanupBatchSize) {
+            java.util.Map.Entry<String, TokenBucket> entry = iterator.next();
+            if (entry.getValue().lastTouchedNanos() <= staleThresholdNanos
+                    && buckets.remove(entry.getKey(), entry.getValue())) {
+                removed++;
+            }
+        }
     }
 
     private String buildSyncRemoteKey(HttpServletRequest request) {
@@ -170,7 +201,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
         return lookup.deviceId();
     }
 
-    private void writeRateLimited(HttpServletResponse response) throws IOException {
+    private void writeRateLimited(HttpServletResponse response, long retryAfterSeconds) throws IOException {
         String requestId = MDC.get("requestId");
         if (requestId == null || requestId.isBlank()) {
             requestId = "unknown";
@@ -179,6 +210,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
         response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setHeader(RequestIdFilter.REQUEST_ID_HEADER, requestId);
+        response.setHeader("Retry-After", String.valueOf(retryAfterSeconds));
 
         objectMapper.writeValue(
                 response.getWriter(),
@@ -193,21 +225,41 @@ public class RateLimitFilter extends OncePerRequestFilter {
         private final double refillPerSecond;
         private double tokens;
         private long lastRefillNanos;
+        private final AtomicLong lastTouchedNanos;
 
         private TokenBucket(int capacity, double refillPerSecond) {
             this.capacity = capacity;
             this.refillPerSecond = refillPerSecond;
             this.tokens = capacity;
             this.lastRefillNanos = System.nanoTime();
+            this.lastTouchedNanos = new AtomicLong(this.lastRefillNanos);
         }
 
         private synchronized boolean tryConsume(long nowNanos) {
+            lastTouchedNanos.set(nowNanos);
             refill(nowNanos);
             if (tokens >= 1d) {
                 tokens -= 1d;
                 return true;
             }
             return false;
+        }
+
+        private synchronized long retryAfterSeconds(long nowNanos) {
+            lastTouchedNanos.set(nowNanos);
+            refill(nowNanos);
+            if (tokens >= 1d) {
+                return 1L;
+            }
+            if (refillPerSecond <= 0d) {
+                return 60L;
+            }
+            double secondsUntilNextToken = (1d - tokens) / refillPerSecond;
+            return Math.max(1L, (long) Math.ceil(secondsUntilNextToken));
+        }
+
+        private long lastTouchedNanos() {
+            return lastTouchedNanos.get();
         }
 
         private void refill(long nowNanos) {

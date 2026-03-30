@@ -35,6 +35,7 @@ public class SecurityConfig {
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/health").permitAll()
+                        .requestMatchers("/ready").permitAll()
                         .requestMatchers("/device/register").permitAll()
                         .requestMatchers("/claim/confirm").permitAll()
                         .requestMatchers("/sync").hasRole("DEVICE")

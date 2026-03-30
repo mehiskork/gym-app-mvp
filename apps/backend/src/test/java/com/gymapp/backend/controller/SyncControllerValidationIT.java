@@ -42,6 +42,7 @@ class SyncControllerValidationIT {
                 registry.add("spring.datasource.username", postgres::getUsername);
                 registry.add("spring.datasource.password", postgres::getPassword);
                 registry.add("spring.flyway.enabled", () -> "true");
+                registry.add("sync.maxOpsPerRequest", () -> "2");
         }
 
         @Autowired
@@ -157,6 +158,28 @@ class SyncControllerValidationIT {
                                 .andExpect(status().isBadRequest())
                                 .andExpect(jsonPath("$.code").value("SYNC_VALIDATION_ERROR"))
                                 .andExpect(jsonPath("$.details.opId").value("op-3"));
+        }
+
+        @Test
+        void syncRejectsWhenOpsCountExceedsServerGuardrail() throws Exception {
+                String token = seedDeviceAndToken("device-ops-max-limit");
+                String payload = """
+                                {"cursor":null,"ops":[
+                                    {"opId":"op-a","entityType":"program","entityId":"program-a","opType":"upsert","payload":{}},
+                                    {"opId":"op-b","entityType":"program","entityId":"program-b","opType":"upsert","payload":{}},
+                                    {"opId":"op-c","entityType":"program","entityId":"program-c","opType":"upsert","payload":{}}
+                                ]}
+                                """;
+
+                mockMvc.perform(post("/sync")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .header("Authorization", "Bearer " + token)
+                                .content(payload))
+                                .andExpect(status().isBadRequest())
+                                .andExpect(jsonPath("$.code").value("SYNC_VALIDATION_ERROR"))
+                                .andExpect(jsonPath("$.details.field").value("ops"))
+                                .andExpect(jsonPath("$.details.maxAllowed").value(2))
+                                .andExpect(jsonPath("$.details.actual").value(3));
         }
 
         private String seedDeviceAndToken(String deviceId) {

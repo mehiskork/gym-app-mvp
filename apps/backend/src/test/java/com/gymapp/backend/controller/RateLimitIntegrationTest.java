@@ -2,16 +2,22 @@ package com.gymapp.backend.controller;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.gymapp.backend.config.RateLimitFilter;
 import com.gymapp.backend.model.SyncResponse;
 import com.gymapp.backend.service.SyncService;
+import java.lang.reflect.Field;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.Map;
 import java.util.List;
 import javax.sql.DataSource;
 import org.flywaydb.core.Flyway;
@@ -52,6 +58,9 @@ class RateLimitIntegrationTest {
                 registry.add("spring.flyway.enabled", () -> "true");
                 registry.add("rateLimit.sync.capacity", () -> "2");
                 registry.add("rateLimit.sync.refillPerSecond", () -> "0");
+                registry.add("rateLimit.sync.maxBuckets", () -> "1");
+                registry.add("rateLimit.sync.cleanupBatchSize", () -> "100");
+                registry.add("rateLimit.sync.staleAfterSeconds", () -> "0");
                 registry.add("rateLimit.register.capacity", () -> "2");
                 registry.add("rateLimit.register.refillPerSecond", () -> "0");
         }
@@ -68,11 +77,15 @@ class RateLimitIntegrationTest {
         @Autowired
         private DataSource dataSource;
 
+        @Autowired
+        private RateLimitFilter rateLimitFilter;
+
         @MockitoBean
         private SyncService syncService;
 
         @BeforeEach
         void migrateSchema() {
+                reset(syncService);
                 Flyway.configure()
                                 .dataSource(dataSource)
                                 .load()
@@ -94,7 +107,8 @@ class RateLimitIntegrationTest {
                 mockMvc.perform(request).andExpect(status().isOk());
                 mockMvc.perform(request)
                                 .andExpect(status().isTooManyRequests())
-                                .andExpect(jsonPath("$.code").value("RATE_LIMITED"));
+                                .andExpect(jsonPath("$.code").value("RATE_LIMITED"))
+                                .andExpect(header().string("Retry-After", "60"));
         }
 
         @Test
@@ -116,7 +130,8 @@ class RateLimitIntegrationTest {
                                 .andExpect(jsonPath("$.code").value("AUTH_INVALID_TOKEN"));
                 mockMvc.perform(request)
                                 .andExpect(status().isTooManyRequests())
-                                .andExpect(jsonPath("$.code").value("RATE_LIMITED"));
+                                .andExpect(jsonPath("$.code").value("RATE_LIMITED"))
+                                .andExpect(header().string("Retry-After", "60"));
         }
 
         @Test
@@ -175,6 +190,50 @@ class RateLimitIntegrationTest {
                                 }))
                                 .andExpect(status().isTooManyRequests())
                                 .andExpect(jsonPath("$.code").value("RATE_LIMITED"));
+        }
+
+        @Test
+        void syncRateLimiterEvictsStaleBucketsWhenCapacityExceeded() throws Exception {
+                String deviceId = "rate-limit-cleanup-device";
+                String token = seedDeviceAndToken(deviceId);
+                when(syncService.sync(eq(deviceId), eq("guest-" + deviceId), any(), any()))
+                                .thenReturn(new SyncResponse(List.of(), null, List.of(), false));
+
+                mockMvc.perform(post("/sync")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .header("Authorization", "Bearer " + token)
+                                .content("{\"cursor\":null,\"ops\":[]}")
+                                .with(req -> {
+                                        req.setRemoteAddr("10.10.11.1");
+                                        return req;
+                                }))
+                                .andExpect(status().isOk());
+
+                mockMvc.perform(post("/sync")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .header("Authorization", "Bearer " + token)
+                                .content("{\"cursor\":null,\"ops\":[]}")
+                                .with(req -> {
+                                        req.setRemoteAddr("10.10.11.2");
+                                        return req;
+                                }))
+                                .andExpect(status().isOk());
+
+                Field bucketsField = RateLimitFilter.class.getDeclaredField("buckets");
+                bucketsField.setAccessible(true);
+                @SuppressWarnings("unchecked")
+                Map<String, ?> buckets = (Map<String, ?>) bucketsField.get(rateLimitFilter);
+                org.assertj.core.api.Assertions.assertThat(buckets.size()).isLessThanOrEqualTo(2);
+        }
+
+        @Test
+        void readinessEndpointReportsReadyWhenDatabaseIsReachable() throws Exception {
+                mockMvc.perform(get("/health"))
+                                .andExpect(status().isOk());
+
+                mockMvc.perform(get("/ready"))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.status").value("ready"));
         }
 
         private String seedDeviceAndToken(String deviceId) {
