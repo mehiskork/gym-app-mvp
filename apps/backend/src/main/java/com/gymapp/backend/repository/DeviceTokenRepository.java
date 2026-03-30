@@ -7,6 +7,7 @@ import java.util.HexFormat;
 import java.util.List;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import lombok.NoArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -14,6 +15,7 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 @RequiredArgsConstructor
+@Slf4j
 public class DeviceTokenRepository {
         public static final String TOKEN_LOOKUP_RESULT_REQUEST_ATTRIBUTE = "deviceTokenLookupResult";
         private final JdbcTemplate jdbcTemplate;
@@ -34,6 +36,26 @@ public class DeviceTokenRepository {
                                 expiresAtValue);
         }
 
+        public int deleteExpiredTokens(Instant now) {
+                OffsetDateTime nowValue = OffsetDateTime.ofInstant(now, ZoneOffset.UTC);
+                return jdbcTemplate.update(
+                                """
+                                                DELETE FROM device_token
+                                                WHERE expires_at IS NOT NULL
+                                                  AND expires_at < ?
+                                                """,
+                                nowValue);
+        }
+
+        public int deleteTokensByDeviceId(String deviceId) {
+                return jdbcTemplate.update(
+                                """
+                                                DELETE FROM device_token
+                                                WHERE device_id = ?
+                                                """,
+                                deviceId);
+        }
+
         public DeviceTokenLookupResult findToken(String token, Instant now) {
                 String tokenFingerprint = TokenFingerprintUtils.fingerprint(token);
                 List<DeviceTokenRecord> tokens = jdbcTemplate.query(
@@ -51,6 +73,7 @@ public class DeviceTokenRepository {
                                 tokenFingerprint);
 
                 if (tokens.isEmpty()) {
+                        log.debug("Device token lookup fallback hit for legacy rows without fingerprint");
                         tokens = jdbcTemplate.query(
                                         """
                                                         SELECT dt.token_hash, dt.device_id, dt.expires_at, d.guest_user_id

@@ -9,12 +9,14 @@ import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class DeviceService {
     private static final Duration TOKEN_TTL = Duration.ofDays(30);
 
@@ -39,11 +41,22 @@ public class DeviceService {
             deviceRepository.insertDevice(deviceId, secretHash, guestUserId);
         }
 
+        Instant now = Instant.now();
+        int expiredTokensDeleted = deviceTokenRepository.deleteExpiredTokens(now);
+        int deviceTokensDeleted = deviceTokenRepository.deleteTokensByDeviceId(deviceId);
+
         String deviceToken = UUID.randomUUID().toString();
         String tokenHash = passwordEncoder.encode(deviceToken);
         String tokenFingerprint = DeviceTokenRepository.TokenFingerprintUtils.fingerprint(deviceToken);
-        Instant expiresAt = Instant.now().plus(TOKEN_TTL);
+        Instant expiresAt = now.plus(TOKEN_TTL);
         deviceTokenRepository.insertToken(tokenHash, tokenFingerprint, deviceId, expiresAt);
+
+        if (expiredTokensDeleted > 0 || deviceTokensDeleted > 0) {
+            log.info("Device token cleanup completed: expiredDeleted={}, replacedForDevice={}, deviceId={}",
+                    expiredTokensDeleted,
+                    deviceTokensDeleted,
+                    deviceId);
+        }
 
         return new DeviceRegisterResponse(deviceToken, guestUserId);
     }
