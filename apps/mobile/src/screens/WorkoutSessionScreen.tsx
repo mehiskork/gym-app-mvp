@@ -259,13 +259,6 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
     return { totalSets, completedSets };
   }, [exercises]);
 
-  const currentExerciseId = useMemo(() => {
-    const firstIncomplete = exercises.find((exercise) =>
-      exercise.sets.some((set) => set.is_completed !== 1),
-    );
-    return firstIncomplete?.id ?? exercises[0]?.id ?? null;
-  }, [exercises]);
-
   const durationMinutes = useMemo(() => {
     if (!session?.started_at) return 0;
     const startTime = parseTimestampMs(session.started_at);
@@ -513,11 +506,11 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
                 setSession((prev) =>
                   prev
                     ? {
-                        ...prev,
-                        rest_timer_end_at: null,
-                        rest_timer_label: null,
-                        rest_timer_seconds: null,
-                      }
+                      ...prev,
+                      rest_timer_end_at: null,
+                      rest_timer_label: null,
+                      rest_timer_seconds: null,
+                    }
                     : prev,
                 );
 

@@ -1,3 +1,4 @@
+import { getDeviceToken } from '../db/appMetaRepo';
 type HeaderMap = Record<string, string>;
 
 function hasHeader(headers: HeaderMap, headerName: string): boolean {
@@ -6,14 +7,7 @@ function hasHeader(headers: HeaderMap, headerName: string): boolean {
 }
 
 function readDeviceToken(): string | null {
-  try {
-    const { getDeviceToken } = require('../db/appMetaRepo') as {
-      getDeviceToken?: () => string | null;
-    };
-    return getDeviceToken?.() ?? null;
-  } catch {
-    return null;
-  }
+  return getDeviceToken();
 }
 
 export async function buildHeaders(extra: HeaderMap = {}): Promise<HeaderMap> {

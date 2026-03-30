@@ -1,7 +1,6 @@
 import {
   getDeviceToken,
   getEffectiveUserId,
-  getGuestUserId,
   getOrCreateDeviceId,
   getOrCreateDeviceSecret,
   isSyncPaused,
