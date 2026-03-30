@@ -26,7 +26,7 @@ rateLimit:
     refillPerSecond: 5
   claimConfirm:
     capacity: 5
-     refillPerSecond: 0.1
+    refillPerSecond: 0.1
 ---
 spring:
   config:
