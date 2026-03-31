@@ -4,6 +4,7 @@ import tools.jackson.databind.ObjectMapper;
 import com.gymapp.backend.model.ErrorResponse;
 import com.gymapp.backend.repository.DeviceTokenRepository;
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicReference;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Value;
@@ -21,7 +22,6 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
-import org.springframework.security.oauth2.jwt.JwtDecoders;
 import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.web.SecurityFilterChain;
@@ -108,12 +108,27 @@ public class SecurityConfig {
     public JwtDecoder jwtDecoder(
             @Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri:}") String issuerUri,
             @Value("${spring.security.oauth2.resourceserver.jwt.jwk-set-uri:}") String jwkSetUri) {
-        if (StringUtils.hasText(issuerUri)) {
-            return JwtDecoders.fromIssuerLocation(issuerUri);
-        }
+        AtomicReference<JwtDecoder> delegateRef = new AtomicReference<>();
+        return token -> {
+            JwtDecoder delegate = delegateRef.get();
+            if (delegate == null) {
+                delegate = buildJwtDecoder(issuerUri, jwkSetUri);
+                if (!delegateRef.compareAndSet(null, delegate)) {
+                    delegate = delegateRef.get();
+                }
+            }
+            return delegate.decode(token);
+        };
+    }
+
+    private JwtDecoder buildJwtDecoder(String issuerUri, String jwkSetUri) {
 
         if (StringUtils.hasText(jwkSetUri)) {
             return NimbusJwtDecoder.withJwkSetUri(jwkSetUri).build();
+        }
+
+        if (StringUtils.hasText(issuerUri)) {
+            return NimbusJwtDecoder.withIssuerLocation(issuerUri).build();
         }
 
         return token -> {
