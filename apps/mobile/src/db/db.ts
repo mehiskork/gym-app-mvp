@@ -3,6 +3,8 @@ import * as SQLite from 'expo-sqlite';
 export const db = SQLite.openDatabaseSync('gym_app.db');
 db.execSync('PRAGMA foreign_keys = ON');
 
+type NameRow = { name: string };
+
 // Split a SQL string into statements (simple, good enough for our migrations).
 function splitStatements(sql: string): string[] {
   return sql
@@ -49,5 +51,25 @@ export function query<T extends Record<string, unknown>>(
     return rows;
   } finally {
     stmt.finalizeSync();
+  }
+}
+
+/**
+ * Clears all local SQLite tables for this app database.
+ *
+ * Intentionally only touches local SQLite app data and does not clear secure credentials.
+ */
+export function resetLocalDatabase() {
+  exec('PRAGMA foreign_keys = OFF;');
+  try {
+    const tableNames = query<NameRow>(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%';",
+    ).map((row) => row.name);
+
+    for (const tableName of tableNames) {
+      exec(`DROP TABLE IF EXISTS "${tableName}";`);
+    }
+  } finally {
+    exec('PRAGMA foreign_keys = ON;');
   }
 }
