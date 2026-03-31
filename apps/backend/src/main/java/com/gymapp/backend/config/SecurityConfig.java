@@ -45,7 +45,11 @@ public class SecurityConfig {
                 .formLogin(AbstractHttpConfigurer::disable)
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
-                .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))
+                .oauth2ResourceServer(oauth2 -> oauth2
+                        .jwt(Customizer.withDefaults())
+                        .authenticationEntryPoint((req, res, e) -> writeUnauthorized(res, e))
+                        .accessDeniedHandler((req, res, e) -> writeError(res, HttpStatus.FORBIDDEN,
+                                "AUTH_FORBIDDEN", "Forbidden")))
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint((req, res, e) -> writeUnauthorized(res, e))
                         .accessDeniedHandler((req, res, e) -> writeError(res, HttpStatus.FORBIDDEN,
