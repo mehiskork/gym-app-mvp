@@ -6,20 +6,23 @@ import java.time.ZoneOffset;
 import java.util.HexFormat;
 import java.util.List;
 import lombok.AccessLevel;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import lombok.NoArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Repository;
 
 @Repository
-@RequiredArgsConstructor
 @Slf4j
 public class DeviceTokenRepository {
         public static final String TOKEN_LOOKUP_RESULT_REQUEST_ATTRIBUTE = "deviceTokenLookupResult";
         private final JdbcTemplate jdbcTemplate;
-        private final PasswordEncoder passwordEncoder;
+        private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+
+        public DeviceTokenRepository(JdbcTemplate jdbcTemplate) {
+                this.jdbcTemplate = jdbcTemplate;
+        }
 
         public void insertToken(String tokenHash, String tokenFingerprint, String deviceId, Instant expiresAt) {
                 OffsetDateTime expiresAtValue = expiresAt == null
