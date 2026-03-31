@@ -118,7 +118,9 @@ public class RateLimitFilter extends OncePerRequestFilter {
         if (key == null || key.isBlank()) {
             return false;
         }
-        boundedCleanup(System.nanoTime());
+        if (isSyncScopedKey(key)) {
+            boundedCleanup(System.nanoTime());
+        }
         TokenBucket bucket = buckets.computeIfAbsent(
                 key,
                 ignored -> new TokenBucket(capacity, refillPerSecond));
@@ -140,11 +142,18 @@ public class RateLimitFilter extends OncePerRequestFilter {
         int removed = 0;
         while (iterator.hasNext() && removed < syncCleanupBatchSize) {
             java.util.Map.Entry<String, TokenBucket> entry = iterator.next();
+            if (!isSyncScopedKey(entry.getKey())) {
+                continue;
+            }
             if (entry.getValue().lastTouchedNanos() <= staleThresholdNanos
                     && buckets.remove(entry.getKey(), entry.getValue())) {
                 removed++;
             }
         }
+    }
+
+    private boolean isSyncScopedKey(String key) {
+        return key != null && (key.startsWith(SYNC_PREFIX) || key.startsWith(SYNC_REMOTE_PREFIX));
     }
 
     private String buildSyncRemoteKey(HttpServletRequest request) {
