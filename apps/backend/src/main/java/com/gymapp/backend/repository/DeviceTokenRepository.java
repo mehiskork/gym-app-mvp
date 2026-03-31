@@ -18,10 +18,15 @@ import org.springframework.stereotype.Repository;
 public class DeviceTokenRepository {
         public static final String TOKEN_LOOKUP_RESULT_REQUEST_ATTRIBUTE = "deviceTokenLookupResult";
         private final JdbcTemplate jdbcTemplate;
-        private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+        private final PasswordEncoder passwordEncoder;
 
         public DeviceTokenRepository(JdbcTemplate jdbcTemplate) {
+                this(jdbcTemplate, new BCryptPasswordEncoder());
+        }
+
+        DeviceTokenRepository(JdbcTemplate jdbcTemplate, PasswordEncoder passwordEncoder) {
                 this.jdbcTemplate = jdbcTemplate;
+                this.passwordEncoder = passwordEncoder;
         }
 
         public void insertToken(String tokenHash, String tokenFingerprint, String deviceId, Instant expiresAt) {
