@@ -118,13 +118,14 @@ public class RateLimitFilter extends OncePerRequestFilter {
         if (key == null || key.isBlank()) {
             return false;
         }
-        if (isSyncScopedKey(key)) {
-            boundedCleanup(System.nanoTime());
+        TokenBucket bucket = buckets.get(key);
+        long nowNanos = System.nanoTime();
+        if (bucket == null && isSyncScopedKey(key)) {
+            boundedCleanup(nowNanos, key);
         }
-        TokenBucket bucket = buckets.computeIfAbsent(
+        bucket = buckets.computeIfAbsent(
                 key,
                 ignored -> new TokenBucket(capacity, refillPerSecond));
-        long nowNanos = System.nanoTime();
         if (!bucket.tryConsume(nowNanos)) {
             writeRateLimited(response, bucket.retryAfterSeconds(nowNanos));
             return true;
@@ -132,7 +133,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
         return false;
     }
 
-    private void boundedCleanup(long nowNanos) {
+    private void boundedCleanup(long nowNanos, String protectedKey) {
         if (buckets.size() <= syncMaxBuckets) {
             return;
         }
@@ -143,6 +144,9 @@ public class RateLimitFilter extends OncePerRequestFilter {
         while (iterator.hasNext() && removed < syncCleanupBatchSize) {
             java.util.Map.Entry<String, TokenBucket> entry = iterator.next();
             if (!isSyncRemoteKey(entry.getKey())) {
+                continue;
+            }
+            if (entry.getKey().equals(protectedKey)) {
                 continue;
             }
             if (entry.getValue().lastTouchedNanos() <= staleThresholdNanos

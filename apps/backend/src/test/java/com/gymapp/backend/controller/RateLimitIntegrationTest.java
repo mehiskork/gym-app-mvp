@@ -86,6 +86,7 @@ class RateLimitIntegrationTest {
         @BeforeEach
         void migrateSchema() {
                 reset(syncService);
+                clearRateLimitBuckets();
                 Flyway.configure()
                                 .dataSource(dataSource)
                                 .load()
@@ -264,5 +265,17 @@ class RateLimitIntegrationTest {
                                 tokenFingerprint,
                                 deviceId,
                                 expiresAtValue);
+        }
+
+        private void clearRateLimitBuckets() {
+                try {
+                        Field bucketsField = RateLimitFilter.class.getDeclaredField("buckets");
+                        bucketsField.setAccessible(true);
+                        @SuppressWarnings("unchecked")
+                        Map<String, ?> buckets = (Map<String, ?>) bucketsField.get(rateLimitFilter);
+                        buckets.clear();
+                } catch (ReflectiveOperationException e) {
+                        throw new IllegalStateException("Unable to reset rate limit buckets", e);
+                }
         }
 }
