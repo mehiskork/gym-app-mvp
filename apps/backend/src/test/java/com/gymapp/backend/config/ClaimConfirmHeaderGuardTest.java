@@ -22,7 +22,7 @@ class ClaimConfirmDevHeaderGuardTest {
                     assertThat(context).hasFailed();
                     assertThat(context.getStartupFailure())
                             .hasRootCauseMessage(
-                                    "Unsafe configuration: claim.devUserHeaderEnabled=true is allowed only for dev/test profiles");
+                                    "Unsafe configuration: claim.devUserHeaderEnabled=true is forbidden for prod-like profiles");
                 });
     }
 
