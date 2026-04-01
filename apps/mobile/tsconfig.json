@@ -3,6 +3,10 @@
   "compilerOptions": {
     "strict": true,
     "resolveJsonModule": true,
-    "esModuleInterop": true
+    "esModuleInterop": true,
+    "types": [
+      "jest",
+      "node"
+    ]
   }
 }

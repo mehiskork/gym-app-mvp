@@ -133,28 +133,6 @@ export function getOrCreateDeviceId(): string {
   return id;
 }
 
-export function getOrCreateDeviceSecret(): string {
-  const existing = getMeta('device_secret');
-  if (existing) return existing;
-
-  const secret = newId('sec');
-  setMeta('device_secret', secret);
-  return secret;
-}
-
-export function getDeviceToken(): string | null {
-  return getMeta('device_token');
-}
-
-export function setDeviceToken(token: string | null) {
-  if (!token) {
-    clearMeta('device_token');
-    return;
-  }
-
-  setMeta('device_token', token);
-}
-
 export function getGuestUserId(): string | null {
   return getMeta('guest_user_id');
 }

@@ -1,13 +1,11 @@
 import {
-  getDeviceToken,
   getEffectiveUserId,
   getOrCreateDeviceId,
-  getOrCreateDeviceSecret,
   isSyncPaused,
   setLastSyncAckSummary,
-  setDeviceToken,
   setGuestUserId,
 } from '../db/appMetaRepo';
+import { deviceCredentialStore } from '../auth/deviceCredentialStore';
 import {
   claimOutboxOps,
   markOutboxOpsAcked,
@@ -55,11 +53,11 @@ function classifyErrorCode(err: unknown, httpStatus?: number | null): string {
 export async function registerDeviceIfNeeded(): Promise<void> {
   const baseUrl = getApiBaseUrl();
 
-  const existingToken = getDeviceToken();
+  const existingToken = await deviceCredentialStore.getDeviceToken();
   if (existingToken) return;
 
   const deviceId = getOrCreateDeviceId();
-  const deviceSecret = getOrCreateDeviceSecret();
+  const deviceSecret = await deviceCredentialStore.getOrCreateDeviceSecret();
 
   try {
     const response = await fetch(`${baseUrl}/device/register`, {
@@ -79,7 +77,7 @@ export async function registerDeviceIfNeeded(): Promise<void> {
     };
 
     if (data.deviceToken) {
-      setDeviceToken(data.deviceToken);
+      await deviceCredentialStore.setDeviceToken(data.deviceToken);
     }
     if (data.guestUserId) {
       setGuestUserId(data.guestUserId);
@@ -168,10 +166,10 @@ async function runSyncPage(options: SyncNowOptions): Promise<boolean> {
     }
   }
 
-  const token = getDeviceToken();
+  const token = await deviceCredentialStore.getDeviceToken();
   if (!token) {
     await registerDeviceIfNeeded();
-    if (!getDeviceToken()) {
+    if (!(await deviceCredentialStore.getDeviceToken())) {
       updateSyncState({ last_error: 'Device not registered (missing token).' });
       return false;
     }
@@ -297,8 +295,8 @@ async function runSyncPage(options: SyncNowOptions): Promise<boolean> {
     if (httpStatus === 401) {
       errorCode = 'auth_401_cleared';
       errorMessage = err instanceof Error ? err.message : 'Unauthorized';
+      await deviceCredentialStore.setDeviceToken(null);
       inTransaction(() => {
-        setDeviceToken(null);
         updateSyncState({
           last_error: errorCode,
           backoff_until: null,

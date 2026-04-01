@@ -1,22 +1,31 @@
 import { syncNow } from '../syncWorker';
 import { claimOutboxOps, markOutboxOpsFailed, repairStaleInFlightOps } from '../../db/outboxRepo';
-import { getDeviceToken, setDeviceToken } from '../../db/appMetaRepo';
 import { finishSyncRun } from '../../db/syncRunRepo';
+import { deviceCredentialStore } from '../../auth/deviceCredentialStore';
 
 let mockToken: string | null = 'device-token';
 
+jest.mock('../../api/config', () => ({
+  getApiBaseUrl: jest.fn(() => 'https://example.test'),
+}));
+
 jest.mock('../../db/appMetaRepo', () => ({
-  getDeviceToken: jest.fn(() => mockToken),
   getEffectiveUserId: jest.fn(() => 'user-1'),
   getGuestUserId: jest.fn(() => null),
   getOrCreateDeviceId: jest.fn(() => 'device-1'),
-  getOrCreateDeviceSecret: jest.fn(() => 'secret-1'),
   isSyncPaused: jest.fn(() => false),
   setLastSyncAckSummary: jest.fn(),
-  setDeviceToken: jest.fn((token: string | null) => {
-    mockToken = token;
-  }),
   setGuestUserId: jest.fn(),
+}));
+
+jest.mock('../../auth/deviceCredentialStore', () => ({
+  deviceCredentialStore: {
+    getDeviceToken: jest.fn(async () => mockToken),
+    getOrCreateDeviceSecret: jest.fn(async () => 'secret-1'),
+    setDeviceToken: jest.fn(async (token: string | null) => {
+      mockToken = token;
+    }),
+  },
 }));
 
 jest.mock('../../db/outboxRepo', () => ({
@@ -80,8 +89,8 @@ describe('syncNow 401 self-heal', () => {
 
     await syncNow();
 
-    expect(setDeviceToken).toHaveBeenCalledWith(null);
-    expect(getDeviceToken()).toBeNull();
+    expect(deviceCredentialStore.setDeviceToken).toHaveBeenCalledWith(null);
+    await expect(deviceCredentialStore.getDeviceToken()).resolves.toBeNull();
     expect(markOutboxOpsFailed).not.toHaveBeenCalled();
     expect(repairStaleInFlightOps).toHaveBeenCalledTimes(1);
     expect(finishSyncRun).toHaveBeenCalledWith(

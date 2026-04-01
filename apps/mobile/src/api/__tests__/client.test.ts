@@ -1,3 +1,16 @@
+import { jest } from '@jest/globals';
+
+jest.mock('expo-constants', () => ({
+  expoConfig: { extra: {} },
+  manifest: { extra: {} },
+}));
+
+jest.mock('expo-secure-store', () => ({
+  getItemAsync: jest.fn(async () => null),
+  setItemAsync: jest.fn(async () => undefined),
+  deleteItemAsync: jest.fn(async () => undefined),
+}));
+
 import { apiRequest, api } from '../client';
 import { ApiError } from '../errors';
 
@@ -17,8 +30,8 @@ describe('api client', () => {
 
   it('times out when request exceeds timeoutMs', async () => {
     global.fetch = jest.fn(
-      (_, options) =>
-        new Promise((_resolve, reject) => {
+      (_input: RequestInfo | URL, options?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
           const signal = options?.signal as AbortSignal | undefined;
           if (signal) {
             signal.addEventListener('abort', () => {
@@ -28,7 +41,7 @@ describe('api client', () => {
             });
           }
         }),
-    ) as jest.Mock;
+    ) as unknown as typeof fetch;
 
     await expect(api.get('/timeout', { timeoutMs: 10 })).rejects.toMatchObject({
       isTimeout: true,
@@ -53,7 +66,7 @@ describe('api client', () => {
         }),
         text: async () => '',
       } as Response;
-    }) as jest.Mock;
+    }) as unknown as typeof fetch;
 
     await expect(apiRequest('POST', '/claim/confirm', { body: {} })).rejects.toMatchObject({
       status: 400,
@@ -73,7 +86,7 @@ describe('api client', () => {
         json: async () => ({ message: 'should not parse' }),
         text: async () => 'Server error',
       } as Response;
-    }) as jest.Mock;
+    }) as unknown as typeof fetch;
 
     const request = api.get('/oops');
 

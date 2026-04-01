@@ -1,4 +1,3 @@
-import Constants from 'expo-constants';
 const DEFAULT_BASE_URL = 'http://localhost:8080';
 
 type ExpoConstantsModule = {
@@ -6,8 +5,17 @@ type ExpoConstantsModule = {
   manifest?: { extra?: Record<string, unknown> };
 };
 
+function getExpoConstants(): ExpoConstantsModule | undefined {
+  try {
+    const constantsModule = require('expo-constants');
+    return (constantsModule?.default ?? constantsModule) as ExpoConstantsModule;
+  } catch {
+    return undefined;
+  }
+}
+
 function readExpoExtra(key: string): string | undefined {
-  const expoConstants = Constants as ExpoConstantsModule;
+  const expoConstants = getExpoConstants();
   const extra = expoConstants?.expoConfig?.extra ?? expoConstants?.manifest?.extra;
   const value = extra?.[key];
   if (typeof value === 'string' && value.trim().length > 0) {

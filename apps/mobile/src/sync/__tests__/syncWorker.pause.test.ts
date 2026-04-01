@@ -4,8 +4,20 @@ import { claimOutboxOps } from '../../db/outboxRepo';
 import { isSyncPaused } from '../../db/appMetaRepo';
 import { logEvent } from '../../utils/logger';
 
+jest.mock('../../api/config', () => ({
+  getApiBaseUrl: jest.fn(() => 'https://example.test'),
+}));
+
 jest.mock('../../db/appMetaRepo', () => ({
   isSyncPaused: jest.fn(() => true),
+}));
+
+jest.mock('../../auth/deviceCredentialStore', () => ({
+  deviceCredentialStore: {
+    getDeviceToken: jest.fn(async () => 'device-token'),
+    getOrCreateDeviceSecret: jest.fn(async () => 'secret-1'),
+    setDeviceToken: jest.fn(async () => undefined),
+  },
 }));
 
 jest.mock('../../db/outboxRepo', () => ({

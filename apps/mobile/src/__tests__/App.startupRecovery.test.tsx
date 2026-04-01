@@ -72,6 +72,7 @@ jest.mock('../utils/restTimerNotifications', () => ({
     ensureRestTimerNotificationChannel: jest.fn(),
 }));
 jest.mock('../db/db', () => ({ resetLocalDatabase: jest.fn() }));
+jest.mock('../auth/resetSensitiveStorage', () => ({ clearSensitiveAuthStorage: jest.fn(() => Promise.resolve()) }));
 
 jest.mock('../ui/Text', () => {
     const React = require('react');
@@ -97,6 +98,7 @@ import { resetLocalDatabase } from '../db/db';
 import { runMigrations } from '../db/migrate';
 import { repairStaleInFlightOps } from '../db/outboxRepo';
 import { ensureRestTimerNotificationChannel } from '../utils/restTimerNotifications';
+import { clearSensitiveAuthStorage } from '../auth/resetSensitiveStorage';
 
 const useEffectMock = React.useEffect as jest.Mock;
 const useStateMock = React.useState as jest.Mock;
@@ -174,7 +176,7 @@ describe('App startup recovery', () => {
         expect(resetLocalDatabase).not.toHaveBeenCalled();
     });
 
-    it('reset action performs explicit reset then retries startup', () => {
+    it('reset action performs explicit reset then retries startup', async () => {
         useEffectMock.mockImplementation(() => undefined);
         useStateMock.mockReturnValue([{ kind: 'failed', error: new Error('boom') }, jest.fn()]);
 
@@ -186,9 +188,9 @@ describe('App startup recovery', () => {
 
         const resetButton = buttons.find((button) => button.props.title === 'Reset local data');
         expect(resetButton).toBeDefined();
-        resetButton!.props.onPress();
+        await resetButton!.props.onPress();
 
-        expect(resetLocalDatabase).toHaveBeenCalledTimes(1);
+        expect(clearSensitiveAuthStorage).toHaveBeenCalledTimes(1);
         expect(runMigrations).toHaveBeenCalledTimes(1);
     });
 });

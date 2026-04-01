@@ -4,16 +4,25 @@ import { applyDeltas } from '../applyDeltas';
 import { claimOutboxOps } from '../../db/outboxRepo';
 import { getSyncState, updateSyncState } from '../../db/syncStateRepo';
 
+jest.mock('../../api/config', () => ({
+  getApiBaseUrl: jest.fn(() => 'https://example.test'),
+}));
+
 jest.mock('../../db/appMetaRepo', () => ({
-  getDeviceToken: jest.fn(() => 'device-token'),
   getEffectiveUserId: jest.fn(() => 'user-1'),
   getGuestUserId: jest.fn(() => null),
   getOrCreateDeviceId: jest.fn(() => 'device-1'),
-  getOrCreateDeviceSecret: jest.fn(() => 'secret-1'),
   isSyncPaused: jest.fn(() => false),
   setLastSyncAckSummary: jest.fn(),
-  setDeviceToken: jest.fn(),
   setGuestUserId: jest.fn(),
+}));
+
+jest.mock('../../auth/deviceCredentialStore', () => ({
+  deviceCredentialStore: {
+    getDeviceToken: jest.fn(async () => 'device-token'),
+    getOrCreateDeviceSecret: jest.fn(async () => 'secret-1'),
+    setDeviceToken: jest.fn(async () => undefined),
+  },
 }));
 
 jest.mock('../../db/outboxRepo', () => ({

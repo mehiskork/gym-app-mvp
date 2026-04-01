@@ -1,5 +1,11 @@
-jest.mock('../../db/appMetaRepo', () => ({
-  getDeviceToken: jest.fn(() => 'device-token-123'),
+jest.mock('../../auth/deviceCredentialStore', () => ({
+  deviceCredentialStore: {
+    getDeviceToken: jest.fn(async () => 'device-token-123'),
+  },
+}));
+
+jest.mock('../config', () => ({
+  getApiBaseUrl: jest.fn(() => 'https://api.example.test'),
 }));
 
 import { api } from '../client';

@@ -13,6 +13,7 @@ import { tokens } from './src/theme/tokens';
 import { ensureRestTimerNotificationChannel } from './src/utils/restTimerNotifications';
 import { Button } from './src/ui/Button';
 import { Text } from './src/ui/Text';
+import { clearSensitiveAuthStorage } from './src/auth/resetSensitiveStorage';
 
 type BootState =
   | { kind: 'initializing' }
@@ -74,9 +75,10 @@ export default function App() {
     }
   }, []);
 
-  const handleResetLocalData = useCallback(() => {
+  const handleResetLocalData = useCallback(async () => {
     setBootState({ kind: 'initializing' });
     try {
+      await clearSensitiveAuthStorage();
       resetLocalDatabase();
       initializeApp();
     } catch (error) {
