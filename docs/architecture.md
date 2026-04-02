@@ -389,6 +389,12 @@ At a high level, the identity/auth pieces are:
 - `device_token`
 - `guest_user_id`
 
+Mobile storage rules (PR 8):
+
+- Sensitive credentials/session material (`device_token`, `device_secret`, account access/refresh/session secret material) are stored in platform secure storage only.
+- Non-sensitive metadata (`device_id`, `guest_user_id`, claim flags, sync cursor/state, rest timer metadata) stays in SQLite `app_meta`.
+- Reads are secure-storage-first with one-way migration fallback from legacy `app_meta` values; migrated legacy keys are removed and never written back.
+
 The important ownership key for synchronized data is **`guest_user_id`**, not the device itself.
 
 ### Sync internals

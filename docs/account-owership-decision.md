@@ -178,6 +178,17 @@ Future work must preserve:
 - **PR 11:** implement idempotent guest-to-account migration/link flow.
 - **PR 12:** add MVP logout/reset and account-switch UX/policy enforcement on mobile.
 
+### PR 9 implementation note (foundation only)
+
+PR 9 introduces a lightweight backend owner-resolution seam:
+
+- `OwnerScope` value object (`guest` or `account` + owner id)
+- `PrincipalOwnerResolver` principal-to-owner mapper for `DevicePrincipal` and `AccountPrincipal`
+- `SyncService` now executes through owner-scoped internals while `/sync` still enters through guest/device auth only
+- `SyncRepository` remains guest-keyed in SQL/schema and adds owner-named adapter methods for future account scope wiring
+
+No `/sync` protocol changes are part of PR 9, and no account-scoped `/sync` behavior is enabled yet.
+
 ---
 
 ## Rejected alternatives
