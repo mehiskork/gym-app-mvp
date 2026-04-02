@@ -45,3 +45,17 @@ To enable JWT verification, configure one of:
 
 - `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI`
 - `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI`
+
+## Owner-resolution foundation (PR 9)
+
+Backend sync internals now include an owner seam:
+
+- `OwnerScope` represents resolved sync ownership (`guest` or `account`)
+- `PrincipalOwnerResolver` maps authenticated principals to `OwnerScope`
+- `SyncService` runs owner-scoped internals
+
+Current behavior is unchanged:
+
+- `/sync` remains device-token authenticated and guest-scoped
+- repository SQL stays guest-keyed (`guest_user_id`) for now
+- account-scoped `/sync` is intentionally deferred to a later PR

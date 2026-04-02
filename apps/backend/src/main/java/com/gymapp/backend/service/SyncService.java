@@ -7,6 +7,7 @@ import com.gymapp.backend.model.SyncDelta;
 import com.gymapp.backend.model.SyncOp;
 import com.gymapp.backend.model.SyncResponse;
 import com.gymapp.backend.repository.SyncRepository;
+import com.gymapp.backend.security.OwnerScope;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -35,6 +36,12 @@ public class SyncService {
 
         @Transactional
         public SyncResponse sync(String deviceId, String guestUserId, String cursor, List<SyncOp> ops) {
+                return sync(deviceId, OwnerScope.guest(guestUserId), cursor, ops);
+        }
+
+        @Transactional
+        public SyncResponse sync(String deviceId, OwnerScope ownerScope, String cursor, List<SyncOp> ops) {
+                String ownerId = ownerScope.getOwnerId();
 
                 List<SyncAck> acks = new ArrayList<>();
                 List<String> allowedEntityTypes = List.copyOf(SyncEntityTypes.ALLOWED_TYPES);
@@ -49,10 +56,10 @@ public class SyncService {
 
                         Instant receivedAt = requestReceivedAt;
 
-                        enforceOwnership(guestUserId, op);
+                        enforceOwnership(ownerId, op);
 
                         // Atomic dedupe: insert ledger row if absent
-                        boolean inserted = syncRepository.insertOpLedgerIfAbsent(op.opId(), deviceId, guestUserId,
+                        boolean inserted = syncRepository.insertOpLedgerIfAbsentForOwner(op.opId(), deviceId, ownerId,
                                         receivedAt);
                         if (!inserted) {
                                 acks.add(new SyncAck(op.opId(), "noop", "duplicate op"));
@@ -60,8 +67,8 @@ public class SyncService {
                         }
 
                         Optional<SyncRepository.EntityStateRecord> existingState = syncRepository
-                                        .findEntityStateWithReceivedAt(
-                                                        guestUserId,
+                                        .findEntityStateWithReceivedAtForOwner(
+                                                        ownerId,
                                                         op.entityType(),
                                                         op.entityId());
 
@@ -74,7 +81,7 @@ public class SyncService {
                                         .orElse(null);
 
                         ResolutionResult resolution = resolveConflict(
-                                        guestUserId,
+                                        ownerId,
                                         op,
                                         opType,
                                         existingPayload,
@@ -82,15 +89,15 @@ public class SyncService {
                                         receivedAt);
 
                         if (resolution.status().equals("applied")) {
-                                syncRepository.upsertEntityState(
-                                                guestUserId,
+                                syncRepository.upsertEntityStateForOwner(
+                                                ownerId,
                                                 op.entityType(),
                                                 op.entityId(),
                                                 resolution.payload(),
                                                 receivedAt);
 
-                                syncRepository.insertChangeLog(
-                                                guestUserId,
+                                syncRepository.insertChangeLogForOwner(
+                                                ownerId,
                                                 op.entityType(),
                                                 op.entityId(),
                                                 opType,
@@ -100,8 +107,8 @@ public class SyncService {
                         acks.add(new SyncAck(op.opId(), resolution.status(), resolution.reason()));
                 }
 
-                List<SyncDelta> fetchedDeltas = syncRepository.fetchDeltas(
-                                guestUserId,
+                List<SyncDelta> fetchedDeltas = syncRepository.fetchDeltasForOwner(
+                                ownerId,
                                 parsedCursor,
                                 DELTA_LIMIT + 1,
                                 allowedEntityTypes);
@@ -117,10 +124,10 @@ public class SyncService {
                 return new SyncResponse(acks, responseCursor, deltas, hasMore);
         }
 
-        private void enforceOwnership(String guestUserId, SyncOp op) {
-                Optional<String> ownerId = syncRepository.findEntityOwnerId(guestUserId, op.entityType(),
+        private void enforceOwnership(String ownerId, SyncOp op) {
+                Optional<String> existingOwner = syncRepository.findEntityOwnerIdForOwner(ownerId, op.entityType(),
                                 op.entityId());
-                if (ownerId.isPresent()) {
+                if (existingOwner.isPresent()) {
                         throw new ForbiddenException(
                                         "SYNC_FORBIDDEN",
                                         "Entity ownership mismatch",

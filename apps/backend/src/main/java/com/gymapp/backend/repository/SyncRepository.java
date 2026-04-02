@@ -20,6 +20,11 @@ public class SyncRepository {
         private final JdbcTemplate jdbcTemplate;
         private final ObjectMapper objectMapper;
 
+        public boolean insertOpLedgerIfAbsentForOwner(String opId, String deviceId, String ownerId,
+                        Instant receivedAt) {
+                return insertOpLedgerIfAbsent(opId, deviceId, ownerId, receivedAt);
+        }
+
         public void insertOpLedger(String opId, String deviceId, String guestUserId, Instant receivedAt) {
                 jdbcTemplate.update(
                                 """
@@ -48,6 +53,12 @@ public class SyncRepository {
                                 entityId,
                                 toJson(payload),
                                 toTimestamp(receivedAt));
+        }
+
+        public void upsertEntityStateForOwner(String ownerId, String entityType, String entityId,
+                        Map<String, Object> payload,
+                        Instant receivedAt) {
+                upsertEntityState(ownerId, entityType, entityId, payload, receivedAt);
         }
 
         public void deleteEntityState(String guestUserId, String entityType, String entityId,
@@ -82,6 +93,11 @@ public class SyncRepository {
                                 toJson(payload));
         }
 
+        public void insertChangeLogForOwner(String ownerId, String entityType, String entityId, String opType,
+                        Map<String, Object> payload) {
+                insertChangeLog(ownerId, entityType, entityId, opType, payload);
+        }
+
         public Optional<Map<String, Object>> findEntityState(String guestUserId, String entityType, String entityId) {
                 return jdbcTemplate.query(
                                 """
@@ -108,6 +124,10 @@ public class SyncRepository {
                                 guestUserId).stream().findFirst();
         }
 
+        public Optional<String> findEntityOwnerIdForOwner(String ownerId, String entityType, String entityId) {
+                return findEntityOwnerId(ownerId, entityType, entityId);
+        }
+
         public Optional<EntityStateRecord> findEntityStateWithReceivedAt(String guestUserId, String entityType,
                         String entityId) {
                 return jdbcTemplate.query(
@@ -125,6 +145,11 @@ public class SyncRepository {
                                 guestUserId,
                                 entityType,
                                 entityId).stream().findFirst();
+        }
+
+        public Optional<EntityStateRecord> findEntityStateWithReceivedAtForOwner(String ownerId, String entityType,
+                        String entityId) {
+                return findEntityStateWithReceivedAt(ownerId, entityType, entityId);
         }
 
         public List<SyncDelta> fetchDeltas(String guestUserId, long cursor, int limit,
@@ -160,6 +185,11 @@ public class SyncRepository {
                                                 rs.getString("op_type"),
                                                 parseJson(rs.getString("row_json"))),
                                 params);
+        }
+
+        public List<SyncDelta> fetchDeltasForOwner(String ownerId, long cursor, int limit,
+                        List<String> allowedEntityTypes) {
+                return fetchDeltas(ownerId, cursor, limit, allowedEntityTypes);
         }
 
         private String toJson(Map<String, Object> payload) {
