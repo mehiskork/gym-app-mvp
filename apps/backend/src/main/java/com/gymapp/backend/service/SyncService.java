@@ -43,6 +43,12 @@ public class SyncService {
         public SyncResponse sync(String deviceId, OwnerScope ownerScope, String cursor, List<SyncOp> ops) {
                 String ownerId = ownerScope.getOwnerId();
 
+                if (deviceId == null || deviceId.isBlank()) {
+                        throw new ValidationException(
+                                        "sync transport context missing device id",
+                                        Map.of("field", "deviceId", "ownerType", ownerScope.getType()));
+                }
+
                 List<SyncAck> acks = new ArrayList<>();
                 List<String> allowedEntityTypes = List.copyOf(SyncEntityTypes.ALLOWED_TYPES);
 
@@ -165,7 +171,7 @@ public class SyncService {
         }
 
         private ResolutionResult resolveConflict(
-                        String guestUserId,
+                        String ownerId,
                         SyncOp op,
                         String opType,
                         Map<String, Object> existingPayload,
@@ -181,7 +187,7 @@ public class SyncService {
                 if (opType.equals("delete")) {
                         Map<String, Object> deletePayload = ensureDeletePayload(incomingPayload, incomingDeletedAt,
                                         incomingUpdatedAt);
-                        return resolveDelete(guestUserId, op, existingPayload, existingDeletedAt, existingUpdatedAt,
+                        return resolveDelete(ownerId, op, existingPayload, existingDeletedAt, existingUpdatedAt,
                                         existingReceivedAt,
                                         incomingReceivedAt, deletePayload);
                 }
@@ -191,7 +197,7 @@ public class SyncService {
                 }
 
                 if (existingPayload == null) {
-                        ResolutionResult immutability = enforceImmutability(guestUserId, op, null, incomingPayload);
+                        ResolutionResult immutability = enforceImmutability(ownerId, op, null, incomingPayload);
                         if (immutability != null) {
                                 return immutability;
                         }
@@ -201,7 +207,7 @@ public class SyncService {
                 int compare = compareByLww(existingPayload, incomingPayload, existingUpdatedAt, incomingUpdatedAt,
                                 existingReceivedAt, incomingReceivedAt);
                 if (compare > 0) {
-                        ResolutionResult immutability = enforceImmutability(guestUserId, op, existingPayload,
+                        ResolutionResult immutability = enforceImmutability(ownerId, op, existingPayload,
                                         incomingPayload);
                         if (immutability != null) {
                                 return immutability;
@@ -214,7 +220,7 @@ public class SyncService {
         }
 
         private ResolutionResult resolveDelete(
-                        String guestUserId,
+                        String ownerId,
                         SyncOp op,
                         Map<String, Object> existingPayload,
                         Instant existingDeletedAt,
@@ -250,7 +256,7 @@ public class SyncService {
         }
 
         private ResolutionResult enforceImmutability(
-                        String guestUserId,
+                        String ownerId,
                         SyncOp op,
                         Map<String, Object> existingPayload,
                         Map<String, Object> incomingPayload) {
@@ -268,10 +274,10 @@ public class SyncService {
                 }
 
                 if (op.entityType().equals("workout_set")) {
-                        String sessionId = resolveWorkoutSessionId(guestUserId, existingPayload, incomingPayload);
+                        String sessionId = resolveWorkoutSessionId(ownerId, existingPayload, incomingPayload);
                         if (sessionId != null) {
-                                Optional<Map<String, Object>> sessionPayload = syncRepository.findEntityState(
-                                                guestUserId,
+                                Optional<Map<String, Object>> sessionPayload = syncRepository.findEntityStateForOwner(
+                                                ownerId,
                                                 "workout_session",
                                                 sessionId);
                                 if (sessionPayload.isPresent()
@@ -289,7 +295,7 @@ public class SyncService {
         }
 
         private String resolveWorkoutSessionId(
-                        String guestUserId,
+                        String ownerId,
                         Map<String, Object> existingPayload,
                         Map<String, Object> incomingPayload) {
                 String wseId = getText(incomingPayload, "workout_session_exercise_id");
@@ -299,8 +305,8 @@ public class SyncService {
                 if (wseId == null) {
                         return null;
                 }
-                Optional<Map<String, Object>> wsePayload = syncRepository.findEntityState(
-                                guestUserId,
+                Optional<Map<String, Object>> wsePayload = syncRepository.findEntityStateForOwner(
+                                ownerId,
                                 "workout_session_exercise",
                                 wseId);
                 return wsePayload.map(node -> getText(node, "workout_session_id")).orElse(null);

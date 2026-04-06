@@ -111,6 +111,11 @@ public class SyncRepository {
                                 entityId).stream().findFirst();
         }
 
+        public Optional<Map<String, Object>> findEntityStateForOwner(String ownerId, String entityType,
+                        String entityId) {
+                return findEntityState(ownerId, entityType, entityId);
+        }
+
         public Optional<String> findEntityOwnerId(String guestUserId, String entityType, String entityId) {
                 return jdbcTemplate.query(
                                 """

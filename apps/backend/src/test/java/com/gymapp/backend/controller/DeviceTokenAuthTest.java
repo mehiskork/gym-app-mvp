@@ -114,7 +114,8 @@ class DeviceTokenAuthTest {
                 RegistrationResult first = registerDevice(deviceId, deviceSecret);
                 RegistrationResult second = registerDevice(deviceId, deviceSecret);
 
-                when(syncService.sync(eq(deviceId), eq(second.guestUserId()), any(), any()))
+                when(syncService.sync(eq(deviceId),
+                                eq(com.gymapp.backend.security.OwnerScope.guest(second.guestUserId())), any(), any()))
                                 .thenReturn(new SyncResponse(List.of(), null, List.of(), false));
 
                 mockMvc.perform(post("/sync")
@@ -173,7 +174,8 @@ class DeviceTokenAuthTest {
 
                 insertDevice(deviceId, guestUserId);
                 insertLegacyToken(rawToken, deviceId, Instant.now().plusSeconds(3600));
-                when(syncService.sync(eq(deviceId), eq(guestUserId), any(), any()))
+                when(syncService.sync(eq(deviceId), eq(com.gymapp.backend.security.OwnerScope.guest(guestUserId)),
+                                any(), any()))
                                 .thenReturn(new SyncResponse(List.of(), null, List.of(), false));
 
                 mockMvc.perform(post("/sync")
@@ -190,7 +192,8 @@ class DeviceTokenAuthTest {
                 String rawToken = "valid-token";
                 insertDevice(deviceId, guestUserId);
                 insertToken(rawToken, deviceId, Instant.now().plusSeconds(3600));
-                when(syncService.sync(eq(deviceId), eq(guestUserId), any(), any()))
+                when(syncService.sync(eq(deviceId), eq(com.gymapp.backend.security.OwnerScope.guest(guestUserId)),
+                                any(), any()))
                                 .thenReturn(new SyncResponse(List.of(), null, List.of(), false));
 
                 mockMvc.perform(post("/sync")

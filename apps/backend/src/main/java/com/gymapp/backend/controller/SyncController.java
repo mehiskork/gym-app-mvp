@@ -4,6 +4,8 @@ import com.gymapp.backend.config.DevicePrincipal;
 import com.gymapp.backend.config.SyncGuardrailsProperties;
 import com.gymapp.backend.model.SyncRequest;
 import com.gymapp.backend.model.SyncResponse;
+import com.gymapp.backend.security.OwnerScope;
+import com.gymapp.backend.security.PrincipalOwnerResolver;
 import com.gymapp.backend.service.SyncService;
 import jakarta.validation.Valid;
 import java.util.Map;
@@ -19,6 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class SyncController {
     private final SyncService syncService;
     private final SyncGuardrailsProperties syncGuardrailsProperties;
+    private final PrincipalOwnerResolver principalOwnerResolver;
 
     @PostMapping("/sync")
     public ResponseEntity<SyncResponse> sync(
@@ -33,10 +36,14 @@ public class SyncController {
                             "actual", request.ops().size()));
         }
 
-        DevicePrincipal principal = (DevicePrincipal) authentication.getPrincipal();
+        Object principal = authentication.getPrincipal();
+        OwnerScope ownerScope = principalOwnerResolver.resolve(principal);
+        String deviceId = principal instanceof DevicePrincipal devicePrincipal
+                ? devicePrincipal.getDeviceId()
+                : null;
         return ResponseEntity.ok(syncService.sync(
-                principal.getDeviceId(),
-                principal.getGuestUserId(),
+                deviceId,
+                ownerScope,
                 request.cursor(),
                 request.ops()));
     }

@@ -119,7 +119,8 @@ class AccountAuthIntegrationTest {
                 insertDevice(deviceId, guestUserId);
                 insertToken(rawToken, deviceId, Instant.now().plusSeconds(3600));
 
-                when(syncService.sync(eq(deviceId), eq(guestUserId), any(), any()))
+                when(syncService.sync(eq(deviceId), eq(com.gymapp.backend.security.OwnerScope.guest(guestUserId)),
+                                any(), any()))
                                 .thenReturn(new SyncResponse(List.of(), null, List.of(), false));
 
                 mockMvc.perform(post("/sync")
