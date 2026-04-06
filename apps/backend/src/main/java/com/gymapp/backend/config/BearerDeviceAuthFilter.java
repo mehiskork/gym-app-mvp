@@ -54,12 +54,14 @@ public class BearerDeviceAuthFilter extends OncePerRequestFilter {
             return;
         }
 
+        if ("/sync".equals(request.getRequestURI()) && isJwtLikeToken(token)) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
         var lookup = resolveLookup(request, token);
         if (lookup.status() == DeviceTokenRepository.DeviceTokenStatus.NOT_FOUND) {
-            if ("/sync".equals(request.getRequestURI())) {
-                filterChain.doFilter(request, response);
-                return;
-            }
+
             writeUnauthorized(response, "AUTH_INVALID_TOKEN", "Invalid token");
             return;
         }
@@ -99,6 +101,18 @@ public class BearerDeviceAuthFilter extends OncePerRequestFilter {
 
     private boolean isDeviceProtectedPath(String requestUri) {
         return "/sync".equals(requestUri) || "/claim/start".equals(requestUri);
+    }
+
+    private boolean isJwtLikeToken(String token) {
+        int firstDot = token.indexOf('.');
+        if (firstDot <= 0) {
+            return false;
+        }
+        int secondDot = token.indexOf('.', firstDot + 1);
+        if (secondDot <= firstDot + 1 || secondDot == token.length() - 1) {
+            return false;
+        }
+        return token.indexOf('.', secondDot + 1) == -1;
     }
 
     private void writeUnauthorized(HttpServletResponse response, String code, String message) throws IOException {
