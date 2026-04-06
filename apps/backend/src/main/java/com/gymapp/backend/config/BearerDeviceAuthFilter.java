@@ -16,6 +16,7 @@ import org.slf4j.MDC;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -55,6 +56,10 @@ public class BearerDeviceAuthFilter extends OncePerRequestFilter {
 
         var lookup = resolveLookup(request, token);
         if (lookup.status() == DeviceTokenRepository.DeviceTokenStatus.NOT_FOUND) {
+            if ("/sync".equals(request.getRequestURI())) {
+                filterChain.doFilter(request, response);
+                return;
+            }
             writeUnauthorized(response, "AUTH_INVALID_TOKEN", "Invalid token");
             return;
         }
@@ -70,6 +75,15 @@ public class BearerDeviceAuthFilter extends OncePerRequestFilter {
         SecurityContextHolder.getContext().setAuthentication(authn);
 
         filterChain.doFilter(request, response);
+    }
+
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        if (!"/sync".equals(request.getRequestURI())) {
+            return false;
+        }
+        Authentication existingAuthentication = SecurityContextHolder.getContext().getAuthentication();
+        return existingAuthentication != null && existingAuthentication.isAuthenticated();
     }
 
     private DeviceTokenRepository.DeviceTokenLookupResult resolveLookup(HttpServletRequest request, String token) {

@@ -43,7 +43,7 @@ public class SyncService {
         public SyncResponse sync(String deviceId, OwnerScope ownerScope, String cursor, List<SyncOp> ops) {
                 String ownerId = ownerScope.getOwnerId();
 
-                if (deviceId == null || deviceId.isBlank()) {
+                if ("guest".equals(ownerScope.getType()) && (deviceId == null || deviceId.isBlank())) {
                         throw new ValidationException(
                                         "sync transport context missing device id",
                                         Map.of("field", "deviceId", "ownerType", ownerScope.getType()));

@@ -58,4 +58,13 @@ class SyncRepositoryOpLedgerDedupeIT {
         assertThat(first).isTrue();
         assertThat(second).isFalse();
     }
+
+    @Test
+    void insertOpLedgerIfAbsent_allowsNullDeviceTransportForAccountSync() {
+        String opId = "op-account-" + System.currentTimeMillis();
+
+        boolean inserted = syncRepository.insertOpLedgerIfAbsent(opId, null, "issuer.example|acct-1", Instant.now());
+
+        assertThat(inserted).isTrue();
+    }
 }

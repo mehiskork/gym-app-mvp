@@ -175,8 +175,9 @@ Future work must preserve:
 - **PR 8:** move sensitive mobile credentials/session material to secure storage.
 - **PR 9:** add backend account principal foundation and owner-resolution abstraction.
 - **PR 10:** add principal-derived owner-scope routing in sync internals while preserving guest/device `/sync` behavior; defer external account-authenticated `/sync` enablement if auth composition is not yet clean.
-- **PR 11:** implement idempotent guest-to-account migration/link flow.
-- **PR 12:** add MVP logout/reset and account-switch UX/policy enforcement on mobile.
+- **PR 11:** implement explicit sync transport seam for account-authenticated `/sync` (no fake device IDs), while keeping guest/device sync stable.
+- **PR 12+:** implement idempotent guest-to-account migration/link flow.
+- **PR 13+:** add MVP logout/reset and account-switch UX/policy enforcement on mobile.
 
 ### PR 9 implementation note (foundation only)
 

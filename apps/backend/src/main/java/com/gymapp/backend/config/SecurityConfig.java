@@ -13,17 +13,20 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
-import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.BadJwtException;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.core.convert.converter.Converter;
 import org.springframework.util.StringUtils;
 
 @Configuration
@@ -33,6 +36,7 @@ public class SecurityConfig {
     private final DeviceTokenRepository deviceTokenRepository;
     private final RateLimitFilter rateLimitFilter;
     private final ObjectMapper objectMapper;
+    private final PrincipalMapper principalMapper;
 
     @Bean
     @Order(1)
@@ -45,7 +49,7 @@ public class SecurityConfig {
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2
-                        .jwt(Customizer.withDefaults())
+                        .jwt(jwt -> jwt.jwtAuthenticationConverter(accountJwtAuthenticationConverter()))
                         .authenticationEntryPoint((req, res, e) -> writeUnauthorized(res, e))
                         .accessDeniedHandler((req, res, e) -> writeError(res, HttpStatus.FORBIDDEN,
                                 "AUTH_FORBIDDEN", "Forbidden")))
@@ -70,10 +74,16 @@ public class SecurityConfig {
                 .formLogin(AbstractHttpConfigurer::disable)
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/sync", "/claim/start").hasRole("DEVICE")
+                        .requestMatchers("/sync").hasAnyRole("DEVICE", "ACCOUNT")
+                        .requestMatchers("/claim/start").hasRole("DEVICE")
                         .anyRequest().denyAll())
                 .addFilterBefore(bearerFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(rateLimitFilter, BearerDeviceAuthFilter.class)
+                .oauth2ResourceServer(oauth2 -> oauth2
+                        .jwt(jwt -> jwt.jwtAuthenticationConverter(accountJwtAuthenticationConverter()))
+                        .authenticationEntryPoint((req, res, e) -> writeUnauthorized(res, e))
+                        .accessDeniedHandler((req, res, e) -> writeError(res, HttpStatus.FORBIDDEN,
+                                "AUTH_FORBIDDEN", "Forbidden")))
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint((req, res, e) -> writeError(res,
                                 HttpStatus.UNAUTHORIZED, "AUTH_UNAUTHORIZED", "Unauthorized"))
@@ -136,6 +146,20 @@ public class SecurityConfig {
 
         return token -> {
             throw new BadJwtException("Invalid token");
+        };
+    }
+
+    private Converter<org.springframework.security.oauth2.jwt.Jwt, JwtAuthenticationToken> accountJwtAuthenticationConverter() {
+        return jwt -> {
+            AccountPrincipal accountPrincipal = principalMapper.toAccountPrincipal(jwt);
+            GrantedAuthority authority = new SimpleGrantedAuthority("ROLE_ACCOUNT");
+            return new JwtAuthenticationToken(jwt, java.util.List.of(authority),
+                    accountPrincipal.getExternalAccountId()) {
+                @Override
+                public Object getPrincipal() {
+                    return accountPrincipal;
+                }
+            };
         };
     }
 

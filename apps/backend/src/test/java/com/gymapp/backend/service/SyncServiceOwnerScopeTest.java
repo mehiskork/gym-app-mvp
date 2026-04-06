@@ -98,12 +98,29 @@ class SyncServiceOwnerScopeTest {
         }
 
         @Test
-        void syncRequiresRealDeviceContextForTransportLedger() {
+        void accountOwnerScopeAllowsMissingDeviceTransportContext() {
+                SyncService syncService = new SyncService(syncRepository);
+
+                when(syncRepository.fetchDeltasForOwner(eq("issuer.example|acct-9"), eq(0L), eq(1001), any()))
+                                .thenReturn(List.of());
+
+                SyncResponse response = syncService.sync(
+                                null,
+                                OwnerScope.account("issuer.example|acct-9"),
+                                "0",
+                                List.of());
+
+                assertThat(response.getAcks()).isEmpty();
+                assertThat(response.getDeltas()).isEmpty();
+        }
+
+        @Test
+        void guestOwnerScopeStillRequiresDeviceTransportContext() {
                 SyncService syncService = new SyncService(syncRepository);
 
                 assertThatThrownBy(() -> syncService.sync(
                                 null,
-                                OwnerScope.account("issuer.example|acct-9"),
+                                OwnerScope.guest("guest-9"),
                                 "0",
                                 List.of()))
                                 .isInstanceOf(ValidationException.class)

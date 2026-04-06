@@ -2,14 +2,18 @@ package com.gymapp.backend.controller;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.gymapp.backend.config.AccountPrincipal;
 import com.gymapp.backend.model.SyncResponse;
+import com.gymapp.backend.security.OwnerScope;
 import com.gymapp.backend.service.SyncService;
 import java.time.Instant;
 import java.time.OffsetDateTime;
@@ -24,6 +28,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -78,10 +84,17 @@ class AccountAuthIntegrationTest {
 
         @Test
         void meReturnsAccountPrincipalForValidJwt() throws Exception {
+                AccountPrincipal principal = AccountPrincipal.builder()
+                                .principalType("account")
+                                .issuer("https://issuer.example.test")
+                                .subject("acct-user-123")
+                                .externalAccountId("https://issuer.example.test|acct-user-123")
+                                .build();
                 mockMvc.perform(get("/me")
-                                .with(jwt().jwt(jwt -> jwt
-                                                .subject("acct-user-123")
-                                                .issuer("https://issuer.example.test"))))
+                                .with(authentication(new UsernamePasswordAuthenticationToken(
+                                                principal,
+                                                null,
+                                                List.of(new SimpleGrantedAuthority("ROLE_ACCOUNT"))))))
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$.principalType").value("account"))
                                 .andExpect(jsonPath("$.issuer").value("https://issuer.example.test"))
@@ -131,13 +144,20 @@ class AccountAuthIntegrationTest {
         }
 
         @Test
-        void syncRejectsAccountJwtBearerToken() throws Exception {
+        void syncAcceptsAccountPrincipalAuthForSync() throws Exception {
                 mockMvc.perform(post("/sync")
+                                .with(jwt().jwt(jwt -> jwt
+                                                .subject("acct-sync-123")
+                                                .issuer("https://issuer.example.test")))
                                 .contentType(MediaType.APPLICATION_JSON)
-                                .header("Authorization", "Bearer account-jwt-not-a-device-token")
                                 .content("{\"cursor\":null,\"ops\":[]}"))
-                                .andExpect(status().isUnauthorized())
-                                .andExpect(jsonPath("$.code").value("AUTH_INVALID_TOKEN"));
+                                .andExpect(status().isOk());
+
+                verify(syncService).sync(
+                                eq(null),
+                                eq(OwnerScope.account("https://issuer.example.test|acct-sync-123")),
+                                eq(null),
+                                any());
         }
 
         private void insertDevice(String deviceId, String guestUserId) {

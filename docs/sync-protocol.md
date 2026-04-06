@@ -130,9 +130,12 @@ are committed together in one transaction.
 
 `POST /sync`
 
-Requires Bearer device-token authentication for the currently exposed API path.
+Requires Bearer authentication with one of:
 
-Implementation note (PR 10): backend sync internals now resolve owner scope from authenticated principal type (`guest` vs `account`) through `OwnerScope`/`PrincipalOwnerResolver`, while `/sync` remains externally device-token authenticated until account `/sync` auth composition is enabled in a follow-up PR.
+- device token (guest/device transport path)
+- account JWT (account-principal transport path)
+
+Implementation note (PR 11): backend sync ownership is resolved from authenticated principal type (`guest` vs `account`) through `OwnerScope`/`PrincipalOwnerResolver`. Account-authenticated sync writes persist explicit no-device transport context by storing `op_ledger.device_id = NULL` instead of synthesizing fake IDs.
 
 ### Request shape
 
