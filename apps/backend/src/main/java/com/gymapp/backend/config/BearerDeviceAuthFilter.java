@@ -15,6 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -84,8 +85,14 @@ public class BearerDeviceAuthFilter extends OncePerRequestFilter {
         if (!"/sync".equals(request.getRequestURI())) {
             return false;
         }
+
         Authentication existingAuthentication = SecurityContextHolder.getContext().getAuthentication();
-        return existingAuthentication != null && existingAuthentication.isAuthenticated();
+        Object principal = existingAuthentication != null ? existingAuthentication.getPrincipal() : null;
+
+        return existingAuthentication != null
+                && existingAuthentication.isAuthenticated()
+                && !(existingAuthentication instanceof AnonymousAuthenticationToken)
+                && principal instanceof AccountPrincipal;
     }
 
     private DeviceTokenRepository.DeviceTokenLookupResult resolveLookup(HttpServletRequest request, String token) {
