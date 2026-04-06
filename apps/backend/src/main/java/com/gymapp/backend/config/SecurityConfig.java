@@ -24,6 +24,7 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.BadJwtException;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.core.convert.converter.Converter;
@@ -77,7 +78,7 @@ public class SecurityConfig {
                         .requestMatchers("/sync").hasAnyRole("DEVICE", "ACCOUNT")
                         .requestMatchers("/claim/start").hasRole("DEVICE")
                         .anyRequest().denyAll())
-                .addFilterBefore(bearerFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(bearerFilter, BearerTokenAuthenticationFilter.class)
                 .addFilterBefore(rateLimitFilter, BearerDeviceAuthFilter.class)
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .jwt(jwt -> jwt.jwtAuthenticationConverter(accountJwtAuthenticationConverter()))
