@@ -174,7 +174,7 @@ Future work must preserve:
 - **PR 7:** decide auth approach and prove backend/mobile principal flow in a narrow spike; introduce owner-scope vocabulary where needed.
 - **PR 8:** move sensitive mobile credentials/session material to secure storage.
 - **PR 9:** add backend account principal foundation and owner-resolution abstraction.
-- **PR 10:** add account-scoped sync path while preserving guest path.
+- **PR 10:** add principal-derived owner-scope routing in sync internals while preserving guest/device `/sync` behavior; defer external account-authenticated `/sync` enablement if auth composition is not yet clean.
 - **PR 11:** implement idempotent guest-to-account migration/link flow.
 - **PR 12:** add MVP logout/reset and account-switch UX/policy enforcement on mobile.
 
@@ -217,3 +217,13 @@ No `/sync` protocol changes are part of PR 9, and no account-scoped `/sync` beha
 3. Whether guest-to-account migration should always auto-merge or require explicit confirmation in edge cases.
 4. Long-term policy for optional multi-account support on one device after MVP.
 5. Exact observability needed to detect migration failures and ownership mismatches.
+
+### PR 10 implementation note (safe foundation)
+
+PR 10 keeps the externally exposed `/sync` authentication path device-token based while moving sync entry/service logic to resolve ownership via backend principal-to-owner mapping seams.
+
+- `SyncController` resolves `OwnerScope` from principal type (`DevicePrincipal`/`AccountPrincipal`).
+- `SyncService` executes owner-scoped repository flows and keeps owner selection server-derived.
+- Client payload ownership fields (for example `userId`) remain non-authoritative.
+- No guest->account migration is implemented in this PR.
+- No sync protocol shape change is implemented in this PR.

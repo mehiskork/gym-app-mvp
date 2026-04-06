@@ -130,7 +130,9 @@ are committed together in one transaction.
 
 `POST /sync`
 
-Requires Bearer device-token authentication.
+Requires Bearer device-token authentication for the currently exposed API path.
+
+Implementation note (PR 10): backend sync internals now resolve owner scope from authenticated principal type (`guest` vs `account`) through `OwnerScope`/`PrincipalOwnerResolver`, while `/sync` remains externally device-token authenticated until account `/sync` auth composition is enabled in a follow-up PR.
 
 ### Request shape
 
