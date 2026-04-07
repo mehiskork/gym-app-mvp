@@ -24,6 +24,8 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.BadJwtException;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
+import org.springframework.security.oauth2.server.resource.web.BearerTokenResolver;
+import org.springframework.security.oauth2.server.resource.web.DefaultBearerTokenResolver;
 import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
@@ -64,23 +66,48 @@ public class SecurityConfig {
 
     @Bean
     @Order(2)
-    public SecurityFilterChain deviceSecurityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain claimStartSecurityFilterChain(HttpSecurity http) throws Exception {
 
         var bearerFilter = new BearerDeviceAuthFilter(deviceTokenRepository, objectMapper);
 
         http
-                .securityMatcher("/sync", "/claim/start")
+                .securityMatcher("/claim/start")
+                .csrf(AbstractHttpConfigurer::disable)
+                .httpBasic(AbstractHttpConfigurer::disable)
+                .formLogin(AbstractHttpConfigurer::disable)
+                .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/claim/start").hasRole("DEVICE")
+                        .anyRequest().denyAll())
+                .addFilterBefore(bearerFilter, BearerTokenAuthenticationFilter.class)
+                .addFilterBefore(rateLimitFilter, BearerDeviceAuthFilter.class)
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint((req, res, e) -> writeError(res,
+                                HttpStatus.UNAUTHORIZED, "AUTH_UNAUTHORIZED", "Unauthorized"))
+                        .accessDeniedHandler((req, res, e) -> writeError(res, HttpStatus.FORBIDDEN,
+                                "AUTH_FORBIDDEN", "Forbidden")));
+
+        return http.build();
+    }
+
+    @Bean
+    @Order(3)
+    public SecurityFilterChain syncSecurityFilterChain(HttpSecurity http) throws Exception {
+        var bearerFilter = new BearerDeviceAuthFilter(deviceTokenRepository, objectMapper);
+
+        http
+                .securityMatcher("/sync")
                 .csrf(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .formLogin(AbstractHttpConfigurer::disable)
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/sync").hasAnyRole("DEVICE", "ACCOUNT")
-                        .requestMatchers("/claim/start").hasRole("DEVICE")
                         .anyRequest().denyAll())
                 .addFilterBefore(bearerFilter, BearerTokenAuthenticationFilter.class)
                 .addFilterBefore(rateLimitFilter, BearerDeviceAuthFilter.class)
                 .oauth2ResourceServer(oauth2 -> oauth2
+                        .bearerTokenResolver(jwtLikeBearerTokenResolver())
                         .jwt(jwt -> jwt.jwtAuthenticationConverter(accountJwtAuthenticationConverter()))
                         .authenticationEntryPoint((req, res, e) -> writeUnauthorized(res, e))
                         .accessDeniedHandler((req, res, e) -> writeError(res, HttpStatus.FORBIDDEN,
@@ -95,7 +122,7 @@ public class SecurityConfig {
     }
 
     @Bean
-    @Order(3)
+    @Order(4)
     public SecurityFilterChain fallbackSecurityFilterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
@@ -162,6 +189,29 @@ public class SecurityConfig {
                 }
             };
         };
+    }
+
+    private BearerTokenResolver jwtLikeBearerTokenResolver() {
+        DefaultBearerTokenResolver defaultResolver = new DefaultBearerTokenResolver();
+        return request -> {
+            String token = defaultResolver.resolve(request);
+            if (token == null) {
+                return null;
+            }
+            return isJwtLikeToken(token) ? token : null;
+        };
+    }
+
+    private boolean isJwtLikeToken(String token) {
+        int firstDot = token.indexOf('.');
+        if (firstDot <= 0) {
+            return false;
+        }
+        int secondDot = token.indexOf('.', firstDot + 1);
+        if (secondDot <= firstDot + 1 || secondDot == token.length() - 1) {
+            return false;
+        }
+        return token.indexOf('.', secondDot + 1) == -1;
     }
 
     private void writeUnauthorized(jakarta.servlet.http.HttpServletResponse response, AuthenticationException ex)
