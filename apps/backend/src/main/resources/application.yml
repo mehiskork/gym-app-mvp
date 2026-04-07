@@ -17,6 +17,8 @@ server:
 
 claim:
   codeTtlMinutes: 10
+  # Dev/test seam only: /claim/confirm accepts X-User-Id only when this is true
+  # and no prod-like profile (prod/production/staging) is active.
   devUserHeaderEnabled: false
 
 sync:
@@ -46,6 +48,7 @@ spring:
       on-profile: dev
 
 claim:
+  # Local development convenience only. Never enable this in production-like deployments.
   devUserHeaderEnabled: true
 ---
 spring:

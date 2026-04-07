@@ -1,22 +1,8 @@
 # Product Rules
 
-These rules describe current **user-facing behavior that must not change accidentally**.
+These rules describe current user-facing behavior that must not change accidentally.
 
-This document is about **product decisions**, not implementation internals, setup, or sync protocol details.
-
----
-
-## Scope
-
-A product rule in this project is a behavior that a future developer must preserve unless there is a deliberate decision to change it.
-
-This document does **not** cover:
-
-- local setup and run commands
-- sync protocol internals
-- conflict-resolution mechanics
-- claim-flow implementation details
-- low-level migration or schema issues
+This document focuses on product behavior invariants, not setup steps or low-level protocol internals.
 
 See also:
 
@@ -32,23 +18,13 @@ See also:
 
 A user must never have two active workout sessions at the same time.
 
-If the user tries to start a workout while another session is already in progress, the app must route them back to the existing in-progress session instead of creating a new one.
-
-Why this matters: workout state must stay singular and recoverable.
-
 ### Back-navigation during a workout returns Home
 
-During an active workout session, back-navigation must return the user to Home rather than popping back through the previous screen stack.
-
-This must not end the session.
-
-Why this matters: users should not accidentally lose the active-workout flow by navigating backward through entry screens.
+During an active workout session, back-navigation must return the user to Home without ending the session.
 
 ### Completed sessions are not editable
 
-Once a workout session is completed, it is treated as final from the user’s perspective.
-
-Why this matters: history should represent what was actually logged, not an editable draft.
+Completed workout sessions are final from the user perspective.
 
 ---
 
@@ -56,31 +32,19 @@ Why this matters: history should represent what was actually logged, not an edit
 
 ### Weight and reps select all text on focus
 
-When the user focuses either the weight field or the reps field, the current value must be selected so the next typed value replaces it.
-
-Why this matters: fast gym logging depends on overwrite-first editing rather than manual clearing.
+The current field value is selected on focus for overwrite-first logging.
 
 ### Inputs save on end-editing, not every keystroke
 
-Set edits are committed on end-editing events such as blur or submit, not on every character typed.
-
-Why this matters: the app is optimized for stable, deliberate set-entry behavior rather than keystroke-level persistence.
+Set edits persist on blur/submit-style end-editing events.
 
 ### Reps are integers; weight supports decimals
 
-Reps must be normalized to non-negative integers. Weight may be decimal and supports decimal parsing, including comma-style decimal input.
+Reps normalize to non-negative integers. Weight accepts decimal parsing (including comma decimal input).
 
-Why this matters: reps feed progression and PR logic and must remain structurally consistent.
+### Focused set row must remain visible above keyboard
 
-### Focused set row must remain visible above the keyboard
-
-When the keyboard opens during workout editing:
-
-- the active set row must remain visible
-- the screen must compensate for keyboard overlap
-- the sticky **Finish workout** CTA must hide while the keyboard is open
-
-Why this matters: set logging must stay usable on a phone during real workouts.
+During workout logging, keyboard overlap handling must keep the active row visible and hide the sticky finish CTA while keyboard is open.
 
 ---
 
@@ -88,105 +52,44 @@ Why this matters: set logging must stay usable on a phone during real workouts.
 
 ### Swap is session-only
 
-A swap changes the current workout session only.
+Swap mutates session rows only and must not mutate plan tables (`program*`, `planned_set`).
 
-A swap must **not** modify any plan tables such as:
+### Swap branches on completed-set count
 
-- `program`
-- `program_week`
-- `program_day`
-- `program_day_exercise`
-- `planned_set`
-
-The swapped exercise remains part of that session’s recorded history, but it must not rewrite the plan for future sessions.
-
-Why this matters: plans stay stable; session execution stays flexible.
-
-### Swap has two branches based on completed sets
-
-The branch condition is **completed sets**, not total sets.
-
-#### If completed set count is 0
-
-The exercise is replaced **in place**.
-
-- same slot
-- same position
-- no extra row inserted
-
-#### If completed set count is 1 or more
-
-The original exercise remains, and the replacement is inserted **immediately after it**.
-
-- completed work stays visible
-- the replacement becomes a new row
-- the inserted row starts with one default empty set
-
-Why this matters: logged work must never disappear just because the user changed direction mid-session.
+- If completed-set count is `0`: replace in place.
+- If completed-set count is `>= 1`: keep original row and insert replacement immediately after it with one default empty set.
 
 ### Swap must not affect future prefills
 
-Swapped-in exercises must not become the future prefill source for the original planned slot.
-
-Why this matters: session flexibility must not pollute long-term plan-based progression.
+Swapped-in exercises must not become prefill history for the original planned slot.
 
 ### No “Alternative for X” labeling
 
-The UI must not add labels such as “Alternative for X” to swapped exercises.
-
-Why this matters: the session UI should stay clean and direct.
+The UI should not add “Alternative for X” labels for swapped exercises.
 
 ---
 
 ## Next-session prefill
 
-### Prefill is plan-slot based, not visual-position based
+### Prefill is plan-slot based
 
-When a new session is created from a plan day, each planned slot is prefilled using the most recent completed history for that same planned slot.
-
-The matching rule is based on the planned slot identity, not the visible row order alone.
-
-Why this matters: reordering or swapping should not corrupt progression history.
+Prefill lookup is based on planned slot identity, not visual row position.
 
 ### Prefill uses completed sets only
 
-Only completed sets may be used as the source for future prefills.
+Only completed sets can seed future prefill values.
 
-Why this matters: unfinished attempts should not become progression history.
+### Set-count carryover rule
 
-### Swapped exercises do not pollute original slot history
+New session set count is `max(plan set count, historical completed set count)`.
 
-Swapped-in exercises must not be used as prefill history for the original planned slot in future sessions.
+### Remaining sets use plan defaults
 
-Why this matters: the plan should remember the intended lift history for that slot, not an ad hoc substitute.
+When historical completed sets are fewer than target set count, unmatched sets use current plan defaults.
 
-### Set-count carryover uses the larger of plan count and completed history count
+### Plan tables remain unchanged during prefill
 
-New session set count must be:
-
-`max(plan set count, historical completed set count)`
-
-That means:
-
-- doing **more** completed sets than planned can increase the next session’s set count
-- doing **fewer** sets than planned must **not** shrink the next session’s set count
-
-Why this matters: progression can grow from real performance, but temporary under-completion must not erase the plan.
-
-### Remaining sets fall back to plan defaults
-
-If history has fewer completed sets than the current target set count:
-
-- matching earlier sets are prefilled from history
-- remaining sets use current plan defaults
-
-Why this matters: history augments the plan; it does not replace the plan entirely.
-
-### Plan tables must remain unchanged during prefill
-
-Prefill must only affect generated session rows. It must not mutate plan data.
-
-Why this matters: the plan is read-only during session generation.
+Prefill only affects generated session rows.
 
 ---
 
@@ -194,53 +97,35 @@ Why this matters: the plan is read-only during session generation.
 
 ### History list shows completed sessions only
 
-History must show completed sessions, not in-progress or discarded ones.
-
-Why this matters: history is a record of finished training, not drafts.
+History excludes in-progress/discarded sessions.
 
 ### History detail shows performed exercises only
 
-In session history detail, exercises with no logged sets must not appear.
+History detail hides exercises with zero logged sets.
 
-History is intended to show what the user actually did, not everything they originally planned.
+### “Delete all history” disabled when empty
 
-Why this matters: history should reflect performed work, not intent.
-
-### “Delete all history” is disabled when there is nothing to delete
-
-Bulk delete controls must not appear active when there are no completed sessions.
-
-Why this matters: destructive actions should only be available when meaningful.
+Bulk-delete should not be active when there are no completed sessions.
 
 ---
 
 ## Personal records (PRs)
 
-### PRs are detected at session completion
+### PR detection runs at session completion
 
-PR detection runs when a session is completed.
+PR detection occurs when a session is completed.
 
-Why this matters: PRs should be derived from finalized work, not live draft state.
+### PRs use completed, non-zero sets only
 
-### PRs use completed sets only
-
-Only completed sets are eligible for PR calculation.
-
-In addition, sets with zero weight or zero reps must not qualify as PR candidates.
-
-Why this matters: PRs should reflect real performance, not placeholders or warm-up artifacts with zero values.
+Only completed sets with non-zero weight and reps are PR-eligible.
 
 ### PR visibility is conditional
 
-PR badges or PR sections should only appear when there are actual PR events for that session.
-
-Why this matters: the UI should celebrate real achievements without adding empty decoration.
+PR UI appears only when actual PR events exist for the session.
 
 ### PR badge is always gold
 
-The PR badge must remain gold and must not adopt the user’s selected primary theme color.
-
-Why this matters: PRs are a special visual category and should remain visually consistent across themes.
+PR badge color remains gold and does not follow user-selected primary theme color.
 
 ---
 
@@ -248,60 +133,35 @@ Why this matters: PRs are a special visual category and should remain visually c
 
 ### Primary theme color is user-selectable and persisted
 
-The user can select a primary color, and that choice must persist.
-
-Why this matters: personalization is part of the app’s UI identity.
+The user-selected primary color persists.
 
 ### Invalid theme keys fall back safely
 
-If the stored primary-color key is invalid or unknown, the app must fall back to the default theme color.
+Unknown/invalid keys fall back to default (`orange`).
 
-Current default: `orange`.
+### Primary color affects accents, not semantic colors
+
+Primary color can style accents (buttons/chips/active tab/CTA accents), while semantic colors remain stable:
+
+- PR badge stays gold
+- destructive stays red
+- success/completion stays green
+
+---
 
 ## Account logout, reset, and account switching
 
 ### Logout is destructive for local synced identity state
 
-When a linked user logs out on a device, the app must:
+Logout clears sensitive auth/session material, clears local synced user-scoped SQLite state, and returns device to guest/bootstrap-ready mode.
 
-- clear sensitive auth/session material from secure storage
-- clear local user-scoped synced SQLite state
-- return to guest/bootstrap-ready mode on that same device
+### Switching accounts requires explicit reset
 
-Why this matters: prevents stale session reuse and cross-account data leakage on shared devices.
-
-### Switching to a different account requires an explicit clear/reset
-
-On one device, switching from one linked account to another must not reuse the previous account’s local synced state.
-
-In MVP behavior, the app requires an explicit destructive switch flow that resets local synced/auth state before starting the next account link flow.
-
-Why this matters: avoids hidden cross-account contamination without adding multi-account local storage.
+Switching from one linked account to another on one device requires explicit destructive reset first.
 
 ### Same-user re-link is non-destructive while already linked
 
-If the app is already linked for the same user identity, do not silently trigger destructive reset behavior.
-
-Why this matters: preserves predictable behavior and avoids unnecessary data loss.
-
-Why this matters: corrupted or outdated settings must not break the UI.
-
-### Primary color affects accent surfaces, not every semantic color
-
-The selected primary color should drive accent surfaces such as:
-
-- primary buttons
-- chip/badge accents
-- active tab/icon styling
-- CTA card accents
-
-But semantic colors must remain semantically stable:
-
-- PR badge stays gold
-- destructive elements stay red
-- success/completion states stay green
-
-Why this matters: personalization must not weaken meaning.
+If already linked to the same user identity, do not silently trigger destructive reset.
 
 ---
 
@@ -309,55 +169,8 @@ Why this matters: personalization must not weaken meaning.
 
 ### Destructive deletes require explicit confirmation
 
-Deleting plans, plan exercises, history entries, or similar destructive items must use the custom dark destructive confirmation dialog.
+Deleting plans/history and similar destructive actions must use the app’s destructive confirmation dialog pattern.
 
-Native system delete confirms must not be the default pattern for these flows.
+### Active-workout set deletion is exception
 
-Why this matters: destructive actions should feel consistent with the app and hard to trigger accidentally.
-
-### Active-workout set deletion is an exception
-
-Deleting a set during an active workout is immediate, but undoable via snackbar.
-
-Why this matters: in-session logging needs to stay fast, while still giving the user a recovery path.
-
----
-
-## Fragile rules to protect carefully
-
-These are especially easy for future refactors to break accidentally.
-
-### Swap branch condition is completed-set count, not total set count
-
-A row can have sets and still be eligible for in-place replacement if none of them are completed.
-
-### Prefill depends on planned-slot identity
-
-Any change that matches prefill only by exercise identity or visible position risks reintroducing swap pollution.
-
-### History is performed-only
-
-Showing all planned exercises in history would be a behavior change, not a harmless UI tweak.
-
-### PR badge must stay independent from theme accent color
-
-A theme refactor that routes it through the general primary-color system would break this rule.
-
-### Plan tables are read-only during session behavior
-
-Future features must not “helpfully” write workout behavior back into the underlying plan unless that decision is explicitly revisited.
-
----
-
-## What belongs elsewhere
-
-Keep the following out of this document:
-
-- sync conflict-resolution details
-- `/sync` request/response mechanics
-- claim-flow backend mechanics
-- auth/token implementation details
-- migration bugs or schema-repair notes
-- local environment and build instructions
-
-Those belong in architecture, setup, or sync-specific documentation.
+Deleting a set during an active workout is immediate but undoable via snackbar.

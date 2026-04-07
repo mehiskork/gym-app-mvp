@@ -251,9 +251,20 @@ backend:
     ...
 ```
 
-With the `dev` profile active, `/claim/confirm` accepts an `X-User-Id: <uuid>` header as the acting user identity. This is also what the integration tests use.
+With the `dev` profile active, `/claim/confirm` accepts an `X-User-Id: <uuid>` header as the acting user identity. This is a dev/test-only seam and is also what integration tests use. Do not enable this path in production-like environments.
 
 ---
+
+
+## Deployment/readiness checklist (quick)
+
+Before public or production-like deployment, verify:
+
+1. `claim.devUserHeaderEnabled=false` in runtime config (dev header seam disabled).
+2. JWT resource server config is set (`issuer-uri` or `jwk-set-uri`) for account endpoints.
+3. `/sync` auth path is validated for both account-JWT and device-token recovery behavior.
+4. Support/debug runbook is known to operators (Debug screen unlock, support bundle export).
+5. `mvn verify` and mobile test/typecheck/lint are green on the release candidate.
 
 ## Troubleshooting
 
