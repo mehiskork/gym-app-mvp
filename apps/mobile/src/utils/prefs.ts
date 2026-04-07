@@ -17,3 +17,7 @@ export async function getString(key: string): Promise<string | null> {
 export async function setString(key: string, value: string): Promise<void> {
   await AsyncStorage.setItem(key, value);
 }
+
+export async function removeString(key: string): Promise<void> {
+  await AsyncStorage.removeItem(key);
+}

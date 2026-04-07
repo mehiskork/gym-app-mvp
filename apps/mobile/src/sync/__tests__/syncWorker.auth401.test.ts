@@ -2,8 +2,10 @@ import { syncNow } from '../syncWorker';
 import { claimOutboxOps, markOutboxOpsFailed, repairStaleInFlightOps } from '../../db/outboxRepo';
 import { finishSyncRun } from '../../db/syncRunRepo';
 import { deviceCredentialStore } from '../../auth/deviceCredentialStore';
+import { accountSessionStore } from '../../auth/accountSessionStore';
 
 let mockToken: string | null = 'device-token';
+let mockAccountAccessToken: string | null = null;
 
 jest.mock('../../api/config', () => ({
   getApiBaseUrl: jest.fn(() => 'https://example.test'),
@@ -27,6 +29,15 @@ jest.mock('../../auth/deviceCredentialStore', () => ({
     }),
   },
 }));
+
+jest.mock('../../auth/accountSessionStore', () => ({
+  accountSessionStore: {
+    get: jest.fn(async () =>
+      mockAccountAccessToken ? { accessToken: mockAccountAccessToken } : null,
+    ),
+  },
+}));
+
 
 jest.mock('../../db/outboxRepo', () => ({
   claimOutboxOps: jest.fn(),
@@ -61,6 +72,7 @@ jest.mock('../applyDeltas', () => ({
 describe('syncNow 401 self-heal', () => {
   beforeEach(() => {
     mockToken = 'device-token';
+    mockAccountAccessToken = null;
     process.env.EXPO_PUBLIC_API_BASE_URL = 'https://example.test';
     (claimOutboxOps as jest.Mock).mockReturnValue([
       {
@@ -98,7 +110,53 @@ describe('syncNow 401 self-heal', () => {
       expect.objectContaining({
         status: 'failed',
         httpStatus: 401,
-        errorCode: 'auth_401_cleared',
+        errorCode: 'auth_401_device_token_cleared',
+      }),
+    );
+  });
+
+  it('does not clear device token when /sync 401 came from account JWT auth', async () => {
+    mockAccountAccessToken = 'account-jwt-token';
+    global.fetch = jest.fn().mockResolvedValueOnce({
+      ok: false,
+      status: 401,
+      json: async () => ({ code: 'AUTH_UNAUTHORIZED' }),
+    }) as unknown as typeof fetch;
+
+    await syncNow();
+
+    expect(accountSessionStore.get).toHaveBeenCalledTimes(1);
+    expect(deviceCredentialStore.setDeviceToken).not.toHaveBeenCalled();
+    expect(markOutboxOpsFailed).not.toHaveBeenCalled();
+    expect(finishSyncRun).toHaveBeenCalledWith(
+      'run-1',
+      expect.objectContaining({
+        status: 'failed',
+        httpStatus: 401,
+        errorCode: 'auth_401_account_session',
+      }),
+    );
+    expect((global.fetch as jest.Mock).mock.calls[0]?.[1]).toEqual(
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer account-jwt-token' }),
+      }),
+    );
+  });
+
+  it('prefers account JWT over device token for /sync when account session exists', async () => {
+    mockAccountAccessToken = 'account-jwt-token';
+    global.fetch = jest.fn().mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ acks: [], deltas: [], cursor: '1', hasMore: false }),
+    }) as unknown as typeof fetch;
+
+    await syncNow();
+
+    expect((global.fetch as jest.Mock).mock.calls[0]?.[0]).toBe('https://example.test/sync');
+    expect((global.fetch as jest.Mock).mock.calls[0]?.[1]).toEqual(
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer account-jwt-token' }),
       }),
     );
   });

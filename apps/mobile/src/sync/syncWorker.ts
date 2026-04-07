@@ -1,11 +1,11 @@
 import {
-  getEffectiveUserId,
   getOrCreateDeviceId,
   isSyncPaused,
   setLastSyncAckSummary,
   setGuestUserId,
 } from '../db/appMetaRepo';
 import { deviceCredentialStore } from '../auth/deviceCredentialStore';
+import { accountSessionStore } from '../auth/accountSessionStore';
 import {
   claimOutboxOps,
   markOutboxOpsAcked,
@@ -97,6 +97,24 @@ type SyncNowOptions = {
   continuationDepth?: number;
 };
 
+type SyncAuthContext =
+  | { token: string; authType: 'account_jwt' }
+  | { token: string; authType: 'device_token' };
+
+async function resolveSyncAuthContext(): Promise<SyncAuthContext | null> {
+  const accountSession = await accountSessionStore.get();
+  if (accountSession?.accessToken) {
+    return { token: accountSession.accessToken, authType: 'account_jwt' };
+  }
+
+  const deviceToken = await deviceCredentialStore.getDeviceToken();
+  if (!deviceToken) {
+    return null;
+  }
+
+  return { token: deviceToken, authType: 'device_token' };
+}
+
 export async function syncNow(): Promise<void>;
 export async function syncNow(options?: SyncNowOptions): Promise<void>;
 export async function syncNow(options: SyncNowOptions = {}): Promise<void> {
@@ -166,15 +184,15 @@ async function runSyncPage(options: SyncNowOptions): Promise<boolean> {
     }
   }
 
-  const token = await deviceCredentialStore.getDeviceToken();
-  if (!token) {
+  let authContext = await resolveSyncAuthContext();
+  if (!authContext) {
     await registerDeviceIfNeeded();
-    if (!(await deviceCredentialStore.getDeviceToken())) {
+    authContext = await resolveSyncAuthContext();
+    if (!authContext) {
       updateSyncState({ last_error: 'Device not registered (missing token).' });
       return false;
     }
 
-    return runSyncPage(options);
   }
 
   repairStaleInFlightOps(OUTBOX_STALE_IN_FLIGHT_SECONDS);
@@ -198,14 +216,12 @@ async function runSyncPage(options: SyncNowOptions): Promise<boolean> {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
+        Authorization: `Bearer ${authContext.token}`,
       },
       body: JSON.stringify({
         cursor,
         ops: ops.map((op) => ({
           opId: op.op_id,
-          deviceId: op.device_id,
-          userId: op.user_id ?? getEffectiveUserId(),
           entityType: op.entity_type,
           entityId: op.entity_id,
           opType: op.op_type,
@@ -293,9 +309,12 @@ async function runSyncPage(options: SyncNowOptions): Promise<boolean> {
     hasMore = data.hasMore === true;
   } catch (err) {
     if (httpStatus === 401) {
-      errorCode = 'auth_401_cleared';
+      errorCode =
+        authContext.authType === 'device_token' ? 'auth_401_device_token_cleared' : 'auth_401_account_session';
       errorMessage = err instanceof Error ? err.message : 'Unauthorized';
-      await deviceCredentialStore.setDeviceToken(null);
+      if (authContext.authType === 'device_token') {
+        await deviceCredentialStore.setDeviceToken(null);
+      }
       inTransaction(() => {
         updateSyncState({
           last_error: errorCode,

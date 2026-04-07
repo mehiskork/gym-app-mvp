@@ -157,7 +157,7 @@ Conceptually:
 }
 ```
 
-The mobile client currently also includes additional per-op fields such as `deviceId` and `userId`, but backend authorization and ownership checks are not driven by those fields.
+Ownership and authorization are derived from the authenticated principal (device token vs account JWT), not from client-supplied op fields.
 
 ### Response shape
 
@@ -243,7 +243,10 @@ Current behavior, in order:
 3. If one is already running, the caller receives the same in-flight Promise.
 4. If sync is paused, the call exits without network I/O.
 5. If backoff is active and the call is not forced, the call exits early.
-6. If there is no device token, the client registers the device first.
+6. The client resolves `/sync` auth in this order:
+   - account JWT (if an account session token exists)
+   - device token (fallback guest/device path)
+   - device registration (only when no other token exists)
 7. The client repairs stale `in_flight` outbox rows.
 8. The client claims a batch of retryable outbox ops and marks them `in_flight`.
 9. The client reads the current cursor from local sync state.
@@ -255,9 +258,9 @@ Current behavior, in order:
     - update sync state
     - mark any sent-but-unacked ops as `failed`
 12. If the response is `401`:
-    - clear the local device token
+    - if auth used a **device token**, clear local device token and self-heal via re-registration on the next run
+    - if auth used an **account JWT**, do not clear device token
     - do not ack the sent ops
-    - allow re-registration on the next sync run
 13. If another error occurs:
     - mark sent ops `failed`
     - increment failure counters
@@ -284,7 +287,7 @@ This is intentional.
 
 ## Device registration and 401 self-heal
 
-The mobile app requires a device token for `/sync`.
+The mobile app requires either an account JWT or a device token for `/sync`.
 
 ### Missing-token path
 
@@ -297,7 +300,7 @@ If no token exists locally:
 
 ### `401` recovery path
 
-If `/sync` returns `401`:
+If `/sync` returns `401` while using a **device token**:
 
 1. client clears the stored token
 2. the current sync attempt stops
@@ -312,6 +315,8 @@ Important detail:
 
 - the 401 path does **not** immediately mark the sent ops as acked
 - stale `in_flight` repair on the next run is what makes those stuck ops retryable again
+
+If `/sync` returns `401` while using an **account JWT**, the app records an account-session auth failure and does not clear device credentials.
 
 ---
 

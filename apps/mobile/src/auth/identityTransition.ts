@@ -4,7 +4,10 @@ import { seedCuratedExercises } from '../db/curatedExerciseSeed';
 import { repairStaleInFlightOps } from '../db/outboxRepo';
 import { resumeSync, setClaimed, setClaimedUserId } from '../db/appMetaRepo';
 import { ensureRestTimerNotificationChannel } from '../utils/restTimerNotifications';
+import { removeString } from '../utils/prefs';
 import { clearSensitiveAuthStorage } from './resetSensitiveStorage';
+
+const CLAIM_DEV_USER_ID_KEY = 'claim_dev_user_id';
 
 /**
  * Conservative identity-transition reset.
@@ -13,6 +16,7 @@ import { clearSensitiveAuthStorage } from './resetSensitiveStorage';
  */
 export async function resetToGuestBootstrap(): Promise<void> {
     await clearSensitiveAuthStorage();
+    await removeString(CLAIM_DEV_USER_ID_KEY);
     resetLocalDatabase();
     runMigrations();
     seedCuratedExercises();

@@ -40,4 +40,32 @@ class PrincipalOwnerResolverTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Unsupported principal type");
     }
+
+    @Test
+    void rejectsBlankAccountOwnerId() {
+        AccountPrincipal principal = AccountPrincipal.builder()
+                .principalType("account")
+                .externalAccountId("  ")
+                .issuer("issuer-a")
+                .subject("sub-a")
+                .build();
+
+        assertThatThrownBy(() -> resolver.resolve(principal))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Invalid account ownerId");
+    }
+
+    @Test
+    void rejectsMalformedAccountOwnerId() {
+        AccountPrincipal principal = AccountPrincipal.builder()
+                .principalType("account")
+                .externalAccountId("subject-only")
+                .issuer("issuer-a")
+                .subject("sub-a")
+                .build();
+
+        assertThatThrownBy(() -> resolver.resolve(principal))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Invalid account ownerId");
+    }
 }

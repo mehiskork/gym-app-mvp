@@ -6,6 +6,7 @@ import { seedCuratedExercises } from '../../db/curatedExerciseSeed';
 import { repairStaleInFlightOps } from '../../db/outboxRepo';
 import { resumeSync, setClaimed, setClaimedUserId } from '../../db/appMetaRepo';
 import { ensureRestTimerNotificationChannel } from '../../utils/restTimerNotifications';
+import { removeString } from '../../utils/prefs';
 
 jest.mock('../resetSensitiveStorage', () => ({
     clearSensitiveAuthStorage: jest.fn(() => Promise.resolve()),
@@ -37,6 +38,11 @@ jest.mock('../../utils/restTimerNotifications', () => ({
     ensureRestTimerNotificationChannel: jest.fn(),
 }));
 
+jest.mock('../../utils/prefs', () => ({
+    removeString: jest.fn(() => Promise.resolve()),
+}));
+
+
 describe('resetToGuestBootstrap', () => {
     beforeEach(() => {
         jest.clearAllMocks();
@@ -44,6 +50,8 @@ describe('resetToGuestBootstrap', () => {
 
     it('clears sensitive session state and fully resets local bootstrap state', async () => {
         await resetToGuestBootstrap();
+
+        expect(removeString).toHaveBeenCalledWith('claim_dev_user_id');
 
         expect(clearSensitiveAuthStorage).toHaveBeenCalledTimes(1);
         expect(resetLocalDatabase).toHaveBeenCalledTimes(1);
