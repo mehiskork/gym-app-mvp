@@ -123,8 +123,9 @@ public class ClaimService {
             throw new ConflictCodeException("CLAIM_CONFLICT", "Guest user already claimed by another user");
         }
         if (auditState.completed()) {
-            log.info("guest->account migration already completed; guestUserId={} userId={} attemptCount={}",
-                    guestUserId, userId, auditState.attemptCount());
+            log.info(
+                    "guest->account migration already completed ownerScopeFrom=guest ownerScopeTo=account attemptCount={}",
+                    auditState.attemptCount());
             return;
         }
 
@@ -133,9 +134,7 @@ public class ClaimService {
                 userId);
         syncRepository.markGuestToAccountMigrationCompleted(guestUserId, userId, now, counts);
         log.info(
-                "guest->account migration completed; guestUserId={} userId={} entityStateRowsMoved={} changeLogRowsMoved={} opLedgerRowsMoved={} entityConflictsResolved={}",
-                guestUserId,
-                userId,
+                "guest->account migration completed ownerScopeFrom=guest ownerScopeTo=account entityStateRowsMoved={} changeLogRowsMoved={} opLedgerRowsMoved={} entityConflictsResolved={}",
                 counts.entityStateRowsMoved(),
                 counts.changeLogRowsMoved(),
                 counts.opLedgerRowsMoved(),

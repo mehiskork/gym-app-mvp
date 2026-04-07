@@ -26,67 +26,68 @@ import org.springframework.test.web.servlet.MvcResult;
 @AutoConfigureMockMvc
 class SyncControllerErrorTest {
 
-    @Autowired
-    private MockMvc mockMvc;
-    @Autowired
-    private ObjectMapper objectMapper;
+        @Autowired
+        private MockMvc mockMvc;
+        @Autowired
+        private ObjectMapper objectMapper;
 
-    @MockitoBean
-    private SyncService syncService;
-    @MockitoBean
-    private DeviceTokenRepository deviceTokenRepository;
+        @MockitoBean
+        private SyncService syncService;
+        @MockitoBean
+        private DeviceTokenRepository deviceTokenRepository;
 
-    @Test
-    void missingRequestIdHeaderGeneratesOneOnBadJson_whenAuthorized() throws Exception {
-        // Arrange: pass security so we can test JSON parsing behavior
-        when(deviceTokenRepository.findToken(any(), any()))
-                .thenReturn(DeviceTokenRepository.DeviceTokenLookupResult.valid("device-1", "guest-1"));
+        @Test
+        void missingRequestIdHeaderGeneratesOneOnBadJson_whenAuthorized() throws Exception {
+                // Arrange: pass security so we can test JSON parsing behavior
+                when(deviceTokenRepository.findToken(any(), any()))
+                                .thenReturn(DeviceTokenRepository.DeviceTokenLookupResult.valid("device-1", "guest-1"));
 
-        MvcResult result = mockMvc.perform(post("/sync")
-                .contentType(MediaType.APPLICATION_JSON)
-                .header("Authorization", "Bearer good-token")
-                .content("{bad"))
-                .andExpect(status().isBadRequest())
-                .andExpect(header().exists(RequestIdFilter.REQUEST_ID_HEADER))
-                .andExpect(jsonPath("$.code").value("BAD_REQUEST"))
-                .andReturn();
+                MvcResult result = mockMvc.perform(post("/sync")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .header("Authorization", "Bearer good-token")
+                                .content("{bad"))
+                                .andExpect(status().isBadRequest())
+                                .andExpect(header().exists(RequestIdFilter.REQUEST_ID_HEADER))
+                                .andExpect(jsonPath("$.code").value("BAD_REQUEST"))
+                                .andReturn();
 
-        String requestId = result.getResponse().getHeader(RequestIdFilter.REQUEST_ID_HEADER);
-        JsonNode body = objectMapper.readTree(result.getResponse().getContentAsString());
-        assertThat(body.get("requestId").asString()).isEqualTo(requestId);
-    }
+                String requestId = result.getResponse().getHeader(RequestIdFilter.REQUEST_ID_HEADER);
+                JsonNode body = objectMapper.readTree(result.getResponse().getContentAsString());
+                assertThat(body.get("requestId").asString()).isEqualTo(requestId);
+        }
 
-    @Test
-    void providedRequestIdIsEchoedOnUnauthorized_whenMissingBearer() throws Exception {
-        String requestId = "req-123";
+        @Test
+        void providedRequestIdIsEchoedOnUnauthorized_whenMissingBearer() throws Exception {
+                String requestId = "req-123";
 
-        MvcResult result = mockMvc.perform(post("/sync")
-                .contentType(MediaType.APPLICATION_JSON)
-                .header(RequestIdFilter.REQUEST_ID_HEADER, requestId)
-                .content("{\"cursor\":null,\"ops\":[]}"))
-                .andExpect(status().isUnauthorized())
-                .andExpect(header().string(RequestIdFilter.REQUEST_ID_HEADER, requestId))
-                .andExpect(jsonPath("$.code").value("AUTH_UNAUTHORIZED"))
-                .andReturn();
+                MvcResult result = mockMvc.perform(post("/sync")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .header(RequestIdFilter.REQUEST_ID_HEADER, requestId)
+                                .content("{\"cursor\":null,\"ops\":[]}"))
+                                .andExpect(status().isUnauthorized())
+                                .andExpect(header().string(RequestIdFilter.REQUEST_ID_HEADER, requestId))
+                                .andExpect(jsonPath("$.code").value("AUTH_UNAUTHORIZED"))
+                                .andReturn();
 
-        JsonNode body = objectMapper.readTree(result.getResponse().getContentAsString());
-        assertThat(body.get("requestId").asString()).isEqualTo(requestId);
-    }
+                JsonNode body = objectMapper.readTree(result.getResponse().getContentAsString());
+                assertThat(body.get("requestId").asString()).isEqualTo(requestId);
+        }
 
-    @Test
-    void invalidBearerReturnsUnauthorized_withStructuredError() throws Exception {
-        String requestId = "req-456";
-        when(deviceTokenRepository.findToken(any(), any()))
-                .thenReturn(DeviceTokenRepository.DeviceTokenLookupResult.notFound());
+        @Test
+        void invalidBearerReturnsUnauthorized_withStructuredError() throws Exception {
+                String requestId = "req-456";
+                when(deviceTokenRepository.findToken(any(), any()))
+                                .thenReturn(DeviceTokenRepository.DeviceTokenLookupResult.notFound());
 
-        mockMvc.perform(post("/sync")
-                .contentType(MediaType.APPLICATION_JSON)
-                .header(RequestIdFilter.REQUEST_ID_HEADER, requestId)
-                .header("Authorization", "Bearer bad-token")
-                .content("{\"cursor\":null,\"ops\":[]}"))
-                .andExpect(status().isUnauthorized())
-                .andExpect(header().string(RequestIdFilter.REQUEST_ID_HEADER, requestId))
-                .andExpect(jsonPath("$.code").value("AUTH_INVALID_TOKEN"))
-                .andExpect(jsonPath("$.requestId").value(requestId));
-    }
+                mockMvc.perform(post("/sync")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .header(RequestIdFilter.REQUEST_ID_HEADER, requestId)
+                                .header("Authorization", "Bearer bad-token")
+                                .content("{\"cursor\":null,\"ops\":[]}"))
+                                .andExpect(status().isUnauthorized())
+                                .andExpect(header().string(RequestIdFilter.REQUEST_ID_HEADER, requestId))
+                                .andExpect(jsonPath("$.code").value("AUTH_INVALID_TOKEN"))
+                                .andExpect(jsonPath("$.details.authMode").value("device_token"))
+                                .andExpect(jsonPath("$.requestId").value(requestId));
+        }
 }

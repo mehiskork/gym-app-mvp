@@ -4,6 +4,7 @@ import tools.jackson.databind.ObjectMapper;
 import com.gymapp.backend.model.ErrorResponse;
 import com.gymapp.backend.repository.DeviceTokenRepository;
 import java.io.IOException;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.MDC;
@@ -20,8 +21,8 @@ import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
-import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.BadJwtException;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.security.oauth2.server.resource.web.BearerTokenResolver;
@@ -58,11 +59,11 @@ public class SecurityConfig {
                         .jwt(jwt -> jwt.jwtAuthenticationConverter(accountJwtAuthenticationConverter))
                         .authenticationEntryPoint((req, res, e) -> writeUnauthorized(res, e))
                         .accessDeniedHandler((req, res, e) -> writeError(res, HttpStatus.FORBIDDEN,
-                                "AUTH_FORBIDDEN", "Forbidden")))
+                                "AUTH_FORBIDDEN", "Forbidden", null)))
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint((req, res, e) -> writeUnauthorized(res, e))
                         .accessDeniedHandler((req, res, e) -> writeError(res, HttpStatus.FORBIDDEN,
-                                "AUTH_FORBIDDEN", "Forbidden")));
+                                "AUTH_FORBIDDEN", "Forbidden", null)));
 
         return http.build();
     }
@@ -86,9 +87,9 @@ public class SecurityConfig {
                 .addFilterBefore(rateLimitFilter, BearerDeviceAuthFilter.class)
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint((req, res, e) -> writeError(res,
-                                HttpStatus.UNAUTHORIZED, "AUTH_UNAUTHORIZED", "Unauthorized"))
+                                HttpStatus.UNAUTHORIZED, "AUTH_UNAUTHORIZED", "Unauthorized", null))
                         .accessDeniedHandler((req, res, e) -> writeError(res, HttpStatus.FORBIDDEN,
-                                "AUTH_FORBIDDEN", "Forbidden")));
+                                "AUTH_FORBIDDEN", "Forbidden", null)));
 
         return http.build();
     }
@@ -117,12 +118,12 @@ public class SecurityConfig {
                         .jwt(jwt -> jwt.jwtAuthenticationConverter(accountJwtAuthenticationConverter))
                         .authenticationEntryPoint((req, res, e) -> writeUnauthorized(res, e))
                         .accessDeniedHandler((req, res, e) -> writeError(res, HttpStatus.FORBIDDEN,
-                                "AUTH_FORBIDDEN", "Forbidden")))
+                                "AUTH_FORBIDDEN", "Forbidden", null)))
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint((req, res, e) -> writeError(res,
-                                HttpStatus.UNAUTHORIZED, "AUTH_UNAUTHORIZED", "Unauthorized"))
+                                HttpStatus.UNAUTHORIZED, "AUTH_UNAUTHORIZED", "Unauthorized", null))
                         .accessDeniedHandler((req, res, e) -> writeError(res, HttpStatus.FORBIDDEN,
-                                "AUTH_FORBIDDEN", "Forbidden")));
+                                "AUTH_FORBIDDEN", "Forbidden", null)));
 
         return http.build();
     }
@@ -144,9 +145,9 @@ public class SecurityConfig {
                         .anyRequest().denyAll())
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint((req, res, e) -> writeError(res,
-                                HttpStatus.UNAUTHORIZED, "AUTH_UNAUTHORIZED", "Unauthorized"))
+                                HttpStatus.UNAUTHORIZED, "AUTH_UNAUTHORIZED", "Unauthorized", null))
                         .accessDeniedHandler((req, res, e) -> writeError(res, HttpStatus.FORBIDDEN,
-                                "AUTH_FORBIDDEN", "Forbidden")));
+                                "AUTH_FORBIDDEN", "Forbidden", null)));
 
         return http.build();
     }
@@ -224,17 +225,19 @@ public class SecurityConfig {
     private void writeUnauthorized(jakarta.servlet.http.HttpServletResponse response, AuthenticationException ex)
             throws IOException {
         if (ex instanceof OAuth2AuthenticationException oauth2Ex) {
-            writeError(response, HttpStatus.UNAUTHORIZED, "AUTH_UNAUTHORIZED", oauth2Ex.getError().getDescription());
+            writeError(response, HttpStatus.UNAUTHORIZED, "AUTH_UNAUTHORIZED", oauth2Ex.getError().getDescription(),
+                    Map.of("authMode", "account_jwt"));
             return;
         }
-        writeError(response, HttpStatus.UNAUTHORIZED, "AUTH_UNAUTHORIZED", "Unauthorized");
+        writeError(response, HttpStatus.UNAUTHORIZED, "AUTH_UNAUTHORIZED", "Unauthorized", null);
     }
 
     private void writeError(
             jakarta.servlet.http.HttpServletResponse response,
             HttpStatus status,
             String code,
-            String message) throws IOException {
+            String message,
+            Map<String, Object> details) throws IOException {
 
         String requestId = MDC.get("requestId");
         if (requestId == null || requestId.isBlank())
@@ -244,6 +247,6 @@ public class SecurityConfig {
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setHeader(RequestIdFilter.REQUEST_ID_HEADER, requestId);
 
-        objectMapper.writeValue(response.getWriter(), new ErrorResponse(code, message, requestId, null));
+        objectMapper.writeValue(response.getWriter(), new ErrorResponse(code, message, requestId, details));
     }
 }

@@ -10,6 +10,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
@@ -62,11 +63,14 @@ public class BearerDeviceAuthFilter extends OncePerRequestFilter {
 
         var lookup = resolveLookup(request, token);
         if (lookup.status() == DeviceTokenRepository.DeviceTokenStatus.NOT_FOUND) {
-
+            log.info("device auth rejected code=AUTH_INVALID_TOKEN authMode=device_token path={}",
+                    request.getRequestURI());
             writeUnauthorized(response, "AUTH_INVALID_TOKEN", "Invalid token");
             return;
         }
         if (lookup.status() == DeviceTokenRepository.DeviceTokenStatus.EXPIRED) {
+            log.info("device auth rejected code=AUTH_TOKEN_EXPIRED authMode=device_token path={}",
+                    request.getRequestURI());
             writeUnauthorized(response, "AUTH_TOKEN_EXPIRED", "Expired token");
             return;
         }
@@ -131,6 +135,8 @@ public class BearerDeviceAuthFilter extends OncePerRequestFilter {
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setHeader(RequestIdFilter.REQUEST_ID_HEADER, requestId);
 
-        objectMapper.writeValue(response.getWriter(), new ErrorResponse(code, message, requestId, null));
+        objectMapper.writeValue(response.getWriter(), new ErrorResponse(code, message, requestId,
+                Map.of(
+                        "authMode", "device_token")));
     }
 }
