@@ -43,7 +43,10 @@ public class SecurityConfig {
 
     @Bean
     @Order(1)
-    public SecurityFilterChain accountSecurityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain accountSecurityFilterChain(
+            HttpSecurity http,
+            Converter<org.springframework.security.oauth2.jwt.Jwt, JwtAuthenticationToken> accountJwtAuthenticationConverter)
+            throws Exception {
         http
                 .securityMatcher("/me")
                 .csrf(AbstractHttpConfigurer::disable)
@@ -52,7 +55,7 @@ public class SecurityConfig {
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2
-                        .jwt(jwt -> jwt.jwtAuthenticationConverter(accountJwtAuthenticationConverter()))
+                        .jwt(jwt -> jwt.jwtAuthenticationConverter(accountJwtAuthenticationConverter))
                         .authenticationEntryPoint((req, res, e) -> writeUnauthorized(res, e))
                         .accessDeniedHandler((req, res, e) -> writeError(res, HttpStatus.FORBIDDEN,
                                 "AUTH_FORBIDDEN", "Forbidden")))
@@ -92,7 +95,10 @@ public class SecurityConfig {
 
     @Bean
     @Order(3)
-    public SecurityFilterChain syncSecurityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain syncSecurityFilterChain(
+            HttpSecurity http,
+            Converter<org.springframework.security.oauth2.jwt.Jwt, JwtAuthenticationToken> accountJwtAuthenticationConverter)
+            throws Exception {
         var bearerFilter = new BearerDeviceAuthFilter(deviceTokenRepository, objectMapper);
 
         http
@@ -108,7 +114,7 @@ public class SecurityConfig {
                 .addFilterBefore(rateLimitFilter, BearerDeviceAuthFilter.class)
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .bearerTokenResolver(jwtLikeBearerTokenResolver())
-                        .jwt(jwt -> jwt.jwtAuthenticationConverter(accountJwtAuthenticationConverter()))
+                        .jwt(jwt -> jwt.jwtAuthenticationConverter(accountJwtAuthenticationConverter))
                         .authenticationEntryPoint((req, res, e) -> writeUnauthorized(res, e))
                         .accessDeniedHandler((req, res, e) -> writeError(res, HttpStatus.FORBIDDEN,
                                 "AUTH_FORBIDDEN", "Forbidden")))
@@ -177,7 +183,8 @@ public class SecurityConfig {
         };
     }
 
-    private Converter<org.springframework.security.oauth2.jwt.Jwt, JwtAuthenticationToken> accountJwtAuthenticationConverter() {
+    @Bean
+    public Converter<org.springframework.security.oauth2.jwt.Jwt, JwtAuthenticationToken> accountJwtAuthenticationConverter() {
         return jwt -> {
             AccountPrincipal accountPrincipal = principalMapper.toAccountPrincipal(jwt);
             GrantedAuthority authority = new SimpleGrantedAuthority("ROLE_ACCOUNT");
