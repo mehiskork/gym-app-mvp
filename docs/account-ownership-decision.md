@@ -7,9 +7,22 @@
 
 ---
 
+## Implementation status note
+
+This ADR is now largely implemented in the codebase and should be read as a decision record + guardrail reference, not a pending architecture proposal.
+
+Current implemented state aligns with this decision:
+
+- account identity is canonical after login
+- guest/device identity is bootstrap-only
+- `/sync` supports account JWT and device-token transport
+- guest-to-account migration and logout/reset safety policy exist
+
+---
+
 ## Context
 
-We are about to begin real account/auth work. Before implementing auth providers or account-scoped sync, we need to freeze the canonical ownership model so future work does not pull in conflicting directions.
+This document was created before account/auth rollout to freeze the canonical ownership model. It remains the source of truth for why current behavior is shaped this way.
 
 Current system behavior is intentionally local-first:
 

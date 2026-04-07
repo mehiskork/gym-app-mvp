@@ -135,7 +135,7 @@ Requires Bearer authentication with one of:
 - device token (guest/device transport path)
 - account JWT (account-principal transport path)
 
-Implementation note (PR 11): backend sync ownership is resolved from authenticated principal type (`guest` vs `account`) through `OwnerScope`/`PrincipalOwnerResolver`. Account-authenticated sync writes persist explicit no-device transport context by storing `op_ledger.device_id = NULL` instead of synthesizing fake IDs.
+Implementation note: backend sync ownership is resolved from authenticated principal type (`guest` vs `account`) through `OwnerScope`/`PrincipalOwnerResolver`. Account-authenticated sync writes persist explicit no-device transport context by storing `op_ledger.device_id = NULL` instead of synthesizing fake IDs.
 
 ### Request shape
 
@@ -260,7 +260,6 @@ Current behavior, in order:
 12. If the response is `401`:
     - if auth used a **device token**, clear local device token and self-heal via re-registration on the next run
     - if auth used an **account JWT**, mark the stored account session as invalidated (`sync_401`) and do not clear device token
-    - if auth used an **account JWT**, do not clear device token
     - do not ack the sent ops
 13. If another error occurs:
     - mark sent ops `failed`
@@ -684,3 +683,9 @@ See:
 - `docs/architecture.md`
 - `docs/product-rules.md`
 - `docs/conflicts.md`
+
+
+## Production intent vs dev seams
+
+- `/sync` dual auth transport (device token + account JWT) is production-intended.
+- `/claim/confirm` `X-User-Id` header flow is dev/test-only and not part of production account authentication.

@@ -4,7 +4,7 @@ This document describes the **current implementation architecture** of the Gym A
 
 It focuses on system shape, data flow, layering, and technical boundaries. It does **not** try to fully document setup, product rules, or the full sync wire protocol.
 
-For local setup, see [`docs/local-development.md`](./local-development.md). For conflict-resolution details, see [`docs/conflicts.md`](./conflicts.md).
+For local setup, see [`docs/local-development.md`](./local-development.md). For protocol details, see [`docs/sync-protocol.md`](./sync-protocol.md). For conflict-resolution details, see [`docs/conflicts.md`](./conflicts.md).
 
 ---
 
@@ -53,11 +53,11 @@ Local reads            Spring Boot backend
 The mobile app remains usable when the backend is unavailable. The backend exists for:
 
 - device registration
-- device-token auth
+- account + device principal auth boundaries
 - sync op ingestion
 - conflict resolution
 - delta delivery
-- claim/link flows
+- claim/link migration seams
 
 The backend is **not** modeled as a traditional domain database with `workout_sessions` and `workout_sets` tables. Instead, sync state is stored in generalized tables such as `entity_state`, `change_log`, and `op_ledger`.
 
@@ -325,7 +325,7 @@ Important architectural consequences:
 - there is a special guard for local in-progress session conflicts
 - deletes are soft when a table uses `deleted_at`, otherwise hard deletes are used
 
-For the exact conflict rules and wire semantics, see `docs/conflicts.md` and the future `docs/sync-protocol.md`.
+For the exact conflict rules and wire semantics, see `docs/conflicts.md` and `docs/sync-protocol.md`.
 
 ---
 
@@ -380,7 +380,7 @@ The client sends its last-known cursor. The backend returns later changes up to 
 
 The backend is stateless under Spring Security.
 
-The main authentication path for sync uses device-token bearer auth. Device registration issues the data needed for subsequent authenticated sync requests.
+`/sync` supports dual bearer-auth transport: account JWT and device token. Device registration issues the data needed for guest/device transport; account JWT verification is provided by the resource-server path.
 
 At a high level, the identity/auth pieces are:
 
@@ -435,8 +435,8 @@ There are three useful states to understand:
 2. **registered device**
    - backend has issued device auth data and a `guest_user_id`
    - sync is available
-3. **claimed identity**
-   - guest identity is linked to a real account identity on the backend
+3. **claimed / linked account identity**
+   - guest identity can be migrated and linked to account ownership on the backend
 
 This lifecycle is easy to misunderstand if you assume the device itself is the user namespace. It is not. The important backend ownership namespace is the guest user identity, later linked through claim flow.
 
