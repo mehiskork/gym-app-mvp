@@ -45,3 +45,13 @@ jest.mock('expo-sqlite', () => {
 jest.mock('uuid', () => ({
   v4: jest.fn(() => '00000000-0000-4000-8000-000000000000'),
 }));
+
+jest.mock(
+  'expo-secure-store',
+  () => ({
+    getItemAsync: jest.fn(),
+    setItemAsync: jest.fn(),
+    deleteItemAsync: jest.fn(),
+  }),
+  { virtual: true },
+);

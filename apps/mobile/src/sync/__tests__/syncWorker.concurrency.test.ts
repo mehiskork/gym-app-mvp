@@ -1,6 +1,4 @@
 // @ts-nocheck
-import { syncNow } from '../syncWorker';
-import { claimOutboxOps } from '../../db/outboxRepo';
 
 jest.mock('../../api/config', () => ({
   getApiBaseUrl: jest.fn(() => 'https://example.test'),
@@ -20,6 +18,12 @@ jest.mock('../../auth/deviceCredentialStore', () => ({
     getDeviceToken: jest.fn(async () => 'device-token'),
     getOrCreateDeviceSecret: jest.fn(async () => 'secret-1'),
     setDeviceToken: jest.fn(async () => undefined),
+  },
+}));
+
+jest.mock('../../auth/accountSessionStore', () => ({
+  accountSessionStore: {
+    get: jest.fn(async () => null),
   },
 }));
 
@@ -52,6 +56,9 @@ jest.mock('../../utils/logger', () => ({
 jest.mock('../applyDeltas', () => ({
   applyDeltas: jest.fn(() => ({ applied: 0, skipped: 0, total: 0 })),
 }));
+
+const { syncNow } = require('../syncWorker');
+const { claimOutboxOps } = require('../../db/outboxRepo');
 
 describe('syncNow single-flight', () => {
   beforeEach(() => {
@@ -88,7 +95,9 @@ describe('syncNow single-flight', () => {
     const first = syncNow();
     const second = syncNow();
 
-    await Promise.resolve();
+    for (let i = 0; i < 10 && fetchMock.mock.calls.length === 0; i += 1) {
+      await Promise.resolve();
+    }
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
     resolveFetch?.({

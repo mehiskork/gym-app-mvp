@@ -7,7 +7,9 @@ const mockSecureStore = {
 const mockExec = jest.fn();
 const mockQuery = jest.fn();
 
-jest.mock('expo-secure-store', () => mockSecureStore, { virtual: true });
+jest.mock('../secureStore', () => ({
+    getSecureStoreModule: () => mockSecureStore,
+}));
 jest.mock('../../db/db', () => ({
     exec: (...args: unknown[]) => mockExec(...args),
     query: (...args: unknown[]) => mockQuery(...args),

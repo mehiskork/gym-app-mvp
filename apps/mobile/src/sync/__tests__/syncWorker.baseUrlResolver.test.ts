@@ -1,5 +1,3 @@
-import { syncNow } from '../syncWorker';
-import { getApiBaseUrl } from '../../api/config';
 
 jest.mock('../../api/config', () => ({
   getApiBaseUrl: jest.fn(() => 'https://shared-resolver.example.test'),
@@ -51,6 +49,10 @@ jest.mock('../../utils/logger', () => ({
 jest.mock('../applyDeltas', () => ({
   applyDeltas: jest.fn(() => ({ applied: 0, skipped: 0, total: 0 })),
 }));
+
+const { syncNow } = require('../syncWorker');
+const { getApiBaseUrl } = require('../../api/config');
+
 
 describe('syncWorker base URL resolver usage', () => {
   afterEach(() => {

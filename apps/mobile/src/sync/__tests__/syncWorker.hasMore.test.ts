@@ -1,8 +1,4 @@
 // @ts-nocheck
-import { syncNow } from '../syncWorker';
-import { applyDeltas } from '../applyDeltas';
-import { claimOutboxOps } from '../../db/outboxRepo';
-import { getSyncState, updateSyncState } from '../../db/syncStateRepo';
 
 jest.mock('../../api/config', () => ({
   getApiBaseUrl: jest.fn(() => 'https://example.test'),
@@ -62,6 +58,11 @@ jest.mock('../../utils/logger', () => ({
 jest.mock('../applyDeltas', () => ({
   applyDeltas: jest.fn((deltas) => ({ applied: deltas.length, skipped: 0, total: deltas.length })),
 }));
+
+const { syncNow } = require('../syncWorker');
+const { applyDeltas } = require('../applyDeltas');
+const { claimOutboxOps } = require('../../db/outboxRepo');
+const { getSyncState, updateSyncState } = require('../../db/syncStateRepo');
 
 describe('syncNow hasMore paging loop', () => {
   beforeEach(() => {
