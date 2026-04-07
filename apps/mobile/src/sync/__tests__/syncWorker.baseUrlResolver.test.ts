@@ -10,6 +10,7 @@ jest.mock('../../db/appMetaRepo', () => ({
   isSyncPaused: jest.fn(() => false),
   setLastSyncAckSummary: jest.fn(),
   setGuestUserId: jest.fn(),
+  updateAuthDebugState: jest.fn(),
 }));
 
 jest.mock('../../auth/deviceCredentialStore', () => ({

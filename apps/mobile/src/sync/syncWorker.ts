@@ -3,6 +3,7 @@ import {
   isSyncPaused,
   setLastSyncAckSummary,
   setGuestUserId,
+  updateAuthDebugState,
 } from '../db/appMetaRepo';
 import { deviceCredentialStore } from '../auth/deviceCredentialStore';
 import { accountSessionStore } from '../auth/accountSessionStore';
@@ -190,10 +191,16 @@ async function runSyncPage(options: SyncNowOptions): Promise<boolean> {
     authContext = await resolveSyncAuthContext();
     if (!authContext) {
       updateSyncState({ last_error: 'Device not registered (missing token).' });
+      updateAuthDebugState({
+        syncAuthModeNextPlanned: null,
+      });
       return false;
     }
 
   }
+  updateAuthDebugState({
+    syncAuthModeNextPlanned: authContext.authType,
+  });
 
   repairStaleInFlightOps(OUTBOX_STALE_IN_FLIGHT_SECONDS);
   const ops = options.pullOnly ? [] : claimOutboxOps(SYNC_BATCH_LIMIT);
@@ -307,6 +314,10 @@ async function runSyncPage(options: SyncNowOptions): Promise<boolean> {
     }
 
     hasMore = data.hasMore === true;
+    updateAuthDebugState({
+      syncAuthModeLastUsed: authContext.authType,
+      syncAuthModeNextPlanned: authContext.authType,
+    });
   } catch (err) {
     if (httpStatus === 401) {
       errorCode =
@@ -317,6 +328,9 @@ async function runSyncPage(options: SyncNowOptions): Promise<boolean> {
       } else {
         await accountSessionStore.invalidate('sync_401');
       }
+      updateAuthDebugState({
+        syncAuthModeLastUsed: authContext.authType,
+      });
       inTransaction(() => {
         updateSyncState({
           last_error: errorCode,

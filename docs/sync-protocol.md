@@ -329,6 +329,21 @@ Invalidated account sessions are treated as **present but unusable**:
 - it only uses a usable (non-invalidated) account session
 - `401` from `/me` also invalidates the account session (`me_401`)
 
+### PR 15 observability signals
+
+For account rollout diagnostics, the app and backend now expose a small, explicit auth/sync signal set:
+
+- `syncAuthModeLastUsed`: `account_jwt` or `device_token` from the last sync attempt.
+- `syncAuthModeNextPlanned`: which mode the next sync would choose (`account_jwt` preferred when session is usable).
+- `accountSessionStatus`: `missing` | `usable` | `invalidated`.
+- `accountInvalidationReason`: enum-like reason (for example `sync_401`, `me_401`) when invalidated.
+- `accountInvalidatedAt`: ISO timestamp when invalidation was recorded.
+- `deviceTokenPresent`: boolean only (never token value).
+- `linkedState`: `guest` | `linked`.
+
+Backend error responses for auth failures also include low-cardinality `details.authMode` metadata where applicable, and backend logs include low-cardinality sync/migration observability fields (auth mode, owner scope type, op counts, and migration counters) without raw token values.
+
+
 If `/sync` returns `401` while using an **account JWT**, the app records an account-session auth failure and does not clear device credentials.
 
 ---

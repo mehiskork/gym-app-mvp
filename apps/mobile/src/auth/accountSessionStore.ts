@@ -1,4 +1,5 @@
 import { exec, query } from '../db/db';
+import { updateAuthDebugState } from '../db/appMetaRepo';
 import { getSecureStoreModule } from './secureStore';
 
 const ACCOUNT_SESSION_KEY = 'account_session_v1';
@@ -133,12 +134,23 @@ export const accountSessionStore = {
         const secureStore = getSecureStoreModule();
         await secureStore.setItemAsync(ACCOUNT_SESSION_KEY, serializeSession(nextSession));
         clearLegacyAccountSessionMetaKeys();
+        updateAuthDebugState({
+            accountSessionStatus: 'usable',
+            accountInvalidationReason: null,
+            accountInvalidatedAt: null,
+        });
     },
 
     async clear(): Promise<void> {
         const secureStore = getSecureStoreModule();
         await secureStore.deleteItemAsync(ACCOUNT_SESSION_KEY);
         clearLegacyAccountSessionMetaKeys();
+        updateAuthDebugState({
+            accountSessionStatus: 'missing',
+            accountInvalidationReason: null,
+            accountInvalidatedAt: null,
+            syncAuthModeNextPlanned: null,
+        });
     },
     async getUsable(): Promise<AccountSession | null> {
         const session = await this.get();
@@ -159,14 +171,21 @@ export const accountSessionStore = {
         }
 
         const secureStore = getSecureStoreModule();
+        const invalidatedAt = new Date().toISOString();
         await secureStore.setItemAsync(
             ACCOUNT_SESSION_KEY,
             serializeSession({
                 ...session,
-                invalidatedAt: new Date().toISOString(),
+                invalidatedAt,
                 invalidationReason: reason,
             }),
         );
         clearLegacyAccountSessionMetaKeys();
+        updateAuthDebugState({
+            accountSessionStatus: 'invalidated',
+            accountInvalidationReason: reason,
+            accountInvalidatedAt: invalidatedAt,
+            syncAuthModeNextPlanned: 'device_token',
+        });
     },
 };

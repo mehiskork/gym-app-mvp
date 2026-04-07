@@ -202,6 +202,13 @@ mvn verify
 ## Debug screen
 
 The Debug screen exposes sync controls, row counts, outbox state, and support bundle export. It is hidden by default.
+It also shows auth/session observability signals used for account rollout support:
+
+- sync auth mode (last used + next planned)
+- account session status (`missing` / `usable` / `invalidated`)
+- account invalidation reason + timestamp
+- device token presence (boolean only)
+- linked state (`guest` / `linked`)
 
 ### Unlock
 

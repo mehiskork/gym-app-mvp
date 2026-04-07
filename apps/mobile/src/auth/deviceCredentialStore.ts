@@ -1,4 +1,5 @@
 import { exec, query } from '../db/db';
+import { updateAuthDebugState } from '../db/appMetaRepo';
 import { newId } from '../utils/ids';
 import { getSecureStoreModule } from './secureStore';
 
@@ -60,11 +61,13 @@ export const deviceCredentialStore = {
         if (!token) {
             await secureStore.deleteItemAsync(DEVICE_TOKEN_KEY);
             clearLegacyMetaValue(LEGACY_DEVICE_TOKEN_META_KEY);
+            updateAuthDebugState({ deviceTokenPresent: false });
             return;
         }
 
         await secureStore.setItemAsync(DEVICE_TOKEN_KEY, token);
         clearLegacyMetaValue(LEGACY_DEVICE_TOKEN_META_KEY);
+        updateAuthDebugState({ deviceTokenPresent: true });
     },
 
     async getOrCreateDeviceSecret(): Promise<string> {
@@ -84,5 +87,10 @@ export const deviceCredentialStore = {
         await secureStore.deleteItemAsync(DEVICE_SECRET_KEY);
         clearLegacyMetaValue(LEGACY_DEVICE_TOKEN_META_KEY);
         clearLegacyMetaValue(LEGACY_DEVICE_SECRET_META_KEY);
+        updateAuthDebugState({
+            deviceTokenPresent: false,
+            syncAuthModeLastUsed: null,
+            syncAuthModeNextPlanned: null,
+        });
     },
 };

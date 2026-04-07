@@ -122,7 +122,7 @@ export function DebugScreen() {
   useFocusEffect(
     useCallback(() => {
       refresh();
-      return () => {};
+      return () => { };
     }, [refresh]),
   );
 
@@ -455,7 +455,7 @@ export function DebugScreen() {
             <Text style={{ fontWeight: '700' }}>Export support bundle</Text>
           </Pressable>
           <Text variant="muted" style={{ marginTop: tokens.spacing.md }}>
-            Export includes sync state, outbox stats, recent sync runs, and table counts.
+            Export includes auth/session status, sync state, outbox stats, recent sync runs, and table counts.
           </Text>
         </Card>
 
@@ -476,7 +476,22 @@ export function DebugScreen() {
                 <Text variant="muted">{wseSchemaHealth.message}</Text>
               ) : null}
               <Row label="Device ID" value={syncInfo.deviceId} />
-              <Row label="Has token" value={syncInfo.hasDeviceToken ? 'true' : 'false'} />
+              <Row label="Sync auth mode (last)" value={syncInfo.authDebug.syncAuthModeLastUsed ?? '—'} />
+              <Row
+                label="Sync auth mode (next)"
+                value={syncInfo.authDebug.syncAuthModeNextPlanned ?? '—'}
+              />
+              <Row label="Account session status" value={syncInfo.authDebug.accountSessionStatus} />
+              <Row
+                label="Account invalidation reason"
+                value={syncInfo.authDebug.accountInvalidationReason ?? '—'}
+              />
+              <Row label="Account invalidated at" value={syncInfo.authDebug.accountInvalidatedAt ?? '—'} />
+              <Row
+                label="Device token present"
+                value={syncInfo.authDebug.deviceTokenPresent ? 'true' : 'false'}
+              />
+              <Row label="Linked state" value={syncInfo.authDebug.linkedState} />
               <StackedRow label="Guest user ID" value={syncInfo.guestUserId ?? '—'} />
               <Row label="Outbox total" value={String(syncInfo.outboxTotalCount)} />
               <StackedRow
@@ -510,9 +525,8 @@ export function DebugScreen() {
                   <View key={op.op_id} style={{ marginTop: tokens.spacing.sm }}>
                     <Text style={{ fontWeight: '600' }}>{op.op_id}</Text>
                     <Text variant="muted">
-                      {`${op.status} • attempts ${op.attempt_count} • next ${
-                        op.next_attempt_at ?? '—'
-                      }`}
+                      {`${op.status} • attempts ${op.attempt_count} • next ${op.next_attempt_at ?? '—'
+                        }`}
                     </Text>
                     <Text variant="muted">
                       {`created ${op.created_at} • error ${truncate(op.last_error, 80)}`}

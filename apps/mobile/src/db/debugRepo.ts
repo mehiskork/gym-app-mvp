@@ -3,6 +3,7 @@ import { exec, query } from './db';
 import { inTransaction } from './tx';
 import { newId } from '../utils/ids';
 import {
+  getAuthDebugState,
   getEffectiveUserId,
   getGuestUserId,
   getMeta,
@@ -306,9 +307,9 @@ export function resetSyncCursorForDebug(): void {
 }
 export type SyncDebugInfo = {
   deviceId: string;
-  hasDeviceToken: boolean;
   guestUserId: string | null;
   effectiveUserId: string;
+  authDebug: ReturnType<typeof getAuthDebugState>;
   lastSyncAckSummary: ReturnType<typeof getLastSyncAckSummary>;
   outboxTotalCount: number;
   outboxStatusCounts: Record<string, number>;
@@ -337,6 +338,7 @@ export type SupportBundle = {
     guestUserId: string | null;
     localUserId: string | null;
   };
+  auth: ReturnType<typeof getAuthDebugState>;
   syncState: ReturnType<typeof getSyncState>;
   outbox: {
     totalCount: number;
@@ -394,9 +396,9 @@ export function getWeekStartDebugInfo(): WeekStartDebugInfo {
 
 export function getSyncDebugInfo(): SyncDebugInfo {
   const deviceId = getOrCreateDeviceId();
-  const hasDeviceToken = Boolean(getMeta('device_token'));
   const guestUserId = getGuestUserId();
   const effectiveUserId = getEffectiveUserId();
+  const authDebug = getAuthDebugState();
   const totalRow = query<{ c: number }>(
     `
     SELECT COUNT(*) AS c
@@ -460,9 +462,9 @@ export function getSyncDebugInfo(): SyncDebugInfo {
 
   return {
     deviceId,
-    hasDeviceToken,
     guestUserId,
     effectiveUserId,
+    authDebug,
     lastSyncAckSummary: getLastSyncAckSummary(),
     outboxTotalCount: totalRow?.c ?? 0,
     outboxStatusCounts,
@@ -538,6 +540,7 @@ export function getSupportBundle(): SupportBundle {
       guestUserId,
       localUserId,
     },
+    auth: getAuthDebugState(),
     syncState: getSyncState(),
     outbox: {
       totalCount: totalRow?.c ?? 0,

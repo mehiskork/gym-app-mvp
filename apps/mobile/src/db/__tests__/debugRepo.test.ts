@@ -20,10 +20,11 @@ jest.mock('expo-application', () => ({
 
 import { exec, query } from '../db';
 import {
+  getSupportBundle,
   getWorkoutSessionExerciseSchemaHealth,
-  repairSessionsMissingSets,
-  verifySyncState,
+  getSyncDebugInfo,
 } from '../debugRepo';
+import * as debugRepo from '../debugRepo';
 
 describe('debugRepo diagnostics and repair helpers', () => {
   beforeEach(() => {
@@ -34,7 +35,7 @@ describe('debugRepo diagnostics and repair helpers', () => {
   it('repairs missing sets only for strength workout_session_exercise rows', () => {
     (query as jest.Mock).mockReturnValueOnce([{ id: 'wse-strength-1' }]);
 
-    const repaired = repairSessionsMissingSets();
+    const repaired = debugRepo.repairSessionsMissingSets();
 
     expect(repaired).toBe(1);
     expect(query).toHaveBeenCalledWith(expect.stringContaining("wse.exercise_type = 'strength'"));
@@ -59,7 +60,7 @@ describe('debugRepo diagnostics and repair helpers', () => {
       ])
       .mockReturnValueOnce([{ cursor: null }]);
 
-    const health = verifySyncState();
+    const health = debugRepo.verifySyncState();
 
     expect(health.ok).toBe(true);
     expect(health.missingColumns).toEqual([]);
@@ -90,5 +91,85 @@ describe('debugRepo diagnostics and repair helpers', () => {
         'cardio_stair_level',
       ]),
     );
+  });
+  it('surfaces derived auth debug state in sync debug info', () => {
+    (query as jest.Mock).mockImplementation((sql: string, params?: unknown[]) => {
+      if (sql.includes('FROM outbox_op') && sql.includes('COUNT(*) AS c') && sql.includes('status IN')) return [{ c: 2 }];
+      if (sql.includes('SELECT status, COUNT(*) AS c') && sql.includes('FROM outbox_op')) return [{ status: 'pending', c: 2 }];
+      if (sql.includes('FROM outbox_op') && sql.includes("status IN ('pending', 'failed')")) return [{ c: 1 }];
+      if (sql.includes('FROM outbox_op') && sql.includes('LIMIT 10')) return [];
+      if (sql.includes('FROM app_meta') && params?.[0] === 'auth_debug_state_v1') {
+        return [
+          {
+            value: JSON.stringify({
+              syncAuthModeLastUsed: 'account_jwt',
+              syncAuthModeNextPlanned: 'device_token',
+              accountSessionStatus: 'invalidated',
+              accountInvalidationReason: 'sync_401',
+              accountInvalidatedAt: '2026-04-07T00:00:00.000Z',
+              deviceTokenPresent: true,
+              linkedState: 'linked',
+            }),
+          },
+        ];
+      }
+      if (sql.includes('FROM app_meta') && params?.[0] === 'claimed_user_id') return [{ value: 'user-1' }];
+      if (sql.includes('FROM app_meta') && params?.[0] === 'device_id') return [{ value: 'dev-1' }];
+      if (sql.includes('FROM app_meta') && params?.[0] === 'guest_user_id') return [{ value: 'guest-1' }];
+      if (sql.includes('FROM sync_state')) return [{ cursor: '0' }];
+      return [];
+    });
+
+    const info = getSyncDebugInfo();
+
+    expect(info.authDebug.syncAuthModeLastUsed).toBe('account_jwt');
+    expect(info.authDebug.syncAuthModeNextPlanned).toBe('device_token');
+    expect(info.authDebug.accountSessionStatus).toBe('invalidated');
+    expect(info.authDebug.accountInvalidationReason).toBe('sync_401');
+    expect(info.authDebug.accountInvalidatedAt).toBe('2026-04-07T00:00:00.000Z');
+    expect(info.authDebug.deviceTokenPresent).toBe(true);
+    expect(info.authDebug.linkedState).toBe('linked');
+  });
+
+  it('includes auth snapshot in support bundle without secrets', () => {
+    (query as jest.Mock).mockImplementation((sql: string, params?: unknown[]) => {
+      if (sql.includes('FROM app_meta') && params?.[0] === 'device_id') return [{ value: 'dev-1' }];
+      if (sql.includes('FROM app_meta') && params?.[0] === 'guest_user_id') return [{ value: 'guest-1' }];
+      if (sql.includes('FROM app_meta') && params?.[0] === 'local_user_id') return [{ value: 'local-1' }];
+      if (sql.includes('FROM app_meta') && params?.[0] === 'auth_debug_state_v1') {
+        return [
+          {
+            value: JSON.stringify({
+              syncAuthModeLastUsed: 'device_token',
+              syncAuthModeNextPlanned: 'account_jwt',
+              accountSessionStatus: 'usable',
+              accountInvalidationReason: null,
+              accountInvalidatedAt: null,
+              deviceTokenPresent: false,
+              linkedState: 'guest',
+            }),
+          },
+        ];
+      }
+      if (sql.includes('FROM app_meta') && params?.[0] === 'claimed_user_id') return [];
+      if (sql.includes('SELECT COUNT(*) AS c FROM outbox_op')) return [{ c: 0 }];
+      if (sql.includes('SELECT status, COUNT(*) AS c') && sql.includes('FROM outbox_op')) return [];
+      if (sql.includes('FROM outbox_op') && sql.includes('next_attempt_at')) return [{ c: 0 }];
+      if (sql.includes('FROM outbox_op') && sql.includes('LIMIT 50')) return [];
+      if (sql.includes('FROM sync_state')) return [{ cursor: '42' }];
+      if (sql.includes('FROM sync_run')) return [];
+      if (sql.includes('COUNT(*) AS c FROM')) return [{ c: 0 }];
+      return [];
+    });
+
+    const bundle = getSupportBundle();
+
+    expect(bundle.auth.accountSessionStatus).toBe('usable');
+    expect(bundle.auth.syncAuthModeLastUsed).toBe('device_token');
+    expect(bundle.auth.syncAuthModeNextPlanned).toBe('account_jwt');
+    const json = JSON.stringify(bundle);
+    expect(json).not.toContain('"accessToken"');
+    expect(json).not.toContain('"refreshToken"');
+    expect(json).not.toContain('"deviceToken"');
   });
 });

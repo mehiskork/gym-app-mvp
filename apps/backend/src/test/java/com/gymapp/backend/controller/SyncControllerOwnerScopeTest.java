@@ -41,13 +41,14 @@ class SyncControllerOwnerScopeTest {
         OwnerScope ownerScope = OwnerScope.guest("guest-1");
 
         when(principalOwnerResolver.resolve(principal)).thenReturn(ownerScope);
-        when(syncService.sync(eq("device-1"), eq(ownerScope), eq("0"), eq(List.of())))
+        when(syncService.sync(eq("device-1"), eq("guest-1"), eq("0"), eq(List.of())))
                 .thenReturn(new SyncResponse(List.of(), "0", List.of(), false));
 
         SyncResponse response = controller.sync(authentication, request).getBody();
 
         assertThat(response).isNotNull();
-        verify(syncService).sync("device-1", ownerScope, "0", List.of());
+        verify(principalOwnerResolver).resolve(principal);
+        verify(syncService).sync("device-1", "guest-1", "0", List.of());
     }
 
     @Test
@@ -72,6 +73,7 @@ class SyncControllerOwnerScopeTest {
         SyncResponse response = controller.sync(authentication, request).getBody();
 
         assertThat(response).isNotNull();
+        verify(principalOwnerResolver).resolve(principal);
         verify(syncService).sync(null, ownerScope, "0", List.of());
     }
 }

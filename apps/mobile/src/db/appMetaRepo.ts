@@ -34,6 +34,21 @@ export type SyncAckSummary = {
   rejected: number;
 };
 
+export type AccountSessionStatus = 'missing' | 'usable' | 'invalidated';
+export type LinkedState = 'guest' | 'linked';
+export type SyncAuthMode = 'account_jwt' | 'device_token';
+
+export type AuthDebugState = {
+  syncAuthModeLastUsed: SyncAuthMode | null;
+  syncAuthModeNextPlanned: SyncAuthMode | null;
+  accountSessionStatus: AccountSessionStatus;
+  accountInvalidationReason: string | null;
+  accountInvalidatedAt: string | null;
+  deviceTokenPresent: boolean;
+  linkedState: LinkedState;
+};
+
+
 export function setLastSyncAckSummary(summary: SyncAckSummary) {
   setMeta('last_sync_ack_summary', JSON.stringify(summary));
 }
@@ -48,6 +63,72 @@ export function getLastSyncAckSummary(): SyncAckSummary | null {
     noop: typeof parsed.noop === 'number' ? parsed.noop : 0,
     rejected: typeof parsed.rejected === 'number' ? parsed.rejected : 0,
   };
+}
+
+function parseAuthDebugState(raw: string | null): AuthDebugState | null {
+  if (!raw) return null;
+  const parsed = safeJsonParse(raw) as Partial<AuthDebugState> | null;
+  if (!parsed || typeof parsed !== 'object') return null;
+
+  const accountSessionStatus =
+    parsed.accountSessionStatus === 'usable' ||
+      parsed.accountSessionStatus === 'invalidated' ||
+      parsed.accountSessionStatus === 'missing'
+      ? parsed.accountSessionStatus
+      : null;
+  if (!accountSessionStatus) return null;
+
+  return {
+    syncAuthModeLastUsed:
+      parsed.syncAuthModeLastUsed === 'account_jwt' || parsed.syncAuthModeLastUsed === 'device_token'
+        ? parsed.syncAuthModeLastUsed
+        : null,
+    syncAuthModeNextPlanned:
+      parsed.syncAuthModeNextPlanned === 'account_jwt' ||
+        parsed.syncAuthModeNextPlanned === 'device_token'
+        ? parsed.syncAuthModeNextPlanned
+        : null,
+    accountSessionStatus,
+    accountInvalidationReason:
+      typeof parsed.accountInvalidationReason === 'string' ? parsed.accountInvalidationReason : null,
+    accountInvalidatedAt: typeof parsed.accountInvalidatedAt === 'string' ? parsed.accountInvalidatedAt : null,
+    deviceTokenPresent: parsed.deviceTokenPresent === true,
+    linkedState: parsed.linkedState === 'linked' ? 'linked' : 'guest',
+  };
+}
+
+const AUTH_DEBUG_STATE_KEY = 'auth_debug_state_v1';
+
+export function getAuthDebugState(): AuthDebugState {
+  const stored = parseAuthDebugState(getMeta(AUTH_DEBUG_STATE_KEY));
+  if (stored) {
+    return {
+      ...stored,
+      linkedState: getClaimedUserId() ? 'linked' : 'guest',
+    };
+  }
+
+  return {
+    syncAuthModeLastUsed: null,
+    syncAuthModeNextPlanned: null,
+    accountSessionStatus: 'missing',
+    accountInvalidationReason: null,
+    accountInvalidatedAt: null,
+    deviceTokenPresent: false,
+    linkedState: getClaimedUserId() ? 'linked' : 'guest',
+  };
+}
+
+export function updateAuthDebugState(partial: Partial<AuthDebugState>) {
+  const current = getAuthDebugState();
+  setMeta(
+    AUTH_DEBUG_STATE_KEY,
+    JSON.stringify({
+      ...current,
+      ...partial,
+      linkedState: getClaimedUserId() ? 'linked' : 'guest',
+    }),
+  );
 }
 
 function clearMeta(key: string) {
