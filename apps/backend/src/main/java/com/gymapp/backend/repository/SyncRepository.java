@@ -20,6 +20,142 @@ public class SyncRepository {
         private final JdbcTemplate jdbcTemplate;
         private final ObjectMapper objectMapper;
 
+        public MigrationAuditState registerGuestToAccountMigrationAttempt(
+                        String guestOwnerId,
+                        String accountOwnerId,
+                        Instant attemptedAt) {
+                return jdbcTemplate.queryForObject(
+                                """
+                                                INSERT INTO guest_account_migration_audit (
+                                                        guest_user_id,
+                                                        user_id,
+                                                        first_attempted_at,
+                                                        last_attempted_at,
+                                                        attempt_count
+                                                )
+                                                VALUES (?, ?, ?, ?, 1)
+                                                ON CONFLICT (guest_user_id) DO UPDATE
+                                                SET last_attempted_at = EXCLUDED.last_attempted_at,
+                                                        attempt_count = guest_account_migration_audit.attempt_count + 1
+                                                RETURNING user_id, completed_at, attempt_count
+                                                """,
+                                (rs, rowNum) -> new MigrationAuditState(
+                                                rs.getString("user_id"),
+                                                toInstant(rs.getTimestamp("completed_at")),
+                                                rs.getLong("attempt_count")),
+                                guestOwnerId,
+                                accountOwnerId,
+                                toTimestamp(attemptedAt),
+                                toTimestamp(attemptedAt));
+        }
+
+        public GuestToAccountMigrationCounts migrateGuestOwnedSyncDataToAccountOwner(
+                        String guestOwnerId,
+                        String accountOwnerId) {
+                int entityConflictsResolved = jdbcTemplate.queryForObject(
+                                """
+                                                SELECT COUNT(*)
+                                                FROM entity_state guest_state
+                                                JOIN entity_state account_state
+                                                  ON account_state.guest_user_id = ?
+                                                 AND account_state.entity_type = guest_state.entity_type
+                                                 AND account_state.entity_id = guest_state.entity_id
+                                                WHERE guest_state.guest_user_id = ?
+                                                """,
+                                Integer.class,
+                                accountOwnerId,
+                                guestOwnerId);
+
+                jdbcTemplate.update(
+                                """
+                                                INSERT INTO entity_state (
+                                                        guest_user_id,
+                                                        entity_type,
+                                                        entity_id,
+                                                        row_json,
+                                                        updated_at,
+                                                        last_received_at
+                                                )
+                                                SELECT
+                                                        ?,
+                                                        guest_state.entity_type,
+                                                        guest_state.entity_id,
+                                                        guest_state.row_json,
+                                                        now(),
+                                                        guest_state.last_received_at
+                                                FROM entity_state guest_state
+                                                WHERE guest_state.guest_user_id = ?
+                                                ON CONFLICT (guest_user_id, entity_type, entity_id)
+                                                DO UPDATE SET
+                                                        row_json = CASE
+                                                                        WHEN EXCLUDED.last_received_at >= entity_state.last_received_at
+                                                                                THEN EXCLUDED.row_json
+                                                                        ELSE entity_state.row_json
+                                                                END,
+                                                        updated_at = now(),
+                                                        last_received_at = GREATEST(entity_state.last_received_at,
+                                                                        EXCLUDED.last_received_at)
+                                                """,
+                                accountOwnerId,
+                                guestOwnerId);
+
+                int entityRowsMoved = jdbcTemplate.update(
+                                """
+                                                DELETE FROM entity_state
+                                                WHERE guest_user_id = ?
+                                                """,
+                                guestOwnerId);
+
+                int changeLogRowsMoved = jdbcTemplate.update(
+                                """
+                                                UPDATE change_log
+                                                SET guest_user_id = ?
+                                                WHERE guest_user_id = ?
+                                                """,
+                                accountOwnerId,
+                                guestOwnerId);
+
+                int opLedgerRowsMoved = jdbcTemplate.update(
+                                """
+                                                UPDATE op_ledger
+                                                SET guest_user_id = ?
+                                                WHERE guest_user_id = ?
+                                                """,
+                                accountOwnerId,
+                                guestOwnerId);
+
+                return new GuestToAccountMigrationCounts(
+                                entityRowsMoved,
+                                changeLogRowsMoved,
+                                opLedgerRowsMoved,
+                                entityConflictsResolved);
+        }
+
+        public void markGuestToAccountMigrationCompleted(
+                        String guestOwnerId,
+                        String accountOwnerId,
+                        Instant completedAt,
+                        GuestToAccountMigrationCounts counts) {
+                jdbcTemplate.update(
+                                """
+                                                UPDATE guest_account_migration_audit
+                                                SET completed_at = COALESCE(completed_at, ?),
+                                                        entity_state_rows_moved = COALESCE(entity_state_rows_moved, 0) + ?,
+                                                        change_log_rows_moved = COALESCE(change_log_rows_moved, 0) + ?,
+                                                        op_ledger_rows_moved = COALESCE(op_ledger_rows_moved, 0) + ?,
+                                                        entity_conflicts_resolved = COALESCE(entity_conflicts_resolved, 0) + ?
+                                                WHERE guest_user_id = ?
+                                                  AND user_id = ?
+                                                """,
+                                toTimestamp(completedAt),
+                                counts.entityStateRowsMoved(),
+                                counts.changeLogRowsMoved(),
+                                counts.opLedgerRowsMoved(),
+                                counts.entityConflictsResolved(),
+                                guestOwnerId,
+                                accountOwnerId);
+        }
+
         public boolean insertOpLedgerIfAbsentForOwner(String opId, String deviceId, String ownerId,
                         Instant receivedAt) {
                 return insertOpLedgerIfAbsent(opId, deviceId, ownerId, receivedAt);
@@ -219,6 +355,23 @@ public class SyncRepository {
 
         private Timestamp toTimestamp(Instant instant) {
                 return instant == null ? null : Timestamp.from(instant);
+        }
+
+        private Instant toInstant(Timestamp timestamp) {
+                return timestamp == null ? null : timestamp.toInstant();
+        }
+
+        public record MigrationAuditState(String linkedUserId, Instant completedAt, long attemptCount) {
+                public boolean completed() {
+                        return completedAt != null;
+                }
+        }
+
+        public record GuestToAccountMigrationCounts(
+                        int entityStateRowsMoved,
+                        int changeLogRowsMoved,
+                        int opLedgerRowsMoved,
+                        int entityConflictsResolved) {
         }
 
         public record EntityStateRecord(Map<String, Object> payload, Instant lastReceivedAt) {

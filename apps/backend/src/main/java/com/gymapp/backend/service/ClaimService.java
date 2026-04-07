@@ -9,6 +9,7 @@ import com.gymapp.backend.model.ClaimStatus;
 import com.gymapp.backend.model.ClaimType;
 import com.gymapp.backend.repository.ClaimRepository;
 import com.gymapp.backend.repository.IdentityLinkRepository;
+import com.gymapp.backend.repository.SyncRepository;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
@@ -17,16 +18,20 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ClaimService {
     private static final Duration CLAIM_LOOKBACK = Duration.ofDays(1);
 
     private final ClaimRepository claimRepository;
     private final IdentityLinkRepository identityLinkRepository;
+    private final SyncRepository syncRepository;
     private final PasswordEncoder passwordEncoder;
     private final ClaimCodeGenerator claimCodeGenerator;
 
@@ -57,6 +62,7 @@ public class ClaimService {
                 OffsetDateTime.ofInstant(expiresAt, ZoneOffset.UTC));
     }
 
+    @Transactional(noRollbackFor = BadRequestException.class)
     public ClaimConfirmResponse confirmClaim(String codeInput, String userId) {
         String code = normalizeCode(codeInput);
         Instant now = Instant.now();
@@ -79,6 +85,10 @@ public class ClaimService {
 
         if (match.status() == ClaimStatus.CLAIMED) {
             String linkedUserId = resolveLinkedUserId(match);
+            if (linkedUserId != null && !linkedUserId.equals(userId)) {
+                throw new ConflictCodeException("CLAIM_CONFLICT", "Guest user already claimed by another user");
+            }
+            migrateGuestSyncOwnershipIfNeeded(match.guestUserId(), linkedUserId, now);
             return new ClaimConfirmResponse(match.guestUserId(), linkedUserId, ClaimStatus.CLAIMED.name());
         }
 
@@ -94,9 +104,42 @@ public class ClaimService {
             throw new ConflictCodeException("CLAIM_CONFLICT", "Guest user already claimed by another user");
         }
 
+        migrateGuestSyncOwnershipIfNeeded(match.guestUserId(), userId, now);
         claimRepository.markClaimed(match.claimId(), userId, now);
 
         return new ClaimConfirmResponse(match.guestUserId(), userId, ClaimStatus.CLAIMED.name());
+    }
+
+    private void migrateGuestSyncOwnershipIfNeeded(String guestUserId, String userId, Instant now) {
+        if (userId == null || userId.isBlank()) {
+            return;
+        }
+        SyncRepository.MigrationAuditState auditState = syncRepository.registerGuestToAccountMigrationAttempt(
+                guestUserId,
+                userId,
+                now);
+
+        if (!userId.equals(auditState.linkedUserId())) {
+            throw new ConflictCodeException("CLAIM_CONFLICT", "Guest user already claimed by another user");
+        }
+        if (auditState.completed()) {
+            log.info("guest->account migration already completed; guestUserId={} userId={} attemptCount={}",
+                    guestUserId, userId, auditState.attemptCount());
+            return;
+        }
+
+        SyncRepository.GuestToAccountMigrationCounts counts = syncRepository.migrateGuestOwnedSyncDataToAccountOwner(
+                guestUserId,
+                userId);
+        syncRepository.markGuestToAccountMigrationCompleted(guestUserId, userId, now, counts);
+        log.info(
+                "guest->account migration completed; guestUserId={} userId={} entityStateRowsMoved={} changeLogRowsMoved={} opLedgerRowsMoved={} entityConflictsResolved={}",
+                guestUserId,
+                userId,
+                counts.entityStateRowsMoved(),
+                counts.changeLogRowsMoved(),
+                counts.opLedgerRowsMoved(),
+                counts.entityConflictsResolved());
     }
 
     private String resolveLinkedUserId(ClaimRepository.ClaimRecord match) {

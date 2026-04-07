@@ -228,3 +228,35 @@ PR 10 keeps the externally exposed `/sync` authentication path device-token base
 - Client payload ownership fields (for example `userId`) remain non-authoritative.
 - No guest->account migration is implemented in this PR.
 - No sync protocol shape change is implemented in this PR.
+
+### PR 12 implementation note (guest -> account move/re-scope)
+
+PR 12 implements a **server-driven move/re-scope** migration during claim confirmation.
+
+- Trigger: `/claim/confirm` after server-side claim validation + `identity_link` upsert.
+- Owner pair source: server-validated `claim.guest_user_id` + linked `user_id` only.
+- Client payload owner fields remain non-authoritative.
+
+Migration behavior:
+
+1. Register a migration attempt in `guest_account_migration_audit` for `(guest_user_id, user_id)`.
+2. If this pair already has `completed_at`, short-circuit (idempotent retry no-op).
+3. Move sync ownership from guest -> account in:
+   - `entity_state`
+   - `change_log`
+   - `op_ledger`
+4. Mark migration completed with moved-row counters and conflict counters.
+
+Deterministic conflict rule (no merge engine):
+
+- If both guest and account already have the same `entity_state` identity (`entity_type`, `entity_id`), winner is the row with newer `last_received_at`.
+- Ties keep the incoming guest row (`>=` comparison).
+- Conflict occurrences are counted in `guest_account_migration_audit.entity_conflicts_resolved`.
+
+Non-goals retained in PR 12:
+
+- No `/sync` protocol redesign.
+- No client-controlled owner reassignment.
+- No broad schema rewrite (single additive audit table only).
+- No logout/account-switch UX changes.
+- Guest-only users remain on existing guest sync behavior.

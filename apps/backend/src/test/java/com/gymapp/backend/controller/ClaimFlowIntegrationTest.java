@@ -7,6 +7,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+import com.gymapp.backend.security.OwnerScope;
+import com.gymapp.backend.service.SyncService;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -64,6 +66,9 @@ class ClaimFlowIntegrationTest {
 
         @Autowired
         private PasswordEncoder passwordEncoder;
+
+        @Autowired
+        private SyncService syncService;
 
         @Autowired
         private DataSource dataSource;
@@ -215,6 +220,127 @@ class ClaimFlowIntegrationTest {
                                 .content("{\"code\":\"" + code + "\"}"))
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$.userId").value(userId));
+
+                Long auditAttempts = jdbcTemplate.queryForObject(
+                                "SELECT attempt_count FROM guest_account_migration_audit WHERE guest_user_id = ?",
+                                Long.class,
+                                guestUserId);
+                Long completedCount = jdbcTemplate.queryForObject(
+                                """
+                                                SELECT COUNT(*) FROM guest_account_migration_audit
+                                                WHERE guest_user_id = ? AND completed_at IS NOT NULL
+                                                """,
+                                Long.class,
+                                guestUserId);
+                assertThat(auditAttempts).isEqualTo(2L);
+                assertThat(completedCount).isEqualTo(1L);
+        }
+
+        @Test
+        void confirmMigratesGuestOwnedSyncRowsIntoAccountOwnership() throws Exception {
+                String deviceId = "device-" + UUID.randomUUID();
+                String guestUserId = UUID.randomUUID().toString();
+                String rawToken = "token-" + UUID.randomUUID();
+                String userId = UUID.randomUUID().toString();
+                insertDevice(deviceId, guestUserId);
+                insertToken(rawToken, deviceId, Instant.now().plusSeconds(3600));
+                seedGuestSyncData(guestUserId, deviceId);
+
+                MvcResult startResult = mockMvc.perform(post("/claim/start")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .header("Authorization", "Bearer " + rawToken))
+                                .andExpect(status().isOk())
+                                .andReturn();
+
+                String code = objectMapper.readTree(startResult.getResponse().getContentAsString())
+                                .get("code")
+                                .asString();
+
+                mockMvc.perform(post("/claim/confirm")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .header("X-User-Id", userId)
+                                .content("{\"code\":\"" + code + "\"}"))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.guestUserId").value(guestUserId))
+                                .andExpect(jsonPath("$.userId").value(userId))
+                                .andExpect(jsonPath("$.status").value("CLAIMED"));
+
+                Long guestEntityRows = jdbcTemplate.queryForObject(
+                                "SELECT COUNT(*) FROM entity_state WHERE guest_user_id = ?",
+                                Long.class,
+                                guestUserId);
+                Long accountEntityRows = jdbcTemplate.queryForObject(
+                                "SELECT COUNT(*) FROM entity_state WHERE guest_user_id = ?",
+                                Long.class,
+                                userId);
+                Long accountChangeRows = jdbcTemplate.queryForObject(
+                                "SELECT COUNT(*) FROM change_log WHERE guest_user_id = ?",
+                                Long.class,
+                                userId);
+                Long accountLedgerRows = jdbcTemplate.queryForObject(
+                                "SELECT COUNT(*) FROM op_ledger WHERE guest_user_id = ?",
+                                Long.class,
+                                userId);
+
+                assertThat(guestEntityRows).isZero();
+                assertThat(accountEntityRows).isEqualTo(1L);
+                assertThat(accountChangeRows).isEqualTo(1L);
+                assertThat(accountLedgerRows).isEqualTo(1L);
+                assertThat(syncService.sync(null, OwnerScope.account(userId), "0", java.util.List.of()).getDeltas())
+                                .hasSize(1);
+
+        }
+
+        @Test
+        void confirmMigrationUsesLastReceivedAtWinnerForOverlappingEntityState() throws Exception {
+                String deviceId = "device-" + UUID.randomUUID();
+                String guestUserId = UUID.randomUUID().toString();
+                String rawToken = "token-" + UUID.randomUUID();
+                String userId = UUID.randomUUID().toString();
+                String entityId = "program-shared-" + UUID.randomUUID();
+                insertDevice(deviceId, guestUserId);
+                insertToken(rawToken, deviceId, Instant.now().plusSeconds(3600));
+
+                insertEntityState(userId, entityId,
+                                "{\"id\":\"program-account\",\"updated_at\":\"2026-04-01T00:00:00Z\"}",
+                                Instant.parse("2026-04-01T00:00:00Z"));
+                insertEntityState(guestUserId, entityId,
+                                "{\"id\":\"program-guest\",\"updated_at\":\"2026-04-07T00:00:00Z\"}",
+                                Instant.parse("2026-04-07T00:00:00Z"));
+
+                String code = objectMapper.readTree(mockMvc.perform(post("/claim/start")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .header("Authorization", "Bearer " + rawToken))
+                                .andExpect(status().isOk())
+                                .andReturn()
+                                .getResponse()
+                                .getContentAsString()).get("code").asString();
+
+                mockMvc.perform(post("/claim/confirm")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .header("X-User-Id", userId)
+                                .content("{\"code\":\"" + code + "\"}"))
+                                .andExpect(status().isOk());
+
+                String payloadJson = jdbcTemplate.queryForObject(
+                                """
+                                                SELECT row_json::text
+                                                FROM entity_state
+                                                WHERE guest_user_id = ? AND entity_type = 'program' AND entity_id = ?
+                                                """,
+                                String.class,
+                                userId,
+                                entityId);
+                Long conflictsResolved = jdbcTemplate.queryForObject(
+                                """
+                                                SELECT entity_conflicts_resolved
+                                                FROM guest_account_migration_audit
+                                                WHERE guest_user_id = ?
+                                                """,
+                                Long.class,
+                                guestUserId);
+                assertThat(payloadJson).contains("program-guest");
+                assertThat(conflictsResolved).isEqualTo(1L);
         }
 
         @Test
@@ -295,5 +421,62 @@ class ClaimFlowIntegrationTest {
                                 guestUserId,
                                 userId,
                                 OffsetDateTime.ofInstant(createdAt, ZoneOffset.UTC));
+        }
+
+        private void seedGuestSyncData(String guestUserId, String deviceId) {
+                jdbcTemplate.update(
+                                """
+                                                INSERT INTO op_ledger (op_id, device_id, guest_user_id, received_at)
+                                                VALUES (?, ?, ?, ?)
+                                                """,
+                                "seed-op-" + UUID.randomUUID(),
+                                deviceId,
+                                guestUserId,
+                                OffsetDateTime.now(ZoneOffset.UTC));
+                String entityId = "program-" + UUID.randomUUID();
+                jdbcTemplate.update(
+                                """
+                                                INSERT INTO entity_state (
+                                                        guest_user_id,
+                                                        entity_type,
+                                                        entity_id,
+                                                        row_json,
+                                                        last_received_at
+                                                )
+                                                VALUES (?, 'program', ?, '{\"id\":\"seed-program\",\"updated_at\":\"2026-04-06T00:00:00Z\"}'::jsonb, ?)
+                                                """,
+                                guestUserId,
+                                entityId,
+                                OffsetDateTime.now(ZoneOffset.UTC));
+                jdbcTemplate.update(
+                                """
+                                                INSERT INTO change_log (
+                                                        guest_user_id,
+                                                        entity_type,
+                                                        entity_id,
+                                                        op_type,
+                                                        row_json
+                                                )
+                                                VALUES (?, 'program', ?, 'upsert', '{\"id\":\"seed-program\"}'::jsonb)
+                                                """,
+                                guestUserId,
+                                entityId);
+        }
+
+        private void insertEntityState(String ownerId, String entityId, String rowJson, Instant lastReceivedAt) {
+                jdbcTemplate.update(
+                                """
+                                                INSERT INTO entity_state (
+                                                        guest_user_id,
+                                                        entity_type,
+                                                        entity_id,
+                                                        row_json,
+                                                        last_received_at
+                                                ) VALUES (?, 'program', ?, ?::jsonb, ?)
+                                                """,
+                                ownerId,
+                                entityId,
+                                rowJson,
+                                OffsetDateTime.ofInstant(lastReceivedAt, ZoneOffset.UTC));
         }
 }
