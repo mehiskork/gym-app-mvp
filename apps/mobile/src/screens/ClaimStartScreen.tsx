@@ -10,7 +10,7 @@ import { Button } from '../ui/Button';
 import { tokens } from '../theme/tokens';
 import { api } from '../api/client';
 import { ApiError } from '../api/errors';
-import { pauseSync, resumeSync } from '../db/appMetaRepo';
+import { getClaimed, pauseSync, resumeSync } from '../db/appMetaRepo';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ClaimStart'>;
 
@@ -39,6 +39,14 @@ export function ClaimStartScreen({ navigation }: Props) {
   }, []);
 
   const handleGenerate = useCallback(async () => {
+    if (getClaimed()) {
+      setError({
+        message:
+          'This device is already linked. Use Settings → Account → Switch account to clear local data first.',
+        canRetry: false,
+      });
+      return;
+    }
     setLoading(true);
     setError(null);
     try {

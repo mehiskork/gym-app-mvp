@@ -258,6 +258,32 @@ If the stored primary-color key is invalid or unknown, the app must fall back to
 
 Current default: `orange`.
 
+## Account logout, reset, and account switching
+
+### Logout is destructive for local synced identity state
+
+When a linked user logs out on a device, the app must:
+
+- clear sensitive auth/session material from secure storage
+- clear local user-scoped synced SQLite state
+- return to guest/bootstrap-ready mode on that same device
+
+Why this matters: prevents stale session reuse and cross-account data leakage on shared devices.
+
+### Switching to a different account requires an explicit clear/reset
+
+On one device, switching from one linked account to another must not reuse the previous account’s local synced state.
+
+In MVP behavior, the app requires an explicit destructive switch flow that resets local synced/auth state before starting the next account link flow.
+
+Why this matters: avoids hidden cross-account contamination without adding multi-account local storage.
+
+### Same-user re-link is non-destructive while already linked
+
+If the app is already linked for the same user identity, do not silently trigger destructive reset behavior.
+
+Why this matters: preserves predictable behavior and avoids unnecessary data loss.
+
 Why this matters: corrupted or outdated settings must not break the UI.
 
 ### Primary color affects accent surfaces, not every semantic color

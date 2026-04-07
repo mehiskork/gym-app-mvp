@@ -258,5 +258,17 @@ Non-goals retained in PR 12:
 - No `/sync` protocol redesign.
 - No client-controlled owner reassignment.
 - No broad schema rewrite (single additive audit table only).
-- No logout/account-switch UX changes.
+### PR 13 implementation note (mobile logout/reset/account-switch safety)
+
+PR 13 implements a conservative single-reset identity-transition policy on mobile:
+
+- New `resetToGuestBootstrap()` flow clears secure auth/session storage and resets local SQLite state.
+- Logout uses that same destructive reset path and returns to guest/bootstrap-ready state.
+- Same-device account switching is explicit and destructive: reset first, then start linking the next account.
+- Claim-start generation is blocked when already linked, forcing the explicit switch flow.
+
+Non-goals retained in PR 13:
+
+- No multi-account local storage namespaces.
+- No backend ownership/sync protocol changes.
 - Guest-only users remain on existing guest sync behavior.

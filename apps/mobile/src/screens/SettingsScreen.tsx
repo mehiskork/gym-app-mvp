@@ -29,6 +29,7 @@ import {
   ensureRestTimerNotificationChannel,
   requestRestTimerNotificationPermission,
 } from '../utils/restTimerNotifications';
+import { resetToGuestBootstrap } from '../auth/identityTransition';
 
 const REST_TIME_OPTIONS = [
   { label: '0:30', seconds: 30 },
@@ -108,6 +109,47 @@ export function SettingsScreen() {
     },
     [setSettings, settings.restTimerVibration],
   );
+
+  const handleLogout = useCallback(() => {
+    Alert.alert(
+      'Log out and clear local data?',
+      'This device will sign out and remove local synced data so another account cannot inherit it.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Log out',
+          style: 'destructive',
+          onPress: () => {
+            void (async () => {
+              await resetToGuestBootstrap();
+              setClaimedState(false);
+            })();
+          },
+        },
+      ],
+    );
+  }, []);
+
+  const handleSwitchAccount = useCallback(() => {
+    Alert.alert(
+      'Switch account on this device?',
+      'Switching accounts clears local synced data first. Continue to a fresh account-link flow?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Continue',
+          style: 'destructive',
+          onPress: () => {
+            void (async () => {
+              await resetToGuestBootstrap();
+              setClaimedState(false);
+              navigation.navigate('ClaimStart');
+            })();
+          },
+        },
+      ],
+    );
+  }, [navigation]);
 
   return (
     <Screen
@@ -278,7 +320,14 @@ export function SettingsScreen() {
       >
         <Text variant="subtitle">Account</Text>
         <Text color={colors.textSecondary}>Account: {claimed ? 'Linked' : 'Guest'}</Text>
-        <Button title="Link to account" onPress={() => navigation.navigate('ClaimStart')} />
+        {claimed ? (
+          <>
+            <Button title="Switch account" onPress={handleSwitchAccount} />
+            <Button title="Log out" variant="destructive" onPress={handleLogout} />
+          </>
+        ) : (
+          <Button title="Link to account" onPress={() => navigation.navigate('ClaimStart')} />
+        )}
         {debugUnlocked ? (
           <Button
             title="Dev: Confirm claim"

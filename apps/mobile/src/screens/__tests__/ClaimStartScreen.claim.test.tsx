@@ -54,6 +54,7 @@ jest.mock('../../api/client', () => ({
 }));
 
 jest.mock('../../db/appMetaRepo', () => ({
+  getClaimed: jest.fn(() => false),
   pauseSync: jest.fn(),
   resumeSync: jest.fn(),
 }));
@@ -63,6 +64,7 @@ import React from 'react';
 import { ClaimStartScreen } from '../ClaimStartScreen';
 import { api } from '../../api/client';
 import { Button } from '../../ui/Button';
+import { getClaimed } from '../../db/appMetaRepo';
 
 type Nav = { goBack: jest.Mock };
 
@@ -119,5 +121,25 @@ describe('ClaimStartScreen claim flow', () => {
     await button.props.onPress({} as never);
 
     expect(api.post).toHaveBeenCalledWith('/claim/start');
+  });
+
+  it('blocks claim generation when device is already linked', async () => {
+    (getClaimed as jest.Mock).mockReturnValue(true);
+    const navigation: Nav = { goBack: jest.fn() };
+
+    const element = ClaimStartScreen({
+      navigation,
+      route: { key: 'ClaimStart', name: 'ClaimStart' },
+    } as never);
+
+    type ButtonProps = React.ComponentProps<typeof Button>;
+    const button = findElementByType<ButtonProps>(element, Button);
+    if (button?.props.title !== 'Generate code' || !button.props.onPress) {
+      throw new Error('Generate code button onPress should be defined.');
+    }
+
+    await button.props.onPress({} as never);
+
+    expect(api.post).not.toHaveBeenCalled();
   });
 });

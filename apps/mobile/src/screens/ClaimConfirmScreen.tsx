@@ -12,7 +12,13 @@ import { tokens } from '../theme/tokens';
 import { api } from '../api/client';
 import { ApiError } from '../api/errors';
 import { getString, setString } from '../utils/prefs';
-import { pauseSync, resumeSync, setClaimed, setClaimedUserId } from '../db/appMetaRepo';
+import {
+  getClaimedUserId,
+  pauseSync,
+  resumeSync,
+  setClaimed,
+  setClaimedUserId,
+} from '../db/appMetaRepo';
 
 const DEV_USER_ID_KEY = 'claim_dev_user_id';
 
@@ -72,6 +78,14 @@ export function ClaimConfirmScreen({ navigation }: Props) {
         { code: trimmed },
         { headers: { 'X-User-Id': devUserId } },
       );
+
+      const currentClaimedUserId = getClaimedUserId();
+      if (currentClaimedUserId && currentClaimedUserId !== data.userId) {
+        setError(
+          'Different account detected on this device. Use Settings → Account → Switch account to clear local data before linking.',
+        );
+        return;
+      }
 
       setClaimed(true);
       setClaimedUserId(data.userId);

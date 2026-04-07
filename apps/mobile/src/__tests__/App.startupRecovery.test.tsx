@@ -71,8 +71,7 @@ jest.mock('../db/outboxRepo', () => ({ repairStaleInFlightOps: jest.fn() }));
 jest.mock('../utils/restTimerNotifications', () => ({
     ensureRestTimerNotificationChannel: jest.fn(),
 }));
-jest.mock('../db/db', () => ({ resetLocalDatabase: jest.fn() }));
-jest.mock('../auth/resetSensitiveStorage', () => ({ clearSensitiveAuthStorage: jest.fn(() => Promise.resolve()) }));
+jest.mock('../auth/identityTransition', () => ({ resetToGuestBootstrap: jest.fn(() => Promise.resolve()) }));
 
 jest.mock('../ui/Text', () => {
     const React = require('react');
@@ -94,11 +93,10 @@ import React from 'react';
 
 import App from '../../App';
 import { seedCuratedExercises } from '../db/curatedExerciseSeed';
-import { resetLocalDatabase } from '../db/db';
 import { runMigrations } from '../db/migrate';
 import { repairStaleInFlightOps } from '../db/outboxRepo';
 import { ensureRestTimerNotificationChannel } from '../utils/restTimerNotifications';
-import { clearSensitiveAuthStorage } from '../auth/resetSensitiveStorage';
+import { resetToGuestBootstrap } from '../auth/identityTransition';
 
 const useEffectMock = React.useEffect as jest.Mock;
 const useStateMock = React.useState as jest.Mock;
@@ -173,7 +171,7 @@ describe('App startup recovery', () => {
         retryButton!.props.onPress();
 
         expect(runMigrations).toHaveBeenCalledTimes(1);
-        expect(resetLocalDatabase).not.toHaveBeenCalled();
+        expect(resetToGuestBootstrap).not.toHaveBeenCalled();
     });
 
     it('reset action performs explicit reset then retries startup', async () => {
@@ -190,7 +188,6 @@ describe('App startup recovery', () => {
         expect(resetButton).toBeDefined();
         await resetButton!.props.onPress();
 
-        expect(clearSensitiveAuthStorage).toHaveBeenCalledTimes(1);
-        expect(runMigrations).toHaveBeenCalledTimes(1);
+        expect(resetToGuestBootstrap).toHaveBeenCalledTimes(1);
     });
 });

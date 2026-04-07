@@ -4,7 +4,6 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { runMigrations } from './src/db/migrate';
-import { resetLocalDatabase } from './src/db/db';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { seedCuratedExercises } from './src/db/curatedExerciseSeed';
 import { repairStaleInFlightOps } from './src/db/outboxRepo';
@@ -13,7 +12,8 @@ import { tokens } from './src/theme/tokens';
 import { ensureRestTimerNotificationChannel } from './src/utils/restTimerNotifications';
 import { Button } from './src/ui/Button';
 import { Text } from './src/ui/Text';
-import { clearSensitiveAuthStorage } from './src/auth/resetSensitiveStorage';
+import { resetToGuestBootstrap } from './src/auth/identityTransition';
+
 
 type BootState =
   | { kind: 'initializing' }
@@ -78,13 +78,12 @@ export default function App() {
   const handleResetLocalData = useCallback(async () => {
     setBootState({ kind: 'initializing' });
     try {
-      await clearSensitiveAuthStorage();
-      resetLocalDatabase();
-      initializeApp();
+      await resetToGuestBootstrap();
+      setBootState({ kind: 'ready' });
     } catch (error) {
       setBootState({ kind: 'failed', error: toError(error) });
     }
-  }, [initializeApp]);
+  }, []);
 
   useEffect(() => {
     initializeApp();
