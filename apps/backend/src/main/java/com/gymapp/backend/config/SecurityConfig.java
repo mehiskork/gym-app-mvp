@@ -108,7 +108,7 @@ public class SecurityConfig {
                 .formLogin(AbstractHttpConfigurer::disable)
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/sync").hasAnyRole("DEVICE", "ACCOUNT")
+                        .requestMatchers("/sync").authenticated()
                         .anyRequest().denyAll())
                 .addFilterBefore(bearerFilter, BearerTokenAuthenticationFilter.class)
                 .addFilterBefore(rateLimitFilter, BearerDeviceAuthFilter.class)
