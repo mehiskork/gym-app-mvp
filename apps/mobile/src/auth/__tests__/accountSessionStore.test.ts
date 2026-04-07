@@ -57,6 +57,8 @@ describe('accountSessionStore', () => {
             issuer: undefined,
             refreshToken: undefined,
             sessionSecret: undefined,
+            invalidatedAt: undefined,
+            invalidationReason: undefined,
         });
         expect(mockQuery).not.toHaveBeenCalled();
     });
@@ -78,6 +80,8 @@ describe('accountSessionStore', () => {
             sessionSecret: 'legacy-secret',
             subject: 'legacy-subject',
             issuer: undefined,
+            invalidatedAt: undefined,
+            invalidationReason: undefined,
         });
 
         expect(mockSecureStore.setItemAsync).toHaveBeenCalledWith(
@@ -105,5 +109,39 @@ describe('accountSessionStore', () => {
 
         expect(mockSecureStore.deleteItemAsync).toHaveBeenCalledWith('account_session_v1');
         expect(mockExec).toHaveBeenCalledWith(expect.stringContaining('DELETE FROM app_meta'), ['account_session_secret']);
+    });
+    it('returns null for getUsable when session has been invalidated', async () => {
+        mockSecureStore.getItemAsync.mockResolvedValue(
+            JSON.stringify({
+                accessToken: 'account-token',
+                invalidatedAt: '2026-04-07T00:00:00.000Z',
+                invalidationReason: 'sync_401',
+            }),
+        );
+
+        await expect(accountSessionStore.getUsable()).resolves.toBeNull();
+    });
+
+    it('marks an existing session invalid without deleting token material', async () => {
+        mockSecureStore.getItemAsync.mockResolvedValue(
+            JSON.stringify({
+                accessToken: 'account-token',
+                subject: 'acct-sub',
+            }),
+        );
+
+        await accountSessionStore.invalidate('sync_401');
+
+        expect(mockSecureStore.setItemAsync).toHaveBeenCalledWith(
+            'account_session_v1',
+            expect.any(String),
+        );
+        const serialized = (mockSecureStore.setItemAsync as jest.Mock).mock.calls[0][1];
+        expect(JSON.parse(serialized)).toMatchObject({
+            accessToken: 'account-token',
+            subject: 'acct-sub',
+            invalidationReason: 'sync_401',
+        });
+        expect(JSON.parse(serialized).invalidatedAt).toEqual(expect.any(String));
     });
 });

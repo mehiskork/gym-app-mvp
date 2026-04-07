@@ -259,6 +259,7 @@ Current behavior, in order:
     - mark any sent-but-unacked ops as `failed`
 12. If the response is `401`:
     - if auth used a **device token**, clear local device token and self-heal via re-registration on the next run
+    - if auth used an **account JWT**, mark the stored account session as invalidated (`sync_401`) and do not clear device token
     - if auth used an **account JWT**, do not clear device token
     - do not ack the sent ops
 13. If another error occurs:
@@ -315,6 +316,18 @@ Important detail:
 
 - the 401 path does **not** immediately mark the sent ops as acked
 - stale `in_flight` repair on the next run is what makes those stuck ops retryable again
+If `/sync` returns `401` while using an **account JWT**, the app records an account-session auth failure, persists that invalidated state, and does not clear device credentials.
+
+Invalidated account sessions are treated as **present but unusable**:
+
+- they are not selected for `/sync`
+- `/sync` falls back to a valid device token when one exists
+- the invalidation survives app restart until account sign-in writes a fresh session
+
+`/me` follows the same lifecycle guard:
+
+- it only uses a usable (non-invalidated) account session
+- `401` from `/me` also invalidates the account session (`me_401`)
 
 If `/sync` returns `401` while using an **account JWT**, the app records an account-session auth failure and does not clear device credentials.
 

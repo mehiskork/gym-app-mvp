@@ -102,7 +102,7 @@ type SyncAuthContext =
   | { token: string; authType: 'device_token' };
 
 async function resolveSyncAuthContext(): Promise<SyncAuthContext | null> {
-  const accountSession = await accountSessionStore.get();
+  const accountSession = await accountSessionStore.getUsable();
   if (accountSession?.accessToken) {
     return { token: accountSession.accessToken, authType: 'account_jwt' };
   }
@@ -314,6 +314,8 @@ async function runSyncPage(options: SyncNowOptions): Promise<boolean> {
       errorMessage = err instanceof Error ? err.message : 'Unauthorized';
       if (authContext.authType === 'device_token') {
         await deviceCredentialStore.setDeviceToken(null);
+      } else {
+        await accountSessionStore.invalidate('sync_401');
       }
       inTransaction(() => {
         updateSyncState({

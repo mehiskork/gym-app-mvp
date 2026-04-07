@@ -1,4 +1,5 @@
 import { api } from './client';
+import { ApiError } from './errors';
 import { accountSessionStore } from '../auth/accountSessionStore';
 
 export type MeResponse = {
@@ -9,14 +10,21 @@ export type MeResponse = {
 };
 
 export async function getMeWithAccountAuth(): Promise<MeResponse> {
-    const session = await accountSessionStore.get();
+    const session = await accountSessionStore.getUsable();
     if (!session?.accessToken) {
         throw new Error('No account session token available');
     }
 
-    return api.get<MeResponse>('/me', {
-        headers: {
-            Authorization: `Bearer ${session.accessToken}`,
-        },
-    });
+    try {
+        return await api.get<MeResponse>('/me', {
+            headers: {
+                Authorization: `Bearer ${session.accessToken}`,
+            },
+        });
+    } catch (error) {
+        if (error instanceof ApiError && error.status === 401) {
+            await accountSessionStore.invalidate('me_401');
+        }
+        throw error;
+    }
 }

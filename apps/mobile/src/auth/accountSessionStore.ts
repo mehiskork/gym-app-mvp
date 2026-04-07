@@ -17,6 +17,8 @@ export type AccountSession = {
     issuer?: string;
     refreshToken?: string;
     sessionSecret?: string;
+    invalidatedAt?: string;
+    invalidationReason?: string;
 };
 
 function parseSession(raw: string): AccountSession | null {
@@ -31,10 +33,26 @@ function parseSession(raw: string): AccountSession | null {
             issuer: parsed.issuer,
             refreshToken: parsed.refreshToken,
             sessionSecret: parsed.sessionSecret,
+            invalidatedAt:
+                typeof parsed.invalidatedAt === 'string' ? parsed.invalidatedAt : undefined,
+            invalidationReason:
+                typeof parsed.invalidationReason === 'string' ? parsed.invalidationReason : undefined,
         };
     } catch {
         return null;
     }
+}
+
+function serializeSession(session: AccountSession): string {
+    return JSON.stringify({
+        accessToken: session.accessToken,
+        subject: session.subject,
+        issuer: session.issuer,
+        refreshToken: session.refreshToken,
+        sessionSecret: session.sessionSecret,
+        invalidatedAt: session.invalidatedAt,
+        invalidationReason: session.invalidationReason,
+    });
 }
 
 function getLegacyMetaValue(key: string): string | null {
@@ -99,20 +117,56 @@ export const accountSessionStore = {
         const legacySession = readLegacySessionFromSqlite();
         if (!legacySession) return null;
 
-        await secureStore.setItemAsync(ACCOUNT_SESSION_KEY, JSON.stringify(legacySession));
+        await secureStore.setItemAsync(ACCOUNT_SESSION_KEY, serializeSession(legacySession));
         clearLegacyAccountSessionMetaKeys();
         return legacySession;
     },
 
     async set(session: AccountSession): Promise<void> {
+        const nextSession: AccountSession = {
+            accessToken: session.accessToken,
+            subject: session.subject,
+            issuer: session.issuer,
+            refreshToken: session.refreshToken,
+            sessionSecret: session.sessionSecret,
+        };
         const secureStore = getSecureStoreModule();
-        await secureStore.setItemAsync(ACCOUNT_SESSION_KEY, JSON.stringify(session));
+        await secureStore.setItemAsync(ACCOUNT_SESSION_KEY, serializeSession(nextSession));
         clearLegacyAccountSessionMetaKeys();
     },
 
     async clear(): Promise<void> {
         const secureStore = getSecureStoreModule();
         await secureStore.deleteItemAsync(ACCOUNT_SESSION_KEY);
+        clearLegacyAccountSessionMetaKeys();
+    },
+    async getUsable(): Promise<AccountSession | null> {
+        const session = await this.get();
+        if (!session || session.invalidatedAt) {
+            return null;
+        }
+        return session;
+    },
+
+    async invalidate(reason: string): Promise<void> {
+        const session = await this.get();
+        if (!session?.accessToken) {
+            return;
+        }
+
+        if (session.invalidatedAt) {
+            return;
+        }
+
+        const secureStore = getSecureStoreModule();
+        await secureStore.setItemAsync(
+            ACCOUNT_SESSION_KEY,
+            serializeSession({
+                ...session,
+                invalidatedAt: new Date().toISOString(),
+                invalidationReason: reason,
+            }),
+        );
         clearLegacyAccountSessionMetaKeys();
     },
 };

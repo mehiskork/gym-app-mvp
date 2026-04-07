@@ -23,7 +23,8 @@ jest.mock('../../auth/deviceCredentialStore', () => ({
 
 jest.mock('../../auth/accountSessionStore', () => ({
   accountSessionStore: {
-    get: jest.fn(async () => null),
+    getUsable: jest.fn(async () => null),
+    invalidate: jest.fn(async () => undefined),
   },
 }));
 

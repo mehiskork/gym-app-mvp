@@ -1,10 +1,12 @@
 import { getMeWithAccountAuth } from '../accountClient';
 import { accountSessionStore } from '../../auth/accountSessionStore';
 import { api } from '../client';
+import { ApiError } from '../errors';
 
 jest.mock('../../auth/accountSessionStore', () => ({
     accountSessionStore: {
-        get: jest.fn(),
+        getUsable: jest.fn(),
+        invalidate: jest.fn(),
     },
 }));
 
@@ -20,7 +22,7 @@ describe('getMeWithAccountAuth', () => {
     });
 
     it('calls /me with account bearer token', async () => {
-        (accountSessionStore.get as jest.Mock).mockResolvedValue({
+        (accountSessionStore.getUsable as jest.Mock).mockResolvedValue({
             accessToken: 'jwt-token',
             subject: 'acct-sub',
             issuer: 'https://issuer.example.test',
@@ -40,8 +42,18 @@ describe('getMeWithAccountAuth', () => {
     });
 
     it('throws when no account session exists', async () => {
-        (accountSessionStore.get as jest.Mock).mockResolvedValue(null);
+        (accountSessionStore.getUsable as jest.Mock).mockResolvedValue(null);
 
         await expect(getMeWithAccountAuth()).rejects.toThrow('No account session token available');
+    });
+    it('invalidates account session when /me returns 401', async () => {
+        (accountSessionStore.getUsable as jest.Mock).mockResolvedValue({
+            accessToken: 'jwt-token',
+        });
+        (api.get as jest.Mock).mockRejectedValue(new ApiError('Unauthorized', { status: 401 }));
+
+        await expect(getMeWithAccountAuth()).rejects.toThrow('Unauthorized');
+
+        expect(accountSessionStore.invalidate).toHaveBeenCalledWith('me_401');
     });
 });

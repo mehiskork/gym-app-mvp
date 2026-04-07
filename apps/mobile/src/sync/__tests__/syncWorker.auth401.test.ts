@@ -6,6 +6,7 @@ import { accountSessionStore } from '../../auth/accountSessionStore';
 
 let mockToken: string | null = 'device-token';
 let mockAccountAccessToken: string | null = null;
+let mockAccountInvalidatedAt: string | null = null;
 
 jest.mock('../../api/config', () => ({
   getApiBaseUrl: jest.fn(() => 'https://example.test'),
@@ -33,8 +34,22 @@ jest.mock('../../auth/deviceCredentialStore', () => ({
 jest.mock('../../auth/accountSessionStore', () => ({
   accountSessionStore: {
     get: jest.fn(async () =>
-      mockAccountAccessToken ? { accessToken: mockAccountAccessToken } : null,
+      mockAccountAccessToken
+        ? {
+          accessToken: mockAccountAccessToken,
+          invalidatedAt: mockAccountInvalidatedAt ?? undefined,
+          invalidationReason: mockAccountInvalidatedAt ? 'sync_401' : undefined,
+        }
+        : null,
     ),
+    getUsable: jest.fn(async () =>
+      mockAccountAccessToken && !mockAccountInvalidatedAt
+        ? { accessToken: mockAccountAccessToken }
+        : null,
+    ),
+    invalidate: jest.fn(async () => {
+      mockAccountInvalidatedAt = '2026-04-07T00:00:00.000Z';
+    }),
   },
 }));
 
@@ -73,6 +88,7 @@ describe('syncNow 401 self-heal', () => {
   beforeEach(() => {
     mockToken = 'device-token';
     mockAccountAccessToken = null;
+    mockAccountInvalidatedAt = null;
     process.env.EXPO_PUBLIC_API_BASE_URL = 'https://example.test';
     (claimOutboxOps as jest.Mock).mockReturnValue([
       {
@@ -125,7 +141,8 @@ describe('syncNow 401 self-heal', () => {
 
     await syncNow();
 
-    expect(accountSessionStore.get).toHaveBeenCalledTimes(1);
+    expect(accountSessionStore.getUsable).toHaveBeenCalledTimes(1);
+    expect(accountSessionStore.invalidate).toHaveBeenCalledWith('sync_401');
     expect(deviceCredentialStore.setDeviceToken).not.toHaveBeenCalled();
     expect(markOutboxOpsFailed).not.toHaveBeenCalled();
     expect(finishSyncRun).toHaveBeenCalledWith(
@@ -161,6 +178,25 @@ describe('syncNow 401 self-heal', () => {
     );
   });
 
+  it('falls back to device token when account session is present but invalidated', async () => {
+    mockAccountAccessToken = 'account-jwt-token';
+    mockAccountInvalidatedAt = '2026-04-07T00:00:00.000Z';
+    global.fetch = jest.fn().mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ acks: [], deltas: [], cursor: '1', hasMore: false }),
+    }) as unknown as typeof fetch;
+
+    await syncNow();
+
+    expect((global.fetch as jest.Mock).mock.calls[0]?.[1]).toEqual(
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer device-token' }),
+      }),
+    );
+  });
+
+
   it('re-registers on the next run and resumes sync', async () => {
     const fetchMock = jest
       .fn()
@@ -194,6 +230,34 @@ describe('syncNow 401 self-heal', () => {
       'https://example.test/sync',
       expect.objectContaining({
         headers: expect.objectContaining({ Authorization: 'Bearer new-device-token' }),
+      }),
+    );
+  });
+  it('persists invalidation behavior across runs so stale account jwt is not reused', async () => {
+    mockAccountAccessToken = 'account-jwt-token';
+    const fetchMock = jest
+      .fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        json: async () => ({ code: 'AUTH_UNAUTHORIZED' }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ acks: [], deltas: [], cursor: '1', hasMore: false }),
+      });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    await syncNow();
+    await syncNow();
+
+    expect(accountSessionStore.invalidate).toHaveBeenCalledWith('sync_401');
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      'https://example.test/sync',
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer device-token' }),
       }),
     );
   });
