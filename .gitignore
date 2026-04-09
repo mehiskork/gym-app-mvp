@@ -5,3 +5,12 @@ apps/backend/target/
 .classpath
 .project
 
+.env
+.env.*
+*.jks
+*.p12
+*.p8
+*.key
+*.pem
+*.mobileprovision
+.expo/

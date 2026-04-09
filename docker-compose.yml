@@ -1,8 +1,11 @@
 services:
+  # LOCAL DEV ONLY: Credentials and endpoints in this file are for local development only.
+  # NEVER use these values for staging/production deployment secrets.
   postgres:
     image: postgres:16
     container_name: gymapp-postgres
     environment:
+      # LOCAL DEV ONLY defaults; replace with managed secrets in deployment environments.
       POSTGRES_DB: gymapp
       POSTGRES_USER: gymapp
       POSTGRES_PASSWORD: gymapp
@@ -16,6 +19,7 @@ services:
       context: ./apps/backend
     container_name: gymapp-backend
     environment:
+      # LOCAL DEV ONLY defaults; never promote these credentials to deployment config.
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/gymapp
       SPRING_DATASOURCE_USERNAME: gymapp
       SPRING_DATASOURCE_PASSWORD: gymapp

@@ -12,7 +12,7 @@ apps/
   backend/     Spring Boot + PostgreSQL API (Java 21)
 docs/          Project documentation
 
-docker-compose.yml   Starts Postgres + backend together
+docker-compose.yml   Starts Postgres + backend together (local dev only credentials)
 ```
 
 ---
@@ -29,6 +29,8 @@ docker-compose.yml   Starts Postgres + backend together
 ---
 
 ## Backend
+
+> **Local-only credentials notice:** The `docker-compose.yml` database/user/password values are convenience defaults for local development only. **Never** reuse them for Railway or any other deployment environment.
 
 ### Start
 
