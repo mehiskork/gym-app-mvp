@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { Alert, Pressable, ScrollView, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import * as Updates from 'expo-updates';
@@ -35,12 +35,21 @@ import { getApiBaseUrl } from '../../api/config';
 import { registerDeviceIfNeeded, syncNow } from '../../sync/syncWorker';
 import { OUTBOX_STALE_IN_FLIGHT_SECONDS } from '../../sync/constants';
 
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
+function Card({
+  title,
+  children,
+  tone = 'default',
+}: {
+  title: string;
+  children: React.ReactNode;
+  tone?: 'default' | 'danger';
+}) {
+  const isDanger = tone === 'danger';
   return (
     <View
       style={{
-        backgroundColor: tokens.colors.surface,
-        borderColor: tokens.colors.border,
+        backgroundColor: isDanger ? '#3b1111' : tokens.colors.surface,
+        borderColor: isDanger ? '#7f1d1d' : tokens.colors.border,
         borderWidth: 1,
         borderRadius: tokens.radius.lg,
         padding: tokens.spacing.lg,
@@ -52,6 +61,38 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
       </Text>
       {children}
     </View>
+  );
+}
+
+function CollapsibleSection({
+  title,
+  defaultExpanded,
+  children,
+  tone = 'default',
+}: {
+  title: string;
+  defaultExpanded: boolean;
+  children: React.ReactNode;
+  tone?: 'default' | 'danger';
+}) {
+  const [expanded, setExpanded] = useState(defaultExpanded);
+
+  return (
+    <Card title="" tone={tone}>
+      <Pressable
+        onPress={() => setExpanded((value) => !value)}
+        style={{
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: expanded ? tokens.spacing.md : 0,
+        }}
+      >
+        <Text variant="subtitle">{title}</Text>
+        <Text variant="muted">{expanded ? 'Hide' : 'Show'}</Text>
+      </Pressable>
+      {expanded ? children : null}
+    </Card>
   );
 }
 
@@ -68,8 +109,31 @@ function Row({ label, value }: { label: string; value: string }) {
       <Text variant="muted" style={{ flex: 1 }}>
         {label}
       </Text>
-      <Text style={{ fontWeight: '600' }}>{value}</Text>
+      <Text style={{ fontWeight: '600', flexShrink: 1, textAlign: 'right' }}>{value}</Text>
     </View>
+  );
+}
+
+function CopyableRow({
+  label,
+  value,
+  displayValue,
+}: {
+  label: string;
+  value: string | null | undefined;
+  displayValue?: string;
+}) {
+  const renderedValue = displayValue ?? value ?? '—';
+  const copy = async () => {
+    if (!value) return;
+    await Clipboard.setStringAsync(value);
+    Alert.alert('Copied', `${label} copied to clipboard.`);
+  };
+
+  return (
+    <Pressable onPress={copy} disabled={!value} style={{ opacity: value ? 1 : 0.7 }}>
+      <Row label={label} value={renderedValue} />
+    </Pressable>
   );
 }
 
@@ -86,6 +150,28 @@ function truncate(value: string | null | undefined, max = 120): string {
   if (!value) return '—';
   if (value.length <= max) return value;
   return `${value.slice(0, max)}…`;
+}
+
+function formatDate(value: string | null | undefined): string {
+  if (!value) return '—';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleString();
+}
+
+function toTitleCase(value: string): string {
+  return value
+    .replace(/_/g, ' ')
+    .split(' ')
+    .filter(Boolean)
+    .map((word) => `${word[0].toUpperCase()}${word.slice(1)}`)
+    .join(' ');
+}
+
+function truncateId(value: string | null | undefined): string {
+  if (!value) return '—';
+  if (value.length <= 18) return value;
+  return `${value.slice(0, 8)}…${value.slice(-6)}`;
 }
 
 export function DebugScreen() {
@@ -122,7 +208,7 @@ export function DebugScreen() {
   useFocusEffect(
     useCallback(() => {
       refresh();
-      return () => { };
+      return () => {};
     }, [refresh]),
   );
 
@@ -239,268 +325,179 @@ export function DebugScreen() {
   const devOnly = __DEV__;
   const baseUrl = getApiBaseUrl();
 
+  const overview = useMemo(() => {
+    if (!syncInfo) {
+      return {
+        syncHealth: 'loading',
+        lastSyncResult: '—',
+      };
+    }
+
+    const accountBlocked =
+      syncInfo.authDebug.linkedState === 'linked' &&
+      syncInfo.authDebug.accountSessionStatus !== 'usable';
+
+    const hasError = Boolean(syncInfo.syncState.last_error);
+    const hasPendingChanges =
+      syncInfo.outboxStatusCounts.pending > 0 ||
+      syncInfo.outboxStatusCounts.failed > 0 ||
+      syncInfo.outboxStatusCounts.in_flight > 0;
+
+    let syncHealth = 'healthy';
+    if (hasError) {
+      syncHealth = 'error';
+    } else if (accountBlocked) {
+      syncHealth = 'auth blocked';
+    } else if (hasPendingChanges) {
+      syncHealth = 'pending changes';
+    }
+
+    const latestRun = syncRuns[0];
+    const lastSyncResult = hasError
+      ? 'Error'
+      : latestRun?.status
+        ? toTitleCase(latestRun.status)
+        : syncInfo.syncState.last_sync_at
+          ? 'Success'
+          : 'Never synced';
+
+    return {
+      syncHealth,
+      lastSyncResult,
+    };
+  }, [syncInfo, syncRuns]);
+
+  const copyConciseDiagnostics = useCallback(async () => {
+    if (!syncInfo) {
+      Alert.alert('Unavailable', 'Diagnostics are still loading.');
+      return;
+    }
+
+    const summary = [
+      `Backend host: ${baseUrl}`,
+      `Linked state: ${syncInfo.authDebug.linkedState}`,
+      `Device token present: ${syncInfo.authDebug.deviceTokenPresent ? 'yes' : 'no'}`,
+      `Account session: ${syncInfo.authDebug.accountSessionStatus}`,
+      `Auth mode last/next: ${syncInfo.authDebug.syncAuthModeLastUsed ?? '—'} / ${syncInfo.authDebug.syncAuthModeNextPlanned ?? '—'}`,
+      `Outbox count: ${syncInfo.outboxTotalCount}`,
+      `Cursor: ${syncInfo.syncState.cursor ?? '—'}`,
+      `Last sync result: ${overview.lastSyncResult}`,
+      `Last error: ${truncate(syncInfo.syncState.last_error, 100)}`,
+    ].join('\n');
+
+    await Clipboard.setStringAsync(summary);
+    Alert.alert('Copied', 'Concise diagnostics copied to clipboard.');
+  }, [baseUrl, overview.lastSyncResult, syncInfo]);
+
+  const destructiveConfirm = (title: string, message: string, onConfirm: () => void) => {
+    Alert.alert(title, message, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Confirm', style: 'destructive', onPress: onConfirm },
+    ]);
+  };
+
   return (
     <Screen padded bottomInset="none" style={{ flex: 1 }}>
       <ScrollView contentContainerStyle={{ paddingBottom: tokens.spacing.xl }}>
-        <Card title="Build">
-          <Row label="App" value={buildInfo.appName} />
-          <Row label="Version" value={`${buildInfo.version} (${buildInfo.build})`} />
-          <Row label="JS Engine" value={buildInfo.jsEngine} />
-          <Row label="Dev mode" value={buildInfo.isDev ? 'true' : 'false'} />
-          <Row label="Updates enabled" value={buildInfo.updatesEnabled ? 'true' : 'false'} />
-          <Row label="Update ID" value={buildInfo.updateId ?? '—'} />
-          <Row label="Runtime" value={buildInfo.runtimeVersion ?? '—'} />
-          <Row label="Channel" value={buildInfo.channel ?? '—'} />
-        </Card>
-
-        {devOnly && syncInfo ? (
-          <Card title="Sync identity">
-            <StackedRow label="Guest user id" value={syncInfo.guestUserId ?? '—'} />
-            <StackedRow label="Effective user id" value={syncInfo.effectiveUserId} />
-          </Card>
-        ) : null}
-
-        <Card title="Database counts">
-          {Object.keys(counts).length === 0 ? (
-            <Text variant="muted">Loading…</Text>
-          ) : (
-            Object.entries(counts).map(([k, v]) => <Row key={k} label={k} value={String(v)} />)
-          )}
-          <Pressable
-            onPress={refresh}
-            style={{
-              marginTop: tokens.spacing.md,
-              paddingVertical: tokens.spacing.md,
-              borderRadius: tokens.radius.md,
-              borderWidth: 1,
-              borderColor: tokens.colors.border,
-              alignItems: 'center',
-            }}
-          >
-            <Text style={{ fontWeight: '700' }}>Refresh</Text>
-          </Pressable>
-        </Card>
-
-        {devOnly && weekStartDebug ? (
-          <Card title="Week start debug">
-            <StackedRow label="Week start (now)" value={weekStartDebug.weekStartNow || '—'} />
-            {weekStartDebug.recentWeekBuckets.length === 0 ? (
-              <Text variant="muted">No completed sessions.</Text>
-            ) : (
-              weekStartDebug.recentWeekBuckets.map((bucket) => (
-                <Row
-                  key={bucket.week_start}
-                  label={bucket.week_start}
-                  value={`${bucket.sessions} sessions`}
-                />
-              ))
-            )}
-          </Card>
-        ) : null}
-
-        <Card title="In-progress workout">
-          {inProgress ? (
-            <>
-              <Row label="Session ID" value={String(inProgress.sessionId)} />
-              <Row label="Sets" value={String(inProgress.setCount)} />
-              <Row
-                label="Started"
-                value={inProgress.startedAt ? new Date(inProgress.startedAt).toLocaleString() : '—'}
-              />
-            </>
-          ) : (
-            <Text variant="muted">None</Text>
-          )}
-
-          <Pressable
-            disabled={!devOnly}
-            onPress={() => {
-              Alert.alert(
-                'Reset in-progress workout',
-                'This is destructive and intended for development only. Continue?',
-                [
-                  { text: 'Cancel', style: 'cancel' },
-                  {
-                    text: 'Reset',
-                    style: 'destructive',
-                    onPress: () => {
-                      resetInProgressWorkoutHardDelete();
-                      refresh();
-                      Alert.alert('Done', 'In-progress workout cleared.');
-                    },
-                  },
-                ],
-              );
-            }}
-            style={{
-              opacity: devOnly ? 1 : 0.4,
-              marginTop: tokens.spacing.md,
-              paddingVertical: tokens.spacing.md,
-              borderRadius: tokens.radius.md,
-              borderWidth: 1,
-              borderColor: tokens.colors.border,
-              alignItems: 'center',
-            }}
-          >
-            <Text style={{ fontWeight: '700' }}>Reset in-progress workout (dev-only)</Text>
-          </Pressable>
-        </Card>
-
-        <Card title="Utilities">
-          <Pressable
-            disabled={!devOnly}
-            onPress={() => {
-              const repaired = repairSessionsMissingSets();
-              refresh();
-              Alert.alert('Done', `Inserted ${repaired} missing set(s).`);
-            }}
-            style={{
-              opacity: devOnly ? 1 : 0.4,
-              paddingVertical: tokens.spacing.md,
-              borderRadius: tokens.radius.md,
-              borderWidth: 1,
-              borderColor: tokens.colors.border,
-              alignItems: 'center',
-              marginBottom: tokens.spacing.md,
-            }}
-          >
-            <Text style={{ fontWeight: '700' }}>Repair sessions missing sets (dev-only)</Text>
-          </Pressable>
-          <Pressable
-            disabled={!devOnly}
-            onPress={() => {
-              seedTestPlan();
-              refresh();
-              Alert.alert('Done', 'Test plan seeded (if not already present).');
-            }}
-            style={{
-              opacity: devOnly ? 1 : 0.4,
-              paddingVertical: tokens.spacing.md,
-              borderRadius: tokens.radius.md,
-              borderWidth: 1,
-              borderColor: tokens.colors.border,
-              alignItems: 'center',
-              marginBottom: tokens.spacing.md,
-            }}
-          >
-            <Text style={{ fontWeight: '700' }}>Seed test plan (dev-only)</Text>
-          </Pressable>
-          <Pressable
-            disabled={!devOnly}
-            onPress={() => {
-              const result = testNestedTransactionRollback();
-              Alert.alert(result.ok ? 'Success' : 'Failure', result.message);
-            }}
-            style={{
-              opacity: devOnly ? 1 : 0.4,
-              paddingVertical: tokens.spacing.md,
-              borderRadius: tokens.radius.md,
-              borderWidth: 1,
-              borderColor: tokens.colors.border,
-              alignItems: 'center',
-              marginBottom: tokens.spacing.md,
-            }}
-          >
-            <Text style={{ fontWeight: '700' }}>Test nested transaction rollback (dev-only)</Text>
-          </Pressable>
-
-          <Pressable
-            disabled={!devOnly}
-            onPress={() => {
-              const result = validateStatusEnums();
-              Alert.alert(result.ok ? 'Success' : 'Failure', result.message);
-            }}
-            style={{
-              opacity: devOnly ? 1 : 0.4,
-              paddingVertical: tokens.spacing.md,
-              borderRadius: tokens.radius.md,
-              borderWidth: 1,
-              borderColor: tokens.colors.border,
-              alignItems: 'center',
-              marginBottom: tokens.spacing.md,
-            }}
-          >
-            <Text style={{ fontWeight: '700' }}>Validate status enums (dev-only)</Text>
-          </Pressable>
-
-          <Pressable
-            onPress={exportLogs}
-            style={{
-              paddingVertical: tokens.spacing.md,
-              borderRadius: tokens.radius.md,
-              borderWidth: 1,
-              borderColor: tokens.colors.border,
-              alignItems: 'center',
-            }}
-          >
-            <Text style={{ fontWeight: '700' }}>Export logs (JSON)</Text>
-          </Pressable>
-
-          <Text variant="muted" style={{ marginTop: tokens.spacing.md }}>
-            Export includes build info, DB counts, in-progress workout, and last 1000 log entries.
-          </Text>
-        </Card>
-
-        <Card title="Support">
-          <Pressable
-            onPress={exportSupportBundle}
-            style={{
-              paddingVertical: tokens.spacing.md,
-              borderRadius: tokens.radius.md,
-              borderWidth: 1,
-              borderColor: tokens.colors.border,
-              alignItems: 'center',
-            }}
-          >
-            <Text style={{ fontWeight: '700' }}>Export support bundle</Text>
-          </Pressable>
-          <Text variant="muted" style={{ marginTop: tokens.spacing.md }}>
-            Export includes auth/session status, sync state, outbox stats, recent sync runs, and table counts.
-          </Text>
-        </Card>
-
-        <Card title="Sync">
+        <Card title="Overview">
           {syncInfo ? (
             <>
-              <Row label="API Base URL" value={baseUrl} />
-              {devOnly && syncStateHealth ? (
-                <Row label="Sync state schema" value={syncStateHealth.ok ? 'ok' : 'issue'} />
-              ) : null}
-              {devOnly && wseSchemaHealth ? (
-                <Row label="Cardio schema" value={wseSchemaHealth.ok ? 'ok' : 'issue'} />
-              ) : null}
-              {devOnly && syncStateHealth && !syncStateHealth.ok ? (
-                <Text variant="muted">{syncStateHealth.message}</Text>
-              ) : null}
-              {devOnly && wseSchemaHealth && !wseSchemaHealth.ok ? (
-                <Text variant="muted">{wseSchemaHealth.message}</Text>
-              ) : null}
-              <Row label="Device ID" value={syncInfo.deviceId} />
-              <Row label="Sync auth mode (last)" value={syncInfo.authDebug.syncAuthModeLastUsed ?? '—'} />
+              <Row label="Sync health" value={overview.syncHealth} />
+              <Row label="Backend host" value={baseUrl} />
+              <Row label="Linked state" value={toTitleCase(syncInfo.authDebug.linkedState)} />
               <Row
-                label="Sync auth mode (next)"
-                value={syncInfo.authDebug.syncAuthModeNextPlanned ?? '—'}
+                label="Device token"
+                value={syncInfo.authDebug.deviceTokenPresent ? 'Present' : 'Missing'}
               />
-              <Row label="Account session status" value={syncInfo.authDebug.accountSessionStatus} />
+              <Row
+                label="Account session"
+                value={toTitleCase(syncInfo.authDebug.accountSessionStatus)}
+              />
+              <Row
+                label="Auth mode (last / next)"
+                value={`${syncInfo.authDebug.syncAuthModeLastUsed ?? '—'} / ${syncInfo.authDebug.syncAuthModeNextPlanned ?? '—'}`}
+              />
+              <Row label="Outbox" value={String(syncInfo.outboxTotalCount)} />
+              <CopyableRow
+                label="Cursor"
+                value={syncInfo.syncState.cursor}
+                displayValue={truncate(syncInfo.syncState.cursor, 30)}
+              />
+              <Row label="Last sync result" value={overview.lastSyncResult} />
+              <Row label="Last sync time" value={formatDate(syncInfo.syncState.last_sync_at)} />
+              <Row label="Last error" value={truncate(syncInfo.syncState.last_error, 80)} />
+            </>
+          ) : (
+            <Text variant="muted">Loading…</Text>
+          )}
+        </Card>
+
+        <CollapsibleSection title="Identity & Auth" defaultExpanded>
+          {syncInfo ? (
+            <>
+              <CopyableRow
+                label="Guest user ID"
+                value={syncInfo.guestUserId}
+                displayValue={truncateId(syncInfo.guestUserId)}
+              />
+              <CopyableRow
+                label="Effective user ID"
+                value={syncInfo.effectiveUserId}
+                displayValue={truncateId(syncInfo.effectiveUserId)}
+              />
+              <CopyableRow
+                label="Device ID"
+                value={syncInfo.deviceId}
+                displayValue={truncateId(syncInfo.deviceId)}
+              />
+              <Row label="Linked state" value={toTitleCase(syncInfo.authDebug.linkedState)} />
+              <Row
+                label="Account session status"
+                value={toTitleCase(syncInfo.authDebug.accountSessionStatus)}
+              />
               <Row
                 label="Account invalidation reason"
                 value={syncInfo.authDebug.accountInvalidationReason ?? '—'}
               />
-              <Row label="Account invalidated at" value={syncInfo.authDebug.accountInvalidatedAt ?? '—'} />
+              <Row
+                label="Account invalidated at"
+                value={formatDate(syncInfo.authDebug.accountInvalidatedAt)}
+              />
               <Row
                 label="Device token present"
-                value={syncInfo.authDebug.deviceTokenPresent ? 'true' : 'false'}
+                value={syncInfo.authDebug.deviceTokenPresent ? 'Yes' : 'No'}
               />
-              <Row label="Linked state" value={syncInfo.authDebug.linkedState} />
-              <StackedRow label="Guest user ID" value={syncInfo.guestUserId ?? '—'} />
+              <Row
+                label="Auth mode last used"
+                value={syncInfo.authDebug.syncAuthModeLastUsed ?? '—'}
+              />
+              <Row
+                label="Auth mode next planned"
+                value={syncInfo.authDebug.syncAuthModeNextPlanned ?? '—'}
+              />
+            </>
+          ) : (
+            <Text variant="muted">Loading…</Text>
+          )}
+        </CollapsibleSection>
+
+        <CollapsibleSection title="Sync & Queue" defaultExpanded>
+          {syncInfo ? (
+            <>
+              <Row label="Sync status" value={overview.syncHealth} />
               <Row label="Outbox total" value={String(syncInfo.outboxTotalCount)} />
               <StackedRow
-                label="By status"
-                value={`pending ${syncInfo.outboxStatusCounts.pending} • failed ${syncInfo.outboxStatusCounts.failed} • in_flight ${syncInfo.outboxStatusCounts.in_flight} • acked ${syncInfo.outboxStatusCounts.acked}`}
+                label="Outbox by status"
+                value={`pending ${syncInfo.outboxStatusCounts.pending} • failed ${syncInfo.outboxStatusCounts.failed} • in-flight ${syncInfo.outboxStatusCounts.in_flight} • acked ${syncInfo.outboxStatusCounts.acked}`}
               />
               <Row label="Due now" value={String(syncInfo.dueNowCount)} />
-              <Row label="Cursor" value={syncInfo.syncState.cursor ?? '—'} />
-              <Row label="Last sync" value={syncInfo.syncState.last_sync_at ?? '—'} />
+              <CopyableRow
+                label="Cursor"
+                value={syncInfo.syncState.cursor}
+                displayValue={truncate(syncInfo.syncState.cursor, 48)}
+              />
+              <Row label="Last sync result" value={overview.lastSyncResult} />
+              <Row label="Last sync time" value={formatDate(syncInfo.syncState.last_sync_at)} />
               <Row label="Last error" value={truncate(syncInfo.syncState.last_error)} />
               <Row
                 label="Last delta count"
@@ -516,17 +513,36 @@ export function DebugScreen() {
               />
 
               <Text variant="subtitle" style={{ marginTop: tokens.spacing.md }}>
-                Recent ops
+                Recent sync runs
+              </Text>
+              {syncRuns.length === 0 ? (
+                <Text variant="muted">No sync runs yet.</Text>
+              ) : (
+                syncRuns.slice(0, 5).map((run) => (
+                  <View key={run.id} style={{ marginBottom: tokens.spacing.sm }}>
+                    <Text style={{ fontWeight: '600' }}>
+                      {`${new Date(run.started_at).toLocaleString()} • ${toTitleCase(run.status)}`}
+                    </Text>
+                    <Text variant="muted">{`ops ${run.ops_sent} • deltas ${run.deltas_applied}`}</Text>
+                    <Text variant="muted">
+                      {`cursor ${run.cursor_before ?? '—'} → ${run.cursor_after ?? '—'}`}
+                    </Text>
+                    <Text variant="muted">{`error ${run.error_code ?? '—'}`}</Text>
+                  </View>
+                ))
+              )}
+
+              <Text variant="subtitle" style={{ marginTop: tokens.spacing.md }}>
+                Recent outbox ops
               </Text>
               {syncInfo.recentOutboxOps.length === 0 ? (
                 <Text variant="muted">No outbox ops yet.</Text>
               ) : (
                 syncInfo.recentOutboxOps.map((op) => (
                   <View key={op.op_id} style={{ marginTop: tokens.spacing.sm }}>
-                    <Text style={{ fontWeight: '600' }}>{op.op_id}</Text>
+                    <Text style={{ fontWeight: '600' }}>{truncate(op.op_id, 36)}</Text>
                     <Text variant="muted">
-                      {`${op.status} • attempts ${op.attempt_count} • next ${op.next_attempt_at ?? '—'
-                        }`}
+                      {`${op.status} • attempts ${op.attempt_count} • next ${op.next_attempt_at ?? '—'}`}
                     </Text>
                     <Text variant="muted">
                       {`created ${op.created_at} • error ${truncate(op.last_error, 80)}`}
@@ -538,26 +554,6 @@ export function DebugScreen() {
           ) : (
             <Text variant="muted">Loading…</Text>
           )}
-
-          <Pressable
-            disabled={!devOnly}
-            onPress={async () => {
-              await registerDeviceIfNeeded();
-              refresh();
-            }}
-            style={{
-              opacity: devOnly ? 1 : 0.4,
-              marginTop: tokens.spacing.md,
-              paddingVertical: tokens.spacing.md,
-              borderRadius: tokens.radius.md,
-              borderWidth: 1,
-              borderColor: tokens.colors.border,
-              alignItems: 'center',
-              marginBottom: tokens.spacing.md,
-            }}
-          >
-            <Text style={{ fontWeight: '700' }}>Register device (dev-only)</Text>
-          </Pressable>
 
           <Pressable
             onPress={async () => {
@@ -590,7 +586,7 @@ export function DebugScreen() {
               marginTop: tokens.spacing.md,
             }}
           >
-            <Text style={{ fontWeight: '700' }}>Pull only</Text>
+            <Text style={{ fontWeight: '700' }}>Pull latest</Text>
           </Pressable>
 
           <Pressable
@@ -610,26 +606,124 @@ export function DebugScreen() {
           >
             <Text style={{ fontWeight: '700' }}>Repair stale in-flight</Text>
           </Pressable>
+        </CollapsibleSection>
 
+        <CollapsibleSection title="Support" defaultExpanded>
+          <Pressable
+            onPress={exportSupportBundle}
+            style={{
+              paddingVertical: tokens.spacing.md,
+              borderRadius: tokens.radius.md,
+              borderWidth: 1,
+              borderColor: tokens.colors.border,
+              alignItems: 'center',
+              marginBottom: tokens.spacing.md,
+            }}
+          >
+            <Text style={{ fontWeight: '700' }}>Export support bundle</Text>
+          </Pressable>
+
+          <Pressable
+            onPress={copyConciseDiagnostics}
+            style={{
+              paddingVertical: tokens.spacing.md,
+              borderRadius: tokens.radius.md,
+              borderWidth: 1,
+              borderColor: tokens.colors.border,
+              alignItems: 'center',
+            }}
+          >
+            <Text style={{ fontWeight: '700' }}>Copy concise diagnostics</Text>
+          </Pressable>
+
+          <Text variant="muted" style={{ marginTop: tokens.spacing.md }}>
+            Share support bundle for full diagnostics, or use concise diagnostics for quick tester
+            updates.
+          </Text>
+        </CollapsibleSection>
+
+        <CollapsibleSection title="Backend / Environment" defaultExpanded={false}>
+          <Row label="API base URL" value={baseUrl} />
+          <Row label="App" value={buildInfo.appName} />
+          <Row label="Version" value={`${buildInfo.version} (${buildInfo.build})`} />
+          <Row label="JS engine" value={buildInfo.jsEngine} />
+          <Row label="Dev mode" value={buildInfo.isDev ? 'true' : 'false'} />
+          <Row label="Updates enabled" value={buildInfo.updatesEnabled ? 'true' : 'false'} />
+          <Row label="Update ID" value={buildInfo.updateId ?? '—'} />
+          <Row label="Runtime version" value={buildInfo.runtimeVersion ?? '—'} />
+          <Row label="Channel" value={buildInfo.channel ?? '—'} />
+        </CollapsibleSection>
+
+        <CollapsibleSection title="Local Storage" defaultExpanded={false}>
+          <Text variant="subtitle" style={{ marginBottom: tokens.spacing.sm }}>
+            Database table counts
+          </Text>
+          {Object.keys(counts).length === 0 ? (
+            <Text variant="muted">Loading…</Text>
+          ) : (
+            Object.entries(counts).map(([k, v]) => <Row key={k} label={k} value={String(v)} />)
+          )}
+          <Pressable
+            onPress={refresh}
+            style={{
+              marginTop: tokens.spacing.md,
+              paddingVertical: tokens.spacing.md,
+              borderRadius: tokens.radius.md,
+              borderWidth: 1,
+              borderColor: tokens.colors.border,
+              alignItems: 'center',
+            }}
+          >
+            <Text style={{ fontWeight: '700' }}>Refresh counts</Text>
+          </Pressable>
+
+          <Text variant="subtitle" style={{ marginTop: tokens.spacing.lg }}>
+            In-progress workout
+          </Text>
+          {inProgress ? (
+            <>
+              <CopyableRow
+                label="Session ID"
+                value={String(inProgress.sessionId)}
+                displayValue={truncateId(String(inProgress.sessionId))}
+              />
+              <Row label="Sets" value={String(inProgress.setCount)} />
+              <Row
+                label="Started"
+                value={inProgress.startedAt ? new Date(inProgress.startedAt).toLocaleString() : '—'}
+              />
+            </>
+          ) : (
+            <Text variant="muted">None</Text>
+          )}
+
+          {devOnly && weekStartDebug ? (
+            <>
+              <Text variant="subtitle" style={{ marginTop: tokens.spacing.lg }}>
+                Week start debug
+              </Text>
+              <Row label="Week start (now)" value={weekStartDebug.weekStartNow || '—'} />
+              {weekStartDebug.recentWeekBuckets.length === 0 ? (
+                <Text variant="muted">No completed sessions.</Text>
+              ) : (
+                weekStartDebug.recentWeekBuckets.map((bucket) => (
+                  <Row
+                    key={bucket.week_start}
+                    label={bucket.week_start}
+                    value={`${bucket.sessions} sessions`}
+                  />
+                ))
+              )}
+            </>
+          ) : null}
+        </CollapsibleSection>
+
+        <CollapsibleSection title="Developer Tools" defaultExpanded={false}>
           <Pressable
             disabled={!devOnly}
             onPress={() => {
-              Alert.alert(
-                'Reset cursor',
-                'This will reset the sync cursor to 0 and re-download deltas. Continue?',
-                [
-                  { text: 'Cancel', style: 'cancel' },
-                  {
-                    text: 'Reset',
-                    style: 'destructive',
-                    onPress: () => {
-                      resetSyncCursorForDebug();
-                      refresh();
-                      Alert.alert('Done', 'Sync cursor reset to 0.');
-                    },
-                  },
-                ],
-              );
+              const result = validateStatusEnums();
+              Alert.alert(result.ok ? 'Success' : 'Failure', result.message);
             }}
             style={{
               opacity: devOnly ? 1 : 0.4,
@@ -638,7 +732,116 @@ export function DebugScreen() {
               borderWidth: 1,
               borderColor: tokens.colors.border,
               alignItems: 'center',
+              marginBottom: tokens.spacing.md,
+            }}
+          >
+            <Text style={{ fontWeight: '700' }}>Validate status enums (dev-only)</Text>
+          </Pressable>
+
+          <Pressable
+            disabled={!devOnly}
+            onPress={() => {
+              const result = testNestedTransactionRollback();
+              Alert.alert(result.ok ? 'Success' : 'Failure', result.message);
+            }}
+            style={{
+              opacity: devOnly ? 1 : 0.4,
+              paddingVertical: tokens.spacing.md,
+              borderRadius: tokens.radius.md,
+              borderWidth: 1,
+              borderColor: tokens.colors.border,
+              alignItems: 'center',
+              marginBottom: tokens.spacing.md,
+            }}
+          >
+            <Text style={{ fontWeight: '700' }}>Test nested transaction rollback (dev-only)</Text>
+          </Pressable>
+
+          {devOnly && syncStateHealth ? (
+            <>
+              <Row label="Sync state schema" value={syncStateHealth.ok ? 'ok' : 'issue'} />
+              {!syncStateHealth.ok ? <Text variant="muted">{syncStateHealth.message}</Text> : null}
+            </>
+          ) : null}
+          {devOnly && wseSchemaHealth ? (
+            <>
+              <Row label="Cardio schema" value={wseSchemaHealth.ok ? 'ok' : 'issue'} />
+              {!wseSchemaHealth.ok ? <Text variant="muted">{wseSchemaHealth.message}</Text> : null}
+            </>
+          ) : null}
+
+          <Pressable
+            onPress={exportLogs}
+            style={{
+              paddingVertical: tokens.spacing.md,
+              borderRadius: tokens.radius.md,
+              borderWidth: 1,
+              borderColor: tokens.colors.border,
+              alignItems: 'center',
               marginTop: tokens.spacing.md,
+            }}
+          >
+            <Text style={{ fontWeight: '700' }}>Export logs (JSON)</Text>
+          </Pressable>
+        </CollapsibleSection>
+
+        <CollapsibleSection
+          title="Destructive / Dev-only Actions"
+          defaultExpanded={false}
+          tone="danger"
+        >
+          <Text variant="muted" style={{ marginBottom: tokens.spacing.md }}>
+            These actions are risky and intended only for development troubleshooting.
+          </Text>
+
+          <Pressable
+            disabled={!devOnly}
+            onPress={() => {
+              destructiveConfirm(
+                'Force register device',
+                'This mutates local/device auth state. Continue?',
+                () => {
+                  void registerDeviceIfNeeded().then(() => {
+                    refresh();
+                    Alert.alert('Done', 'Device registration attempted.');
+                  });
+                },
+              );
+            }}
+            style={{
+              opacity: devOnly ? 1 : 0.4,
+              paddingVertical: tokens.spacing.md,
+              borderRadius: tokens.radius.md,
+              borderWidth: 1,
+              borderColor: '#7f1d1d',
+              alignItems: 'center',
+              marginBottom: tokens.spacing.md,
+            }}
+          >
+            <Text style={{ fontWeight: '700' }}>Force register device (dev-only)</Text>
+          </Pressable>
+
+          <Pressable
+            disabled={!devOnly}
+            onPress={() => {
+              destructiveConfirm(
+                'Reset cursor',
+                'This resets the sync cursor to 0 and forces re-download. Continue?',
+                () => {
+                  resetSyncCursorForDebug();
+                  refresh();
+                  Alert.alert('Done', 'Sync cursor reset to 0.');
+                },
+              );
+            }}
+            style={{
+              opacity: devOnly ? 1 : 0.4,
+              paddingVertical: tokens.spacing.md,
+              borderRadius: tokens.radius.md,
+              borderWidth: 1,
+              borderColor: '#7f1d1d',
+              alignItems: 'center',
+              marginBottom: tokens.spacing.md,
             }}
           >
             <Text style={{ fontWeight: '700' }}>Reset cursor to 0 (dev-only)</Text>
@@ -647,21 +850,14 @@ export function DebugScreen() {
           <Pressable
             disabled={!devOnly}
             onPress={() => {
-              Alert.alert(
+              destructiveConfirm(
                 'Clear outbox',
-                'This will delete all outbox ops and reset sync state. Continue?',
-                [
-                  { text: 'Cancel', style: 'cancel' },
-                  {
-                    text: 'Clear',
-                    style: 'destructive',
-                    onPress: () => {
-                      clearOutboxForDebug();
-                      refresh();
-                      Alert.alert('Done', 'Outbox cleared.');
-                    },
-                  },
-                ],
+                'This deletes outbox ops and resets sync state. Continue?',
+                () => {
+                  clearOutboxForDebug();
+                  refresh();
+                  Alert.alert('Done', 'Outbox cleared.');
+                },
               );
             }}
             style={{
@@ -669,32 +865,91 @@ export function DebugScreen() {
               paddingVertical: tokens.spacing.md,
               borderRadius: tokens.radius.md,
               borderWidth: 1,
-              borderColor: tokens.colors.border,
+              borderColor: '#7f1d1d',
               alignItems: 'center',
-              marginTop: tokens.spacing.md,
+              marginBottom: tokens.spacing.md,
             }}
           >
             <Text style={{ fontWeight: '700' }}>Clear outbox (dev-only)</Text>
           </Pressable>
-        </Card>
-        <Card title="Sync Runs">
-          {syncRuns.length === 0 ? (
-            <Text variant="muted">No sync runs yet.</Text>
-          ) : (
-            syncRuns.map((run) => (
-              <View key={run.id} style={{ marginBottom: tokens.spacing.md }}>
-                <Text style={{ fontWeight: '600' }}>
-                  {`${new Date(run.started_at).toLocaleString()} • ${run.status}`}
-                </Text>
-                <Text variant="muted">{`ops ${run.ops_sent} • deltas ${run.deltas_applied}`}</Text>
-                <Text variant="muted">
-                  {`cursor ${run.cursor_before ?? '—'} → ${run.cursor_after ?? '—'}`}
-                </Text>
-                <Text variant="muted">{`error ${run.error_code ?? '—'}`}</Text>
-              </View>
-            ))
-          )}
-        </Card>
+
+          <Pressable
+            disabled={!devOnly}
+            onPress={() => {
+              destructiveConfirm(
+                'Reset in-progress workout',
+                'This hard-deletes the active workout session. Continue?',
+                () => {
+                  resetInProgressWorkoutHardDelete();
+                  refresh();
+                  Alert.alert('Done', 'In-progress workout cleared.');
+                },
+              );
+            }}
+            style={{
+              opacity: devOnly ? 1 : 0.4,
+              paddingVertical: tokens.spacing.md,
+              borderRadius: tokens.radius.md,
+              borderWidth: 1,
+              borderColor: '#7f1d1d',
+              alignItems: 'center',
+              marginBottom: tokens.spacing.md,
+            }}
+          >
+            <Text style={{ fontWeight: '700' }}>Reset in-progress workout (dev-only)</Text>
+          </Pressable>
+
+          <Pressable
+            disabled={!devOnly}
+            onPress={() => {
+              destructiveConfirm(
+                'Repair sessions missing sets',
+                'This mutates historical data by inserting missing sets. Continue?',
+                () => {
+                  const repaired = repairSessionsMissingSets();
+                  refresh();
+                  Alert.alert('Done', `Inserted ${repaired} missing set(s).`);
+                },
+              );
+            }}
+            style={{
+              opacity: devOnly ? 1 : 0.4,
+              paddingVertical: tokens.spacing.md,
+              borderRadius: tokens.radius.md,
+              borderWidth: 1,
+              borderColor: '#7f1d1d',
+              alignItems: 'center',
+              marginBottom: tokens.spacing.md,
+            }}
+          >
+            <Text style={{ fontWeight: '700' }}>Repair sessions missing sets (dev-only)</Text>
+          </Pressable>
+
+          <Pressable
+            disabled={!devOnly}
+            onPress={() => {
+              destructiveConfirm(
+                'Seed test plan',
+                'This writes development seed data. Continue?',
+                () => {
+                  seedTestPlan();
+                  refresh();
+                  Alert.alert('Done', 'Test plan seeded (if not already present).');
+                },
+              );
+            }}
+            style={{
+              opacity: devOnly ? 1 : 0.4,
+              paddingVertical: tokens.spacing.md,
+              borderRadius: tokens.radius.md,
+              borderWidth: 1,
+              borderColor: '#7f1d1d',
+              alignItems: 'center',
+            }}
+          >
+            <Text style={{ fontWeight: '700' }}>Seed test plan (dev-only)</Text>
+          </Pressable>
+        </CollapsibleSection>
       </ScrollView>
     </Screen>
   );
