@@ -181,6 +181,34 @@ function StackedRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+function CopyableInlineValue({
+  prefix,
+  value,
+  copyValue,
+  marginBottom = 8,
+}: {
+  prefix: string;
+  value: string;
+  copyValue?: string;
+  marginBottom?: number;
+}) {
+  const copy = async () => {
+    const text = copyValue ?? value;
+    if (!text) return;
+    await Clipboard.setStringAsync(text);
+    Alert.alert('Copied', `${prefix} copied to clipboard.`);
+  };
+
+  return (
+    <Pressable onPress={copy} style={{ marginBottom }}>
+      <Text style={{ fontWeight: '600' }}>
+        <Text variant="muted">{prefix}</Text>
+        {` · ${value}`}
+      </Text>
+    </Pressable>
+  );
+}
+
 function truncate(value: string | null | undefined, max = 120): string {
   if (!value) return '—';
   if (value.length <= max) return value;
@@ -251,7 +279,7 @@ export function DebugScreen() {
   useFocusEffect(
     useCallback(() => {
       refresh();
-      return () => {};
+      return () => { };
     }, [refresh]),
   );
 
@@ -495,7 +523,7 @@ export function DebugScreen() {
                   tone={accountSessionTone}
                 />
               </View>
-              <CopyableRow label="Backend host" value={baseUrl} displayValue={backendHost} />
+              <CopyableInlineValue prefix="Backend" value={backendHost} copyValue={baseUrl} />
               <Row label="Linked state" value={toTitleCase(syncInfo.authDebug.linkedState)} />
               <Row
                 label="Device token"
@@ -752,7 +780,12 @@ export function DebugScreen() {
         </CollapsibleSection>
 
         <CollapsibleSection title="Backend / Environment" defaultExpanded={false}>
-          <Row label="API base URL" value={baseUrl} />
+          <CopyableInlineValue
+            prefix="Backend URL"
+            value={baseUrl}
+            copyValue={baseUrl}
+            marginBottom={tokens.spacing.sm}
+          />
           <Row label="App" value={buildInfo.appName} />
           <Row label="Version" value={`${buildInfo.version} (${buildInfo.build})`} />
           <Row label="JS engine" value={buildInfo.jsEngine} />
