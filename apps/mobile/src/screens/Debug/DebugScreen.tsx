@@ -114,6 +114,41 @@ function Row({ label, value }: { label: string; value: string }) {
   );
 }
 
+function StatusPill({
+  label,
+  tone,
+}: {
+  label: string;
+  tone: 'success' | 'warning' | 'danger' | 'neutral';
+}) {
+  const toneStyles = {
+    success: { backgroundColor: '#113320', borderColor: '#1d7f46', textColor: '#b8f5cf' },
+    warning: { backgroundColor: '#3a2a10', borderColor: '#9a6b1a', textColor: '#ffd89a' },
+    danger: { backgroundColor: '#3b1111', borderColor: '#b91c1c', textColor: '#fecaca' },
+    neutral: {
+      backgroundColor: tokens.colors.surface,
+      borderColor: tokens.colors.border,
+      textColor: tokens.colors.text,
+    },
+  } as const;
+  const style = toneStyles[tone];
+
+  return (
+    <View
+      style={{
+        backgroundColor: style.backgroundColor,
+        borderColor: style.borderColor,
+        borderWidth: 1,
+        borderRadius: 999,
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+      }}
+    >
+      <Text style={{ fontWeight: '700', color: style.textColor }}>{label}</Text>
+    </View>
+  );
+}
+
 function CopyableRow({
   label,
   value,
@@ -172,6 +207,14 @@ function truncateId(value: string | null | undefined): string {
   if (!value) return '—';
   if (value.length <= 18) return value;
   return `${value.slice(0, 8)}…${value.slice(-6)}`;
+}
+
+function getUrlHost(value: string): string {
+  try {
+    return new URL(value).host;
+  } catch {
+    return value;
+  }
 }
 
 export function DebugScreen() {
@@ -324,6 +367,7 @@ export function DebugScreen() {
 
   const devOnly = __DEV__;
   const baseUrl = getApiBaseUrl();
+  const backendHost = getUrlHost(baseUrl);
 
   const overview = useMemo(() => {
     if (!syncInfo) {
@@ -374,7 +418,7 @@ export function DebugScreen() {
     }
 
     const summary = [
-      `Backend host: ${baseUrl}`,
+      `Backend host: ${backendHost}`,
       `Linked state: ${syncInfo.authDebug.linkedState}`,
       `Device token present: ${syncInfo.authDebug.deviceTokenPresent ? 'yes' : 'no'}`,
       `Account session: ${syncInfo.authDebug.accountSessionStatus}`,
@@ -387,7 +431,33 @@ export function DebugScreen() {
 
     await Clipboard.setStringAsync(summary);
     Alert.alert('Copied', 'Concise diagnostics copied to clipboard.');
-  }, [baseUrl, overview.lastSyncResult, syncInfo]);
+  }, [backendHost, overview.lastSyncResult, syncInfo]);
+
+  const accountSessionTone = useMemo<'success' | 'warning' | 'danger' | 'neutral'>(() => {
+    if (!syncInfo) return 'neutral';
+    const status = syncInfo.authDebug.accountSessionStatus;
+    if (status === 'usable') return 'success';
+    if (status === 'missing') return 'warning';
+    if (status === 'invalidated') return 'danger';
+    return 'neutral';
+  }, [syncInfo]);
+
+  const linkedStateTone = useMemo<'success' | 'warning' | 'danger' | 'neutral'>(() => {
+    if (!syncInfo) return 'neutral';
+    if (syncInfo.authDebug.linkedState === 'linked') return 'success';
+    if (syncInfo.authDebug.linkedState === 'guest') return 'warning';
+    return 'neutral';
+  }, [syncInfo]);
+
+  const localStorageRows = useMemo(() => {
+    return Object.entries(counts).sort((a, b) => {
+      const [aKey, aValue] = a;
+      const [bKey, bValue] = b;
+      if (aValue === 0 && bValue !== 0) return 1;
+      if (aValue !== 0 && bValue === 0) return -1;
+      return aKey.localeCompare(bKey);
+    });
+  }, [counts]);
 
   const destructiveConfirm = (title: string, message: string, onConfirm: () => void) => {
     Alert.alert(title, message, [
@@ -403,7 +473,29 @@ export function DebugScreen() {
           {syncInfo ? (
             <>
               <Row label="Sync health" value={overview.syncHealth} />
-              <Row label="Backend host" value={baseUrl} />
+              <View
+                style={{
+                  flexDirection: 'row',
+                  flexWrap: 'wrap',
+                  gap: 8,
+                  marginBottom: 8,
+                  justifyContent: 'flex-end',
+                }}
+              >
+                <StatusPill
+                  label={toTitleCase(syncInfo.authDebug.linkedState)}
+                  tone={linkedStateTone}
+                />
+                <StatusPill
+                  label={syncInfo.authDebug.deviceTokenPresent ? 'Token present' : 'Token missing'}
+                  tone={syncInfo.authDebug.deviceTokenPresent ? 'success' : 'danger'}
+                />
+                <StatusPill
+                  label={toTitleCase(syncInfo.authDebug.accountSessionStatus)}
+                  tone={accountSessionTone}
+                />
+              </View>
+              <CopyableRow label="Backend host" value={baseUrl} displayValue={backendHost} />
               <Row label="Linked state" value={toTitleCase(syncInfo.authDebug.linkedState)} />
               <Row
                 label="Device token"
@@ -424,8 +516,12 @@ export function DebugScreen() {
                 displayValue={truncate(syncInfo.syncState.cursor, 30)}
               />
               <Row label="Last sync result" value={overview.lastSyncResult} />
-              <Row label="Last sync time" value={formatDate(syncInfo.syncState.last_sync_at)} />
-              <Row label="Last error" value={truncate(syncInfo.syncState.last_error, 80)} />
+              {syncInfo.syncState.last_sync_at ? (
+                <Row label="Last sync time" value={formatDate(syncInfo.syncState.last_sync_at)} />
+              ) : null}
+              {syncInfo.syncState.last_error ? (
+                <Row label="Last error" value={truncate(syncInfo.syncState.last_error, 80)} />
+              ) : null}
             </>
           ) : (
             <Text variant="muted">Loading…</Text>
@@ -455,26 +551,31 @@ export function DebugScreen() {
                 label="Account session status"
                 value={toTitleCase(syncInfo.authDebug.accountSessionStatus)}
               />
-              <Row
-                label="Account invalidation reason"
-                value={syncInfo.authDebug.accountInvalidationReason ?? '—'}
-              />
-              <Row
-                label="Account invalidated at"
-                value={formatDate(syncInfo.authDebug.accountInvalidatedAt)}
-              />
+              {syncInfo.authDebug.accountInvalidationReason ? (
+                <Row
+                  label="Account invalidation reason"
+                  value={syncInfo.authDebug.accountInvalidationReason}
+                />
+              ) : null}
+              {syncInfo.authDebug.accountInvalidatedAt ? (
+                <Row
+                  label="Account invalidated at"
+                  value={formatDate(syncInfo.authDebug.accountInvalidatedAt)}
+                />
+              ) : null}
               <Row
                 label="Device token present"
                 value={syncInfo.authDebug.deviceTokenPresent ? 'Yes' : 'No'}
               />
-              <Row
-                label="Auth mode last used"
-                value={syncInfo.authDebug.syncAuthModeLastUsed ?? '—'}
-              />
-              <Row
-                label="Auth mode next planned"
-                value={syncInfo.authDebug.syncAuthModeNextPlanned ?? '—'}
-              />
+              {syncInfo.authDebug.syncAuthModeLastUsed ? (
+                <Row label="Auth mode last used" value={syncInfo.authDebug.syncAuthModeLastUsed} />
+              ) : null}
+              {syncInfo.authDebug.syncAuthModeNextPlanned ? (
+                <Row
+                  label="Auth mode next planned"
+                  value={syncInfo.authDebug.syncAuthModeNextPlanned}
+                />
+              ) : null}
             </>
           ) : (
             <Text variant="muted">Loading…</Text>
@@ -498,7 +599,9 @@ export function DebugScreen() {
               />
               <Row label="Last sync result" value={overview.lastSyncResult} />
               <Row label="Last sync time" value={formatDate(syncInfo.syncState.last_sync_at)} />
-              <Row label="Last error" value={truncate(syncInfo.syncState.last_error)} />
+              {syncInfo.syncState.last_error ? (
+                <Row label="Last error" value={truncate(syncInfo.syncState.last_error)} />
+              ) : null}
               <Row
                 label="Last delta count"
                 value={String(syncInfo.syncState.last_delta_count ?? 0)}
@@ -555,6 +658,9 @@ export function DebugScreen() {
             <Text variant="muted">Loading…</Text>
           )}
 
+          <Text variant="subtitle" style={{ marginTop: tokens.spacing.md }}>
+            Operations
+          </Text>
           <Pressable
             onPress={async () => {
               await syncNow({ force: true });
@@ -589,6 +695,9 @@ export function DebugScreen() {
             <Text style={{ fontWeight: '700' }}>Pull latest</Text>
           </Pressable>
 
+          <Text variant="subtitle" style={{ marginTop: tokens.spacing.lg }}>
+            Repair / Dev actions
+          </Text>
           <Pressable
             onPress={() => {
               const repaired = repairStaleInFlightOpsForDebug(OUTBOX_STALE_IN_FLIGHT_SECONDS);
@@ -661,7 +770,11 @@ export function DebugScreen() {
           {Object.keys(counts).length === 0 ? (
             <Text variant="muted">Loading…</Text>
           ) : (
-            Object.entries(counts).map(([k, v]) => <Row key={k} label={k} value={String(v)} />)
+            localStorageRows.map(([k, v]) => (
+              <View key={k} style={{ opacity: v === 0 ? 0.65 : 1 }}>
+                <Row label={k} value={String(v)} />
+              </View>
+            ))
           )}
           <Pressable
             onPress={refresh}
