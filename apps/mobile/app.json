@@ -36,6 +36,7 @@
       "expo-secure-store"
     ],
     "extra": {
+      "EXPO_PUBLIC_API_BASE_URL": "https://gym-app-mvp-production.up.railway.app",
       "eas": {
         "projectId": "382c9a16-ee80-48d8-ac3b-59112094dd86"
       }
