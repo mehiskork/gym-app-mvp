@@ -114,41 +114,6 @@ function Row({ label, value }: { label: string; value: string }) {
   );
 }
 
-function StatusPill({
-  label,
-  tone,
-}: {
-  label: string;
-  tone: 'success' | 'warning' | 'danger' | 'neutral';
-}) {
-  const toneStyles = {
-    success: { backgroundColor: '#113320', borderColor: '#1d7f46', textColor: '#b8f5cf' },
-    warning: { backgroundColor: '#3a2a10', borderColor: '#9a6b1a', textColor: '#ffd89a' },
-    danger: { backgroundColor: '#3b1111', borderColor: '#b91c1c', textColor: '#fecaca' },
-    neutral: {
-      backgroundColor: tokens.colors.surface,
-      borderColor: tokens.colors.border,
-      textColor: tokens.colors.text,
-    },
-  } as const;
-  const style = toneStyles[tone];
-
-  return (
-    <View
-      style={{
-        backgroundColor: style.backgroundColor,
-        borderColor: style.borderColor,
-        borderWidth: 1,
-        borderRadius: 999,
-        paddingHorizontal: 8,
-        paddingVertical: 2,
-      }}
-    >
-      <Text style={{ fontWeight: '700', color: style.textColor }}>{label}</Text>
-    </View>
-  );
-}
-
 function CopyableRow({
   label,
   value,
@@ -461,22 +426,6 @@ export function DebugScreen() {
     Alert.alert('Copied', 'Concise diagnostics copied to clipboard.');
   }, [backendHost, overview.lastSyncResult, syncInfo]);
 
-  const accountSessionTone = useMemo<'success' | 'warning' | 'danger' | 'neutral'>(() => {
-    if (!syncInfo) return 'neutral';
-    const status = syncInfo.authDebug.accountSessionStatus;
-    if (status === 'usable') return 'success';
-    if (status === 'missing') return 'warning';
-    if (status === 'invalidated') return 'danger';
-    return 'neutral';
-  }, [syncInfo]);
-
-  const linkedStateTone = useMemo<'success' | 'warning' | 'danger' | 'neutral'>(() => {
-    if (!syncInfo) return 'neutral';
-    if (syncInfo.authDebug.linkedState === 'linked') return 'success';
-    if (syncInfo.authDebug.linkedState === 'guest') return 'warning';
-    return 'neutral';
-  }, [syncInfo]);
-
   const localStorageRows = useMemo(() => {
     return Object.entries(counts).sort((a, b) => {
       const [aKey, aValue] = a;
@@ -501,28 +450,6 @@ export function DebugScreen() {
           {syncInfo ? (
             <>
               <Row label="Sync health" value={overview.syncHealth} />
-              <View
-                style={{
-                  flexDirection: 'row',
-                  flexWrap: 'wrap',
-                  gap: 8,
-                  marginBottom: 8,
-                  justifyContent: 'flex-end',
-                }}
-              >
-                <StatusPill
-                  label={toTitleCase(syncInfo.authDebug.linkedState)}
-                  tone={linkedStateTone}
-                />
-                <StatusPill
-                  label={syncInfo.authDebug.deviceTokenPresent ? 'Token present' : 'Token missing'}
-                  tone={syncInfo.authDebug.deviceTokenPresent ? 'success' : 'danger'}
-                />
-                <StatusPill
-                  label={toTitleCase(syncInfo.authDebug.accountSessionStatus)}
-                  tone={accountSessionTone}
-                />
-              </View>
               <CopyableInlineValue prefix="Backend" value={backendHost} copyValue={baseUrl} />
               <Row label="Linked state" value={toTitleCase(syncInfo.authDebug.linkedState)} />
               <Row
