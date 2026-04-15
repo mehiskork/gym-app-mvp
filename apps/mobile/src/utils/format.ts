@@ -1,14 +1,16 @@
 import { parseTimestampMs } from './timestamp';
 
 export function formatDateTime(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleString();
+  const parsedMs = parseTimestampMs(iso);
+  if (parsedMs === null) return iso;
+  return new Date(parsedMs).toLocaleString();
 }
 
 export function durationSeconds(startIso: string, endIso: string | null): number | null {
   if (!endIso) return null;
-  const s = new Date(startIso).getTime();
-  const e = new Date(endIso).getTime();
+  const s = parseTimestampMs(startIso);
+  const e = parseTimestampMs(endIso);
+  if (s === null || e === null) return null;
   const sec = Math.max(0, Math.floor((e - s) / 1000));
   return sec;
 }

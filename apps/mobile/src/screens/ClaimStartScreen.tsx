@@ -11,6 +11,7 @@ import { tokens } from '../theme/tokens';
 import { api } from '../api/client';
 import { ApiError } from '../api/errors';
 import { getClaimed, pauseSync, resumeSync } from '../db/appMetaRepo';
+import { formatTimestampForDisplay } from '../utils/timestamp';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ClaimStart'>;
 
@@ -86,8 +87,7 @@ export function ClaimStartScreen({ navigation }: Props) {
 
   const expiresLabel = useMemo(() => {
     if (!expiresAt) return null;
-    const date = new Date(expiresAt);
-    return Number.isNaN(date.getTime()) ? expiresAt : date.toLocaleString();
+    return formatTimestampForDisplay(expiresAt, expiresAt);
   }, [expiresAt]);
 
   return (

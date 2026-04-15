@@ -50,4 +50,9 @@ describe('workout plan session recommendation', () => {
   it('renders never completed helper text when timestamp is missing', () => {
     expect(formatLastCompletedLabel(null)).toBe('Never completed');
   });
+
+  it('treats SQLite UTC timestamps consistently for recency labels', () => {
+    const now = new Date('2026-03-10T10:00:00Z');
+    expect(formatLastCompletedLabel('2026-03-09 20:00:00', now)).toBe('Last completed yesterday');
+  });
 });

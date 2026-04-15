@@ -34,6 +34,7 @@ import appConfig from '../../../app.json';
 import { getApiBaseUrl } from '../../api/config';
 import { registerDeviceIfNeeded, syncNow } from '../../sync/syncWorker';
 import { OUTBOX_STALE_IN_FLIGHT_SECONDS } from '../../sync/constants';
+import { formatTimestampForDisplay } from '../../utils/timestamp';
 
 function Card({
   title,
@@ -178,13 +179,6 @@ function truncate(value: string | null | undefined, max = 120): string {
   if (!value) return '—';
   if (value.length <= max) return value;
   return `${value.slice(0, max)}…`;
-}
-
-function formatDate(value: string | null | undefined): string {
-  if (!value) return '—';
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return value;
-  return parsed.toLocaleString();
 }
 
 function toTitleCase(value: string): string {
@@ -472,7 +466,10 @@ export function DebugScreen() {
               />
               <Row label="Last sync result" value={overview.lastSyncResult} />
               {syncInfo.syncState.last_sync_at ? (
-                <Row label="Last sync time" value={formatDate(syncInfo.syncState.last_sync_at)} />
+                <Row
+                  label="Last sync time"
+                  value={formatTimestampForDisplay(syncInfo.syncState.last_sync_at)}
+                />
               ) : null}
               {syncInfo.syncState.last_error ? (
                 <Row label="Last error" value={truncate(syncInfo.syncState.last_error, 80)} />
@@ -515,7 +512,7 @@ export function DebugScreen() {
               {syncInfo.authDebug.accountInvalidatedAt ? (
                 <Row
                   label="Account invalidated at"
-                  value={formatDate(syncInfo.authDebug.accountInvalidatedAt)}
+                  value={formatTimestampForDisplay(syncInfo.authDebug.accountInvalidatedAt)}
                 />
               ) : null}
               <Row
@@ -557,7 +554,10 @@ export function DebugScreen() {
                 displayValue={truncate(syncInfo.syncState.cursor, 48)}
               />
               <Row label="Last sync result" value={overview.lastSyncResult} />
-              <Row label="Last sync time" value={formatDate(syncInfo.syncState.last_sync_at)} />
+              <Row
+                label="Last sync time"
+                value={formatTimestampForDisplay(syncInfo.syncState.last_sync_at)}
+              />
               {syncInfo.syncState.last_error ? (
                 <Row label="Last error" value={truncate(syncInfo.syncState.last_error)} />
               ) : null}
@@ -583,7 +583,7 @@ export function DebugScreen() {
                 syncRuns.slice(0, 5).map((run) => (
                   <View key={run.id} style={{ marginBottom: tokens.spacing.sm }}>
                     <Text style={{ fontWeight: '600' }}>
-                      {`${new Date(run.started_at).toLocaleString()} • ${toTitleCase(run.status)}`}
+                      {`${formatTimestampForDisplay(run.started_at, run.started_at)} • ${toTitleCase(run.status)}`}
                     </Text>
                     <Text variant="muted">{`ops ${run.ops_sent} • deltas ${run.deltas_applied}`}</Text>
                     <Text variant="muted">
@@ -604,10 +604,10 @@ export function DebugScreen() {
                   <View key={op.op_id} style={{ marginTop: tokens.spacing.sm }}>
                     <Text style={{ fontWeight: '600' }}>{truncate(op.op_id, 36)}</Text>
                     <Text variant="muted">
-                      {`${op.status} • attempts ${op.attempt_count} • next ${op.next_attempt_at ?? '—'}`}
+                      {`${op.status} • attempts ${op.attempt_count} • next ${formatTimestampForDisplay(op.next_attempt_at)}`}
                     </Text>
                     <Text variant="muted">
-                      {`created ${op.created_at} • error ${truncate(op.last_error, 80)}`}
+                      {`created ${formatTimestampForDisplay(op.created_at, op.created_at)} • error ${truncate(op.last_error, 80)}`}
                     </Text>
                   </View>
                 ))
@@ -765,10 +765,7 @@ export function DebugScreen() {
                 displayValue={truncateId(String(inProgress.sessionId))}
               />
               <Row label="Sets" value={String(inProgress.setCount)} />
-              <Row
-                label="Started"
-                value={inProgress.startedAt ? new Date(inProgress.startedAt).toLocaleString() : '—'}
-              />
+              <Row label="Started" value={formatTimestampForDisplay(inProgress.startedAt)} />
             </>
           ) : (
             <Text variant="muted">None</Text>

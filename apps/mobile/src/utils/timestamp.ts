@@ -15,3 +15,17 @@ export function parseTimestampMs(value: string | null | undefined): number | nul
   const parsed = Date.parse(normalized);
   return Number.isNaN(parsed) ? null : parsed;
 }
+
+export function formatTimestampForDisplay(
+  value: string | number | null | undefined,
+  fallback = '—',
+): string {
+  if (!value) return fallback;
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) return fallback;
+    return new Date(value).toLocaleString();
+  }
+  const parsedMs = parseTimestampMs(value);
+  if (parsedMs === null) return value;
+  return new Date(parsedMs).toLocaleString();
+}

@@ -1,3 +1,5 @@
+import { parseTimestampMs } from '../../utils/timestamp';
+
 type PlanDay = {
   id: string;
 };
@@ -28,8 +30,9 @@ export function getRecommendedPlanDayId(input: {
 export function formatLastCompletedLabel(lastCompletedAt: string | null, now = new Date()): string {
   if (!lastCompletedAt) return 'Never completed';
 
-  const completedDate = new Date(lastCompletedAt);
-  if (Number.isNaN(completedDate.getTime())) return 'Never completed';
+  const completedMs = parseTimestampMs(lastCompletedAt);
+  if (completedMs === null) return 'Never completed';
+  const completedDate = new Date(completedMs);
 
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const startOfCompleted = new Date(
