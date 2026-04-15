@@ -1,6 +1,7 @@
 import { exec, query } from './db';
 import { inTransaction } from './tx';
 import { newId } from '../utils/ids';
+import { enqueueOutboxOp } from './outboxRepo';
 
 export type WorkoutPlanRow = {
   id: string;
@@ -68,6 +69,69 @@ function normalizeDeletedDayIndices(programWeekId: string) {
     const newIdx = minIdx - 1;
     exec('UPDATE program_day SET day_index = ? WHERE id = ?', [newIdx, d.id]);
   }
+}
+
+function enqueueProgramSnapshot(programId: string) {
+  const row = query<Record<string, unknown>>(
+    `
+    SELECT *
+    FROM program
+    WHERE id = ?
+    LIMIT 1;
+  `,
+    [programId],
+  )[0];
+
+  if (!row) return;
+
+  enqueueOutboxOp({
+    entityType: 'program',
+    entityId: programId,
+    opType: 'upsert',
+    payloadJson: JSON.stringify(row),
+  });
+}
+
+function enqueueProgramWeekSnapshot(programWeekId: string) {
+  const row = query<Record<string, unknown>>(
+    `
+    SELECT *
+    FROM program_week
+    WHERE id = ?
+    LIMIT 1;
+  `,
+    [programWeekId],
+  )[0];
+
+  if (!row) return;
+
+  enqueueOutboxOp({
+    entityType: 'program_week',
+    entityId: programWeekId,
+    opType: 'upsert',
+    payloadJson: JSON.stringify(row),
+  });
+}
+
+function enqueueProgramDaySnapshot(programDayId: string) {
+  const row = query<Record<string, unknown>>(
+    `
+    SELECT *
+    FROM program_day
+    WHERE id = ?
+    LIMIT 1;
+  `,
+    [programDayId],
+  )[0];
+
+  if (!row) return;
+
+  enqueueOutboxOp({
+    entityType: 'program_day',
+    entityId: programDayId,
+    opType: 'upsert',
+    payloadJson: JSON.stringify(row),
+  });
 }
 
 export function listWorkoutPlans(): WorkoutPlanRow[] {
@@ -328,8 +392,12 @@ export function createWorkoutPlan(input: { name: string; description?: string | 
       [workoutPlanId, name, input.description ?? null],
     );
 
-    getOrCreateWeek1Id(workoutPlanId);
-    addDayToWorkoutPlan(workoutPlanId);
+    const weekId = getOrCreateWeek1Id(workoutPlanId);
+    const dayId = addDayToWorkoutPlan(workoutPlanId);
+
+    enqueueProgramSnapshot(workoutPlanId);
+    enqueueProgramWeekSnapshot(weekId);
+    enqueueProgramDaySnapshot(dayId);
   });
 
   return workoutPlanId;

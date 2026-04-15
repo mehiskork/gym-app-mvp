@@ -3,6 +3,7 @@ import { newId } from '../utils/ids';
 import { getOrCreateLocalUserId } from './appMetaRepo';
 import { inTransaction } from './tx';
 import { EXERCISE_TYPE, type CardioProfile, type ExerciseType } from './exerciseTypes';
+import { enqueueOutboxOp } from './outboxRepo';
 
 export type ExerciseRow = {
   id: string;
@@ -16,6 +17,27 @@ export type ExerciseRow = {
 
 function normalizeName(name: string) {
   return name.trim().toLowerCase();
+}
+
+function enqueueExerciseSnapshot(exerciseId: string) {
+  const row = query<Record<string, unknown>>(
+    `
+    SELECT *
+    FROM exercise
+    WHERE id = ?
+    LIMIT 1;
+  `,
+    [exerciseId],
+  )[0];
+
+  if (!row) return;
+
+  enqueueOutboxOp({
+    entityType: 'exercise',
+    entityId: exerciseId,
+    opType: 'upsert',
+    payloadJson: JSON.stringify(row),
+  });
 }
 
 export function listExercises(ownerUserId: string): ExerciseRow[] {
@@ -41,15 +63,19 @@ export function createCustomExercise(name: string): string {
   const id = newId('ex_custom');
   const ownerUserId = getOrCreateLocalUserId();
 
-  exec(
-    `
-    INSERT INTO exercise (
-      id, name, normalized_name, is_custom, owner_user_id
-        , exercise_type, cardio_profile
-    ) VALUES (?, ?, ?, 1, ?, ?, NULL);
-  `,
-    [id, trimmed, normalizeName(trimmed), ownerUserId, EXERCISE_TYPE.STRENGTH],
-  );
+  inTransaction(() => {
+    exec(
+      `
+      INSERT INTO exercise (
+        id, name, normalized_name, is_custom, owner_user_id
+          , exercise_type, cardio_profile
+      ) VALUES (?, ?, ?, 1, ?, ?, NULL);
+    `,
+      [id, trimmed, normalizeName(trimmed), ownerUserId, EXERCISE_TYPE.STRENGTH],
+    );
+
+    enqueueExerciseSnapshot(id);
+  });
 
   return id;
 }
