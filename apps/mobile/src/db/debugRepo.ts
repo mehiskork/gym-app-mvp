@@ -311,7 +311,8 @@ export type SyncDebugInfo = {
   effectiveUserId: string;
   authDebug: ReturnType<typeof getAuthDebugState>;
   lastSyncAckSummary: ReturnType<typeof getLastSyncAckSummary>;
-  outboxTotalCount: number;
+  pendingOpsCount: number;
+  outboxHistoryTotalCount: number;
   outboxStatusCounts: Record<string, number>;
   dueNowCount: number;
   recentOutboxOps: Array<{
@@ -399,15 +400,11 @@ export function getSyncDebugInfo(): SyncDebugInfo {
   const guestUserId = getGuestUserId();
   const effectiveUserId = getEffectiveUserId();
   const authDebug = getAuthDebugState();
-  const totalRow = query<{ c: number }>(
+  const historyTotalRow = query<{ c: number }>(
     `
     SELECT COUNT(*) AS c
     FROM outbox_op
-    WHERE status IN (
-      '${OUTBOX_STATUS.PENDING}',
-      '${OUTBOX_STATUS.FAILED}',
-      '${OUTBOX_STATUS.IN_FLIGHT}',
-      '${OUTBOX_STATUS.ACKED}'
+     ;
     );
   `,
   )[0];
@@ -459,6 +456,10 @@ export function getSyncDebugInfo(): SyncDebugInfo {
   for (const row of statusRows) {
     outboxStatusCounts[row.status] = row.c;
   }
+  const pendingOpsCount =
+    outboxStatusCounts[OUTBOX_STATUS.PENDING] +
+    outboxStatusCounts[OUTBOX_STATUS.FAILED] +
+    outboxStatusCounts[OUTBOX_STATUS.IN_FLIGHT];
 
   return {
     deviceId,
@@ -466,7 +467,8 @@ export function getSyncDebugInfo(): SyncDebugInfo {
     effectiveUserId,
     authDebug,
     lastSyncAckSummary: getLastSyncAckSummary(),
-    outboxTotalCount: totalRow?.c ?? 0,
+    pendingOpsCount,
+    outboxHistoryTotalCount: historyTotalRow?.c ?? 0,
     outboxStatusCounts,
     dueNowCount: dueRow?.c ?? 0,
     recentOutboxOps: recentOps,

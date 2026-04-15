@@ -416,7 +416,7 @@ export function DebugScreen() {
       `Device token present: ${syncInfo.authDebug.deviceTokenPresent ? 'yes' : 'no'}`,
       `Account session: ${syncInfo.authDebug.accountSessionStatus}`,
       `Auth mode last/next: ${syncInfo.authDebug.syncAuthModeLastUsed ?? '—'} / ${syncInfo.authDebug.syncAuthModeNextPlanned ?? '—'}`,
-      `Outbox count: ${syncInfo.outboxTotalCount}`,
+      `Pending ops: ${syncInfo.pendingOpsCount}`,
       `Cursor: ${syncInfo.syncState.cursor ?? '—'}`,
       `Last sync result: ${overview.lastSyncResult}`,
       `Last error: ${truncate(syncInfo.syncState.last_error, 100)}`,
@@ -464,7 +464,7 @@ export function DebugScreen() {
                 label="Auth mode (last / next)"
                 value={`${syncInfo.authDebug.syncAuthModeLastUsed ?? '—'} / ${syncInfo.authDebug.syncAuthModeNextPlanned ?? '—'}`}
               />
-              <Row label="Outbox" value={String(syncInfo.outboxTotalCount)} />
+              <Row label="Pending ops" value={String(syncInfo.pendingOpsCount)} />
               <CopyableRow
                 label="Cursor"
                 value={syncInfo.syncState.cursor}
@@ -541,7 +541,11 @@ export function DebugScreen() {
           {syncInfo ? (
             <>
               <Row label="Sync status" value={overview.syncHealth} />
-              <Row label="Outbox total" value={String(syncInfo.outboxTotalCount)} />
+              <Row label="Pending ops" value={String(syncInfo.pendingOpsCount)} />
+              <Row
+                label="Outbox history total"
+                value={String(syncInfo.outboxHistoryTotalCount)}
+              />
               <StackedRow
                 label="Outbox by status"
                 value={`pending ${syncInfo.outboxStatusCounts.pending} • failed ${syncInfo.outboxStatusCounts.failed} • in-flight ${syncInfo.outboxStatusCounts.in_flight} • acked ${syncInfo.outboxStatusCounts.acked}`}
