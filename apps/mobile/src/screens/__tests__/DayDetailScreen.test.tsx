@@ -352,4 +352,36 @@ describe('DayDetailScreen', () => {
     expect(setItems).toHaveBeenCalledWith(reorderedItems);
     expect(reorderDayExercises).toHaveBeenCalledWith('day-1', ['day-ex-2', 'day-ex-1']);
   });
+
+  it('renders a non-empty placeholder row during drag', () => {
+    const items = [
+      {
+        id: 'day-ex-1',
+        program_day_id: 'day-1',
+        exercise_id: 'bench',
+        exercise_name: 'Bench Press',
+        position: 1,
+        notes: null,
+      },
+    ];
+    useStateMock.mockImplementationOnce(() => ['Push', jest.fn()]);
+    useStateMock.mockImplementationOnce(() => ['Push', jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [items, jest.fn()]);
+
+    const navigation: Nav = { navigate: jest.fn(), replace: jest.fn(), setOptions: jest.fn() };
+    const element = DayDetailScreen({
+      navigation,
+      route: { key: 'DayDetail', name: 'DayDetail', params: { dayId: 'day-1' } },
+    } as never);
+
+    const lists = findElementsByType<React.ComponentProps<typeof DraggableFlatList>>(
+      element,
+      DraggableFlatList,
+    );
+    const placeholderNode = lists[0]?.props.renderPlaceholder?.({ item: items[0], index: 0 });
+    const placeholderRow = placeholderNode as React.ReactElement<React.ComponentProps<typeof ListRow>>;
+
+    expect(placeholderRow.props.title).toBe('Bench Press');
+    expect(placeholderRow.props.style).toEqual({ opacity: 0.45 });
+  });
 });

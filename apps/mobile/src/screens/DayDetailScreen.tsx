@@ -202,6 +202,23 @@ export function DayDetailScreen({ route, navigation }: Props) {
     [confirmDeleteExercise, isStartSessionMode, navigation],
   );
 
+  const renderPlaceholder = useCallback(
+    ({ item }: { item: DayExerciseRow; index: number }) => (
+      <ListRow
+        title={item.exercise_name}
+        subtitle={isStartSessionMode ? 'View exercise' : 'Tap to view'}
+        left={
+          <IconChip variant="primarySoft" size={40}>
+            <Ionicons name="barbell-outline" size={18} color={colors.primary} />
+          </IconChip>
+        }
+        showChevron
+        style={{ opacity: 0.45 }}
+      />
+    ),
+    [colors.primary, isStartSessionMode],
+  );
+
   const header = (
     <View style={{ marginBottom: tokens.spacing.md }}>
       <Card>
@@ -284,6 +301,7 @@ export function DayDetailScreen({ route, navigation }: Props) {
         data={items}
         keyExtractor={(x) => x.id}
         renderItem={renderItem}
+        renderPlaceholder={renderPlaceholder}
         ListHeaderComponent={header}
         ItemSeparatorComponent={() => <View style={{ height: tokens.spacing.sm }} />}
         contentContainerStyle={{
