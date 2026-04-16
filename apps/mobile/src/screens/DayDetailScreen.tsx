@@ -39,6 +39,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'DayDetail'>;
 export function DayDetailScreen({ route, navigation }: Props) {
   const { dayId, workoutPlanId, mode = 'edit' } = route.params;
 
+  const minimalDragVisuals = true;
   const [dayNameInput, setDayNameInput] = useState<string>('');
   const [savedName, setSavedName] = useState<string>('');
   const [items, setItems] = useState<DayExerciseRow[]>([]);
@@ -183,7 +184,7 @@ export function DayDetailScreen({ route, navigation }: Props) {
         showChevron
         right={renderRowRight(item, drag)}
         style={
-          isActive
+          isActive && !minimalDragVisuals
             ? {
               backgroundColor: tokens.colors.surface2,
               borderColor: tokens.colors.primary,
@@ -192,7 +193,7 @@ export function DayDetailScreen({ route, navigation }: Props) {
         }
       />
     ),
-    [colors.primary, isStartSessionMode, navigation, renderRowRight],
+    [colors.primary, isStartSessionMode, minimalDragVisuals, navigation, renderRowRight],
   );
 
   const renderPlaceholder = useCallback(
@@ -207,10 +208,10 @@ export function DayDetailScreen({ route, navigation }: Props) {
         }
         right={renderRowRight(item, undefined, true)}
         showChevron
-        style={{ opacity: 0.45 }}
+        style={minimalDragVisuals ? undefined : { opacity: 0.45 }}
       />
     ),
-    [colors.primary, isStartSessionMode, renderRowRight],
+    [colors.primary, isStartSessionMode, minimalDragVisuals, renderRowRight],
 
   );
 
@@ -303,6 +304,13 @@ export function DayDetailScreen({ route, navigation }: Props) {
           padding: tokens.spacing.lg,
           paddingBottom: tokens.spacing.xl,
         }}
+        animationConfig={{
+          damping: 30,
+          mass: 0.35,
+          stiffness: 220,
+          overshootClamping: true,
+          energyThreshold: 1e-8,
+        }}
         onDragBegin={
           isStartSessionMode
             ? undefined
@@ -319,7 +327,6 @@ export function DayDetailScreen({ route, navigation }: Props) {
                 dayId,
                 data.map((x) => x.id),
               );
-
             }
         }
         keyboardShouldPersistTaps="handled"
