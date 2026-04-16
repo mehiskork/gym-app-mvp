@@ -2,6 +2,7 @@ import { exec, query } from './db';
 import { inTransaction } from './tx';
 import { WORKOUT_SESSION_STATUS } from './constants';
 import { fetchSessionDetail } from './sessionDetailRepo';
+import { enqueueOutboxOp } from './outboxRepo';
 import type { CardioProfile, ExerciseType } from './exerciseTypes';
 
 export type CompletedSessionRow = {
@@ -50,6 +51,30 @@ export type SessionSetRow = {
   notes: string | null;
   is_completed: number; // 0/1
 };
+
+function enqueueEntitySnapshot(
+  entityType: 'workout_session' | 'workout_session_exercise' | 'workout_set',
+  id: string,
+) {
+  const row = query<Record<string, unknown>>(
+    `
+    SELECT *
+    FROM ${entityType}
+    WHERE id = ?
+    LIMIT 1;
+  `,
+    [id],
+  )[0];
+
+  if (!row) return;
+
+  enqueueOutboxOp({
+    entityType,
+    entityId: id,
+    opType: 'delete',
+    payloadJson: JSON.stringify(row),
+  });
+}
 
 export function listCompletedSessions(limit = 50): CompletedSessionRow[] {
   return query<CompletedSessionRow>(
@@ -112,6 +137,37 @@ export function listRecentSessionSummaries(limit = 3): RecentSessionSummaryRow[]
 
 export function deleteSession(sessionId: string): void {
   inTransaction(() => {
+    const setIds = query<{ id: string }>(
+      `
+      SELECT ws.id AS id
+      FROM workout_set ws
+      JOIN workout_session_exercise wse ON wse.id = ws.workout_session_exercise_id
+      WHERE wse.workout_session_id = ?
+        AND ws.deleted_at IS NULL
+        AND wse.deleted_at IS NULL;
+    `,
+      [sessionId],
+    ).map((row) => row.id);
+
+    const sessionExerciseIds = query<{ id: string }>(
+      `
+      SELECT id
+      FROM workout_session_exercise
+      WHERE workout_session_id = ?
+        AND deleted_at IS NULL;
+    `,
+      [sessionId],
+    ).map((row) => row.id);
+
+    const sessionIds = query<{ id: string }>(
+      `
+      SELECT id
+      FROM workout_session
+      WHERE id = ?
+        AND deleted_at IS NULL;
+    `,
+      [sessionId],
+    ).map((row) => row.id);
     // delete sets first
     exec(
       `
@@ -147,11 +203,54 @@ export function deleteSession(sessionId: string): void {
     `,
       [sessionId],
     );
+
+    for (const setId of setIds) {
+      enqueueEntitySnapshot('workout_set', setId);
+    }
+    for (const sessionExerciseId of sessionExerciseIds) {
+      enqueueEntitySnapshot('workout_session_exercise', sessionExerciseId);
+    }
+    for (const id of sessionIds) {
+      enqueueEntitySnapshot('workout_session', id);
+    }
   });
 }
 
 export function deleteAllCompletedSessions(): void {
   inTransaction(() => {
+    const setIds = query<{ id: string }>(
+      `
+      SELECT ws.id AS id
+      FROM workout_set ws
+      JOIN workout_session_exercise wse ON wse.id = ws.workout_session_exercise_id
+      JOIN workout_session wsession ON wsession.id = wse.workout_session_id
+      WHERE wsession.status = '${WORKOUT_SESSION_STATUS.COMPLETED}'
+        AND wsession.deleted_at IS NULL
+        AND wse.deleted_at IS NULL
+        AND ws.deleted_at IS NULL;
+    `,
+    ).map((row) => row.id);
+
+    const sessionExerciseIds = query<{ id: string }>(
+      `
+      SELECT wse.id AS id
+      FROM workout_session_exercise wse
+      JOIN workout_session ws ON ws.id = wse.workout_session_id
+      WHERE ws.status = '${WORKOUT_SESSION_STATUS.COMPLETED}'
+        AND ws.deleted_at IS NULL
+        AND wse.deleted_at IS NULL;
+    `,
+    ).map((row) => row.id);
+
+    const sessionIds = query<{ id: string }>(
+      `
+      SELECT id
+      FROM workout_session
+      WHERE status = '${WORKOUT_SESSION_STATUS.COMPLETED}'
+        AND deleted_at IS NULL;
+    `,
+    ).map((row) => row.id);
+
     // delete sets for completed sessions
     exec(`
       UPDATE workout_set
@@ -184,6 +283,15 @@ export function deleteAllCompletedSessions(): void {
       SET deleted_at = datetime('now'), updated_at = datetime('now')
       WHERE status = '${WORKOUT_SESSION_STATUS.COMPLETED}' AND deleted_at IS NULL;
     `);
+    for (const setId of setIds) {
+      enqueueEntitySnapshot('workout_set', setId);
+    }
+    for (const sessionExerciseId of sessionExerciseIds) {
+      enqueueEntitySnapshot('workout_session_exercise', sessionExerciseId);
+    }
+    for (const sessionId of sessionIds) {
+      enqueueEntitySnapshot('workout_session', sessionId);
+    }
   });
 }
 
