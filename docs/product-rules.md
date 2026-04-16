@@ -103,9 +103,19 @@ History excludes in-progress/discarded sessions.
 
 History detail hides exercises with zero logged sets.
 
-### “Delete all history” disabled when empty
+### Single history-item delete is allowed in product UI
 
-Bulk-delete should not be active when there are no completed sessions.
+Deleting one completed workout from History remains a normal product action, but it must use a destructive confirmation that clearly states:
+
+- the workout is removed from history
+- the deletion syncs across devices/backend
+- the action is hard to undo
+
+### Bulk history delete is dev/debug only
+
+Bulk deleting completed history must not appear in normal product History UI.
+
+If present, bulk history delete is only exposed through debug/dev tooling and must use stronger destructive copy/confirmation than single-item delete.
 
 ---
 

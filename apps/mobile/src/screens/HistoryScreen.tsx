@@ -9,12 +9,7 @@ import { DestructiveConfirmDialog, Screen, Text } from '../ui';
 import { tokens } from '../theme/tokens';
 import { formatDateTime, formatVolume, formatWeekLabel } from '../utils/format';
 
-import {
-  deleteAllCompletedSessions,
-  deleteSession,
-  listCompletedSessions,
-  type CompletedSessionRow,
-} from '../db/historyRepo';
+import { deleteSession, listCompletedSessions, type CompletedSessionRow } from '../db/historyRepo';
 
 import { listWeeklyVolume, type WeeklyVolumeRow } from '../db/metricsRepo';
 import {
@@ -34,7 +29,6 @@ export function HistoryScreen() {
   const [weeklyExercises, setWeeklyExercises] = useState<WeeklyExerciseRow[]>([]);
 
   const [deleteSessionTarget, setDeleteSessionTarget] = useState<CompletedSessionRow | null>(null);
-  const [deleteAllVisible, setDeleteAllVisible] = useState(false);
 
   const load = useCallback(() => {
     setSessions(listCompletedSessions(50));
@@ -51,14 +45,8 @@ export function HistoryScreen() {
     }, [load]),
   );
 
-  const canDeleteAll = sessions.length > 0;
-
   const confirmDeleteOne = useCallback((s: CompletedSessionRow) => {
     setDeleteSessionTarget(s);
-  }, []);
-
-  const confirmDeleteAll = useCallback(() => {
-    setDeleteAllVisible(true);
   }, []);
 
   const handleConfirmDeleteOne = useCallback(() => {
@@ -68,39 +56,10 @@ export function HistoryScreen() {
     load();
   }, [deleteSessionTarget, load]);
 
-  const handleConfirmDeleteAll = useCallback(() => {
-    deleteAllCompletedSessions();
-    setDeleteAllVisible(false);
-    load();
-  }, [load]);
-
   const header = useMemo(
     () => (
       <View style={{ gap: tokens.spacing.md }}>
-        <View style={{ alignItems: 'flex-end' }}>
-          <Pressable
-            onPress={confirmDeleteAll}
-            disabled={!canDeleteAll}
-            style={({ pressed }) => [
-              {
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: tokens.spacing.xs,
-                opacity: canDeleteAll ? 1 : 0.4,
-                paddingVertical: tokens.spacing.sm,
-                paddingHorizontal: tokens.spacing.sm,
-                borderRadius: tokens.radius.sm,
-                borderWidth: 1,
-                borderColor: tokens.colors.border,
-              },
-              pressed && canDeleteAll ? { opacity: 0.85 } : null,
-            ]}
-            accessibilityLabel="Delete all history"
-          >
-            <Ionicons name="trash-outline" size={18} color={tokens.colors.destructive} />
-            <Text color={tokens.colors.destructive}>Delete all</Text>
-          </Pressable>
-        </View>
+
 
         {thisWeek ? (
           <View
@@ -180,7 +139,7 @@ export function HistoryScreen() {
         ) : null}
       </View>
     ),
-    [canDeleteAll, confirmDeleteAll, sessions.length, weekly, thisWeek, weeklyExercises],
+    [sessions.length, weekly, thisWeek, weeklyExercises],
   );
 
   return (
@@ -247,21 +206,12 @@ export function HistoryScreen() {
 
       <DestructiveConfirmDialog
         visible={deleteSessionTarget !== null}
-        title="Delete workout?"
-        body="This will remove the workout from your history."
-        confirmLabel="Delete"
+        title="Delete workout from history?"
+        body="This will remove this workout from your history and sync the deletion across your devices. This action cannot be undone."
+        confirmLabel="Delete workout"
         cancelLabel="Cancel"
         onClose={() => setDeleteSessionTarget(null)}
         onConfirm={handleConfirmDeleteOne}
-      />
-      <DestructiveConfirmDialog
-        visible={deleteAllVisible}
-        title="Delete all history?"
-        body="This will remove all completed workouts from your history."
-        confirmLabel="Delete all"
-        cancelLabel="Cancel"
-        onClose={() => setDeleteAllVisible(false)}
-        onConfirm={handleConfirmDeleteAll}
       />
     </Screen>
   );

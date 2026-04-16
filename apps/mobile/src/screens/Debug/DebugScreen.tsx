@@ -30,6 +30,7 @@ import { listSyncRuns } from '../../db/syncRunRepo';
 
 import { seedTestPlan } from '../../db/seed/seedTestPlan';
 import { query } from '../../db/db';
+import { deleteAllCompletedSessions } from '../../db/historyRepo';
 import appConfig from '../../../app.json';
 import { getApiBaseUrl } from '../../api/config';
 import { registerDeviceIfNeeded, syncNow } from '../../sync/syncWorker';
@@ -998,6 +999,40 @@ export function DebugScreen() {
           >
             <Text style={{ fontWeight: '700' }}>Repair sessions missing sets (dev-only)</Text>
           </Pressable>
+
+          <Pressable
+            disabled={!devOnly}
+            onPress={() => {
+              Alert.alert(
+                'Delete all completed workout history?',
+                'This will remove all completed workouts from history and sync those deletions across devices. This is a destructive developer action.',
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  {
+                    text: 'Delete all history',
+                    style: 'destructive',
+                    onPress: () => {
+                      deleteAllCompletedSessions();
+                      refresh();
+                      Alert.alert('Done', 'All completed workout history deleted.');
+                    },
+                  },
+                ],
+              );
+            }}
+            style={{
+              opacity: devOnly ? 1 : 0.4,
+              paddingVertical: tokens.spacing.md,
+              borderRadius: tokens.radius.md,
+              borderWidth: 1,
+              borderColor: '#7f1d1d',
+              alignItems: 'center',
+              marginBottom: tokens.spacing.md,
+            }}
+          >
+            <Text style={{ fontWeight: '700' }}>Delete all history (dev-only)</Text>
+          </Pressable>
+
 
           <Pressable
             disabled={!devOnly}
