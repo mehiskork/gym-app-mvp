@@ -18,7 +18,7 @@ jest.mock('../outboxRepo', () => ({
 
 import { exec, query } from '../db';
 import { enqueueOutboxOp } from '../outboxRepo';
-import { addDayToWorkoutPlan, createWorkoutPlan } from '../workoutPlanRepo';
+import { addDayToWorkoutPlan, createWorkoutPlan, updateWorkoutPlanName } from '../workoutPlanRepo';
 import { newId } from '../../utils/ids';
 
 describe('workoutPlanRepo addDayToWorkoutPlan', () => {
@@ -94,6 +94,28 @@ describe('workoutPlanRepo addDayToWorkoutPlan', () => {
       expect.objectContaining({
         entityType: 'program_day',
         entityId: 'day-1',
+        opType: 'upsert',
+      }),
+    );
+  });
+  it('enqueues program snapshot when updating workout plan name', () => {
+    (query as jest.Mock).mockImplementation((sql: string, params?: unknown[]) => {
+      if (sql.includes('SELECT *') && sql.includes('FROM program') && params?.[0] === 'plan-1') {
+        return [{ id: 'plan-1', name: 'Renamed Plan', deleted_at: null }];
+      }
+      return [];
+    });
+
+    updateWorkoutPlanName('plan-1', 'Renamed Plan');
+
+    expect(exec).toHaveBeenCalledWith(
+      expect.stringContaining('UPDATE program'),
+      ['Renamed Plan', 'plan-1'],
+    );
+    expect(enqueueOutboxOp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entityType: 'program',
+        entityId: 'plan-1',
         opType: 'upsert',
       }),
     );

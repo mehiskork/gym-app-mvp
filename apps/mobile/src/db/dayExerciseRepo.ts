@@ -1,6 +1,7 @@
 import { exec, query } from './db';
 import { inTransaction } from './tx';
 import { newId } from '../utils/ids';
+import { enqueueOutboxOp } from './outboxRepo';
 
 export type DayRow = {
   id: string;
@@ -17,6 +18,52 @@ export type DayExerciseRow = {
   position: number;
   notes: string | null;
 };
+
+function enqueueProgramDaySnapshot(dayId: string) {
+  const row = query<Record<string, unknown>>(
+    `
+    SELECT *
+    FROM program_day
+    WHERE id = ?
+    LIMIT 1;
+  `,
+    [dayId],
+  )[0];
+
+  if (!row) return;
+
+  enqueueOutboxOp({
+    entityType: 'program_day',
+    entityId: dayId,
+    opType: 'upsert',
+    payloadJson: JSON.stringify(row),
+  });
+}
+
+function enqueueProgramDayExerciseSnapshot(
+  dayExerciseId: string,
+  opType: 'upsert' | 'delete' = 'upsert',
+) {
+  const row = query<Record<string, unknown>>(
+    `
+    SELECT *
+    FROM program_day_exercise
+    WHERE id = ?
+    LIMIT 1;
+  `,
+    [dayExerciseId],
+  )[0];
+
+  if (!row) return;
+
+  enqueueOutboxOp({
+    entityType: 'program_day_exercise',
+    entityId: dayExerciseId,
+    opType,
+    payloadJson: JSON.stringify(row),
+  });
+}
+
 
 function normalizeDeletedDayIndices(programWeekId: string) {
   // Put deleted days into a far-negative "graveyard" so they never collide with temp -1..-N.
@@ -97,14 +144,18 @@ export function getDayById(dayId: string): DayRow | null {
 }
 
 export function renameDay(dayId: string, name: string | null) {
-  exec(
-    `
-    UPDATE program_day
-    SET name = ?, updated_at = datetime('now')
-    WHERE id = ? AND deleted_at IS NULL;
-  `,
-    [name, dayId],
-  );
+  inTransaction(() => {
+    exec(
+      `
+      UPDATE program_day
+      SET name = ?, updated_at = datetime('now')
+      WHERE id = ? AND deleted_at IS NULL;
+    `,
+      [name, dayId],
+    );
+
+    enqueueProgramDaySnapshot(dayId);
+  });
 }
 
 export function listDayExercises(dayId: string): DayExerciseRow[] {
@@ -256,6 +307,8 @@ export function deleteDayExercise(dayExerciseId: string) {
         [i + 1, remaining[i].id],
       );
     }
+
+    enqueueProgramDayExerciseSnapshot(dayExerciseId, 'delete');
   });
 }
 

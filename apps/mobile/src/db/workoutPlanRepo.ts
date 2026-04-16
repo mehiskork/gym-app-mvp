@@ -175,14 +175,18 @@ export function updateWorkoutPlanName(workoutPlanId: string, name: string) {
   const trimmedName = name.trim();
   if (!trimmedName) throw new Error('Workout plan name is required');
 
-  exec(
-    `
-    UPDATE program
-    SET name = ?, updated_at = datetime('now')
-    WHERE id = ? AND deleted_at IS NULL;
-  `,
-    [trimmedName, workoutPlanId],
-  );
+  inTransaction(() => {
+    exec(
+      `
+      UPDATE program
+      SET name = ?, updated_at = datetime('now')
+      WHERE id = ? AND deleted_at IS NULL;
+    `,
+      [trimmedName, workoutPlanId],
+    );
+
+    enqueueProgramSnapshot(workoutPlanId);
+  });
 }
 
 export function getWorkoutPlanById(id: string): WorkoutPlanRow | null {
