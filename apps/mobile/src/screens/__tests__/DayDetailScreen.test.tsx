@@ -91,6 +91,7 @@ import {
   getInProgressSession,
   getSessionById,
 } from '../../db/workoutSessionRepo';
+import { reorderDayExercises } from '../../db/dayExerciseRepo';
 import { tokens } from '../../theme/tokens';
 
 type Nav = {
@@ -309,5 +310,46 @@ describe('DayDetailScreen', () => {
 
     const screens = findElementsByType<React.ComponentProps<typeof Screen>>(element, Screen);
     expect(screens[0]?.props.bottomInset).toBe('none');
+  });
+
+  it('keeps the local reordered list on drop before persisting reorder', () => {
+    const initialItems = [
+      {
+        id: 'day-ex-1',
+        program_day_id: 'day-1',
+        exercise_id: 'bench',
+        exercise_name: 'Bench Press',
+        position: 1,
+        notes: null,
+      },
+      {
+        id: 'day-ex-2',
+        program_day_id: 'day-1',
+        exercise_id: 'row',
+        exercise_name: 'Row',
+        position: 2,
+        notes: null,
+      },
+    ];
+    const reorderedItems = [initialItems[1], initialItems[0]];
+    const setItems = jest.fn();
+    useStateMock.mockImplementationOnce(() => ['Push', jest.fn()]);
+    useStateMock.mockImplementationOnce(() => ['Push', jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [initialItems, setItems]);
+
+    const navigation: Nav = { navigate: jest.fn(), replace: jest.fn(), setOptions: jest.fn() };
+    const element = DayDetailScreen({
+      navigation,
+      route: { key: 'DayDetail', name: 'DayDetail', params: { dayId: 'day-1' } },
+    } as never);
+
+    const lists = findElementsByType<React.ComponentProps<typeof DraggableFlatList>>(
+      element,
+      DraggableFlatList,
+    );
+    lists[0]?.props.onDragEnd?.({ data: reorderedItems, from: 0, to: 1 });
+
+    expect(setItems).toHaveBeenCalledWith(reorderedItems);
+    expect(reorderDayExercises).toHaveBeenCalledWith('day-1', ['day-ex-2', 'day-ex-1']);
   });
 });

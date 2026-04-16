@@ -188,13 +188,13 @@ export function DayDetailScreen({ route, navigation }: Props) {
         style={
           isActive
             ? {
-                backgroundColor: tokens.colors.surface2,
-                borderColor: tokens.colors.primary,
-                shadowColor: '#000',
-                shadowOpacity: 0.18,
-                shadowRadius: 10,
-                shadowOffset: { width: 0, height: 6 },
-              }
+              backgroundColor: tokens.colors.surface2,
+              borderColor: tokens.colors.primary,
+              shadowColor: '#000',
+              shadowOpacity: 0.18,
+              shadowRadius: 10,
+              shadowOffset: { width: 0, height: 6 },
+            }
             : undefined
         }
       />
@@ -294,20 +294,20 @@ export function DayDetailScreen({ route, navigation }: Props) {
           isStartSessionMode
             ? undefined
             : () => {
-                void Haptics.selectionAsync();
-              }
+              void Haptics.selectionAsync();
+            }
         }
         onDragEnd={
           isStartSessionMode
             ? undefined
             : ({ data }) => {
-                setItems(data);
-                reorderDayExercises(
-                  dayId,
-                  data.map((x) => x.id),
-                );
-                load();
-              }
+              setItems(data);
+              reorderDayExercises(
+                dayId,
+                data.map((x) => x.id),
+              );
+
+            }
         }
         keyboardShouldPersistTaps="handled"
       />
