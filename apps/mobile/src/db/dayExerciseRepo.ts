@@ -204,6 +204,8 @@ export function addExerciseToDay(input: { dayId: string; exerciseId: string }): 
       [id, dayId, exerciseId, nextPos],
     );
 
+    enqueueProgramDayExerciseSnapshot(id);
+
     return id;
   });
 }
@@ -212,14 +214,17 @@ export function reorderDayExercises(dayId: string, orderedDayExerciseIds: string
   inTransaction(() => {
     normalizeDeletedExercisePositions(dayId);
 
-    const existing = query<{ id: string }>(
+    const existingRows = query<{ id: string; position: number }>(
       `
-      SELECT id
+      SELECT id, position
       FROM program_day_exercise
       WHERE program_day_id = ? AND deleted_at IS NULL;
     `,
       [dayId],
-    ).map((r) => r.id);
+    );
+
+    const existing = existingRows.map((r) => r.id);
+    const originalPositionById = new Map(existingRows.map((r) => [r.id, r.position]));
 
     const existingSet = new Set(existing);
     for (const id of orderedDayExerciseIds) {
@@ -241,8 +246,18 @@ export function reorderDayExercises(dayId: string, orderedDayExerciseIds: string
         [i + 1, orderedDayExerciseIds[i]],
       );
     }
+
+    for (let i = 0; i < orderedDayExerciseIds.length; i += 1) {
+      const dayExerciseId = orderedDayExerciseIds[i];
+      const nextPosition = i + 1;
+      const prevPosition = originalPositionById.get(dayExerciseId);
+      if (prevPosition === nextPosition) continue;
+      enqueueProgramDayExerciseSnapshot(dayExerciseId);
+    }
   });
 }
+
+
 
 export function deleteDayExercise(dayExerciseId: string) {
   inTransaction(() => {

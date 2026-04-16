@@ -13,7 +13,7 @@ jest.mock('../outboxRepo', () => ({
 
 import { exec, query } from '../db';
 import { enqueueOutboxOp } from '../outboxRepo';
-import { deleteDayExercise, renameDay } from '../dayExerciseRepo';
+import { addExerciseToDay, deleteDayExercise, renameDay, reorderDayExercises } from '../dayExerciseRepo';
 
 describe('dayExerciseRepo outbound sync enqueue coverage', () => {
     beforeEach(() => {
@@ -76,6 +76,81 @@ describe('dayExerciseRepo outbound sync enqueue coverage', () => {
                 entityType: 'program_day_exercise',
                 entityId: 'day-ex-1',
                 opType: 'delete',
+            }),
+        );
+    });
+    it('enqueues program_day_exercise upsert snapshot when adding an exercise to a day', () => {
+        (query as jest.Mock).mockImplementation((sql: string, params?: unknown[]) => {
+            if (sql.includes('FROM program_day_exercise') && sql.includes('deleted_at IS NOT NULL')) {
+                return [];
+            }
+            if (sql.includes('COALESCE(MAX(position), 0) + 1 AS next_pos') && params?.[0] === 'day-1') {
+                return [{ next_pos: 3 }];
+            }
+            if (sql.includes('SELECT *') && sql.includes('FROM program_day_exercise')) {
+                return [{ id: String(params?.[0] ?? 'day-ex-new'), program_day_id: 'day-1', position: 3, deleted_at: null }];
+            }
+            return [];
+        });
+
+        addExerciseToDay({ dayId: 'day-1', exerciseId: 'ex-1' });
+
+        const call = (enqueueOutboxOp as jest.Mock).mock.calls[0]?.[0];
+        expect(enqueueOutboxOp).toHaveBeenCalledWith(
+            expect.objectContaining({
+                entityType: 'program_day_exercise',
+                opType: 'upsert',
+            }),
+        );
+        expect(call?.entityId).toBeTruthy();
+    });
+
+    it('enqueues program_day_exercise upsert snapshots for all reordered rows whose position changed', () => {
+        (query as jest.Mock).mockImplementation((sql: string, params?: unknown[]) => {
+            if (sql.includes('FROM program_day_exercise') && sql.includes('deleted_at IS NOT NULL')) {
+                return [];
+            }
+            if (sql.includes('SELECT id, position') && sql.includes('deleted_at IS NULL')) {
+                return [
+                    { id: 'day-ex-1', position: 1 },
+                    { id: 'day-ex-2', position: 2 },
+                    { id: 'day-ex-3', position: 3 },
+                ];
+            }
+            if (
+                sql.includes('SELECT *') &&
+                sql.includes('FROM program_day_exercise') &&
+                params?.[0] === 'day-ex-2'
+            ) {
+                return [{ id: 'day-ex-2', program_day_id: 'day-1', position: 1 }];
+            }
+            if (
+                sql.includes('SELECT *') &&
+                sql.includes('FROM program_day_exercise') &&
+                params?.[0] === 'day-ex-1'
+            ) {
+                return [{ id: 'day-ex-1', program_day_id: 'day-1', position: 2 }];
+            }
+            return [];
+        });
+
+        reorderDayExercises('day-1', ['day-ex-2', 'day-ex-1', 'day-ex-3']);
+
+        expect(enqueueOutboxOp).toHaveBeenCalledTimes(2);
+        expect(enqueueOutboxOp).toHaveBeenNthCalledWith(
+            1,
+            expect.objectContaining({
+                entityType: 'program_day_exercise',
+                entityId: 'day-ex-2',
+                opType: 'upsert',
+            }),
+        );
+        expect(enqueueOutboxOp).toHaveBeenNthCalledWith(
+            2,
+            expect.objectContaining({
+                entityType: 'program_day_exercise',
+                entityId: 'day-ex-1',
+                opType: 'upsert',
             }),
         );
     });

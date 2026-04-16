@@ -286,6 +286,8 @@ export function addDayToWorkoutPlan(workoutPlanId: string): string {
       [dayId, weekId, nextIndex, `Session ${nextIndex}`],
     );
 
+    enqueueProgramDaySnapshot(dayId);
+
     return dayId;
   });
 }
@@ -307,14 +309,17 @@ export function reorderWorkoutPlanDays(workoutPlanId: string, orderedDayIds: str
     // Fix old/legacy deleted rows that still have positive day_index values.
     normalizeDeletedDayIndices(week.id);
 
-    const existing = query<{ id: string }>(
+    const existingRows = query<{ id: string; day_index: number }>(
       `
-      SELECT d.id
+      SELECT d.id, d.day_index
       FROM program_day d
       WHERE d.program_week_id = ? AND d.deleted_at IS NULL;
     `,
       [week.id],
-    ).map((r) => r.id);
+    );
+
+    const existing = existingRows.map((r) => r.id);
+    const originalIndexById = new Map(existingRows.map((r) => [r.id, r.day_index]));
 
     const existingSet = new Set(existing);
     for (const id of orderedDayIds) {
@@ -330,6 +335,13 @@ export function reorderWorkoutPlanDays(workoutPlanId: string, orderedDayIds: str
         i + 1,
         orderedDayIds[i],
       ]);
+    }
+    for (let i = 0; i < orderedDayIds.length; i += 1) {
+      const dayId = orderedDayIds[i];
+      const nextIndex = i + 1;
+      const prevIndex = originalIndexById.get(dayId);
+      if (prevIndex === nextIndex) continue;
+      enqueueProgramDaySnapshot(dayId);
     }
   });
 }
