@@ -130,6 +130,45 @@ export function DayDetailScreen({ route, navigation }: Props) {
     load();
   }, [deleteExerciseTarget, load]);
 
+  const rowActionButtonStyle = {
+    minHeight: tokens.touchTargetMin,
+    minWidth: tokens.touchTargetMin,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: tokens.radius.sm,
+    borderWidth: 1,
+    borderColor: tokens.colors.border,
+  } as const;
+
+  const renderRowRight = useCallback(
+    (item: DayExerciseRow, drag?: () => void, disabled = false) => {
+      if (isStartSessionMode) return undefined;
+
+      return (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.xs }}>
+          <Pressable
+            disabled={disabled}
+            onPress={() => confirmDeleteExercise(item)}
+            style={({ pressed }) => [rowActionButtonStyle, pressed ? { opacity: 0.85 } : null]}
+            accessibilityLabel="Delete exercise"
+          >
+            <Ionicons name="trash-outline" size={18} color={tokens.colors.destructive} />
+          </Pressable>
+          <Pressable
+            disabled={disabled}
+            onLongPress={drag}
+            delayLongPress={150}
+            style={({ pressed }) => [rowActionButtonStyle, pressed ? { opacity: 0.85 } : null]}
+            accessibilityLabel="Reorder exercise"
+          >
+            <Ionicons name="reorder-three-outline" size={18} color={tokens.colors.mutedText} />
+          </Pressable>
+        </View>
+      );
+    },
+    [confirmDeleteExercise, isStartSessionMode],
+  );
+
   const renderItem = useCallback(
     ({ item, drag, isActive }: RenderItemParams<DayExerciseRow>) => (
       <ListRow
@@ -142,64 +181,18 @@ export function DayDetailScreen({ route, navigation }: Props) {
         }
         onPress={() => navigation.navigate('ExerciseDetail', { exerciseId: item.exercise_id })}
         showChevron
-        right={
-          isStartSessionMode ? undefined : (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.xs }}>
-              <Pressable
-                onPress={() => confirmDeleteExercise(item)}
-                style={({ pressed }) => [
-                  {
-                    minHeight: tokens.touchTargetMin,
-                    minWidth: tokens.touchTargetMin,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    borderRadius: tokens.radius.sm,
-                    borderWidth: 1,
-                    borderColor: tokens.colors.border,
-                  },
-                  pressed ? { opacity: 0.85 } : null,
-                ]}
-                accessibilityLabel="Delete exercise"
-              >
-                <Ionicons name="trash-outline" size={18} color={tokens.colors.destructive} />
-              </Pressable>
-              <Pressable
-                onLongPress={drag}
-                delayLongPress={150}
-                style={({ pressed }) => [
-                  {
-                    minHeight: tokens.touchTargetMin,
-                    minWidth: tokens.touchTargetMin,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    borderRadius: tokens.radius.sm,
-                    borderWidth: 1,
-                    borderColor: tokens.colors.border,
-                  },
-                  pressed ? { opacity: 0.85 } : null,
-                ]}
-                accessibilityLabel="Reorder exercise"
-              >
-                <Ionicons name="reorder-three-outline" size={18} color={tokens.colors.mutedText} />
-              </Pressable>
-            </View>
-          )
-        }
+        right={renderRowRight(item, drag)}
         style={
           isActive
             ? {
               backgroundColor: tokens.colors.surface2,
               borderColor: tokens.colors.primary,
-              shadowColor: '#000',
-              shadowOpacity: 0.18,
-              shadowRadius: 10,
-              shadowOffset: { width: 0, height: 6 },
             }
             : undefined
         }
       />
     ),
-    [confirmDeleteExercise, isStartSessionMode, navigation],
+    [colors.primary, isStartSessionMode, navigation, renderRowRight],
   );
 
   const renderPlaceholder = useCallback(
@@ -212,11 +205,13 @@ export function DayDetailScreen({ route, navigation }: Props) {
             <Ionicons name="barbell-outline" size={18} color={colors.primary} />
           </IconChip>
         }
+        right={renderRowRight(item, undefined, true)}
         showChevron
         style={{ opacity: 0.45 }}
       />
     ),
-    [colors.primary, isStartSessionMode],
+    [colors.primary, isStartSessionMode, renderRowRight],
+
   );
 
   const header = (
