@@ -296,7 +296,25 @@ export function deleteDayExercise(dayExerciseId: string) {
 
     const dayId = row.program_day_id;
 
+    const plannedSetIds = query<{ id: string }>(
+      `
+      SELECT id
+      FROM planned_set
+      WHERE program_day_exercise_id = ? AND deleted_at IS NULL;
+    `,
+      [dayExerciseId],
+    ).map((entry) => entry.id);
+
     normalizeDeletedExercisePositions(dayId);
+
+    exec(
+      `
+      UPDATE planned_set
+      SET deleted_at = datetime('now'), updated_at = datetime('now')
+      WHERE program_day_exercise_id = ? AND deleted_at IS NULL;
+    `,
+      [dayExerciseId],
+    );
 
     // Move this row below the current minimum so it cannot collide with any temp negatives
     const minPos =
@@ -341,6 +359,10 @@ export function deleteDayExercise(dayExerciseId: string) {
         "UPDATE program_day_exercise SET position = ?, updated_at = datetime('now') WHERE id = ?",
         [i + 1, remaining[i].id],
       );
+    }
+
+    for (const plannedSetId of plannedSetIds) {
+      enqueuePlannedSetSnapshot(plannedSetId, 'delete');
     }
 
     enqueueProgramDayExerciseSnapshot(dayExerciseId, 'delete');

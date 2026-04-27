@@ -304,6 +304,10 @@
     "name": "Rear Delt Raise"
   },
   {
+    "id": "ex_ab_crunch_machine",
+    "name": "Ab Crunch (Machine)"
+  },
+  {
     "id": "ex_treadmill_run",
     "name": "Treadmill",
     "exercise_type": "cardio",

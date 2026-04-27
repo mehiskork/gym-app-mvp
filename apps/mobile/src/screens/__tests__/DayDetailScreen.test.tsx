@@ -382,6 +382,15 @@ describe('DayDetailScreen', () => {
     const placeholderRow = placeholderNode as React.ReactElement<React.ComponentProps<typeof ListRow>>;
 
     expect(placeholderRow.props.title).toBe('Bench Press');
-    expect(placeholderRow.props.style).toEqual({ opacity: 0.45 });
+    expect(placeholderRow.props.subtitle).toBe('Tap to view');
+    expect(placeholderRow.props.showChevron).toBe(true);
+    expect(placeholderRow.props.style).toBeUndefined();
+
+    const placeholderActions = findElementsByType<{ disabled?: boolean }>(
+      placeholderRow.props.right,
+      require('react-native').Pressable,
+    );
+    expect(placeholderActions).toHaveLength(2);
+    expect(placeholderActions.every((action) => action.props.disabled)).toBe(true);
   });
 });

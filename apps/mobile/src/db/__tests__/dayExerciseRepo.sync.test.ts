@@ -52,10 +52,13 @@ describe('dayExerciseRepo outbound sync enqueue coverage', () => {
         );
     });
 
-    it('enqueues program_day_exercise delete snapshot when deleting a day exercise', () => {
+    it('deleteDayExercise tombstones child planned_set rows and enqueues delete snapshots', () => {
         (query as jest.Mock).mockImplementation((sql: string, params?: unknown[]) => {
             if (sql.includes('JOIN exercise e') && params?.[0] === 'day-ex-1') {
                 return [{ program_day_id: 'day-1', exercise_name: 'Bench Press' }];
+            }
+            if (sql.includes('FROM planned_set') && sql.includes('deleted_at IS NULL') && params?.[0] === 'day-ex-1') {
+                return [{ id: 'ps-1' }, { id: 'ps-2' }];
             }
             if (sql.includes('FROM program_day_exercise') && sql.includes('deleted_at IS NOT NULL')) {
                 return [];
@@ -65,6 +68,12 @@ describe('dayExerciseRepo outbound sync enqueue coverage', () => {
             }
             if (sql.includes('WHERE program_day_id = ? AND deleted_at IS NULL') && sql.includes('ORDER BY position ASC')) {
                 return [{ id: 'day-ex-2' }];
+            }
+            if (sql.includes('SELECT *') && sql.includes('FROM planned_set') && params?.[0] === 'ps-1') {
+                return [{ id: 'ps-1', program_day_exercise_id: 'day-ex-1', deleted_at: '2026-04-16 00:00:00' }];
+            }
+            if (sql.includes('SELECT *') && sql.includes('FROM planned_set') && params?.[0] === 'ps-2') {
+                return [{ id: 'ps-2', program_day_exercise_id: 'day-ex-1', deleted_at: '2026-04-16 00:00:00' }];
             }
             if (
                 sql.includes('SELECT *') &&
@@ -78,7 +87,29 @@ describe('dayExerciseRepo outbound sync enqueue coverage', () => {
 
         deleteDayExercise('day-ex-1');
 
-        expect(enqueueOutboxOp).toHaveBeenCalledWith(
+        expect(exec).toHaveBeenCalledWith(
+            expect.stringContaining('UPDATE planned_set'),
+            ['day-ex-1'],
+        );
+        expect(enqueueOutboxOp).toHaveBeenCalledTimes(3);
+        expect(enqueueOutboxOp).toHaveBeenNthCalledWith(
+            1,
+            expect.objectContaining({
+                entityType: 'planned_set',
+                entityId: 'ps-1',
+                opType: 'delete',
+            }),
+        );
+        expect(enqueueOutboxOp).toHaveBeenNthCalledWith(
+            2,
+            expect.objectContaining({
+                entityType: 'planned_set',
+                entityId: 'ps-2',
+                opType: 'delete',
+            }),
+        );
+        expect(enqueueOutboxOp).toHaveBeenNthCalledWith(
+            3,
             expect.objectContaining({
                 entityType: 'program_day_exercise',
                 entityId: 'day-ex-1',
