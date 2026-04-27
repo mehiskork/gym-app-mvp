@@ -197,7 +197,7 @@
   },
   {
     "id": "ex_hack_squat_machine_rdl",
-    "name": "Hack Squat Machine Romanian Deadlift"
+    "name": "Hack Squat Machine RDL"
   },
   {
     "id": "ex_leg_press",
@@ -336,5 +336,29 @@
     "name": "Elliptical Trainer",
     "exercise_type": "cardio",
     "cardio_profile": "elliptical"
+  },
+  {
+    "id": "ex_pendulum_squat",
+    "name": "Pendulum Squat"
+  },
+  {
+    "id": "ex_stationary_lunge",
+    "name": "Stationary Lunge"
+  },
+  {
+    "id": "ex_single_leg_hip_thrust",
+    "name": "Single-Leg Hip Thrust"
+  },
+  {
+    "id": "ex_hip_adduction_machine",
+    "name": "Hip Adduction (Machine)"
+  },
+  {
+    "id": "ex_close_grip_lat_pulldown",
+    "name": "Close-Grip Lat Pulldown"
+  },
+  {
+    "id": "ex_seated_machine_row",
+    "name": "Seated Machine Row"
   }
 ]
