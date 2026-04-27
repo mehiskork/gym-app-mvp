@@ -1,6 +1,7 @@
 import { exec, query } from './db';
 import { inTransaction } from './tx';
 import { newId } from '../utils/ids';
+import { enqueueOutboxOp } from './outboxRepo';
 import prebuiltJson from './seed/prebuilt_plans.json';
 
 type PrebuiltPlanSet = {
@@ -34,6 +35,31 @@ export type PrebuiltPlanListItem = {
 };
 
 const templates = prebuiltJson as PrebuiltPlanTemplate[];
+
+function enqueueEntitySnapshot(
+  entityType: 'program' | 'program_week' | 'program_day' | 'program_day_exercise' | 'planned_set',
+  entityId: string,
+  opType: 'upsert' | 'delete' = 'upsert',
+) {
+  const row = query<Record<string, unknown>>(
+    `
+    SELECT *
+    FROM ${entityType}
+    WHERE id = ?
+    LIMIT 1;
+  `,
+    [entityId],
+  )[0];
+
+  if (!row) return;
+
+  enqueueOutboxOp({
+    entityType,
+    entityId,
+    opType,
+    payloadJson: JSON.stringify(row),
+  });
+}
 
 function buildPlanKey(name: string, description: string | null) {
   return `${name}__${description ?? ''}`;
@@ -138,8 +164,13 @@ export function importPrebuiltPlan(templateId: string): string {
       [weekId, programId],
     );
 
+    const dayIds: string[] = [];
+    const dayExerciseIds: string[] = [];
+    const plannedSetIds: string[] = [];
+
     template.days.forEach((day, dayIndex) => {
       const dayId = newId('day');
+      dayIds.push(dayId);
       exec(
         `
         INSERT INTO program_day (id, program_week_id, day_index, name)
@@ -150,6 +181,7 @@ export function importPrebuiltPlan(templateId: string): string {
 
       day.exercises.forEach((exercise, exerciseIndex) => {
         const dayExerciseId = newId('pde');
+        dayExerciseIds.push(dayExerciseId);
         exec(
           `
           INSERT INTO program_day_exercise (id, program_day_id, exercise_id, position, notes)
@@ -161,6 +193,7 @@ export function importPrebuiltPlan(templateId: string): string {
         const sets = exercise.sets ?? [];
         sets.forEach((set, setIndex) => {
           const plannedSetId = newId('pset');
+          plannedSetIds.push(plannedSetId);
           exec(
             `
             INSERT INTO planned_set (
@@ -184,6 +217,18 @@ export function importPrebuiltPlan(templateId: string): string {
         });
       });
     });
+
+    enqueueEntitySnapshot('program', programId);
+    enqueueEntitySnapshot('program_week', weekId);
+    for (const dayId of dayIds) {
+      enqueueEntitySnapshot('program_day', dayId);
+    }
+    for (const dayExerciseId of dayExerciseIds) {
+      enqueueEntitySnapshot('program_day_exercise', dayExerciseId);
+    }
+    for (const plannedSetId of plannedSetIds) {
+      enqueueEntitySnapshot('planned_set', plannedSetId);
+    }
 
     return programId;
   });

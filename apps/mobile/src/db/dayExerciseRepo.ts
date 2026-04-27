@@ -19,7 +19,7 @@ export type DayExerciseRow = {
   notes: string | null;
 };
 
-function enqueueProgramDaySnapshot(dayId: string) {
+function enqueueProgramDaySnapshot(dayId: string, opType: 'upsert' | 'delete' = 'upsert') {
   const row = query<Record<string, unknown>>(
     `
     SELECT *
@@ -35,7 +35,7 @@ function enqueueProgramDaySnapshot(dayId: string) {
   enqueueOutboxOp({
     entityType: 'program_day',
     entityId: dayId,
-    opType: 'upsert',
+    opType,
     payloadJson: JSON.stringify(row),
   });
 }
@@ -64,6 +64,26 @@ function enqueueProgramDayExerciseSnapshot(
   });
 }
 
+function enqueuePlannedSetSnapshot(plannedSetId: string, opType: 'upsert' | 'delete' = 'upsert') {
+  const row = query<Record<string, unknown>>(
+    `
+    SELECT *
+    FROM planned_set
+    WHERE id = ?
+    LIMIT 1;
+  `,
+    [plannedSetId],
+  )[0];
+
+  if (!row) return;
+
+  enqueueOutboxOp({
+    entityType: 'planned_set',
+    entityId: plannedSetId,
+    opType,
+    payloadJson: JSON.stringify(row),
+  });
+}
 
 function normalizeDeletedDayIndices(programWeekId: string) {
   // Put deleted days into a far-negative "graveyard" so they never collide with temp -1..-N.
@@ -341,6 +361,39 @@ export function deleteDay(dayId: string) {
 
     if (!row) throw new Error('deleteDay: day not found');
 
+    const dayExerciseIds = query<{ id: string }>(
+      `
+      SELECT id
+      FROM program_day_exercise
+      WHERE program_day_id = ? AND deleted_at IS NULL;
+    `,
+      [dayId],
+    ).map((entry) => entry.id);
+
+    const plannedSetIdsByDayExercise = new Map<string, string[]>();
+    for (const dayExerciseId of dayExerciseIds) {
+      const plannedSetIds = query<{ id: string }>(
+        `
+        SELECT id
+        FROM planned_set
+        WHERE program_day_exercise_id = ? AND deleted_at IS NULL;
+      `,
+        [dayExerciseId],
+      ).map((entry) => entry.id);
+      plannedSetIdsByDayExercise.set(dayExerciseId, plannedSetIds);
+    }
+
+    for (const dayExerciseId of dayExerciseIds) {
+      exec(
+        `
+        UPDATE planned_set
+        SET deleted_at = datetime('now'), updated_at = datetime('now')
+        WHERE program_day_exercise_id = ? AND deleted_at IS NULL;
+      `,
+        [dayExerciseId],
+      );
+    }
+
     normalizeDeletedDayIndices(row.program_week_id);
 
     exec(
@@ -391,5 +444,21 @@ export function deleteDay(dayId: string) {
         remaining[i].id,
       ]);
     }
+    for (const dayExerciseId of dayExerciseIds) {
+      const plannedSetIds = plannedSetIdsByDayExercise.get(dayExerciseId) ?? [];
+
+      for (const plannedSetId of plannedSetIds) {
+        enqueuePlannedSetSnapshot(plannedSetId, 'delete');
+      }
+
+      enqueueProgramDayExerciseSnapshot(dayExerciseId, 'delete');
+    }
+
+    enqueueProgramDaySnapshot(dayId, 'delete');
+
+    for (const day of remaining) {
+      enqueueProgramDaySnapshot(day.id);
+    }
+
   });
 }

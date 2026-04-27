@@ -21,6 +21,7 @@ import { enqueueOutboxOp } from '../outboxRepo';
 import {
   addDayToWorkoutPlan,
   createWorkoutPlan,
+  deleteWorkoutPlan,
   reorderWorkoutPlanDays,
   updateWorkoutPlanName,
 } from '../workoutPlanRepo';
@@ -185,6 +186,92 @@ describe('workoutPlanRepo addDayToWorkoutPlan', () => {
         entityType: 'program_day',
         entityId: 'day-1',
         opType: 'upsert',
+      }),
+    );
+  });
+  it('enqueues delete tombstones for full planner tree when deleting a workout plan', () => {
+    (query as jest.Mock).mockImplementation((sql: string, params?: unknown[]) => {
+      if (sql.includes('FROM program_week') && sql.includes('deleted_at IS NULL')) {
+        return [{ id: 'week-1' }];
+      }
+      if (sql.includes('FROM program_day d') && sql.includes('d.deleted_at IS NULL')) {
+        return [{ id: 'day-1' }, { id: 'day-2' }];
+      }
+      if (sql.includes('FROM program_day_exercise pde') && sql.includes('pde.deleted_at IS NULL')) {
+        return [{ id: 'pde-1' }, { id: 'pde-2' }];
+      }
+      if (sql.includes('FROM planned_set') && sql.includes('deleted_at IS NULL') && params?.[0] === 'pde-1') {
+        return [{ id: 'ps-1' }];
+      }
+      if (sql.includes('FROM planned_set') && sql.includes('deleted_at IS NULL') && params?.[0] === 'pde-2') {
+        return [{ id: 'ps-2' }, { id: 'ps-3' }];
+      }
+      if (sql.includes('SELECT *') && sql.includes('FROM planned_set') && params?.[0] === 'ps-1') {
+        return [{ id: 'ps-1', deleted_at: '2026-04-16 00:00:00' }];
+      }
+      if (sql.includes('SELECT *') && sql.includes('FROM planned_set') && params?.[0] === 'ps-2') {
+        return [{ id: 'ps-2', deleted_at: '2026-04-16 00:00:00' }];
+      }
+      if (sql.includes('SELECT *') && sql.includes('FROM planned_set') && params?.[0] === 'ps-3') {
+        return [{ id: 'ps-3', deleted_at: '2026-04-16 00:00:00' }];
+      }
+      if (sql.includes('SELECT *') && sql.includes('FROM program_day_exercise') && params?.[0] === 'pde-1') {
+        return [{ id: 'pde-1', deleted_at: '2026-04-16 00:00:00' }];
+      }
+      if (sql.includes('SELECT *') && sql.includes('FROM program_day_exercise') && params?.[0] === 'pde-2') {
+        return [{ id: 'pde-2', deleted_at: '2026-04-16 00:00:00' }];
+      }
+      if (sql.includes('SELECT *') && sql.includes('FROM program_day') && params?.[0] === 'day-1') {
+        return [{ id: 'day-1', deleted_at: '2026-04-16 00:00:00' }];
+      }
+      if (sql.includes('SELECT *') && sql.includes('FROM program_day') && params?.[0] === 'day-2') {
+        return [{ id: 'day-2', deleted_at: '2026-04-16 00:00:00' }];
+      }
+      if (sql.includes('SELECT *') && sql.includes('FROM program_week') && params?.[0] === 'week-1') {
+        return [{ id: 'week-1', deleted_at: '2026-04-16 00:00:00' }];
+      }
+      if (sql.includes('SELECT *') && sql.includes('FROM program') && params?.[0] === 'plan-1') {
+        return [{ id: 'plan-1', deleted_at: '2026-04-16 00:00:00' }];
+      }
+      return [];
+    });
+
+    deleteWorkoutPlan('plan-1');
+
+    expect(enqueueOutboxOp).toHaveBeenCalledTimes(9);
+    expect(enqueueOutboxOp).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        entityType: 'program',
+        entityId: 'plan-1',
+        opType: 'delete',
+      }),
+    );
+    expect(enqueueOutboxOp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entityType: 'program_week',
+        entityId: 'week-1',
+        opType: 'delete',
+      }),
+    );
+    expect(enqueueOutboxOp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entityType: 'program_day',
+        entityId: 'day-1',
+        opType: 'delete',
+      }),
+    );
+    expect(enqueueOutboxOp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entityType: 'program_day_exercise',
+        entityId: 'pde-1',
+        opType: 'delete',
+      }),
+    );
+    expect(enqueueOutboxOp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entityType: 'planned_set',
+        entityId: 'ps-1',
+        opType: 'delete',
       }),
     );
   });

@@ -13,7 +13,14 @@ jest.mock('../outboxRepo', () => ({
 
 import { exec, query } from '../db';
 import { enqueueOutboxOp } from '../outboxRepo';
-import { addExerciseToDay, deleteDayExercise, renameDay, reorderDayExercises } from '../dayExerciseRepo';
+import {
+    addExerciseToDay,
+    deleteDay,
+    deleteDayExercise,
+    renameDay,
+    reorderDayExercises,
+} from '../dayExerciseRepo';
+
 
 describe('dayExerciseRepo outbound sync enqueue coverage', () => {
     beforeEach(() => {
@@ -152,6 +159,94 @@ describe('dayExerciseRepo outbound sync enqueue coverage', () => {
                 entityId: 'day-ex-1',
                 opType: 'upsert',
             }),
+        );
+    });
+    it('enqueues delete tombstones for deleteDay cascades and upserts for compacted siblings', () => {
+        (query as jest.Mock).mockImplementation((sql: string, params?: unknown[]) => {
+            if (sql.includes('SELECT program_week_id') && params?.[0] === 'day-2') {
+                return [{ program_week_id: 'week-1' }];
+            }
+            if (
+                sql.includes('FROM program_day_exercise') &&
+                sql.includes('program_day_id = ?') &&
+                sql.includes('deleted_at IS NULL') &&
+                params?.[0] === 'day-2'
+            ) {
+                return [{ id: 'day-ex-21' }, { id: 'day-ex-22' }];
+            }
+            if (sql.includes('FROM planned_set') && sql.includes('deleted_at IS NULL') && params?.[0] === 'day-ex-21') {
+                return [{ id: 'ps-211' }];
+            }
+            if (sql.includes('FROM planned_set') && sql.includes('deleted_at IS NULL') && params?.[0] === 'day-ex-22') {
+                return [{ id: 'ps-221' }, { id: 'ps-222' }];
+            }
+            if (sql.includes('FROM program_day') && sql.includes('deleted_at IS NOT NULL')) {
+                return [];
+            }
+            if (sql.includes('COALESCE(MIN(day_index), 0) AS min_idx')) {
+                return [{ min_idx: 1 }];
+            }
+            if (
+                sql.includes('FROM program_day') &&
+                sql.includes('program_week_id = ?') &&
+                sql.includes('deleted_at IS NULL') &&
+                sql.includes('ORDER BY day_index ASC')
+            ) {
+                return [{ id: 'day-1' }, { id: 'day-3' }];
+            }
+            if (sql.includes('SELECT *') && sql.includes('FROM planned_set') && params?.[0] === 'ps-211') {
+                return [{ id: 'ps-211', deleted_at: '2026-04-16 00:00:00' }];
+            }
+            if (sql.includes('SELECT *') && sql.includes('FROM planned_set') && params?.[0] === 'ps-221') {
+                return [{ id: 'ps-221', deleted_at: '2026-04-16 00:00:00' }];
+            }
+            if (sql.includes('SELECT *') && sql.includes('FROM planned_set') && params?.[0] === 'ps-222') {
+                return [{ id: 'ps-222', deleted_at: '2026-04-16 00:00:00' }];
+            }
+            if (sql.includes('SELECT *') && sql.includes('FROM program_day_exercise') && params?.[0] === 'day-ex-21') {
+                return [{ id: 'day-ex-21', program_day_id: 'day-2', deleted_at: '2026-04-16 00:00:00' }];
+            }
+            if (sql.includes('SELECT *') && sql.includes('FROM program_day_exercise') && params?.[0] === 'day-ex-22') {
+                return [{ id: 'day-ex-22', program_day_id: 'day-2', deleted_at: '2026-04-16 00:00:00' }];
+            }
+            if (sql.includes('SELECT *') && sql.includes('FROM program_day') && params?.[0] === 'day-2') {
+                return [{ id: 'day-2', deleted_at: '2026-04-16 00:00:00', day_index: 0 }];
+            }
+            if (sql.includes('SELECT *') && sql.includes('FROM program_day') && params?.[0] === 'day-1') {
+                return [{ id: 'day-1', deleted_at: null, day_index: 1 }];
+            }
+            if (sql.includes('SELECT *') && sql.includes('FROM program_day') && params?.[0] === 'day-3') {
+                return [{ id: 'day-3', deleted_at: null, day_index: 2 }];
+            }
+            return [];
+        });
+
+        deleteDay('day-2');
+
+        expect(enqueueOutboxOp).toHaveBeenCalledTimes(8);
+        expect(enqueueOutboxOp).toHaveBeenNthCalledWith(
+            1,
+            expect.objectContaining({ entityType: 'planned_set', entityId: 'ps-211', opType: 'delete' }),
+        );
+        expect(enqueueOutboxOp).toHaveBeenNthCalledWith(
+            2,
+            expect.objectContaining({ entityType: 'program_day_exercise', entityId: 'day-ex-21', opType: 'delete' }),
+        );
+        expect(enqueueOutboxOp).toHaveBeenNthCalledWith(
+            5,
+            expect.objectContaining({ entityType: 'program_day_exercise', entityId: 'day-ex-22', opType: 'delete' }),
+        );
+        expect(enqueueOutboxOp).toHaveBeenNthCalledWith(
+            6,
+            expect.objectContaining({ entityType: 'program_day', entityId: 'day-2', opType: 'delete' }),
+        );
+        expect(enqueueOutboxOp).toHaveBeenNthCalledWith(
+            7,
+            expect.objectContaining({ entityType: 'program_day', entityId: 'day-1', opType: 'upsert' }),
+        );
+        expect(enqueueOutboxOp).toHaveBeenNthCalledWith(
+            8,
+            expect.objectContaining({ entityType: 'program_day', entityId: 'day-3', opType: 'upsert' }),
         );
     });
 });

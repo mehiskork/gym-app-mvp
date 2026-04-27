@@ -71,7 +71,7 @@ function normalizeDeletedDayIndices(programWeekId: string) {
   }
 }
 
-function enqueueProgramSnapshot(programId: string) {
+function enqueueProgramSnapshot(programId: string, opType: 'upsert' | 'delete' = 'upsert') {
   const row = query<Record<string, unknown>>(
     `
     SELECT *
@@ -87,12 +87,17 @@ function enqueueProgramSnapshot(programId: string) {
   enqueueOutboxOp({
     entityType: 'program',
     entityId: programId,
-    opType: 'upsert',
+    opType,
     payloadJson: JSON.stringify(row),
   });
 }
 
-function enqueueProgramWeekSnapshot(programWeekId: string) {
+
+
+function enqueueProgramWeekSnapshot(
+  programWeekId: string,
+  opType: 'upsert' | 'delete' = 'upsert',
+) {
   const row = query<Record<string, unknown>>(
     `
     SELECT *
@@ -108,12 +113,12 @@ function enqueueProgramWeekSnapshot(programWeekId: string) {
   enqueueOutboxOp({
     entityType: 'program_week',
     entityId: programWeekId,
-    opType: 'upsert',
+    opType,
     payloadJson: JSON.stringify(row),
   });
 }
 
-function enqueueProgramDaySnapshot(programDayId: string) {
+function enqueueProgramDaySnapshot(programDayId: string, opType: 'upsert' | 'delete' = 'upsert') {
   const row = query<Record<string, unknown>>(
     `
     SELECT *
@@ -129,7 +134,52 @@ function enqueueProgramDaySnapshot(programDayId: string) {
   enqueueOutboxOp({
     entityType: 'program_day',
     entityId: programDayId,
-    opType: 'upsert',
+    opType,
+    payloadJson: JSON.stringify(row),
+  });
+}
+
+function enqueueProgramDayExerciseSnapshot(
+  programDayExerciseId: string,
+  opType: 'upsert' | 'delete' = 'upsert',
+) {
+  const row = query<Record<string, unknown>>(
+    `
+    SELECT *
+    FROM program_day_exercise
+    WHERE id = ?
+    LIMIT 1;
+  `,
+    [programDayExerciseId],
+  )[0];
+
+  if (!row) return;
+
+  enqueueOutboxOp({
+    entityType: 'program_day_exercise',
+    entityId: programDayExerciseId,
+    opType,
+    payloadJson: JSON.stringify(row),
+  });
+}
+
+function enqueuePlannedSetSnapshot(plannedSetId: string, opType: 'upsert' | 'delete' = 'upsert') {
+  const row = query<Record<string, unknown>>(
+    `
+    SELECT *
+    FROM planned_set
+    WHERE id = ?
+    LIMIT 1;
+  `,
+    [plannedSetId],
+  )[0];
+
+  if (!row) return;
+
+  enqueueOutboxOp({
+    entityType: 'planned_set',
+    entityId: plannedSetId,
+    opType,
     payloadJson: JSON.stringify(row),
   });
 }
@@ -348,6 +398,49 @@ export function reorderWorkoutPlanDays(workoutPlanId: string, orderedDayIds: str
 
 export function deleteWorkoutPlan(workoutPlanId: string) {
   inTransaction(() => {
+    const weekIds = query<{ id: string }>(
+      `
+      SELECT id
+      FROM program_week
+      WHERE program_id = ? AND deleted_at IS NULL;
+    `,
+      [workoutPlanId],
+    ).map((row) => row.id);
+
+    const dayIds = query<{ id: string }>(
+      `
+      SELECT d.id
+      FROM program_day d
+      JOIN program_week w ON w.id = d.program_week_id
+      WHERE w.program_id = ? AND d.deleted_at IS NULL;
+    `,
+      [workoutPlanId],
+    ).map((row) => row.id);
+
+    const dayExerciseIds = query<{ id: string }>(
+      `
+      SELECT pde.id
+      FROM program_day_exercise pde
+      JOIN program_day d ON d.id = pde.program_day_id
+      JOIN program_week w ON w.id = d.program_week_id
+      WHERE w.program_id = ? AND pde.deleted_at IS NULL;
+    `,
+      [workoutPlanId],
+    ).map((row) => row.id);
+
+    const plannedSetIdsByDayExercise = new Map<string, string[]>();
+    for (const dayExerciseId of dayExerciseIds) {
+      const plannedSetIds = query<{ id: string }>(
+        `
+        SELECT id
+        FROM planned_set
+        WHERE program_day_exercise_id = ? AND deleted_at IS NULL;
+      `,
+        [dayExerciseId],
+      ).map((row) => row.id);
+      plannedSetIdsByDayExercise.set(dayExerciseId, plannedSetIds);
+    }
+
     exec(
       `
       UPDATE program
@@ -365,6 +458,18 @@ export function deleteWorkoutPlan(workoutPlanId: string) {
     `,
       [workoutPlanId],
     );
+
+    for (const dayExerciseId of dayExerciseIds) {
+      exec(
+        `
+        UPDATE planned_set
+        SET deleted_at = datetime('now'), updated_at = datetime('now')
+        WHERE program_day_exercise_id = ? AND deleted_at IS NULL;
+      `,
+        [dayExerciseId],
+      );
+    }
+
 
     exec(
       `
@@ -390,6 +495,23 @@ export function deleteWorkoutPlan(workoutPlanId: string) {
     `,
       [workoutPlanId],
     );
+    for (const dayExerciseId of dayExerciseIds) {
+      const plannedSetIds = plannedSetIdsByDayExercise.get(dayExerciseId) ?? [];
+      for (const plannedSetId of plannedSetIds) {
+        enqueuePlannedSetSnapshot(plannedSetId, 'delete');
+      }
+      enqueueProgramDayExerciseSnapshot(dayExerciseId, 'delete');
+    }
+
+    for (const dayId of dayIds) {
+      enqueueProgramDaySnapshot(dayId, 'delete');
+    }
+
+    for (const weekId of weekIds) {
+      enqueueProgramWeekSnapshot(weekId, 'delete');
+    }
+
+    enqueueProgramSnapshot(workoutPlanId, 'delete');
   });
 }
 
