@@ -98,7 +98,7 @@ function getHistoricalCompletedSetsForPlannedExercise(input: {
   );
 }
 
-function enqueueWorkoutSessionSnapshot(sessionId: string) {
+function enqueueWorkoutSessionSnapshot(sessionId: string, opType: 'upsert' | 'delete' = 'upsert') {
   const row = query<Record<string, unknown>>(
     `
     SELECT *
@@ -114,12 +114,15 @@ function enqueueWorkoutSessionSnapshot(sessionId: string) {
   enqueueOutboxOp({
     entityType: 'workout_session',
     entityId: sessionId,
-    opType: 'upsert',
+    opType,
     payloadJson: JSON.stringify(row),
   });
 }
 
-function enqueueWorkoutSessionExerciseSnapshot(wseId: string) {
+function enqueueWorkoutSessionExerciseSnapshot(
+  wseId: string,
+  opType: 'upsert' | 'delete' = 'upsert',
+) {
   const row = query<Record<string, unknown>>(
     `
     SELECT *
@@ -135,12 +138,12 @@ function enqueueWorkoutSessionExerciseSnapshot(wseId: string) {
   enqueueOutboxOp({
     entityType: 'workout_session_exercise',
     entityId: wseId,
-    opType: 'upsert',
+    opType,
     payloadJson: JSON.stringify(row),
   });
 }
 
-function enqueueWorkoutSetSnapshot(setId: string) {
+function enqueueWorkoutSetSnapshot(setId: string, opType: 'upsert' | 'delete' = 'upsert') {
   const row = query<Record<string, unknown>>(
     `
     SELECT *
@@ -156,7 +159,7 @@ function enqueueWorkoutSetSnapshot(setId: string) {
   enqueueOutboxOp({
     entityType: 'workout_set',
     entityId: setId,
-    opType: 'upsert',
+    opType,
     payloadJson: JSON.stringify(row),
   });
 }
@@ -499,15 +502,77 @@ export function completeSession(sessionId: string, workoutNote: string | null = 
 
 export function discardSession(sessionId: string) {
   inTransaction(() => {
+    const setIds = query<{ id: string }>(
+      `
+      SELECT ws.id AS id
+      FROM workout_set ws
+      JOIN workout_session_exercise wse ON wse.id = ws.workout_session_exercise_id
+      WHERE wse.workout_session_id = ?
+        AND ws.deleted_at IS NULL
+        AND wse.deleted_at IS NULL;
+    `,
+      [sessionId],
+    ).map((row) => row.id);
+
+    const sessionExerciseIds = query<{ id: string }>(
+      `
+      SELECT id
+      FROM workout_session_exercise
+      WHERE workout_session_id = ?
+        AND deleted_at IS NULL;
+    `,
+      [sessionId],
+    ).map((row) => row.id);
+
+    const sessionIds = query<{ id: string }>(
+      `
+      SELECT id
+      FROM workout_session
+      WHERE id = ?
+        AND deleted_at IS NULL;
+    `,
+      [sessionId],
+    ).map((row) => row.id);
+
+    exec(
+      `
+      UPDATE workout_set
+      SET deleted_at = datetime('now'), updated_at = datetime('now')
+      WHERE deleted_at IS NULL
+        AND workout_session_exercise_id IN (
+          SELECT id FROM workout_session_exercise
+          WHERE workout_session_id = ?
+        );
+    `,
+      [sessionId],
+    );
+
+    exec(
+      `
+      UPDATE workout_session_exercise
+      SET deleted_at = datetime('now'), updated_at = datetime('now')
+      WHERE workout_session_id = ?
+        AND deleted_at IS NULL;
+    `,
+      [sessionId],
+    );
     exec(
       `
       UPDATE workout_session
-      SET status = '${WORKOUT_SESSION_STATUS.DISCARDED}', ended_at = datetime('now'), updated_at = datetime('now')
+      SET status = '${WORKOUT_SESSION_STATUS.DISCARDED}', ended_at = datetime('now'), deleted_at = datetime('now'), updated_at = datetime('now')
       WHERE id = ? AND deleted_at IS NULL;
     `,
       [sessionId],
     );
 
-    enqueueWorkoutSessionSnapshot(sessionId);
+    for (const setId of setIds) {
+      enqueueWorkoutSetSnapshot(setId, 'delete');
+    }
+    for (const sessionExerciseId of sessionExerciseIds) {
+      enqueueWorkoutSessionExerciseSnapshot(sessionExerciseId, 'delete');
+    }
+    for (const id of sessionIds) {
+      enqueueWorkoutSessionSnapshot(id, 'delete');
+    }
   });
 }

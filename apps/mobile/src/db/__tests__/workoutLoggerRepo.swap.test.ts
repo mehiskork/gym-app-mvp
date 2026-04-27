@@ -17,12 +17,14 @@ jest.mock('../../utils/ids', () => ({
 
 import { exec, query } from '../db';
 import { newId } from '../../utils/ids';
+import { enqueueOutboxOp } from '../outboxRepo';
 import { swapWorkoutSessionExercise } from '../workoutLoggerRepo';
 
 describe('swapWorkoutSessionExercise', () => {
   beforeEach(() => {
     (exec as jest.Mock).mockReset();
     (query as jest.Mock).mockReset();
+    (enqueueOutboxOp as jest.Mock).mockReset();
     (newId as jest.Mock)
       .mockReset()
       .mockReturnValueOnce('wse-inserted')
@@ -59,7 +61,8 @@ describe('swapWorkoutSessionExercise', () => {
       .mockReturnValueOnce([{ id: 'wse-1', position: 2, notes: 'original comment' }])
       .mockReturnValueOnce([{ n: 1 }])
       .mockReturnValueOnce([{ id: 'wse-inserted' }])
-      .mockReturnValueOnce([{ id: 'set-inserted' }]);
+      .mockReturnValueOnce([{ id: 'set-inserted' }])
+      .mockReturnValueOnce([{ id: 'wse-1', deleted_at: '2026-04-27 00:00:00' }]);
 
     const result = swapWorkoutSessionExercise({
       workoutSessionId: 'ws-1',
@@ -81,6 +84,25 @@ describe('swapWorkoutSessionExercise', () => {
       expect.stringContaining('VALUES (?, ?, ?, ?, ?, ?, ?, NULL);'),
       expect.any(Array),
     );
+    expect(exec).toHaveBeenCalledWith(
+      expect.stringContaining('SET deleted_at = datetime(\'now\')'),
+      ['wse-1'],
+    );
+    expect(enqueueOutboxOp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entityType: 'workout_session_exercise',
+        entityId: 'wse-inserted',
+        opType: 'upsert',
+      }),
+    );
+    expect(enqueueOutboxOp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entityType: 'workout_session_exercise',
+        entityId: 'wse-1',
+        opType: 'delete',
+      }),
+    );
+    expect(result.focusExerciseId).toBe('wse-inserted');
   });
 
   it('inserts replacement below when completed sets exist and current is last', () => {
@@ -89,7 +111,8 @@ describe('swapWorkoutSessionExercise', () => {
       .mockReturnValueOnce([{ id: 'wse-last', position: 5 }])
       .mockReturnValueOnce([{ n: 2 }])
       .mockReturnValueOnce([{ id: 'wse-inserted' }])
-      .mockReturnValueOnce([{ id: 'set-inserted' }]);
+      .mockReturnValueOnce([{ id: 'set-inserted' }])
+      .mockReturnValueOnce([{ id: 'wse-last', deleted_at: '2026-04-27 00:00:00' }]);
 
     const result = swapWorkoutSessionExercise({
       workoutSessionId: 'ws-1',

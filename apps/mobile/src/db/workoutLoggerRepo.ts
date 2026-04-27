@@ -336,7 +336,17 @@ export function swapWorkoutSessionExercise(input: {
       );
     }
 
+    exec(
+      `
+      UPDATE workout_session_exercise
+      SET deleted_at = datetime('now'), updated_at = datetime('now')
+      WHERE id = ? AND deleted_at IS NULL;
+    `,
+      [workoutSessionExerciseId],
+    );
+
     enqueueWorkoutSessionExerciseSnapshot(insertedId);
+    enqueueWorkoutSessionExerciseSnapshot(workoutSessionExerciseId, 'delete');
     if (setId) enqueueWorkoutSetSnapshot(setId);
 
     return { focusExerciseId: insertedId };
