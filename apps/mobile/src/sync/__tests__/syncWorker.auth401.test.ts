@@ -3,10 +3,12 @@ import { claimOutboxOps, markOutboxOpsFailed, repairStaleInFlightOps } from '../
 import { finishSyncRun } from '../../db/syncRunRepo';
 import { deviceCredentialStore } from '../../auth/deviceCredentialStore';
 import { accountSessionStore } from '../../auth/accountSessionStore';
+import { getUsableAccountSessionWithFreshToken } from '../../auth/firebaseGoogleAuthClient';
 
 let mockToken: string | null = 'device-token';
 let mockAccountAccessToken: string | null = null;
 let mockAccountInvalidatedAt: string | null = null;
+let mockAccountRefreshFailed = false;
 
 jest.mock('../../api/config', () => ({
   getApiBaseUrl: jest.fn(() => 'https://example.test'),
@@ -37,15 +39,10 @@ jest.mock('../../auth/accountSessionStore', () => ({
     get: jest.fn(async () =>
       mockAccountAccessToken
         ? {
-          accessToken: mockAccountAccessToken,
-          invalidatedAt: mockAccountInvalidatedAt ?? undefined,
-          invalidationReason: mockAccountInvalidatedAt ? 'sync_401' : undefined,
-        }
-        : null,
-    ),
-    getUsable: jest.fn(async () =>
-      mockAccountAccessToken && !mockAccountInvalidatedAt
-        ? { accessToken: mockAccountAccessToken }
+            accessToken: mockAccountAccessToken,
+            invalidatedAt: mockAccountInvalidatedAt ?? undefined,
+            invalidationReason: mockAccountInvalidatedAt ? 'sync_401' : undefined,
+          }
         : null,
     ),
     invalidate: jest.fn(async () => {
@@ -54,6 +51,17 @@ jest.mock('../../auth/accountSessionStore', () => ({
   },
 }));
 
+jest.mock('../../auth/firebaseGoogleAuthClient', () => ({
+  getUsableAccountSessionWithFreshToken: jest.fn(async () => {
+    if (mockAccountRefreshFailed) {
+      mockAccountInvalidatedAt = '2026-04-07T00:00:00.000Z';
+      return null;
+    }
+    return mockAccountAccessToken && !mockAccountInvalidatedAt
+      ? { accessToken: mockAccountAccessToken }
+      : null;
+  }),
+}));
 
 jest.mock('../../db/outboxRepo', () => ({
   claimOutboxOps: jest.fn(),
@@ -90,6 +98,7 @@ describe('syncNow 401 self-heal', () => {
     mockToken = 'device-token';
     mockAccountAccessToken = null;
     mockAccountInvalidatedAt = null;
+    mockAccountRefreshFailed = false;
     process.env.EXPO_PUBLIC_API_BASE_URL = 'https://example.test';
     (claimOutboxOps as jest.Mock).mockReturnValue([
       {
@@ -142,7 +151,7 @@ describe('syncNow 401 self-heal', () => {
 
     await syncNow();
 
-    expect(accountSessionStore.getUsable).toHaveBeenCalledTimes(1);
+    expect(getUsableAccountSessionWithFreshToken).toHaveBeenCalledTimes(1);
     expect(accountSessionStore.invalidate).toHaveBeenCalledWith('sync_401');
     expect(deviceCredentialStore.setDeviceToken).not.toHaveBeenCalled();
     expect(markOutboxOpsFailed).not.toHaveBeenCalled();
@@ -197,6 +206,23 @@ describe('syncNow 401 self-heal', () => {
     );
   });
 
+  it('falls back to device token when account refresh fails before /sync', async () => {
+    mockAccountAccessToken = 'account-jwt-token';
+    mockAccountRefreshFailed = true;
+    global.fetch = jest.fn().mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ acks: [], deltas: [], cursor: '1', hasMore: false }),
+    }) as unknown as typeof fetch;
+
+    await syncNow();
+
+    expect((global.fetch as jest.Mock).mock.calls[0]?.[1]).toEqual(
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer device-token' }),
+      }),
+    );
+  });
 
   it('re-registers on the next run and resumes sync', async () => {
     const fetchMock = jest

@@ -7,6 +7,7 @@ import {
 } from '../db/appMetaRepo';
 import { deviceCredentialStore } from '../auth/deviceCredentialStore';
 import { accountSessionStore } from '../auth/accountSessionStore';
+import { getUsableAccountSessionWithFreshToken } from '../auth/firebaseGoogleAuthClient';
 import {
   claimOutboxOps,
   markOutboxOpsAcked,
@@ -103,7 +104,7 @@ type SyncAuthContext =
   | { token: string; authType: 'device_token' };
 
 async function resolveSyncAuthContext(): Promise<SyncAuthContext | null> {
-  const accountSession = await accountSessionStore.getUsable();
+  const accountSession = await getUsableAccountSessionWithFreshToken();
   if (accountSession?.accessToken) {
     return { token: accountSession.accessToken, authType: 'account_jwt' };
   }
@@ -196,7 +197,6 @@ async function runSyncPage(options: SyncNowOptions): Promise<boolean> {
       });
       return false;
     }
-
   }
   updateAuthDebugState({
     syncAuthModeNextPlanned: authContext.authType,
@@ -321,7 +321,9 @@ async function runSyncPage(options: SyncNowOptions): Promise<boolean> {
   } catch (err) {
     if (httpStatus === 401) {
       errorCode =
-        authContext.authType === 'device_token' ? 'auth_401_device_token_cleared' : 'auth_401_account_session';
+        authContext.authType === 'device_token'
+          ? 'auth_401_device_token_cleared'
+          : 'auth_401_account_session';
       errorMessage = err instanceof Error ? err.message : 'Unauthorized';
       if (authContext.authType === 'device_token') {
         await deviceCredentialStore.setDeviceToken(null);

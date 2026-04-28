@@ -26,15 +26,13 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
+      "googleServicesFile": "./google-services.json",
       "package": "com.mehka.gymappmvp"
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "plugins": [
-      "expo-sqlite",
-      "expo-secure-store"
-    ],
+    "plugins": ["expo-sqlite", "expo-secure-store", "@react-native-google-signin/google-signin"],
     "extra": {
       "EXPO_PUBLIC_API_BASE_URL": "https://gym-app-mvp-production.up.railway.app",
       "eas": {

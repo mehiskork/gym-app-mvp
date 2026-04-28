@@ -30,6 +30,9 @@ import {
   requestRestTimerNotificationPermission,
 } from '../utils/restTimerNotifications';
 import { resetToGuestBootstrap } from '../auth/identityTransition';
+import { accountSessionStore, type AccountSession } from '../auth/accountSessionStore';
+import { createGoogleAccountFromGuest } from '../auth/googleAccountOrchestrator';
+import { signOutFromGoogle } from '../auth/firebaseGoogleAuthClient';
 
 const REST_TIME_OPTIONS = [
   { label: '0:30', seconds: 30 },
@@ -46,8 +49,16 @@ export function SettingsScreen() {
   const selectedSwatchFill = colors.primarySoft.replace(/\d*\.?\d+\)$/, '0.12)');
   const [debugUnlocked, setDebugUnlockedState] = useState(false);
   const [claimed, setClaimedState] = useState(false);
+  const [accountSession, setAccountSession] = useState<AccountSession | null>(null);
+  const [accountBusy, setAccountBusy] = useState(false);
+  const [accountError, setAccountError] = useState<string | null>(null);
   const [settings, setSettings] = useState(getSettings());
   const [restPickerOpen, setRestPickerOpen] = useState(false);
+
+  const refreshAccountState = useCallback(async () => {
+    setClaimedState(getClaimed());
+    setAccountSession(await accountSessionStore.getUsable());
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -62,9 +73,9 @@ export function SettingsScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      setClaimedState(getClaimed());
+      void refreshAccountState();
       setSettings(getSettings());
-    }, []),
+    }, [refreshAccountState]),
   );
 
   const handleUnlocked = useCallback(() => {
@@ -121,19 +132,29 @@ export function SettingsScreen() {
           style: 'destructive',
           onPress: () => {
             void (async () => {
-              await resetToGuestBootstrap();
-              setClaimedState(false);
+              try {
+                setAccountBusy(true);
+                setAccountError(null);
+                await signOutFromGoogle();
+                await resetToGuestBootstrap();
+                await refreshAccountState();
+              } catch (error) {
+                const message = error instanceof Error ? error.message : 'Sign out failed.';
+                setAccountError(message);
+              } finally {
+                setAccountBusy(false);
+              }
             })();
           },
         },
       ],
     );
-  }, []);
+  }, [refreshAccountState]);
 
   const handleSwitchAccount = useCallback(() => {
     Alert.alert(
       'Switch account on this device?',
-      'Switching accounts clears local synced data first. Continue to a fresh account-link flow?',
+      'Switching accounts clears local synced data first. Continue to a safe guest state before signing in again?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -141,15 +162,39 @@ export function SettingsScreen() {
           style: 'destructive',
           onPress: () => {
             void (async () => {
-              await resetToGuestBootstrap();
-              setClaimedState(false);
-              navigation.navigate('ClaimStart');
+              try {
+                setAccountBusy(true);
+                setAccountError(null);
+                await signOutFromGoogle();
+                await resetToGuestBootstrap();
+                await refreshAccountState();
+              } catch (error) {
+                const message =
+                  error instanceof Error ? error.message : 'Account switch reset failed.';
+                setAccountError(message);
+              } finally {
+                setAccountBusy(false);
+              }
             })();
           },
         },
       ],
     );
-  }, [navigation]);
+  }, [refreshAccountState]);
+
+  const handleCreateGoogleAccount = useCallback(async () => {
+    setAccountBusy(true);
+    setAccountError(null);
+    try {
+      await createGoogleAccountFromGuest();
+      await refreshAccountState();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Google sign-in failed.';
+      setAccountError(message);
+    } finally {
+      setAccountBusy(false);
+    }
+  }, [refreshAccountState]);
 
   return (
     <Screen
@@ -319,22 +364,31 @@ export function SettingsScreen() {
         }}
       >
         <Text variant="subtitle">Account</Text>
-        <Text color={colors.textSecondary}>Account: {claimed ? 'Linked' : 'Guest'}</Text>
-        {claimed ? (
+        <Text color={colors.textSecondary}>
+          Account:{' '}
+          {accountSession ? (accountSession.email ?? 'Signed in') : claimed ? 'Linked' : 'Guest'}
+        </Text>
+        {accountError ? <Text color={colors.danger}>{accountError}</Text> : null}
+        {accountSession || claimed ? (
           <>
-            <Button title="Switch account" onPress={handleSwitchAccount} />
-            <Button title="Log out" variant="destructive" onPress={handleLogout} />
+            <Button title="Switch account" onPress={handleSwitchAccount} loading={accountBusy} />
+            <Button
+              title="Sign out"
+              variant="destructive"
+              onPress={handleLogout}
+              loading={accountBusy}
+            />
           </>
         ) : (
-          <Button title="Link to account" onPress={() => navigation.navigate('ClaimStart')} />
+          <>
+            <Text variant="muted">Create account</Text>
+            <Button
+              title="Continue with Google"
+              onPress={handleCreateGoogleAccount}
+              loading={accountBusy}
+            />
+          </>
         )}
-        {debugUnlocked ? (
-          <Button
-            title="Dev: Confirm claim"
-            variant="secondary"
-            onPress={() => navigation.navigate('ClaimConfirm')}
-          />
-        ) : null}
       </View>
 
       <BottomSheetModal
