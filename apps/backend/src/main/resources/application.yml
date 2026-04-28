@@ -26,6 +26,11 @@ claim:
 sync:
   maxOpsPerRequest: ${SYNC_MAX_OPS_PER_REQUEST:250}
 
+app:
+  auth:
+    firebase:
+      project-id: ${APP_AUTH_FIREBASE_PROJECT_ID:}
+
 logging:
   level:
     org.springframework.web.filter.CommonsRequestLoggingFilter: INFO

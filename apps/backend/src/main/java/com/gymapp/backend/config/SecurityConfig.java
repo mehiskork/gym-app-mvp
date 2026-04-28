@@ -41,6 +41,7 @@ public class SecurityConfig {
     private final RateLimitFilter rateLimitFilter;
     private final ObjectMapper objectMapper;
     private final PrincipalMapper principalMapper;
+    private final FirebaseJwtValidator firebaseJwtValidator;
 
     @Bean
     @Order(1)
@@ -170,18 +171,22 @@ public class SecurityConfig {
     }
 
     private JwtDecoder buildJwtDecoder(String issuerUri, String jwkSetUri) {
+        if (!StringUtils.hasText(issuerUri)) {
+            return token -> {
+                throw new BadJwtException("Account JWT issuer is not configured");
+            };
+        }
+
+        NimbusJwtDecoder decoder;
 
         if (StringUtils.hasText(jwkSetUri)) {
-            return NimbusJwtDecoder.withJwkSetUri(jwkSetUri).build();
+            decoder = NimbusJwtDecoder.withJwkSetUri(jwkSetUri).build();
+        } else {
+            decoder = NimbusJwtDecoder.withIssuerLocation(issuerUri).build();
         }
 
-        if (StringUtils.hasText(issuerUri)) {
-            return NimbusJwtDecoder.withIssuerLocation(issuerUri).build();
-        }
-
-        return token -> {
-            throw new BadJwtException("Invalid token");
-        };
+        decoder.setJwtValidator(firebaseJwtValidator.validator(issuerUri));
+        return decoder;
     }
 
     @Bean

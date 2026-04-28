@@ -40,14 +40,24 @@ Do not depend on `X-User-Id` header flow for production deployments.
 
 ## JWT config for account endpoints
 
-The current backend has a generic account-JWT foundation. Firebase-specific Google Sign-In and real Firebase ID-token validation are not completed yet.
+Firebase is used for authentication only. App data remains in PostgreSQL through the Spring Boot `/sync` API; do not add Firestore, Realtime Database, Storage, or Hosting for app persistence.
 
-Configure one of:
+Firebase project ID:
 
-- `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI`
+- `gym-app-mvp-1d7f0`
+
+Configure:
+
+- `APP_AUTH_FIREBASE_PROJECT_ID=gym-app-mvp-1d7f0`
+- `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI=https://securetoken.google.com/gym-app-mvp-1d7f0`
+
+Optional override, normally not needed with issuer discovery:
+
 - `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI`
 
-These variables are required once Firebase-backed account auth is wired to real token validation.
+The backend validates Firebase token signature, expiry, issuer, audience, and nonblank subject. The account owner identity is derived from the verified issuer + Firebase UID. Missing JWT/Firebase configuration fails closed for account-token endpoints.
+
+Mobile Google Sign-In wiring is a later PR.
 
 ## Tests
 

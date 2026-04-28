@@ -17,14 +17,20 @@ Set these variables on the Railway backend service:
 
 Railway sets `PORT` for the service. The backend reads it via `server.port=${PORT:8080}`.
 
-## Account-auth JWT variables (future Firebase account auth)
+## Firebase account-auth variables
 
-Set these when Firebase-backed account auth is wired to real ID-token validation:
+Firebase is used for authentication only. App data remains in PostgreSQL through the Spring Boot `/sync` API; do not use Firebase as the app database.
 
-- `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI`
+Set these before account auth can be tested in Railway/prod:
+
+- `APP_AUTH_FIREBASE_PROJECT_ID=gym-app-mvp-1d7f0`
+- `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI=https://securetoken.google.com/gym-app-mvp-1d7f0`
+
+Optional override, normally not needed with issuer discovery:
+
 - `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI`
 
-Until Firebase-specific Google Sign-In and Firebase ID-token validation are completed, these can remain unset. The current code has a generic account-JWT foundation, not completed Firebase auth.
+The backend validates Firebase token signature, expiry, issuer, audience, and nonblank subject. Mobile Google Sign-In is a later PR.
 
 ## Startup proof checklist
 
