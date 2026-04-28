@@ -4,11 +4,14 @@ import { finishSyncRun } from '../../db/syncRunRepo';
 import { deviceCredentialStore } from '../../auth/deviceCredentialStore';
 import { accountSessionStore } from '../../auth/accountSessionStore';
 import { getUsableAccountSessionWithFreshToken } from '../../auth/firebaseGoogleAuthClient';
+import { updateSyncState } from '../../db/syncStateRepo';
+import { updateAuthDebugState } from '../../db/appMetaRepo';
 
 let mockToken: string | null = 'device-token';
 let mockAccountAccessToken: string | null = null;
 let mockAccountInvalidatedAt: string | null = null;
 let mockAccountRefreshFailed = false;
+let mockLinkedAccountState = false;
 
 jest.mock('../../api/config', () => ({
   getApiBaseUrl: jest.fn(() => 'https://example.test'),
@@ -18,6 +21,7 @@ jest.mock('../../db/appMetaRepo', () => ({
   getEffectiveUserId: jest.fn(() => 'user-1'),
   getGuestUserId: jest.fn(() => null),
   getOrCreateDeviceId: jest.fn(() => 'device-1'),
+  isLinkedAccountState: jest.fn(() => mockLinkedAccountState),
   isSyncPaused: jest.fn(() => false),
   setLastSyncAckSummary: jest.fn(),
   setGuestUserId: jest.fn(),
@@ -99,6 +103,7 @@ describe('syncNow 401 self-heal', () => {
     mockAccountAccessToken = null;
     mockAccountInvalidatedAt = null;
     mockAccountRefreshFailed = false;
+    mockLinkedAccountState = false;
     process.env.EXPO_PUBLIC_API_BASE_URL = 'https://example.test';
     (claimOutboxOps as jest.Mock).mockReturnValue([
       {
@@ -188,7 +193,7 @@ describe('syncNow 401 self-heal', () => {
     );
   });
 
-  it('falls back to device token when account session is present but invalidated', async () => {
+  it('uses device token in guest mode when account session is present but invalidated', async () => {
     mockAccountAccessToken = 'account-jwt-token';
     mockAccountInvalidatedAt = '2026-04-07T00:00:00.000Z';
     global.fetch = jest.fn().mockResolvedValueOnce({
@@ -206,7 +211,52 @@ describe('syncNow 401 self-heal', () => {
     );
   });
 
-  it('falls back to device token when account refresh fails before /sync', async () => {
+  it('blocks sync instead of using device token when linked account session is invalidated', async () => {
+    mockLinkedAccountState = true;
+    mockAccountAccessToken = 'account-jwt-token';
+    mockAccountInvalidatedAt = '2026-04-07T00:00:00.000Z';
+    global.fetch = jest.fn() as unknown as typeof fetch;
+
+    await syncNow();
+
+    expect(global.fetch).not.toHaveBeenCalled();
+    expect(claimOutboxOps).not.toHaveBeenCalled();
+    expect(markOutboxOpsFailed).not.toHaveBeenCalled();
+    expect(deviceCredentialStore.setDeviceToken).not.toHaveBeenCalled();
+    expect(updateSyncState).toHaveBeenCalledWith(
+      expect.objectContaining({
+        last_error: 'account_reauth_required',
+        backoff_until: null,
+        consecutive_failures: 0,
+      }),
+    );
+    expect(updateAuthDebugState).toHaveBeenCalledWith({
+      syncAuthModeNextPlanned: 'blocked_reauth',
+    });
+  });
+
+  it('blocks sync instead of using device token when linked account session is missing', async () => {
+    mockLinkedAccountState = true;
+    mockAccountAccessToken = null;
+    global.fetch = jest.fn() as unknown as typeof fetch;
+
+    await syncNow();
+
+    expect(global.fetch).not.toHaveBeenCalled();
+    expect(claimOutboxOps).not.toHaveBeenCalled();
+    expect(markOutboxOpsFailed).not.toHaveBeenCalled();
+    expect(deviceCredentialStore.setDeviceToken).not.toHaveBeenCalled();
+    expect(updateSyncState).toHaveBeenCalledWith(
+      expect.objectContaining({
+        last_error: 'account_reauth_required',
+      }),
+    );
+    expect(updateAuthDebugState).toHaveBeenCalledWith({
+      syncAuthModeNextPlanned: 'blocked_reauth',
+    });
+  });
+
+  it('uses device token in guest mode when account refresh fails before /sync', async () => {
     mockAccountAccessToken = 'account-jwt-token';
     mockAccountRefreshFailed = true;
     global.fetch = jest.fn().mockResolvedValueOnce({
@@ -222,6 +272,28 @@ describe('syncNow 401 self-heal', () => {
         headers: expect.objectContaining({ Authorization: 'Bearer device-token' }),
       }),
     );
+  });
+
+  it('blocks sync instead of using device token when linked account refresh fails before /sync', async () => {
+    mockLinkedAccountState = true;
+    mockAccountAccessToken = 'account-jwt-token';
+    mockAccountRefreshFailed = true;
+    global.fetch = jest.fn() as unknown as typeof fetch;
+
+    await syncNow();
+
+    expect(global.fetch).not.toHaveBeenCalled();
+    expect(claimOutboxOps).not.toHaveBeenCalled();
+    expect(markOutboxOpsFailed).not.toHaveBeenCalled();
+    expect(deviceCredentialStore.setDeviceToken).not.toHaveBeenCalled();
+    expect(updateSyncState).toHaveBeenCalledWith(
+      expect.objectContaining({
+        last_error: 'account_reauth_required',
+      }),
+    );
+    expect(updateAuthDebugState).toHaveBeenCalledWith({
+      syncAuthModeNextPlanned: 'blocked_reauth',
+    });
   });
 
   it('re-registers on the next run and resumes sync', async () => {
@@ -261,6 +333,7 @@ describe('syncNow 401 self-heal', () => {
     );
   });
   it('persists invalidation behavior across runs so stale account jwt is not reused', async () => {
+    mockLinkedAccountState = true;
     mockAccountAccessToken = 'account-jwt-token';
     const fetchMock = jest
       .fn()
@@ -280,11 +353,12 @@ describe('syncNow 401 self-heal', () => {
     await syncNow();
 
     expect(accountSessionStore.invalidate).toHaveBeenCalledWith('sync_401');
-    expect(fetchMock).toHaveBeenNthCalledWith(
-      2,
-      'https://example.test/sync',
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(claimOutboxOps).toHaveBeenCalledTimes(1);
+    expect(markOutboxOpsFailed).not.toHaveBeenCalled();
+    expect(updateSyncState).toHaveBeenCalledWith(
       expect.objectContaining({
-        headers: expect.objectContaining({ Authorization: 'Bearer device-token' }),
+        last_error: 'account_reauth_required',
       }),
     );
   });

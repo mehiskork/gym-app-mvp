@@ -36,7 +36,7 @@ export type SyncAckSummary = {
 
 export type AccountSessionStatus = 'missing' | 'usable' | 'invalidated';
 export type LinkedState = 'guest' | 'linked';
-export type SyncAuthMode = 'account_jwt' | 'device_token';
+export type SyncAuthMode = 'account_jwt' | 'device_token' | 'blocked_reauth';
 
 export type AuthDebugState = {
   syncAuthModeLastUsed: SyncAuthMode | null;
@@ -80,12 +80,14 @@ function parseAuthDebugState(raw: string | null): AuthDebugState | null {
   return {
     syncAuthModeLastUsed:
       parsed.syncAuthModeLastUsed === 'account_jwt' ||
-      parsed.syncAuthModeLastUsed === 'device_token'
+      parsed.syncAuthModeLastUsed === 'device_token' ||
+      parsed.syncAuthModeLastUsed === 'blocked_reauth'
         ? parsed.syncAuthModeLastUsed
         : null,
     syncAuthModeNextPlanned:
       parsed.syncAuthModeNextPlanned === 'account_jwt' ||
-      parsed.syncAuthModeNextPlanned === 'device_token'
+      parsed.syncAuthModeNextPlanned === 'device_token' ||
+      parsed.syncAuthModeNextPlanned === 'blocked_reauth'
         ? parsed.syncAuthModeNextPlanned
         : null,
     accountSessionStatus,
@@ -102,12 +104,16 @@ function parseAuthDebugState(raw: string | null): AuthDebugState | null {
 
 const AUTH_DEBUG_STATE_KEY = 'auth_debug_state_v1';
 
+export function isLinkedAccountState(): boolean {
+  return getClaimed() || getClaimedUserId() !== null;
+}
+
 export function getAuthDebugState(): AuthDebugState {
   const stored = parseAuthDebugState(getMeta(AUTH_DEBUG_STATE_KEY));
   if (stored) {
     return {
       ...stored,
-      linkedState: getClaimedUserId() ? 'linked' : 'guest',
+      linkedState: isLinkedAccountState() ? 'linked' : 'guest',
     };
   }
 
@@ -118,7 +124,7 @@ export function getAuthDebugState(): AuthDebugState {
     accountInvalidationReason: null,
     accountInvalidatedAt: null,
     deviceTokenPresent: false,
-    linkedState: getClaimedUserId() ? 'linked' : 'guest',
+    linkedState: isLinkedAccountState() ? 'linked' : 'guest',
   };
 }
 
@@ -129,7 +135,7 @@ export function updateAuthDebugState(partial: Partial<AuthDebugState>) {
     JSON.stringify({
       ...current,
       ...partial,
-      linkedState: getClaimedUserId() ? 'linked' : 'guest',
+      linkedState: isLinkedAccountState() ? 'linked' : 'guest',
     }),
   );
 }

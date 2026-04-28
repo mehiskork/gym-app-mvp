@@ -200,7 +200,7 @@ export const accountSessionStore = {
       accountSessionStatus: 'invalidated',
       accountInvalidationReason: reason,
       accountInvalidatedAt: invalidatedAt,
-      syncAuthModeNextPlanned: 'device_token',
+      syncAuthModeNextPlanned: 'blocked_reauth',
     });
   },
 };

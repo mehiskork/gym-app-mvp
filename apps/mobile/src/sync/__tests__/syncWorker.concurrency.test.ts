@@ -8,6 +8,7 @@ jest.mock('../../db/appMetaRepo', () => ({
   getEffectiveUserId: jest.fn(() => 'user-1'),
   getGuestUserId: jest.fn(() => null),
   getOrCreateDeviceId: jest.fn(() => 'device-1'),
+  isLinkedAccountState: jest.fn(() => false),
   isSyncPaused: jest.fn(() => false),
   setLastSyncAckSummary: jest.fn(),
   setGuestUserId: jest.fn(),

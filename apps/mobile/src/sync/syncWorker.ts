@@ -1,5 +1,6 @@
 import {
   getOrCreateDeviceId,
+  isLinkedAccountState,
   isSyncPaused,
   setLastSyncAckSummary,
   setGuestUserId,
@@ -105,13 +106,18 @@ type SyncNowOptions = {
 };
 
 type SyncAuthContext =
-  | { token: string; authType: 'account_jwt' }
-  | { token: string; authType: 'device_token' };
+  | { status: 'ready'; token: string; authType: 'account_jwt' }
+  | { status: 'ready'; token: string; authType: 'device_token' }
+  | { status: 'blocked'; errorCode: 'account_reauth_required' };
 
 async function resolveSyncAuthContext(): Promise<SyncAuthContext | null> {
   const accountSession = await getUsableAccountSessionWithFreshToken();
   if (accountSession?.accessToken) {
-    return { token: accountSession.accessToken, authType: 'account_jwt' };
+    return { status: 'ready', token: accountSession.accessToken, authType: 'account_jwt' };
+  }
+
+  if (isLinkedAccountState()) {
+    return { status: 'blocked', errorCode: 'account_reauth_required' };
   }
 
   const deviceToken = await deviceCredentialStore.getDeviceToken();
@@ -119,7 +125,7 @@ async function resolveSyncAuthContext(): Promise<SyncAuthContext | null> {
     return null;
   }
 
-  return { token: deviceToken, authType: 'device_token' };
+  return { status: 'ready', token: deviceToken, authType: 'device_token' };
 }
 
 export async function syncNow(): Promise<void>;
@@ -192,9 +198,32 @@ async function runSyncPage(options: SyncNowOptions): Promise<boolean> {
   }
 
   let authContext = await resolveSyncAuthContext();
+  if (authContext?.status === 'blocked') {
+    updateSyncState({
+      last_error: authContext.errorCode,
+      backoff_until: null,
+      consecutive_failures: 0,
+    });
+    updateAuthDebugState({
+      syncAuthModeNextPlanned: 'blocked_reauth',
+    });
+    return false;
+  }
+
   if (!authContext) {
     await registerDeviceIfNeeded();
     authContext = await resolveSyncAuthContext();
+    if (authContext?.status === 'blocked') {
+      updateSyncState({
+        last_error: authContext.errorCode,
+        backoff_until: null,
+        consecutive_failures: 0,
+      });
+      updateAuthDebugState({
+        syncAuthModeNextPlanned: 'blocked_reauth',
+      });
+      return false;
+    }
     if (!authContext) {
       updateSyncState({ last_error: 'Device not registered (missing token).' });
       updateAuthDebugState({
