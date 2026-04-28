@@ -3,9 +3,9 @@
 An offline-first workout tracker with:
 
 - a React Native / Expo mobile app (`apps/mobile`)
-- a Spring Boot 4.0.2 backend (`apps/backend`)
+- a Spring Boot 4.0.5 backend (`apps/backend`)
 
-This repository’s account foundation is already implemented: account identity is canonical after login, guest/device identity is bootstrap-only, `/me` is account-JWT-only, and `/sync` supports both account JWT and device-token transport.
+This repository has a generic account-JWT foundation: account identity is canonical after login, guest/device identity is bootstrap-only, `/me` is account-JWT-only, and `/sync` supports both account JWT and device-token transport. Firebase-specific Google Sign-In and real Firebase ID-token validation are not completed yet.
 
 ---
 
@@ -57,7 +57,7 @@ This repository’s account foundation is already implemented: account identity 
 | Area | Technology |
 |---|---|
 | Mobile | Expo, React Native, TypeScript, React Navigation, `expo-sqlite` |
-| Backend | Java 21, Spring Boot 4.0.2, Spring Security, PostgreSQL, Flyway |
+| Backend | Java 21, Spring Boot 4.0.5, Spring Security, PostgreSQL, Flyway |
 | Testing | Jest, JUnit, Testcontainers |
 | Infra | Docker Compose, EAS Build |
 
@@ -75,6 +75,7 @@ docs/
   conflicts.md
   product-rules.md
   local-development.md
+  railway-deployment.md
   account-ownership-decision.md
 ```
 
@@ -87,3 +88,4 @@ docs/
 - Sync protocol contract: `docs/sync-protocol.md`
 - Conflict policy: `docs/conflicts.md`
 - Product behavior invariants: `docs/product-rules.md`
+- Railway backend deployment: `docs/railway-deployment.md`

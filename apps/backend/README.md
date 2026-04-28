@@ -1,6 +1,6 @@
 # Gym App Backend
 
-Spring Boot 4.0.2 backend for Gym App MVP sync, ownership/auth boundaries, and claim migration seams.
+Spring Boot 4.0.5 backend for Gym App MVP sync, ownership/auth boundaries, and claim migration seams.
 
 ## Local run
 
@@ -40,10 +40,28 @@ Do not depend on `X-User-Id` header flow for production deployments.
 
 ## JWT config for account endpoints
 
+The current backend has a generic account-JWT foundation. Firebase-specific Google Sign-In and real Firebase ID-token validation are not completed yet.
+
 Configure one of:
 
 - `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI`
 - `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI`
+
+These variables are required once Firebase-backed account auth is wired to real token validation.
+
+## Tests
+
+From `apps/backend`:
+
+```bash
+mvn test
+mvn verify
+```
+
+- `mvn test` runs the Surefire test phase and excludes `*IT.java`
+- `mvn verify` runs the Failsafe integration-test/verify phases and includes `*IT.java`
+
+Backend integration tests use Testcontainers and require a running Docker daemon.
 
 ## Quick curl examples
 

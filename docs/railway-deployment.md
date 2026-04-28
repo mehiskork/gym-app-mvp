@@ -17,14 +17,14 @@ Set these variables on the Railway backend service:
 
 Railway sets `PORT` for the service. The backend reads it via `server.port=${PORT:8080}`.
 
-## Account-auth JWT variables (future/optional)
+## Account-auth JWT variables (future Firebase account auth)
 
-Set these when account JWT validation is configured:
+Set these when Firebase-backed account auth is wired to real ID-token validation:
 
 - `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI`
 - `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI`
 
-Until account JWT is configured, these can remain unset.
+Until Firebase-specific Google Sign-In and Firebase ID-token validation are completed, these can remain unset. The current code has a generic account-JWT foundation, not completed Firebase auth.
 
 ## Startup proof checklist
 

@@ -27,7 +27,7 @@ If you keep that direction in mind, most of the codebase becomes much easier to 
 The repo contains two main apps:
 
 - **`apps/mobile`** — Expo + React Native app written in TypeScript
-- **`apps/backend`** — Spring Boot 4.0.2 service backed by PostgreSQL and Flyway
+- **`apps/backend`** — Spring Boot 4.0.5 service backed by PostgreSQL and Flyway
 
 At runtime, the system looks like this:
 
@@ -154,6 +154,8 @@ The mobile SQLite schema is easiest to understand in five groups:
    - `app_meta`
 
 The database is opened through Expo SQLite in `src/db/db.ts`, with migrations applied at startup via `src/db/migrate.ts`.
+
+User-facing terminology is **Plan -> Session -> Exercises**. Internal names such as `program_day` remain unchanged because they are established schema/code identifiers.
 
 ### Migration model
 
@@ -354,6 +356,8 @@ Main source areas:
 - config/security: `apps/backend/src/main/java/com/gymapp/backend/config/*`
 - migrations: `apps/backend/src/main/resources/db/migration/*`
 
+The backend currently uses Spring Boot 4.0.5.
+
 ### Backend data model
 
 The core sync storage model is built around three concepts:
@@ -380,7 +384,7 @@ The client sends its last-known cursor. The backend returns later changes up to 
 
 The backend is stateless under Spring Security.
 
-`/sync` supports dual bearer-auth transport: account JWT and device token. Device registration issues the data needed for guest/device transport; account JWT verification is provided by the resource-server path.
+`/sync` supports dual bearer-auth transport: account JWT and device token. Device registration issues the data needed for guest/device transport; the generic account-JWT resource-server path exists, but Firebase-specific Google Sign-In and real Firebase ID-token validation are not completed yet.
 
 At a high level, the identity/auth pieces are:
 
@@ -552,4 +556,3 @@ These are known tradeoffs, not necessarily immediate bugs.
 - `apps/mobile/src/sync/applyDeltas.ts` — delta-to-SQLite application logic
 - `apps/backend/src/main/java/com/gymapp/backend/service/SyncService.java` — backend sync flow
 - `apps/backend/src/main/java/com/gymapp/backend/service/ClaimService.java` — claim/link orchestration
-

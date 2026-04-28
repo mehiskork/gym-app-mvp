@@ -26,6 +26,8 @@ docker-compose.yml   Starts Postgres + backend together (local dev only credenti
 | Docker + Docker Compose | Any recent version |
 | EAS CLI | `>= 16.28.0` — `npm install -g eas-cli` |
 
+The backend currently uses Spring Boot 4.0.5.
+
 ---
 
 ## Backend
@@ -197,7 +199,7 @@ mvn verify
 - `mvn test` runs the fast unit-style test phase
 - `mvn verify` also runs integration tests such as `*IT.java`
 
-**Important:** `mvn test` does **not** run integration tests. Always run `mvn verify` before merging backend changes that touch sync, auth, claim flow, or persistence behavior.
+**Important:** `mvn test` does **not** run integration tests. Backend integration tests use Testcontainers, so `mvn verify` requires a running Docker daemon. Always run `mvn verify` before merging backend changes that touch sync, auth, claim flow, or persistence behavior.
 
 ---
 
@@ -263,7 +265,7 @@ With the `dev` profile active, `/claim/confirm` accepts an `X-User-Id: <uuid>` h
 Before public or production-like deployment, verify:
 
 1. `claim.devUserHeaderEnabled=false` in runtime config (dev header seam disabled).
-2. JWT resource server config is set (`issuer-uri` or `jwk-set-uri`) for account endpoints.
+2. JWT resource server config is set (`issuer-uri` or `jwk-set-uri`) for account endpoints once Firebase-backed account auth is wired to real token validation.
 3. `/sync` auth path is validated for both account-JWT and device-token recovery behavior.
 4. Support/debug runbook is known to operators (Debug screen unlock, support bundle export).
 5. `mvn verify` and mobile test/typecheck/lint are green on the release candidate.

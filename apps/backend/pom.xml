@@ -90,7 +90,7 @@
             <scope>provided</scope>
         </dependency>
 
-        <!-- Testing - Complete Set for Spring Boot 4.0.2 -->
+        <!-- Testing - Complete Set for Spring Boot 4.0.5 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
