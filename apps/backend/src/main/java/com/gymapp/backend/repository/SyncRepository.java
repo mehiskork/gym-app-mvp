@@ -344,15 +344,13 @@ public class SyncRepository {
                 StringJoiner orderCases = new StringJoiner(" ");
                 for (int i = 0; i < allowedEntityTypes.size(); i += 1) {
                         placeholders.add("?");
-                        orderCases.add("WHEN entity_type = ? THEN " + i);
+                        orderCases.add("WHEN s.entity_type = '" + allowedEntityTypes.get(i) + "' THEN " + i);
                 }
 
                 boolean hasAfter = afterEntityType != null && afterEntityId != null;
                 Object[] params = new Object[1
                                 + allowedEntityTypes.size()
-                                + (hasAfter ? allowedEntityTypes.size() : 0)
                                 + (hasAfter ? 2 : 0)
-                                + allowedEntityTypes.size()
                                 + 1];
                 int paramIndex = 0;
                 params[paramIndex++] = ownerId;
@@ -360,14 +358,8 @@ public class SyncRepository {
                         params[paramIndex++] = entityType;
                 }
                 if (hasAfter) {
-                        for (String entityType : allowedEntityTypes) {
-                                params[paramIndex++] = entityType;
-                        }
                         params[paramIndex++] = allowedEntityTypes.indexOf(afterEntityType);
                         params[paramIndex++] = afterEntityId;
-                }
-                for (String entityType : allowedEntityTypes) {
-                        params[paramIndex++] = entityType;
                 }
                 params[paramIndex] = limit;
 
@@ -375,28 +367,112 @@ public class SyncRepository {
                                 ? """
                                                   AND (
                                                     CASE %s ELSE 2147483647 END,
-                                                    entity_id
+                                                    s.entity_id
                                                   ) > (?, ?)
                                                 """.formatted(orderCases)
                                 : "";
 
                 String sql = String.format(
                                 """
-                                                SELECT entity_type,
-                                                       entity_id,
-                                                       CASE
-                                                         WHEN (
-                                                           (jsonb_exists(row_json, 'deleted_at') AND COALESCE(row_json ->> 'deleted_at', '') <> '')
-                                                           OR (jsonb_exists(row_json, 'deletedAt') AND COALESCE(row_json ->> 'deletedAt', '') <> '')
-                                                         ) THEN 'delete'
-                                                         ELSE 'upsert'
-                                                       END AS op_type,
-                                                       row_json
-                                                FROM entity_state
-                                                WHERE guest_user_id = ?
-                                                  AND entity_type IN (%s)
+                                                WITH active_state AS (
+                                                        SELECT guest_user_id, entity_type, entity_id, row_json
+                                                        FROM entity_state
+                                                        WHERE guest_user_id = ?
+                                                          AND NOT (
+                                                            (jsonb_exists(row_json, 'deleted_at') AND COALESCE(row_json ->> 'deleted_at', '') <> '')
+                                                            OR (jsonb_exists(row_json, 'deletedAt') AND COALESCE(row_json ->> 'deletedAt', '') <> '')
+                                                          )
+                                                ),
+                                                snapshot_program AS (
+                                                        SELECT * FROM active_state
+                                                        WHERE entity_type = 'program'
+                                                ),
+                                                snapshot_program_week AS (
+                                                        SELECT week.*
+                                                        FROM active_state week
+                                                        JOIN snapshot_program program
+                                                          ON program.entity_id = week.row_json ->> 'program_id'
+                                                        WHERE week.entity_type = 'program_week'
+                                                ),
+                                                snapshot_program_day AS (
+                                                        SELECT day.*
+                                                        FROM active_state day
+                                                        JOIN snapshot_program_week week
+                                                          ON week.entity_id = day.row_json ->> 'program_week_id'
+                                                        WHERE day.entity_type = 'program_day'
+                                                ),
+                                                snapshot_exercise AS (
+                                                        SELECT * FROM active_state
+                                                        WHERE entity_type = 'exercise'
+                                                ),
+                                                snapshot_program_day_exercise AS (
+                                                        SELECT day_exercise.*
+                                                        FROM active_state day_exercise
+                                                        JOIN snapshot_program_day day
+                                                          ON day.entity_id = day_exercise.row_json ->> 'program_day_id'
+                                                        JOIN snapshot_exercise exercise
+                                                          ON exercise.entity_id = day_exercise.row_json ->> 'exercise_id'
+                                                        WHERE day_exercise.entity_type = 'program_day_exercise'
+                                                ),
+                                                snapshot_planned_set AS (
+                                                        SELECT planned_set.*
+                                                        FROM active_state planned_set
+                                                        JOIN snapshot_program_day_exercise day_exercise
+                                                          ON day_exercise.entity_id = planned_set.row_json ->> 'program_day_exercise_id'
+                                                        WHERE planned_set.entity_type = 'planned_set'
+                                                ),
+                                                snapshot_workout_session AS (
+                                                        SELECT * FROM active_state
+                                                        WHERE entity_type = 'workout_session'
+                                                ),
+                                                snapshot_workout_session_exercise AS (
+                                                        SELECT session_exercise.*
+                                                        FROM active_state session_exercise
+                                                        JOIN snapshot_workout_session workout_session
+                                                          ON workout_session.entity_id = session_exercise.row_json ->> 'workout_session_id'
+                                                        WHERE session_exercise.entity_type = 'workout_session_exercise'
+                                                ),
+                                                snapshot_workout_set AS (
+                                                        SELECT workout_set.*
+                                                        FROM active_state workout_set
+                                                        JOIN snapshot_workout_session_exercise session_exercise
+                                                          ON session_exercise.entity_id = workout_set.row_json ->> 'workout_session_exercise_id'
+                                                        WHERE workout_set.entity_type = 'workout_set'
+                                                ),
+                                                snapshot_pr_event AS (
+                                                        SELECT pr_event.*
+                                                        FROM active_state pr_event
+                                                        JOIN snapshot_workout_session workout_session
+                                                          ON workout_session.entity_id = pr_event.row_json ->> 'session_id'
+                                                        JOIN snapshot_exercise exercise
+                                                          ON exercise.entity_id = pr_event.row_json ->> 'exercise_id'
+                                                        WHERE pr_event.entity_type = 'pr_event'
+                                                ),
+                                                snapshot_app_meta AS (
+                                                        SELECT * FROM active_state
+                                                        WHERE entity_type = 'app_meta'
+                                                ),
+                                                snapshot_state AS (
+                                                        SELECT * FROM snapshot_program
+                                                        UNION ALL SELECT * FROM snapshot_program_week
+                                                        UNION ALL SELECT * FROM snapshot_program_day
+                                                        UNION ALL SELECT * FROM snapshot_exercise
+                                                        UNION ALL SELECT * FROM snapshot_program_day_exercise
+                                                        UNION ALL SELECT * FROM snapshot_planned_set
+                                                        UNION ALL SELECT * FROM snapshot_workout_session
+                                                        UNION ALL SELECT * FROM snapshot_workout_session_exercise
+                                                        UNION ALL SELECT * FROM snapshot_workout_set
+                                                        UNION ALL SELECT * FROM snapshot_pr_event
+                                                        UNION ALL SELECT * FROM snapshot_app_meta
+                                                )
+                                                SELECT s.entity_type,
+                                                       s.entity_id,
+                                                       'upsert' AS op_type,
+                                                       s.row_json
+                                                FROM snapshot_state s
+                                                WHERE s.entity_type IN (%s)
                                                 %s
-                                                ORDER BY CASE %s ELSE 2147483647 END ASC, entity_id ASC
+                                                ORDER BY CASE %s ELSE 2147483647 END ASC, s.entity_id ASC
                                                 LIMIT ?
                                                 """,
                                 placeholders,

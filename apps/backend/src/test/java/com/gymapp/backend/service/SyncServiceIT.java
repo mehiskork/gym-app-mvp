@@ -150,7 +150,10 @@ class SyncServiceIT {
 
     @Test
     void freshSyncReturnsCurrentSnapshotInsteadOfHistoricalReorderDeltas() {
+        String programId = "program-reorder";
+        String weekId = "week-reorder";
         String dayId = "day-reorder";
+        String exerciseId = "exercise-reorder";
         String firstExerciseId = "day_ex_a";
         String secondExerciseId = "day_ex_b";
 
@@ -172,26 +175,56 @@ class SyncServiceIT {
                 "position", 2));
 
         Instant now = Instant.now();
+        syncRepository.upsertEntityState(guestUserId, "program", programId, Map.of(
+                "id", programId,
+                "name", "Program"), now);
+        syncRepository.upsertEntityState(guestUserId, "program_week", weekId, Map.of(
+                "id", weekId,
+                "program_id", programId,
+                "week_index", 0), now);
+        syncRepository.upsertEntityState(guestUserId, "program_day", dayId, Map.of(
+                "id", dayId,
+                "program_week_id", weekId,
+                "day_index", 0), now);
+        syncRepository.upsertEntityState(guestUserId, "exercise", exerciseId, Map.of(
+                "id", exerciseId,
+                "name", "Squat"), now);
         syncRepository.upsertEntityState(guestUserId, "program_day_exercise", firstExerciseId, Map.of(
                 "id", firstExerciseId,
                 "program_day_id", dayId,
+                "exercise_id", exerciseId,
                 "position", 2), now);
         syncRepository.upsertEntityState(guestUserId, "program_day_exercise", secondExerciseId, Map.of(
                 "id", secondExerciseId,
                 "program_day_id", dayId,
+                "exercise_id", exerciseId,
                 "position", 1), now);
 
         SyncResponse response = syncService.sync(deviceId, guestUserId, "0", List.of());
 
-        assertThat(response.getDeltas()).hasSize(2);
         assertThat(response.getCursor()).isEqualTo(String.valueOf(maxChangeId()));
         assertThat(response.getDeltas())
+                .extracting(SyncDelta::entityType)
+                .containsExactly(
+                        "program",
+                        "program_week",
+                        "program_day",
+                        "exercise",
+                        "program_day_exercise",
+                        "program_day_exercise");
+        assertThat(response.getDeltas().stream()
+                .filter(delta -> delta.entityType().equals("program_day_exercise"))
+                .toList())
                 .extracting(SyncDelta::entityId)
                 .containsExactly(firstExerciseId, secondExerciseId);
-        assertThat(response.getDeltas())
+        assertThat(response.getDeltas().stream()
+                .filter(delta -> delta.entityType().equals("program_day_exercise"))
+                .toList())
                 .extracting(delta -> delta.payload().get("position"))
                 .containsExactly(2, 1);
-        assertThat(response.getDeltas())
+        assertThat(response.getDeltas().stream()
+                .filter(delta -> delta.entityType().equals("program_day_exercise"))
+                .toList())
                 .extracting(delta -> delta.payload().get("position"))
                 .doesNotHaveDuplicates();
 
@@ -217,6 +250,22 @@ class SyncServiceIT {
     }
 
     @Test
+    void numericCursorGreaterThanZeroKeepsIncrementalDeleteDeltas() {
+        insertChangeLog("program", "program-old", Map.of("id", "program-old"));
+        long cursor = maxChangeId();
+        syncRepository.insertChangeLog(guestUserId, "program", "program-deleted", "delete", Map.of(
+                "id", "program-deleted",
+                "deleted_at", "2026-04-28T00:00:00Z"));
+
+        SyncResponse response = syncService.sync(deviceId, guestUserId, String.valueOf(cursor), List.of());
+
+        assertThat(response.getDeltas()).hasSize(1);
+        assertThat(response.getDeltas().get(0).entityId()).isEqualTo("program-deleted");
+        assertThat(response.getDeltas().get(0).opType()).isEqualTo("delete");
+        assertThat(response.getCursor()).isEqualTo(String.valueOf(maxChangeId()));
+    }
+
+    @Test
     void freshSnapshotIncludesWorkoutHistoryEntitiesInDependencyOrder() {
         Instant now = Instant.now();
         upsertEntityStateAndChangeLog("workout_set", "set-1", Map.of(
@@ -236,6 +285,134 @@ class SyncServiceIT {
         assertThat(response.getDeltas())
                 .extracting(SyncDelta::entityType)
                 .containsExactly("workout_session", "workout_session_exercise", "workout_set");
+    }
+
+    @Test
+    void freshSnapshotReturnsDependencyClosedPlanGraph() {
+        Instant now = Instant.now();
+        upsertEntityStateAndChangeLog("planned_set", "set-1", Map.of(
+                "id", "set-1",
+                "program_day_exercise_id", "day-exercise-1",
+                "set_index", 0), now);
+        upsertEntityStateAndChangeLog("program_day_exercise", "day-exercise-1", Map.of(
+                "id", "day-exercise-1",
+                "program_day_id", "day-1",
+                "exercise_id", "exercise-1",
+                "position", 0), now);
+        upsertEntityStateAndChangeLog("program_day", "day-1", Map.of(
+                "id", "day-1",
+                "program_week_id", "week-1",
+                "day_index", 0), now);
+        upsertEntityStateAndChangeLog("program_week", "week-1", Map.of(
+                "id", "week-1",
+                "program_id", "program-1",
+                "week_index", 0), now);
+        upsertEntityStateAndChangeLog("program", "program-1", Map.of(
+                "id", "program-1",
+                "name", "Program"), now);
+        upsertEntityStateAndChangeLog("exercise", "exercise-1", Map.of(
+                "id", "exercise-1",
+                "name", "Squat"), now);
+
+        SyncResponse response = syncService.sync(deviceId, guestUserId, "0", List.of());
+
+        assertThat(response.getDeltas())
+                .extracting(SyncDelta::entityType)
+                .containsExactly(
+                        "program",
+                        "program_week",
+                        "program_day",
+                        "exercise",
+                        "program_day_exercise",
+                        "planned_set");
+    }
+
+    @Test
+    void freshSnapshotOmitsOrphanActivePlanChildren() {
+        Instant now = Instant.now();
+        upsertEntityStateAndChangeLog("exercise", "exercise-1", Map.of(
+                "id", "exercise-1",
+                "name", "Squat"), now);
+        upsertEntityStateAndChangeLog("program_day_exercise", "orphan-day-exercise", Map.of(
+                "id", "orphan-day-exercise",
+                "program_day_id", "missing-day",
+                "exercise_id", "exercise-1",
+                "position", 0), now);
+        upsertEntityStateAndChangeLog("planned_set", "orphan-set", Map.of(
+                "id", "orphan-set",
+                "program_day_exercise_id", "missing-day-exercise",
+                "set_index", 0), now);
+
+        SyncResponse response = syncService.sync(deviceId, guestUserId, "0", List.of());
+
+        assertThat(response.getDeltas())
+                .extracting(SyncDelta::entityId)
+                .containsExactly("exercise-1");
+    }
+
+    @Test
+    void freshSnapshotOmitsTombstonesAndActiveChildrenUnderTombstonedParents() {
+        Instant now = Instant.now();
+        upsertEntityStateAndChangeLog("program", "program-1", Map.of(
+                "id", "program-1",
+                "name", "Program"), now);
+        upsertEntityStateAndChangeLog("program_week", "week-deleted", Map.of(
+                "id", "week-deleted",
+                "program_id", "program-1",
+                "week_index", 0,
+                "deleted_at", "2026-04-28T00:00:00Z"), now);
+        upsertEntityStateAndChangeLog("program_day", "day-under-deleted-week", Map.of(
+                "id", "day-under-deleted-week",
+                "program_week_id", "week-deleted",
+                "day_index", 0), now);
+
+        SyncResponse response = syncService.sync(deviceId, guestUserId, "0", List.of());
+
+        assertThat(response.getDeltas())
+                .extracting(SyncDelta::entityId)
+                .containsExactly("program-1");
+        assertThat(response.getDeltas())
+                .extracting(SyncDelta::opType)
+                .containsOnly("upsert");
+    }
+
+    @Test
+    void freshSnapshotOmitsWorkoutHistoryChildrenWithoutRequiredParents() {
+        Instant now = Instant.now();
+        upsertEntityStateAndChangeLog("workout_session_exercise", "orphan-session-exercise", Map.of(
+                "id", "orphan-session-exercise",
+                "workout_session_id", "missing-session",
+                "position", 0), now);
+        upsertEntityStateAndChangeLog("workout_set", "orphan-workout-set", Map.of(
+                "id", "orphan-workout-set",
+                "workout_session_exercise_id", "missing-session-exercise",
+                "set_index", 0), now);
+
+        SyncResponse response = syncService.sync(deviceId, guestUserId, "0", List.of());
+
+        assertThat(response.getDeltas()).isEmpty();
+        assertThat(response.getCursor()).isEqualTo(String.valueOf(maxChangeId()));
+    }
+
+    @Test
+    void freshSnapshotOmitsPrEventWithoutSessionOrExerciseParents() {
+        Instant now = Instant.now();
+        upsertEntityStateAndChangeLog("exercise", "exercise-1", Map.of(
+                "id", "exercise-1",
+                "name", "Squat"), now);
+        upsertEntityStateAndChangeLog("pr_event", "orphan-pr", Map.of(
+                "id", "orphan-pr",
+                "session_id", "missing-session",
+                "exercise_id", "exercise-1",
+                "pr_type", "max_weight",
+                "context", "",
+                "value", 100), now);
+
+        SyncResponse response = syncService.sync(deviceId, guestUserId, "0", List.of());
+
+        assertThat(response.getDeltas())
+                .extracting(SyncDelta::entityId)
+                .containsExactly("exercise-1");
     }
 
     private void insertChanges(int count) {

@@ -96,32 +96,68 @@ class SyncMultiPageIT {
         assertThat(allEntityIds).hasSize(seedCount);
     }
 
+    @Test
+    void snapshotPagingDoesNotSendChildLayerBeforeParentLayer() {
+        int limit = deltaLimit();
+        seedEntityStateAndChangeLog(limit + 1);
+        insertEntityStateAndChangeLog(
+                "program_week",
+                "week-after-programs",
+                "{\"id\":\"week-after-programs\",\"program_id\":\"program-1\",\"week_index\":0}");
+
+        SyncResponse page1 = syncService.sync(deviceId, guestUserId, "0", List.of());
+        SyncResponse page2 = syncService.sync(deviceId, guestUserId, page1.getCursor(), List.of());
+
+        long highWater = maxChangeId();
+        assertThat(page1.getDeltas()).hasSize(limit);
+        assertThat(page1.getHasMore()).isTrue();
+        assertThat(page1.getCursor()).startsWith("snapshot:" + highWater + ":program:");
+        assertThat(page1.getDeltas())
+                .extracting(SyncDelta::entityType)
+                .containsOnly("program");
+
+        assertThat(page2.getHasMore()).isFalse();
+        assertThat(page2.getCursor()).isEqualTo(String.valueOf(highWater));
+        assertThat(page2.getDeltas())
+                .extracting(SyncDelta::entityType)
+                .containsExactly("program", "program_week");
+        assertThat(page2.getDeltas())
+                .extracting(SyncDelta::entityId)
+                .contains("week-after-programs");
+    }
+
     private void seedEntityStateAndChangeLog(int count) {
         Instant now = Instant.now();
-        String stateSql = """
-                INSERT INTO entity_state (guest_user_id, entity_type, entity_id, row_json, last_received_at)
-                VALUES (?, ?, ?, ?::jsonb, ?)
-                """;
-        String sql = """
-                INSERT INTO change_log (guest_user_id, entity_type, entity_id, op_type, row_json)
-                VALUES (?, ?, ?, ?, ?::jsonb)
-                """;
         for (int i = 1; i <= count; i += 1) {
-            jdbcTemplate.update(
-                    stateSql,
-                    guestUserId,
-                    "program",
-                    "program-" + i,
-                    "{\"id\":\"program-" + i + "\"}",
-                    Timestamp.from(now));
-            jdbcTemplate.update(
-                    sql,
-                    guestUserId,
-                    "program",
-                    "program-" + i,
-                    "upsert",
-                    "{\"id\":\"program-" + i + "\"}");
+            insertEntityStateAndChangeLog("program", "program-" + i, "{\"id\":\"program-" + i + "\"}", now);
         }
+    }
+
+    private void insertEntityStateAndChangeLog(String entityType, String entityId, String payloadJson) {
+        insertEntityStateAndChangeLog(entityType, entityId, payloadJson, Instant.now());
+    }
+
+    private void insertEntityStateAndChangeLog(String entityType, String entityId, String payloadJson, Instant now) {
+        jdbcTemplate.update(
+                """
+                        INSERT INTO entity_state (guest_user_id, entity_type, entity_id, row_json, last_received_at)
+                        VALUES (?, ?, ?, ?::jsonb, ?)
+                        """,
+                guestUserId,
+                entityType,
+                entityId,
+                payloadJson,
+                Timestamp.from(now));
+        jdbcTemplate.update(
+                """
+                        INSERT INTO change_log (guest_user_id, entity_type, entity_id, op_type, row_json)
+                        VALUES (?, ?, ?, ?, ?::jsonb)
+                        """,
+                guestUserId,
+                entityType,
+                entityId,
+                "upsert",
+                payloadJson);
     }
 
     private List<Long> changeIds(SyncResponse response) {
