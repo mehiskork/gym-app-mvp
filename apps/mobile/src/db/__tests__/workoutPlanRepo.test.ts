@@ -15,7 +15,6 @@ jest.mock('../outboxRepo', () => ({
   enqueueOutboxOp: jest.fn(),
 }));
 
-
 import { exec, query } from '../db';
 import { enqueueOutboxOp } from '../outboxRepo';
 import {
@@ -85,14 +84,22 @@ describe('workoutPlanRepo addDayToWorkoutPlan', () => {
 
   it('enqueues program, week, and day snapshots when creating a workout plan', () => {
     (query as jest.Mock).mockImplementation((sql: string, params?: unknown[]) => {
-      if (sql.includes('SELECT *') && sql.includes('FROM program_week') && params?.[0] === 'week-1') {
+      if (
+        sql.includes('SELECT *') &&
+        sql.includes('FROM program_week') &&
+        params?.[0] === 'week-1'
+      ) {
         return [{ id: 'week-1', program_id: 'workout_plan-1' }];
       }
       if (sql.includes('FROM program_week') && sql.includes('LIMIT 1')) return [];
       if (sql.includes('FROM program_day') && sql.includes('deleted_at IS NOT NULL')) return [];
       if (sql.includes('SELECT id, name') && sql.includes('deleted_at IS NULL')) return [];
       if (sql.includes('COUNT(*) AS n')) return [{ n: 0 }];
-      if (sql.includes('SELECT *') && sql.includes('FROM program') && params?.[0] === 'workout_plan-1') {
+      if (
+        sql.includes('SELECT *') &&
+        sql.includes('FROM program') &&
+        params?.[0] === 'workout_plan-1'
+      ) {
         return [{ id: 'workout_plan-1', name: 'Plan A' }];
       }
       if (sql.includes('SELECT *') && sql.includes('FROM program_day') && params?.[0] === 'day-1') {
@@ -136,10 +143,10 @@ describe('workoutPlanRepo addDayToWorkoutPlan', () => {
 
     updateWorkoutPlanName('plan-1', 'Renamed Plan');
 
-    expect(exec).toHaveBeenCalledWith(
-      expect.stringContaining('UPDATE program'),
-      ['Renamed Plan', 'plan-1'],
-    );
+    expect(exec).toHaveBeenCalledWith(expect.stringContaining('UPDATE program'), [
+      'Renamed Plan',
+      'plan-1',
+    ]);
     expect(enqueueOutboxOp).toHaveBeenCalledWith(
       expect.objectContaining({
         entityType: 'program',
@@ -200,10 +207,18 @@ describe('workoutPlanRepo addDayToWorkoutPlan', () => {
       if (sql.includes('FROM program_day_exercise pde') && sql.includes('pde.deleted_at IS NULL')) {
         return [{ id: 'pde-1' }, { id: 'pde-2' }];
       }
-      if (sql.includes('FROM planned_set') && sql.includes('deleted_at IS NULL') && params?.[0] === 'pde-1') {
+      if (
+        sql.includes('FROM planned_set') &&
+        sql.includes('deleted_at IS NULL') &&
+        params?.[0] === 'pde-1'
+      ) {
         return [{ id: 'ps-1' }];
       }
-      if (sql.includes('FROM planned_set') && sql.includes('deleted_at IS NULL') && params?.[0] === 'pde-2') {
+      if (
+        sql.includes('FROM planned_set') &&
+        sql.includes('deleted_at IS NULL') &&
+        params?.[0] === 'pde-2'
+      ) {
         return [{ id: 'ps-2' }, { id: 'ps-3' }];
       }
       if (sql.includes('SELECT *') && sql.includes('FROM planned_set') && params?.[0] === 'ps-1') {
@@ -215,10 +230,18 @@ describe('workoutPlanRepo addDayToWorkoutPlan', () => {
       if (sql.includes('SELECT *') && sql.includes('FROM planned_set') && params?.[0] === 'ps-3') {
         return [{ id: 'ps-3', deleted_at: '2026-04-16 00:00:00' }];
       }
-      if (sql.includes('SELECT *') && sql.includes('FROM program_day_exercise') && params?.[0] === 'pde-1') {
+      if (
+        sql.includes('SELECT *') &&
+        sql.includes('FROM program_day_exercise') &&
+        params?.[0] === 'pde-1'
+      ) {
         return [{ id: 'pde-1', deleted_at: '2026-04-16 00:00:00' }];
       }
-      if (sql.includes('SELECT *') && sql.includes('FROM program_day_exercise') && params?.[0] === 'pde-2') {
+      if (
+        sql.includes('SELECT *') &&
+        sql.includes('FROM program_day_exercise') &&
+        params?.[0] === 'pde-2'
+      ) {
         return [{ id: 'pde-2', deleted_at: '2026-04-16 00:00:00' }];
       }
       if (sql.includes('SELECT *') && sql.includes('FROM program_day') && params?.[0] === 'day-1') {
@@ -227,7 +250,11 @@ describe('workoutPlanRepo addDayToWorkoutPlan', () => {
       if (sql.includes('SELECT *') && sql.includes('FROM program_day') && params?.[0] === 'day-2') {
         return [{ id: 'day-2', deleted_at: '2026-04-16 00:00:00' }];
       }
-      if (sql.includes('SELECT *') && sql.includes('FROM program_week') && params?.[0] === 'week-1') {
+      if (
+        sql.includes('SELECT *') &&
+        sql.includes('FROM program_week') &&
+        params?.[0] === 'week-1'
+      ) {
         return [{ id: 'week-1', deleted_at: '2026-04-16 00:00:00' }];
       }
       if (sql.includes('SELECT *') && sql.includes('FROM program') && params?.[0] === 'plan-1') {

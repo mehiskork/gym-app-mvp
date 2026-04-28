@@ -14,11 +14,7 @@ import { Button } from './src/ui/Button';
 import { Text } from './src/ui/Text';
 import { resetToGuestBootstrap } from './src/auth/identityTransition';
 
-
-type BootState =
-  | { kind: 'initializing' }
-  | { kind: 'ready' }
-  | { kind: 'failed'; error: Error };
+type BootState = { kind: 'initializing' } | { kind: 'ready' } | { kind: 'failed'; error: Error };
 
 function toError(error: unknown): Error {
   if (error instanceof Error) return error;
@@ -40,8 +36,8 @@ function StartupRecoveryScreen({
         Couldn&apos;t open app data
       </Text>
       <Text variant="body" style={styles.recoveryBody}>
-        The app couldn&apos;t finish updating local data. You can try again, or reset local app
-        data and start fresh on this device.
+        The app couldn&apos;t finish updating local data. You can try again, or reset local app data
+        and start fresh on this device.
       </Text>
       <View style={styles.actions}>
         <Button title="Try again" onPress={onRetry} />
@@ -88,7 +84,6 @@ export default function App() {
   useEffect(() => {
     initializeApp();
   }, [initializeApp]);
-
 
   return (
     <SafeAreaProvider>

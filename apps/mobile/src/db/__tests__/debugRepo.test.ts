@@ -94,9 +94,16 @@ describe('debugRepo diagnostics and repair helpers', () => {
   });
   it('surfaces derived auth debug state in sync debug info', () => {
     (query as jest.Mock).mockImplementation((sql: string, params?: unknown[]) => {
-      if (sql.includes('FROM outbox_op') && sql.includes('COUNT(*) AS c') && sql.includes('status IN')) return [{ c: 2 }];
-      if (sql.includes('SELECT status, COUNT(*) AS c') && sql.includes('FROM outbox_op')) return [{ status: 'pending', c: 2 }];
-      if (sql.includes('FROM outbox_op') && sql.includes("status IN ('pending', 'failed')")) return [{ c: 1 }];
+      if (
+        sql.includes('FROM outbox_op') &&
+        sql.includes('COUNT(*) AS c') &&
+        sql.includes('status IN')
+      )
+        return [{ c: 2 }];
+      if (sql.includes('SELECT status, COUNT(*) AS c') && sql.includes('FROM outbox_op'))
+        return [{ status: 'pending', c: 2 }];
+      if (sql.includes('FROM outbox_op') && sql.includes("status IN ('pending', 'failed')"))
+        return [{ c: 1 }];
       if (sql.includes('FROM outbox_op') && sql.includes('LIMIT 10')) return [];
       if (sql.includes('FROM app_meta') && params?.[0] === 'auth_debug_state_v1') {
         return [
@@ -113,9 +120,11 @@ describe('debugRepo diagnostics and repair helpers', () => {
           },
         ];
       }
-      if (sql.includes('FROM app_meta') && params?.[0] === 'claimed_user_id') return [{ value: 'user-1' }];
+      if (sql.includes('FROM app_meta') && params?.[0] === 'claimed_user_id')
+        return [{ value: 'user-1' }];
       if (sql.includes('FROM app_meta') && params?.[0] === 'device_id') return [{ value: 'dev-1' }];
-      if (sql.includes('FROM app_meta') && params?.[0] === 'guest_user_id') return [{ value: 'guest-1' }];
+      if (sql.includes('FROM app_meta') && params?.[0] === 'guest_user_id')
+        return [{ value: 'guest-1' }];
       if (sql.includes('FROM sync_state')) return [{ cursor: '0' }];
       return [];
     });
@@ -134,8 +143,10 @@ describe('debugRepo diagnostics and repair helpers', () => {
   it('includes auth snapshot in support bundle without secrets', () => {
     (query as jest.Mock).mockImplementation((sql: string, params?: unknown[]) => {
       if (sql.includes('FROM app_meta') && params?.[0] === 'device_id') return [{ value: 'dev-1' }];
-      if (sql.includes('FROM app_meta') && params?.[0] === 'guest_user_id') return [{ value: 'guest-1' }];
-      if (sql.includes('FROM app_meta') && params?.[0] === 'local_user_id') return [{ value: 'local-1' }];
+      if (sql.includes('FROM app_meta') && params?.[0] === 'guest_user_id')
+        return [{ value: 'guest-1' }];
+      if (sql.includes('FROM app_meta') && params?.[0] === 'local_user_id')
+        return [{ value: 'local-1' }];
       if (sql.includes('FROM app_meta') && params?.[0] === 'auth_debug_state_v1') {
         return [
           {

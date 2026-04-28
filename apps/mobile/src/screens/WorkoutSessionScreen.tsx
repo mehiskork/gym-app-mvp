@@ -506,11 +506,11 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
                 setSession((prev) =>
                   prev
                     ? {
-                      ...prev,
-                      rest_timer_end_at: null,
-                      rest_timer_label: null,
-                      rest_timer_seconds: null,
-                    }
+                        ...prev,
+                        rest_timer_end_at: null,
+                        rest_timer_label: null,
+                        rest_timer_seconds: null,
+                      }
                     : prev,
                 );
 

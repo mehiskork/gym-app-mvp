@@ -186,9 +186,9 @@ export function DayDetailScreen({ route, navigation }: Props) {
         style={
           isActive && !minimalDragVisuals
             ? {
-              backgroundColor: tokens.colors.surface2,
-              borderColor: tokens.colors.primary,
-            }
+                backgroundColor: tokens.colors.surface2,
+                borderColor: tokens.colors.primary,
+              }
             : undefined
         }
       />
@@ -212,7 +212,6 @@ export function DayDetailScreen({ route, navigation }: Props) {
       />
     ),
     [colors.primary, isStartSessionMode, minimalDragVisuals, renderRowRight],
-
   );
 
   const header = (
@@ -315,19 +314,19 @@ export function DayDetailScreen({ route, navigation }: Props) {
           isStartSessionMode
             ? undefined
             : () => {
-              void Haptics.selectionAsync();
-            }
+                void Haptics.selectionAsync();
+              }
         }
         onDragEnd={
           isStartSessionMode
             ? undefined
             : ({ data }) => {
-              setItems(data);
-              reorderDayExercises(
-                dayId,
-                data.map((x) => x.id),
-              );
-            }
+                setItems(data);
+                reorderDayExercises(
+                  dayId,
+                  data.map((x) => x.id),
+                );
+              }
         }
         keyboardShouldPersistTaps="handled"
       />

@@ -9,58 +9,57 @@ import { ensureRestTimerNotificationChannel } from '../../utils/restTimerNotific
 import { removeString } from '../../utils/prefs';
 
 jest.mock('../resetSensitiveStorage', () => ({
-    clearSensitiveAuthStorage: jest.fn(() => Promise.resolve()),
+  clearSensitiveAuthStorage: jest.fn(() => Promise.resolve()),
 }));
 
 jest.mock('../../db/db', () => ({
-    resetLocalDatabase: jest.fn(),
+  resetLocalDatabase: jest.fn(),
 }));
 
 jest.mock('../../db/migrate', () => ({
-    runMigrations: jest.fn(),
+  runMigrations: jest.fn(),
 }));
 
 jest.mock('../../db/curatedExerciseSeed', () => ({
-    seedCuratedExercises: jest.fn(),
+  seedCuratedExercises: jest.fn(),
 }));
 
 jest.mock('../../db/outboxRepo', () => ({
-    repairStaleInFlightOps: jest.fn(),
+  repairStaleInFlightOps: jest.fn(),
 }));
 
 jest.mock('../../db/appMetaRepo', () => ({
-    resumeSync: jest.fn(),
-    setClaimed: jest.fn(),
-    setClaimedUserId: jest.fn(),
+  resumeSync: jest.fn(),
+  setClaimed: jest.fn(),
+  setClaimedUserId: jest.fn(),
 }));
 
 jest.mock('../../utils/restTimerNotifications', () => ({
-    ensureRestTimerNotificationChannel: jest.fn(),
+  ensureRestTimerNotificationChannel: jest.fn(),
 }));
 
 jest.mock('../../utils/prefs', () => ({
-    removeString: jest.fn(() => Promise.resolve()),
+  removeString: jest.fn(() => Promise.resolve()),
 }));
 
-
 describe('resetToGuestBootstrap', () => {
-    beforeEach(() => {
-        jest.clearAllMocks();
-    });
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
 
-    it('clears sensitive session state and fully resets local bootstrap state', async () => {
-        await resetToGuestBootstrap();
+  it('clears sensitive session state and fully resets local bootstrap state', async () => {
+    await resetToGuestBootstrap();
 
-        expect(removeString).toHaveBeenCalledWith('claim_dev_user_id');
+    expect(removeString).toHaveBeenCalledWith('claim_dev_user_id');
 
-        expect(clearSensitiveAuthStorage).toHaveBeenCalledTimes(1);
-        expect(resetLocalDatabase).toHaveBeenCalledTimes(1);
-        expect(runMigrations).toHaveBeenCalledTimes(1);
-        expect(seedCuratedExercises).toHaveBeenCalledTimes(1);
-        expect(repairStaleInFlightOps).toHaveBeenCalledWith(120);
-        expect(setClaimed).toHaveBeenCalledWith(false);
-        expect(setClaimedUserId).toHaveBeenCalledWith(null);
-        expect(resumeSync).toHaveBeenCalledTimes(1);
-        expect(ensureRestTimerNotificationChannel).toHaveBeenCalledWith(false);
-    });
+    expect(clearSensitiveAuthStorage).toHaveBeenCalledTimes(1);
+    expect(resetLocalDatabase).toHaveBeenCalledTimes(1);
+    expect(runMigrations).toHaveBeenCalledTimes(1);
+    expect(seedCuratedExercises).toHaveBeenCalledTimes(1);
+    expect(repairStaleInFlightOps).toHaveBeenCalledWith(120);
+    expect(setClaimed).toHaveBeenCalledWith(false);
+    expect(setClaimedUserId).toHaveBeenCalledWith(null);
+    expect(resumeSync).toHaveBeenCalledTimes(1);
+    expect(ensureRestTimerNotificationChannel).toHaveBeenCalledWith(false);
+  });
 });

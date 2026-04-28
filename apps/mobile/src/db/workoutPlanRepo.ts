@@ -92,12 +92,7 @@ function enqueueProgramSnapshot(programId: string, opType: 'upsert' | 'delete' =
   });
 }
 
-
-
-function enqueueProgramWeekSnapshot(
-  programWeekId: string,
-  opType: 'upsert' | 'delete' = 'upsert',
-) {
+function enqueueProgramWeekSnapshot(programWeekId: string, opType: 'upsert' | 'delete' = 'upsert') {
   const row = query<Record<string, unknown>>(
     `
     SELECT *
@@ -469,7 +464,6 @@ export function deleteWorkoutPlan(workoutPlanId: string) {
         [dayExerciseId],
       );
     }
-
 
     exec(
       `

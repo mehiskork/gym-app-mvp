@@ -59,8 +59,6 @@ export function HistoryScreen() {
   const header = useMemo(
     () => (
       <View style={{ gap: tokens.spacing.md }}>
-
-
         {thisWeek ? (
           <View
             style={{

@@ -32,7 +32,11 @@ describe('exerciseRepo createCustomExercise', () => {
 
   it('enqueues an exercise upsert snapshot after local insert', () => {
     (query as jest.Mock).mockImplementation((sql: string, params?: unknown[]) => {
-      if (sql.includes('SELECT *') && sql.includes('FROM exercise') && params?.[0] === 'ex_custom-1') {
+      if (
+        sql.includes('SELECT *') &&
+        sql.includes('FROM exercise') &&
+        params?.[0] === 'ex_custom-1'
+      ) {
         return [{ id: 'ex_custom-1', name: 'Squat', is_custom: 1 }];
       }
       return [];
@@ -41,7 +45,10 @@ describe('exerciseRepo createCustomExercise', () => {
     const id = createCustomExercise('Squat');
 
     expect(id).toBe('ex_custom-1');
-    expect(exec).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO exercise'), expect.any(Array));
+    expect(exec).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO exercise'),
+      expect.any(Array),
+    );
     expect(enqueueOutboxOp).toHaveBeenCalledWith(
       expect.objectContaining({
         entityType: 'exercise',

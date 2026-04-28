@@ -15,14 +15,14 @@ const CLAIM_DEV_USER_ID_KEY = 'claim_dev_user_id';
  * then re-initializes bootstrap-ready local state.
  */
 export async function resetToGuestBootstrap(): Promise<void> {
-    await clearSensitiveAuthStorage();
-    await removeString(CLAIM_DEV_USER_ID_KEY);
-    resetLocalDatabase();
-    runMigrations();
-    seedCuratedExercises();
-    repairStaleInFlightOps(120);
-    setClaimed(false);
-    setClaimedUserId(null);
-    resumeSync();
-    void ensureRestTimerNotificationChannel(false);
+  await clearSensitiveAuthStorage();
+  await removeString(CLAIM_DEV_USER_ID_KEY);
+  resetLocalDatabase();
+  runMigrations();
+  seedCuratedExercises();
+  repairStaleInFlightOps(120);
+  setClaimed(false);
+  setClaimedUserId(null);
+  resumeSync();
+  void ensureRestTimerNotificationChannel(false);
 }

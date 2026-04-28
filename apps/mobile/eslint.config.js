@@ -22,6 +22,14 @@ module.exports = [
     },
   },
   {
+    files: ['**/__tests__/**/*.ts', '**/__tests__/**/*.tsx', '**/*.test.ts', '**/*.test.tsx'],
+    rules: {
+      '@typescript-eslint/no-require-imports': 'off',
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/ban-ts-comment': 'off',
+    },
+  },
+  {
     ignores: ['node_modules/**', 'dist/**', '.expo/**'],
   },
 ];

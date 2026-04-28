@@ -7,7 +7,6 @@ function hasHeader(headers: HeaderMap, headerName: string): boolean {
   return Object.keys(headers).some((key) => key.toLowerCase() === target);
 }
 
-
 export async function buildHeaders(extra: HeaderMap = {}): Promise<HeaderMap> {
   const headers: HeaderMap = { ...extra };
   const deviceToken = await deviceCredentialStore.getDeviceToken();

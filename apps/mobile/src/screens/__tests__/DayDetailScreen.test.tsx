@@ -379,7 +379,9 @@ describe('DayDetailScreen', () => {
       DraggableFlatList,
     );
     const placeholderNode = lists[0]?.props.renderPlaceholder?.({ item: items[0], index: 0 });
-    const placeholderRow = placeholderNode as React.ReactElement<React.ComponentProps<typeof ListRow>>;
+    const placeholderRow = placeholderNode as React.ReactElement<
+      React.ComponentProps<typeof ListRow>
+    >;
 
     expect(placeholderRow.props.title).toBe('Bench Press');
     expect(placeholderRow.props.subtitle).toBe('Tap to view');

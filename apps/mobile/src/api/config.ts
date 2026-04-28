@@ -7,6 +7,7 @@ type ExpoConstantsModule = {
 
 function getExpoConstants(): ExpoConstantsModule | undefined {
   try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const constantsModule = require('expo-constants');
     return (constantsModule?.default ?? constantsModule) as ExpoConstantsModule;
   } catch {

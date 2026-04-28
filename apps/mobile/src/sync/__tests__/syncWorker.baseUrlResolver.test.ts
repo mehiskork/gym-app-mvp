@@ -1,4 +1,3 @@
-
 jest.mock('../../api/config', () => ({
   getApiBaseUrl: jest.fn(() => 'https://shared-resolver.example.test'),
 }));
@@ -53,7 +52,6 @@ jest.mock('../applyDeltas', () => ({
 
 const { syncNow } = require('../syncWorker');
 const { getApiBaseUrl } = require('../../api/config');
-
 
 describe('syncWorker base URL resolver usage', () => {
   afterEach(() => {

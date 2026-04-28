@@ -217,8 +217,9 @@ export function validateStatusEnums(): { ok: boolean; message: string } {
   const ok = invalidWorkout.length === 0 && invalidOutbox.length === 0;
   const message = ok
     ? 'Status enums validated.'
-    : `Invalid statuses found. workout_session: ${invalidWorkout.join(', ') || 'none'}, outbox_op: ${invalidOutbox.join(', ') || 'none'
-    }`;
+    : `Invalid statuses found. workout_session: ${invalidWorkout.join(', ') || 'none'}, outbox_op: ${
+        invalidOutbox.join(', ') || 'none'
+      }`;
 
   return { ok, message };
 }
@@ -252,8 +253,9 @@ export function verifySyncState(): { ok: boolean; message: string; missingColumn
   const ok = missingColumns.length === 0 && cursorValid;
   const message = ok
     ? 'sync_state schema ok.'
-    : `sync_state issue: missing [${missingColumns.join(', ') || 'none'}], cursor="${cursor ?? 'null'
-    }"`;
+    : `sync_state issue: missing [${missingColumns.join(', ') || 'none'}], cursor="${
+        cursor ?? 'null'
+      }"`;
 
   return { ok, message, missingColumns };
 }

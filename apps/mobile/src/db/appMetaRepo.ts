@@ -48,7 +48,6 @@ export type AuthDebugState = {
   linkedState: LinkedState;
 };
 
-
 export function setLastSyncAckSummary(summary: SyncAckSummary) {
   setMeta('last_sync_ack_summary', JSON.stringify(summary));
 }
@@ -72,26 +71,30 @@ function parseAuthDebugState(raw: string | null): AuthDebugState | null {
 
   const accountSessionStatus =
     parsed.accountSessionStatus === 'usable' ||
-      parsed.accountSessionStatus === 'invalidated' ||
-      parsed.accountSessionStatus === 'missing'
+    parsed.accountSessionStatus === 'invalidated' ||
+    parsed.accountSessionStatus === 'missing'
       ? parsed.accountSessionStatus
       : null;
   if (!accountSessionStatus) return null;
 
   return {
     syncAuthModeLastUsed:
-      parsed.syncAuthModeLastUsed === 'account_jwt' || parsed.syncAuthModeLastUsed === 'device_token'
+      parsed.syncAuthModeLastUsed === 'account_jwt' ||
+      parsed.syncAuthModeLastUsed === 'device_token'
         ? parsed.syncAuthModeLastUsed
         : null,
     syncAuthModeNextPlanned:
       parsed.syncAuthModeNextPlanned === 'account_jwt' ||
-        parsed.syncAuthModeNextPlanned === 'device_token'
+      parsed.syncAuthModeNextPlanned === 'device_token'
         ? parsed.syncAuthModeNextPlanned
         : null,
     accountSessionStatus,
     accountInvalidationReason:
-      typeof parsed.accountInvalidationReason === 'string' ? parsed.accountInvalidationReason : null,
-    accountInvalidatedAt: typeof parsed.accountInvalidatedAt === 'string' ? parsed.accountInvalidatedAt : null,
+      typeof parsed.accountInvalidationReason === 'string'
+        ? parsed.accountInvalidationReason
+        : null,
+    accountInvalidatedAt:
+      typeof parsed.accountInvalidatedAt === 'string' ? parsed.accountInvalidatedAt : null,
     deviceTokenPresent: parsed.deviceTokenPresent === true,
     linkedState: parsed.linkedState === 'linked' ? 'linked' : 'guest',
   };

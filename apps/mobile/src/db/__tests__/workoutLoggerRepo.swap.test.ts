@@ -84,10 +84,9 @@ describe('swapWorkoutSessionExercise', () => {
       expect.stringContaining('VALUES (?, ?, ?, ?, ?, ?, ?, NULL);'),
       expect.any(Array),
     );
-    expect(exec).toHaveBeenCalledWith(
-      expect.stringContaining('SET deleted_at = datetime(\'now\')'),
-      ['wse-1'],
-    );
+    expect(exec).toHaveBeenCalledWith(expect.stringContaining("SET deleted_at = datetime('now')"), [
+      'wse-1',
+    ]);
     expect(enqueueOutboxOp).toHaveBeenCalledWith(
       expect.objectContaining({
         entityType: 'workout_session_exercise',

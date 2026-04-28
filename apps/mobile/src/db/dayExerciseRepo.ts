@@ -277,8 +277,6 @@ export function reorderDayExercises(dayId: string, orderedDayExerciseIds: string
   });
 }
 
-
-
 export function deleteDayExercise(dayExerciseId: string) {
   inTransaction(() => {
     const row = query<{ program_day_id: string; exercise_name: string }>(
@@ -481,6 +479,5 @@ export function deleteDay(dayId: string) {
     for (const day of remaining) {
       enqueueProgramDaySnapshot(day.id);
     }
-
   });
 }

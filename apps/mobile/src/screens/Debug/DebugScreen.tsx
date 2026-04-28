@@ -239,7 +239,7 @@ export function DebugScreen() {
   useFocusEffect(
     useCallback(() => {
       refresh();
-      return () => { };
+      return () => {};
     }, [refresh]),
   );
 
@@ -540,10 +540,7 @@ export function DebugScreen() {
             <>
               <Row label="Sync status" value={overview.syncHealth} />
               <Row label="Pending ops" value={String(syncInfo.pendingOpsCount)} />
-              <Row
-                label="Outbox history total"
-                value={String(syncInfo.outboxHistoryTotalCount)}
-              />
+              <Row label="Outbox history total" value={String(syncInfo.outboxHistoryTotalCount)} />
               <StackedRow
                 label="Outbox by status"
                 value={`pending ${syncInfo.outboxStatusCounts.pending} • failed ${syncInfo.outboxStatusCounts.failed} • in-flight ${syncInfo.outboxStatusCounts.in_flight} • acked ${syncInfo.outboxStatusCounts.acked}`}
@@ -1032,7 +1029,6 @@ export function DebugScreen() {
           >
             <Text style={{ fontWeight: '700' }}>Delete all history (dev-only)</Text>
           </Pressable>
-
 
           <Pressable
             disabled={!devOnly}
