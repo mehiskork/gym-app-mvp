@@ -241,21 +241,13 @@ The backend must be running and reachable for sync to succeed.
 
 ---
 
-## Enabling the claim flow locally
+## Claim flow locally
 
-`POST /claim/confirm` returns `501 NOT_IMPLEMENTED` by default.
+`POST /claim/start` is device/guest-authenticated and can be exercised after device registration.
 
-To enable it for local testing, add `SPRING_PROFILES_ACTIVE: dev` to the backend service in `docker-compose.yml`:
+`POST /claim/confirm` is account-authenticated and requires a valid Firebase account JWT. The backend derives the target account owner from the verified Firebase principal; do not send or trust a client-sent user/account id.
 
-```yaml
-backend:
-  environment:
-    SPRING_PROFILES_ACTIVE: dev
-    SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/gymapp
-    ...
-```
-
-With the `dev` profile active, `/claim/confirm` accepts an `X-User-Id: <uuid>` header as the acting user identity. This is a dev/test-only seam and is also what integration tests use. Do not enable this path in production-like environments.
+Mobile Google Sign-In plus guest migration orchestration is a later mobile PR. Until that is wired, local end-to-end claim confirmation requires a controlled Firebase token test setup.
 
 ---
 
@@ -264,11 +256,10 @@ With the `dev` profile active, `/claim/confirm` accepts an `X-User-Id: <uuid>` h
 
 Before public or production-like deployment, verify:
 
-1. `claim.devUserHeaderEnabled=false` in runtime config (dev header seam disabled).
-2. JWT resource server config is set (`issuer-uri` or `jwk-set-uri`) for account endpoints once Firebase-backed account auth is wired to real token validation.
-3. `/sync` auth path is validated for both account-JWT and device-token recovery behavior.
-4. Support/debug runbook is known to operators (Debug screen unlock, support bundle export).
-5. `mvn verify` and mobile test/typecheck/lint are green on the release candidate.
+1. JWT resource server config is set (`issuer-uri` or `jwk-set-uri`) for Firebase-backed account endpoints.
+2. `/sync` auth path is validated for both account-JWT and device-token recovery behavior.
+3. Support/debug runbook is known to operators (Debug screen unlock, support bundle export).
+4. `mvn verify` and mobile test/typecheck/lint are green on the release candidate.
 
 ## Troubleshooting
 

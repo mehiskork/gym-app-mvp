@@ -688,4 +688,5 @@ See:
 ## Production intent vs dev seams
 
 - `/sync` dual auth transport (device token + account JWT) is production-intended.
-- `/claim/confirm` `X-User-Id` header flow is dev/test-only and not part of production account authentication.
+- `/claim/start` is device/guest-authenticated.
+- `/claim/confirm` is account-authenticated with Firebase JWT and derives account ownership from the verified account principal.

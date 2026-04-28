@@ -7,24 +7,14 @@ import org.junit.jupiter.api.Test;
 
 class ProductionSafetyValidatorTest {
 
-    private final ProductionSafetyValidator validator = new ProductionSafetyValidator(null, null);
+    private final ProductionSafetyValidator validator = new ProductionSafetyValidator(null);
 
     @Test
     void rejectsUnsafeDefaultPasswordForProdLikeMode() {
         assertThrows(IllegalStateException.class, () -> validator.validateOrThrow(
                 "jdbc:postgresql://db.internal:5432/gymapp",
                 "gymapp",
-                "gymapp",
-                false));
-    }
-
-    @Test
-    void rejectsDevClaimHeaderInProdLikeMode() {
-        assertThrows(IllegalStateException.class, () -> validator.validateOrThrow(
-                "jdbc:postgresql://db.internal:5432/gymapp",
-                "gymapp",
-                "a-strong-password",
-                true));
+                "gymapp"));
     }
 
     @Test
@@ -32,7 +22,6 @@ class ProductionSafetyValidatorTest {
         assertDoesNotThrow(() -> validator.validateOrThrow(
                 "jdbc:postgresql://db.internal:5432/gymapp",
                 "gymapp",
-                "a-strong-password",
-                false));
+                "a-strong-password"));
     }
 }

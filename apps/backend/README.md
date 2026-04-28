@@ -23,20 +23,16 @@ curl http://localhost:8080/health
 - `POST /device/register` -> public bootstrap endpoint
 - `POST /sync` -> **device bearer token OR account JWT**
 - `POST /claim/start` -> **device bearer token only**
-- `POST /claim/confirm` -> **dev/test seam only** (`X-User-Id` header when enabled)
+- `POST /claim/confirm` -> **account JWT only**
 - `GET /me` -> **account JWT only**
 
 Ownership scope is always resolved from authenticated principal on the server.
 
-## Claim-confirm seam (important)
+## Claim-confirm auth
 
-`/claim/confirm` is intentionally not production auth. It is a guarded dev/test bridge:
+`/claim/confirm` requires a verified Firebase account JWT. The backend derives the target account owner from `AccountPrincipal.externalAccountId` (`issuer|subject`) and does not accept client-sent account/user ids.
 
-- default `claim.devUserHeaderEnabled=false`
-- dev profile enables it for local workflows
-- prod-like profiles are guarded against unsafe enablement
-
-Do not depend on `X-User-Id` header flow for production deployments.
+`/claim/start` remains device/guest-authenticated. Mobile Google Sign-In plus guest migration orchestration is a later mobile PR.
 
 ## JWT config for account endpoints
 
@@ -57,7 +53,7 @@ Optional override, normally not needed with issuer discovery:
 
 The backend validates Firebase token signature, expiry, issuer, audience, and nonblank subject. The account owner identity is derived from the verified issuer + Firebase UID. Missing JWT/Firebase configuration fails closed for account-token endpoints.
 
-Mobile Google Sign-In wiring is a later PR.
+Mobile Google Sign-In wiring is a later PR. Firebase is authentication-only; app data remains in PostgreSQL through the Spring Boot sync API.
 
 ## Tests
 

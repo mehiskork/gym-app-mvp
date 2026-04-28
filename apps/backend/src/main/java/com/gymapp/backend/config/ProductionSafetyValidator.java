@@ -14,7 +14,6 @@ public class ProductionSafetyValidator {
     private static final Set<String> UNSAFE_PASSWORDS = Set.of("gymapp", "password", "changeme", "test");
 
     private final Environment environment;
-    private final ClaimProperties claimProperties;
 
     @PostConstruct
     void validate() {
@@ -31,15 +30,13 @@ public class ProductionSafetyValidator {
         String datasourceUsername = environment.getProperty("spring.datasource.username", "");
         String datasourcePassword = environment.getProperty("spring.datasource.password", "");
 
-        validateOrThrow(datasourceUrl, datasourceUsername, datasourcePassword,
-                claimProperties.isDevUserHeaderEnabled());
+        validateOrThrow(datasourceUrl, datasourceUsername, datasourcePassword);
     }
 
     void validateOrThrow(
             String datasourceUrl,
             String datasourceUsername,
-            String datasourcePassword,
-            boolean devUserHeaderEnabled) {
+            String datasourcePassword) {
         if (datasourceUrl.isBlank() || datasourceUsername.isBlank() || datasourcePassword.isBlank()) {
             throw new IllegalStateException(
                     "Prod-like profile requires explicit spring.datasource.url/username/password");
@@ -51,10 +48,6 @@ public class ProductionSafetyValidator {
         if (UNSAFE_PASSWORDS.contains(datasourcePassword.trim().toLowerCase())) {
             throw new IllegalStateException(
                     "Prod-like profile cannot use default/insecure datasource password");
-        }
-        if (devUserHeaderEnabled) {
-            throw new IllegalStateException(
-                    "Prod-like profile cannot enable claim.devUserHeaderEnabled");
         }
     }
 }

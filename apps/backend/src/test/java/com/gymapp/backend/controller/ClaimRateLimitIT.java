@@ -63,15 +63,14 @@ class ClaimRateLimitIT {
     void claimConfirmIsRateLimitedByRemoteAddress() throws Exception {
         MockHttpServletRequestBuilder request = post("/claim/confirm")
                 .contentType(MediaType.APPLICATION_JSON)
-                .header("X-User-Id", "00000000-0000-0000-0000-000000000000")
                 .content("{\"code\":\"INVALIDCODE\"}")
                 .with(req -> {
                     req.setRemoteAddr("10.10.10.11");
                     return req;
                 });
 
-        mockMvc.perform(request).andExpect(status().isBadRequest());
-        mockMvc.perform(request).andExpect(status().isBadRequest());
+        mockMvc.perform(request).andExpect(status().isUnauthorized());
+        mockMvc.perform(request).andExpect(status().isUnauthorized());
         mockMvc.perform(request)
                 .andExpect(status().isTooManyRequests())
                 .andExpect(jsonPath("$.code").value("RATE_LIMITED"))

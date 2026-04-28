@@ -384,7 +384,7 @@ The client sends its last-known cursor. The backend returns later changes up to 
 
 The backend is stateless under Spring Security.
 
-`/sync` supports dual bearer-auth transport: account JWT and device token. Device registration issues the data needed for guest/device transport; the generic account-JWT resource-server path exists, but Firebase-specific Google Sign-In and real Firebase ID-token validation are not completed yet.
+`/sync` supports dual bearer-auth transport: Firebase account JWT and device token. Device registration issues the data needed for guest/device transport. Firebase backend ID-token validation is implemented for account-authenticated backend endpoints; mobile Google Sign-In wiring is a later PR.
 
 At a high level, the identity/auth pieces are:
 
@@ -423,7 +423,7 @@ A few current MVP choices are intentional and worth knowing up front:
 
 - device token lookup is currently O(n) in application code before BCrypt verification
 - rate limiting is in-process only, not shared across multiple backend instances
-- `/claim/confirm` is still dev-oriented in its current form
+- `/claim/confirm` is Firebase account-authenticated and derives account ownership from the verified principal
 
 ---
 
@@ -461,6 +461,7 @@ At a high level it does this:
 
 - generates and stores pending claim codes
 - validates confirmation attempts
+- derives the target account owner from the authenticated Firebase principal
 - links guest identity to user identity
 - prevents conflicting claims
 - marks claims as claimed or expired as appropriate

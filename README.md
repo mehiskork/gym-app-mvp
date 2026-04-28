@@ -5,7 +5,7 @@ An offline-first workout tracker with:
 - a React Native / Expo mobile app (`apps/mobile`)
 - a Spring Boot 4.0.5 backend (`apps/backend`)
 
-This repository has a generic account-JWT foundation: account identity is canonical after login, guest/device identity is bootstrap-only, `/me` is account-JWT-only, and `/sync` supports both account JWT and device-token transport. Firebase-specific Google Sign-In and real Firebase ID-token validation are not completed yet.
+This repository has a Firebase-backed account-JWT foundation: account identity is canonical after login, guest/device identity is bootstrap-only, `/me` is account-JWT-only, `/sync` supports both account JWT and device-token transport, and `/claim/confirm` derives account ownership from the verified Firebase principal. Mobile Google Sign-In wiring is still a later PR.
 
 ---
 
@@ -27,7 +27,7 @@ This repository has a generic account-JWT foundation: account identity is canoni
 - `POST /device/register` for bootstrap guest/device registration
 - `POST /sync` with owner-scoped auth, op dedupe, acks, deltas, cursor paging
 - `GET /me` account principal identity endpoint (JWT resource server)
-- claim flow endpoints (`/claim/start`, `/claim/confirm`) with explicit dev-only seam for confirm
+- claim flow endpoints (`/claim/start`, `/claim/confirm`) for guest-to-account migration
 - ownership enforcement, request IDs, rate limiting, and Flyway migrations
 
 ---
@@ -39,7 +39,7 @@ This repository has a generic account-JWT foundation: account identity is canoni
 - **`/sync`:** accepts either account JWT or device bearer token; ownership is resolved server-side from principal, never client payload.
 - **`/me`:** account JWT only.
 - **`/claim/start`:** device-token only.
-- **`/claim/confirm`:** dev/test seam only via `X-User-Id` header when explicitly enabled outside prod-like profiles.
+- **`/claim/confirm`:** Firebase account JWT only; target account owner is derived server-side from the verified account principal.
 
 ---
 
@@ -47,7 +47,7 @@ This repository has a generic account-JWT foundation: account identity is canoni
 
 - Core ownership/auth/sync foundations are in place and tested.
 - Debug/support surfaces remain intentionally available for rollout support and incident triage.
-- Dev-only claim-confirm behavior is fenced by profile/config guardrails and should remain disabled in production-like environments.
+- Firebase is auth-only; app data remains SQLite mobile source of truth synced through Spring Boot/PostgreSQL.
 - Local-first behavior is unchanged: local writes commit first; sync reconciles eventual server state.
 
 ---

@@ -7,23 +7,41 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+import com.gymapp.backend.config.FirebaseJwtValidator;
 import com.gymapp.backend.security.OwnerScope;
 import com.gymapp.backend.service.SyncService;
+import com.nimbusds.jose.JOSEObjectType;
+import com.nimbusds.jose.JWSAlgorithm;
+import com.nimbusds.jose.JWSHeader;
+import com.nimbusds.jose.crypto.RSASSASigner;
+import com.nimbusds.jose.jwk.RSAKey;
+import com.nimbusds.jwt.JWTClaimsSet;
+import com.nimbusds.jwt.SignedJWT;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.interfaces.RSAPrivateKey;
+import java.security.interfaces.RSAPublicKey;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.Date;
 import java.util.Map;
 import java.util.UUID;
 import javax.sql.DataSource;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -38,6 +56,9 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @AutoConfigureMockMvc
 @Testcontainers
 class ClaimFlowIntegrationTest {
+        private static final String FIREBASE_PROJECT_ID = "gym-app-mvp-1d7f0";
+        private static final String FIREBASE_ISSUER = "https://securetoken.google.com/" + FIREBASE_PROJECT_ID;
+        private static final TokenSigner TOKEN_SIGNER = TokenSigner.create();
 
         @SuppressWarnings("resource")
         @Container
@@ -52,7 +73,21 @@ class ClaimFlowIntegrationTest {
                 registry.add("spring.datasource.username", postgres::getUsername);
                 registry.add("spring.datasource.password", postgres::getPassword);
                 registry.add("spring.flyway.enabled", () -> "true");
+                registry.add("spring.security.oauth2.resourceserver.jwt.issuer-uri", () -> FIREBASE_ISSUER);
+                registry.add("app.auth.firebase.project-id", () -> FIREBASE_PROJECT_ID);
+                registry.add("rateLimit.claimConfirm.capacity", () -> "1000");
 
+        }
+
+        @TestConfiguration
+        static class FirebaseClaimTestConfig {
+                @Bean
+                @Primary
+                JwtDecoder firebaseTestJwtDecoder(FirebaseJwtValidator validator) {
+                        NimbusJwtDecoder decoder = NimbusJwtDecoder.withPublicKey(TOKEN_SIGNER.publicKey()).build();
+                        decoder.setJwtValidator(validator.validator(FIREBASE_ISSUER));
+                        return decoder;
+                }
         }
 
         @Autowired
@@ -111,12 +146,57 @@ class ClaimFlowIntegrationTest {
         }
 
         @Test
-        void confirmWithInvalidCodeReturnsBadRequest() throws Exception {
-                String userId = UUID.randomUUID().toString();
+        void confirmRejectsMissingAuthorizationHeader() throws Exception {
+                mockMvc.perform(post("/claim/confirm")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"code\":\"INVALID12\"}"))
+                                .andExpect(status().isUnauthorized())
+                                .andExpect(jsonPath("$.code").value("AUTH_UNAUTHORIZED"));
+        }
+
+        @Test
+        void confirmRejectsInvalidBearerToken() throws Exception {
+                mockMvc.perform(post("/claim/confirm")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .header("Authorization", "Bearer not.a.jwt")
+                                .content("{\"code\":\"INVALID12\"}"))
+                                .andExpect(status().isUnauthorized())
+                                .andExpect(jsonPath("$.code").value("AUTH_UNAUTHORIZED"));
+        }
+
+        @Test
+        void confirmRejectsDeviceTokenAndDoesNotClaim() throws Exception {
+                String deviceId = "device-" + UUID.randomUUID();
+                String guestUserId = UUID.randomUUID().toString();
+                String rawToken = "token-" + UUID.randomUUID();
+                String rawCode = "8J4K2M7N";
+                UUID claimId = UUID.randomUUID();
+                Instant now = Instant.now();
+                insertDevice(deviceId, guestUserId);
+                insertToken(rawToken, deviceId, now.plusSeconds(3600));
+                insertClaim(claimId, rawCode, guestUserId, deviceId, now, now.plusSeconds(600));
 
                 mockMvc.perform(post("/claim/confirm")
                                 .contentType(MediaType.APPLICATION_JSON)
-                                .header("X-User-Id", userId)
+                                .header("Authorization", "Bearer " + rawToken)
+                                .content("{\"code\":\"" + rawCode + "\"}"))
+                                .andExpect(status().isUnauthorized())
+                                .andExpect(jsonPath("$.code").value("AUTH_UNAUTHORIZED"));
+
+                String status = jdbcTemplate.queryForObject(
+                                "SELECT status FROM claim WHERE claim_id = ?",
+                                String.class,
+                                claimId);
+                assertThat(status).isEqualTo("PENDING");
+        }
+
+        @Test
+        void confirmWithInvalidCodeReturnsBadRequest() throws Exception {
+                String userId = accountOwnerId("firebase-user-" + UUID.randomUUID());
+
+                mockMvc.perform(post("/claim/confirm")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .header("Authorization", "Bearer " + firebaseTokenForOwner(userId))
                                 .content("{\"code\":\"INVALID12\"}"))
                                 .andExpect(status().isBadRequest())
                                 .andExpect(jsonPath("$.code").value("CLAIM_INVALID"));
@@ -124,7 +204,7 @@ class ClaimFlowIntegrationTest {
 
         @Test
         void confirmWithExpiredCodeReturnsExpired() throws Exception {
-                String userId = UUID.randomUUID().toString();
+                String userId = accountOwnerId("firebase-user-" + UUID.randomUUID());
                 String guestUserId = UUID.randomUUID().toString();
                 String deviceId = "device-" + UUID.randomUUID();
                 String rawCode = "9X3K7H2M";
@@ -136,7 +216,7 @@ class ClaimFlowIntegrationTest {
 
                 mockMvc.perform(post("/claim/confirm")
                                 .contentType(MediaType.APPLICATION_JSON)
-                                .header("X-User-Id", userId)
+                                .header("Authorization", "Bearer " + firebaseTokenForOwner(userId))
                                 .content("{\"code\":\"" + rawCode + "\"}"))
                                 .andExpect(status().isBadRequest())
                                 .andExpect(jsonPath("$.code").value("CLAIM_EXPIRED"));
@@ -153,7 +233,7 @@ class ClaimFlowIntegrationTest {
                 String deviceId = "device-" + UUID.randomUUID();
                 String guestUserId = UUID.randomUUID().toString();
                 String rawToken = "token-" + UUID.randomUUID();
-                String userId = UUID.randomUUID().toString();
+                String userId = accountOwnerId("firebase-user-" + UUID.randomUUID());
                 insertDevice(deviceId, guestUserId);
                 insertToken(rawToken, deviceId, Instant.now().plusSeconds(3600));
 
@@ -169,7 +249,8 @@ class ClaimFlowIntegrationTest {
 
                 mockMvc.perform(post("/claim/confirm")
                                 .contentType(MediaType.APPLICATION_JSON)
-                                .header("X-User-Id", userId)
+                                .header("Authorization", "Bearer " + firebaseTokenForOwner(userId))
+                                .header("X-User-Id", accountOwnerId("ignored-" + UUID.randomUUID()))
                                 .content("{\"code\":\"" + code + "\"}"))
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$.guestUserId").value(guestUserId))
@@ -194,7 +275,7 @@ class ClaimFlowIntegrationTest {
                 String deviceId = "device-" + UUID.randomUUID();
                 String guestUserId = UUID.randomUUID().toString();
                 String rawToken = "token-" + UUID.randomUUID();
-                String userId = UUID.randomUUID().toString();
+                String userId = accountOwnerId("firebase-user-" + UUID.randomUUID());
                 insertDevice(deviceId, guestUserId);
                 insertToken(rawToken, deviceId, Instant.now().plusSeconds(3600));
 
@@ -209,14 +290,14 @@ class ClaimFlowIntegrationTest {
 
                 mockMvc.perform(post("/claim/confirm")
                                 .contentType(MediaType.APPLICATION_JSON)
-                                .header("X-User-Id", userId)
+                                .header("Authorization", "Bearer " + firebaseTokenForOwner(userId))
                                 .content("{\"code\":\"" + code + "\"}"))
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$.userId").value(userId));
 
                 mockMvc.perform(post("/claim/confirm")
                                 .contentType(MediaType.APPLICATION_JSON)
-                                .header("X-User-Id", userId)
+                                .header("Authorization", "Bearer " + firebaseTokenForOwner(userId))
                                 .content("{\"code\":\"" + code + "\"}"))
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$.userId").value(userId));
@@ -241,7 +322,7 @@ class ClaimFlowIntegrationTest {
                 String deviceId = "device-" + UUID.randomUUID();
                 String guestUserId = UUID.randomUUID().toString();
                 String rawToken = "token-" + UUID.randomUUID();
-                String userId = UUID.randomUUID().toString();
+                String userId = accountOwnerId("firebase-user-" + UUID.randomUUID());
                 insertDevice(deviceId, guestUserId);
                 insertToken(rawToken, deviceId, Instant.now().plusSeconds(3600));
                 seedGuestSyncData(guestUserId, deviceId);
@@ -258,7 +339,7 @@ class ClaimFlowIntegrationTest {
 
                 mockMvc.perform(post("/claim/confirm")
                                 .contentType(MediaType.APPLICATION_JSON)
-                                .header("X-User-Id", userId)
+                                .header("Authorization", "Bearer " + firebaseTokenForOwner(userId))
                                 .content("{\"code\":\"" + code + "\"}"))
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$.guestUserId").value(guestUserId))
@@ -289,6 +370,13 @@ class ClaimFlowIntegrationTest {
                 assertThat(syncService.sync(null, OwnerScope.account(userId), "0", java.util.List.of()).getDeltas())
                                 .hasSize(1);
 
+                mockMvc.perform(post("/sync")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .header("Authorization", "Bearer " + firebaseTokenForOwner(userId))
+                                .content("{\"cursor\":\"0\",\"ops\":[]}"))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.deltas").isArray());
+
         }
 
         @Test
@@ -296,7 +384,7 @@ class ClaimFlowIntegrationTest {
                 String deviceId = "device-" + UUID.randomUUID();
                 String guestUserId = UUID.randomUUID().toString();
                 String rawToken = "token-" + UUID.randomUUID();
-                String userId = UUID.randomUUID().toString();
+                String userId = accountOwnerId("firebase-user-" + UUID.randomUUID());
                 String entityId = "program-shared-" + UUID.randomUUID();
                 insertDevice(deviceId, guestUserId);
                 insertToken(rawToken, deviceId, Instant.now().plusSeconds(3600));
@@ -318,7 +406,7 @@ class ClaimFlowIntegrationTest {
 
                 mockMvc.perform(post("/claim/confirm")
                                 .contentType(MediaType.APPLICATION_JSON)
-                                .header("X-User-Id", userId)
+                                .header("Authorization", "Bearer " + firebaseTokenForOwner(userId))
                                 .content("{\"code\":\"" + code + "\"}"))
                                 .andExpect(status().isOk());
 
@@ -345,8 +433,8 @@ class ClaimFlowIntegrationTest {
 
         @Test
         void confirmConflictReturns409() throws Exception {
-                String userA = UUID.randomUUID().toString();
-                String userB = UUID.randomUUID().toString();
+                String userA = accountOwnerId("firebase-user-a-" + UUID.randomUUID());
+                String userB = accountOwnerId("firebase-user-b-" + UUID.randomUUID());
                 String guestUserId = UUID.randomUUID().toString();
                 String deviceId = "device-" + UUID.randomUUID();
                 String rawCode = "7H2M9X3K";
@@ -358,7 +446,7 @@ class ClaimFlowIntegrationTest {
 
                 mockMvc.perform(post("/claim/confirm")
                                 .contentType(MediaType.APPLICATION_JSON)
-                                .header("X-User-Id", userB)
+                                .header("Authorization", "Bearer " + firebaseTokenForOwner(userB))
                                 .content("{\"code\":\"" + rawCode + "\"}"))
                                 .andExpect(status().isConflict())
                                 .andExpect(jsonPath("$.code").value("CLAIM_CONFLICT"));
@@ -478,5 +566,74 @@ class ClaimFlowIntegrationTest {
                                 entityId,
                                 rowJson,
                                 OffsetDateTime.ofInstant(lastReceivedAt, ZoneOffset.UTC));
+        }
+
+        private String accountOwnerId(String uid) {
+                return FIREBASE_ISSUER + "|" + uid;
+        }
+
+        private String firebaseTokenForOwner(String ownerId) {
+                int delimiter = ownerId.lastIndexOf('|');
+                if (delimiter < 0 || delimiter == ownerId.length() - 1) {
+                        throw new IllegalArgumentException("Invalid account owner id for test token");
+                }
+                return firebaseToken(ownerId.substring(delimiter + 1));
+        }
+
+        private String firebaseToken(String uid) {
+                return TOKEN_SIGNER.token(FIREBASE_ISSUER, FIREBASE_PROJECT_ID, uid, Instant.now().plusSeconds(3600));
+        }
+
+        private static final class TokenSigner {
+                private final RSAKey rsaKey;
+
+                private TokenSigner(RSAKey rsaKey) {
+                        this.rsaKey = rsaKey;
+                }
+
+                static TokenSigner create() {
+                        try {
+                                KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
+                                generator.initialize(2048);
+                                KeyPair keyPair = generator.generateKeyPair();
+                                RSAKey rsaKey = new RSAKey.Builder((RSAPublicKey) keyPair.getPublic())
+                                                .privateKey((RSAPrivateKey) keyPair.getPrivate())
+                                                .keyID("firebase-claim-test-key")
+                                                .build();
+                                return new TokenSigner(rsaKey);
+                        } catch (Exception e) {
+                                throw new IllegalStateException("Failed to create test token signer", e);
+                        }
+                }
+
+                RSAPublicKey publicKey() {
+                        try {
+                                return rsaKey.toRSAPublicKey();
+                        } catch (Exception e) {
+                                throw new IllegalStateException("Failed to read test public key", e);
+                        }
+                }
+
+                String token(String issuer, String audience, String subject, Instant expiresAt) {
+                        try {
+                                JWTClaimsSet claims = new JWTClaimsSet.Builder()
+                                                .issuer(issuer)
+                                                .audience(audience)
+                                                .subject(subject)
+                                                .issueTime(Date.from(Instant.now()))
+                                                .expirationTime(Date.from(expiresAt))
+                                                .build();
+                                SignedJWT jwt = new SignedJWT(
+                                                new JWSHeader.Builder(JWSAlgorithm.RS256)
+                                                                .keyID(rsaKey.getKeyID())
+                                                                .type(JOSEObjectType.JWT)
+                                                                .build(),
+                                                claims);
+                                jwt.sign(new RSASSASigner(rsaKey));
+                                return jwt.serialize();
+                        } catch (Exception e) {
+                                throw new IllegalStateException("Failed to sign test JWT", e);
+                        }
+                }
         }
 }

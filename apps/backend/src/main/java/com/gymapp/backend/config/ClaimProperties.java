@@ -11,5 +11,4 @@ import org.springframework.stereotype.Component;
 @ConfigurationProperties(prefix = "claim")
 public class ClaimProperties {
     private long codeTtlMinutes = 10;
-    private boolean devUserHeaderEnabled = false;
 }

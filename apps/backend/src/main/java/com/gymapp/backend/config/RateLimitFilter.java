@@ -91,12 +91,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
         } else if (isClaimConfirmRequest(request)) {
             String remoteAddr = request.getRemoteAddr();
             if (remoteAddr != null && !remoteAddr.isBlank()) {
-                String userId = request.getHeader("X-User-Id");
-                if (userId != null && !userId.isBlank()) {
-                    key = "claimConfirm:" + remoteAddr + ":" + userId.trim();
-                } else {
-                    key = "claimConfirm:" + remoteAddr;
-                }
+                key = "claimConfirm:" + remoteAddr;
                 config = new RateLimitConfig(claimConfirmCapacity, claimConfirmRefillPerSecond);
             }
         }

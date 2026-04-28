@@ -50,12 +50,15 @@ public class SecurityConfig {
             Converter<org.springframework.security.oauth2.jwt.Jwt, JwtAuthenticationToken> accountJwtAuthenticationConverter)
             throws Exception {
         http
-                .securityMatcher("/me")
+                .securityMatcher("/me", "/claim/confirm")
                 .csrf(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .formLogin(AbstractHttpConfigurer::disable)
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/me", "/claim/confirm").hasRole("ACCOUNT")
+                        .anyRequest().denyAll())
+                .addFilterBefore(rateLimitFilter, BearerTokenAuthenticationFilter.class)
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .jwt(jwt -> jwt.jwtAuthenticationConverter(accountJwtAuthenticationConverter))
                         .authenticationEntryPoint((req, res, e) -> writeUnauthorized(res, e))
@@ -142,7 +145,6 @@ public class SecurityConfig {
                         .requestMatchers("/health").permitAll()
                         .requestMatchers("/ready").permitAll()
                         .requestMatchers("/device/register").permitAll()
-                        .requestMatchers("/claim/confirm").permitAll()
                         .anyRequest().denyAll())
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint((req, res, e) -> writeError(res,
