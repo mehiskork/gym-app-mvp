@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "437357576332",
+    "project_id": "gym-app-mvp-1d7f0",
+    "storage_bucket": "gym-app-mvp-1d7f0.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:437357576332:android:bb1aef70de81a6c977bba9",
+        "android_client_info": {
+          "package_name": "com.mehka.gymappmvp"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "437357576332-74bv53lu3dea7859osaor5np5rfm8o8u.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.mehka.gymappmvp",
+            "certificate_hash": "232c6362d44d50f2e78291ff68388786fa63163a"
+          }
+        },
+        {
+          "client_id": "437357576332-s4hdavesrfm735r01hu7c3ims3ktelks.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDpq7wNoWKeVK_or8srbRY9_3ramDfpyys"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "437357576332-s4hdavesrfm735r01hu7c3ims3ktelks.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
