@@ -333,6 +333,99 @@ public class SyncRepository {
                 return fetchDeltas(ownerId, cursor, limit, allowedEntityTypes);
         }
 
+        public List<SyncDelta> fetchEntityStateSnapshotForOwner(
+                        String ownerId,
+                        String afterEntityType,
+                        String afterEntityId,
+                        int limit,
+                        List<String> allowedEntityTypes,
+                        long snapshotChangeId) {
+                StringJoiner placeholders = new StringJoiner(", ");
+                StringJoiner orderCases = new StringJoiner(" ");
+                for (int i = 0; i < allowedEntityTypes.size(); i += 1) {
+                        placeholders.add("?");
+                        orderCases.add("WHEN entity_type = ? THEN " + i);
+                }
+
+                boolean hasAfter = afterEntityType != null && afterEntityId != null;
+                Object[] params = new Object[1
+                                + allowedEntityTypes.size()
+                                + (hasAfter ? allowedEntityTypes.size() : 0)
+                                + (hasAfter ? 2 : 0)
+                                + allowedEntityTypes.size()
+                                + 1];
+                int paramIndex = 0;
+                params[paramIndex++] = ownerId;
+                for (String entityType : allowedEntityTypes) {
+                        params[paramIndex++] = entityType;
+                }
+                if (hasAfter) {
+                        for (String entityType : allowedEntityTypes) {
+                                params[paramIndex++] = entityType;
+                        }
+                        params[paramIndex++] = allowedEntityTypes.indexOf(afterEntityType);
+                        params[paramIndex++] = afterEntityId;
+                }
+                for (String entityType : allowedEntityTypes) {
+                        params[paramIndex++] = entityType;
+                }
+                params[paramIndex] = limit;
+
+                String afterClause = hasAfter
+                                ? """
+                                                  AND (
+                                                    CASE %s ELSE 2147483647 END,
+                                                    entity_id
+                                                  ) > (?, ?)
+                                                """.formatted(orderCases)
+                                : "";
+
+                String sql = String.format(
+                                """
+                                                SELECT entity_type,
+                                                       entity_id,
+                                                       CASE
+                                                         WHEN (
+                                                           (jsonb_exists(row_json, 'deleted_at') AND COALESCE(row_json ->> 'deleted_at', '') <> '')
+                                                           OR (jsonb_exists(row_json, 'deletedAt') AND COALESCE(row_json ->> 'deletedAt', '') <> '')
+                                                         ) THEN 'delete'
+                                                         ELSE 'upsert'
+                                                       END AS op_type,
+                                                       row_json
+                                                FROM entity_state
+                                                WHERE guest_user_id = ?
+                                                  AND entity_type IN (%s)
+                                                %s
+                                                ORDER BY CASE %s ELSE 2147483647 END ASC, entity_id ASC
+                                                LIMIT ?
+                                                """,
+                                placeholders,
+                                afterClause,
+                                orderCases);
+
+                return jdbcTemplate.query(
+                                sql,
+                                (rs, rowNum) -> new SyncDelta(
+                                                snapshotChangeId,
+                                                rs.getString("entity_type"),
+                                                rs.getString("entity_id"),
+                                                rs.getString("op_type"),
+                                                parseJson(rs.getString("row_json"))),
+                                params);
+        }
+
+        public long findHighWaterChangeIdForOwner(String ownerId) {
+                Long highWater = jdbcTemplate.queryForObject(
+                                """
+                                                SELECT COALESCE(MAX(change_id), 0)
+                                                FROM change_log
+                                                WHERE guest_user_id = ?
+                                                """,
+                                Long.class,
+                                ownerId);
+                return highWater == null ? 0L : highWater;
+        }
+
         private String toJson(Map<String, Object> payload) {
                 try {
                         return objectMapper.writeValueAsString(payload);

@@ -24,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class SyncService {
         private static final int DELTA_LIMIT = 1000;
+        private static final String SNAPSHOT_CURSOR_PREFIX = "snapshot:";
         private static final Set<String> APP_META_DENYLIST = Set.of(
                         "access_token",
                         "auth_token",
@@ -50,9 +51,9 @@ public class SyncService {
                 }
 
                 List<SyncAck> acks = new ArrayList<>();
-                List<String> allowedEntityTypes = List.copyOf(SyncEntityTypes.ALLOWED_TYPES);
+                List<String> allowedEntityTypes = SyncEntityTypes.ORDERED_TYPES;
 
-                long parsedCursor = parseCursorOrThrow(cursor);
+                ParsedCursor parsedCursor = parseCursorOrThrow(cursor, allowedEntityTypes);
 
                 validateOps(ops, allowedEntityTypes);
                 Instant requestReceivedAt = Instant.now();
@@ -113,21 +114,56 @@ public class SyncService {
                         acks.add(new SyncAck(op.opId(), resolution.status(), resolution.reason()));
                 }
 
+                SyncResponse deltaResponse = fetchResponseDeltas(ownerId, cursor, parsedCursor, allowedEntityTypes);
+                return new SyncResponse(acks, deltaResponse.getCursor(), deltaResponse.getDeltas(),
+                                deltaResponse.getHasMore());
+        }
+
+        private SyncResponse fetchResponseDeltas(
+                        String ownerId,
+                        String requestCursor,
+                        ParsedCursor parsedCursor,
+                        List<String> allowedEntityTypes) {
+                if (parsedCursor.mode() == CursorMode.SNAPSHOT || parsedCursor.numericValue() == 0L) {
+                        long highWaterChangeId = parsedCursor.mode() == CursorMode.SNAPSHOT
+                                        ? parsedCursor.snapshotHighWaterChangeId()
+                                        : syncRepository.findHighWaterChangeIdForOwner(ownerId);
+                        List<SyncDelta> fetchedDeltas = syncRepository.fetchEntityStateSnapshotForOwner(
+                                        ownerId,
+                                        parsedCursor.snapshotAfterEntityType(),
+                                        parsedCursor.snapshotAfterEntityId(),
+                                        DELTA_LIMIT + 1,
+                                        allowedEntityTypes,
+                                        highWaterChangeId);
+                        boolean hasMore = fetchedDeltas.size() > DELTA_LIMIT;
+                        List<SyncDelta> deltas = sanitizeDeltas(hasMore
+                                        ? fetchedDeltas.subList(0, DELTA_LIMIT)
+                                        : fetchedDeltas);
+                        String responseCursor = String.valueOf(highWaterChangeId);
+                        if (hasMore && !deltas.isEmpty()) {
+                                SyncDelta lastDelta = deltas.get(deltas.size() - 1);
+                                responseCursor = snapshotCursor(
+                                                highWaterChangeId,
+                                                lastDelta.entityType(),
+                                                lastDelta.entityId());
+                        }
+                        return new SyncResponse(List.of(), responseCursor, deltas, hasMore);
+                }
+
                 List<SyncDelta> fetchedDeltas = syncRepository.fetchDeltasForOwner(
                                 ownerId,
-                                parsedCursor,
+                                parsedCursor.numericValue(),
                                 DELTA_LIMIT + 1,
                                 allowedEntityTypes);
                 boolean hasMore = fetchedDeltas.size() > DELTA_LIMIT;
                 List<SyncDelta> deltas = sanitizeDeltas(hasMore
                                 ? fetchedDeltas.subList(0, DELTA_LIMIT)
                                 : fetchedDeltas);
-                String responseCursor = cursor;
+                String responseCursor = requestCursor;
                 if (!deltas.isEmpty()) {
                         responseCursor = String.valueOf(deltas.get(deltas.size() - 1).changeId());
                 }
-
-                return new SyncResponse(acks, responseCursor, deltas, hasMore);
+                return new SyncResponse(List.of(), responseCursor, deltas, hasMore);
         }
 
         private void enforceOwnership(String ownerId, SyncOp op) {
@@ -474,20 +510,57 @@ public class SyncService {
         private record ResolutionResult(String status, String reason, Map<String, Object> payload) {
         }
 
-        private long parseCursorOrThrow(String cursor) {
+        private ParsedCursor parseCursorOrThrow(String cursor, List<String> allowedEntityTypes) {
                 if (cursor == null || cursor.isBlank()) {
-                        return 0L;
+                        return ParsedCursor.fresh();
+                }
+                if (cursor.startsWith(SNAPSHOT_CURSOR_PREFIX)) {
+                        return parseSnapshotCursorOrThrow(cursor, allowedEntityTypes);
                 }
                 try {
-                        return Long.parseLong(cursor);
+                        long parsed = Long.parseLong(cursor);
+                        if (parsed < 0) {
+                                throw invalidCursor("cursor must be a non-negative numeric value");
+                        }
+                        return ParsedCursor.incremental(parsed);
                 } catch (NumberFormatException ex) {
-                        throw new ValidationException(
-                                        "Invalid cursor value",
-                                        Map.of(
-                                                        "opId", "unknown",
-                                                        "field", "cursor",
-                                                        "reason", "cursor must be a numeric value"));
+                        throw invalidCursor("cursor must be a numeric value or snapshot cursor");
                 }
+        }
+
+        private ParsedCursor parseSnapshotCursorOrThrow(String cursor, List<String> allowedEntityTypes) {
+                String[] parts = cursor.split(":", 4);
+                if (parts.length != 4) {
+                        throw invalidCursor("snapshot cursor is malformed");
+                }
+                long highWaterChangeId;
+                try {
+                        highWaterChangeId = Long.parseLong(parts[1]);
+                } catch (NumberFormatException ex) {
+                        throw invalidCursor("snapshot cursor high-water mark must be numeric");
+                }
+                if (highWaterChangeId < 0) {
+                        throw invalidCursor("snapshot cursor high-water mark must be non-negative");
+                }
+                String entityType = parts[2];
+                String entityId = parts[3];
+                if (!allowedEntityTypes.contains(entityType) || entityId == null || entityId.isBlank()) {
+                        throw invalidCursor("snapshot cursor sort key is invalid");
+                }
+                return ParsedCursor.snapshot(highWaterChangeId, entityType, entityId);
+        }
+
+        private ValidationException invalidCursor(String reason) {
+                return new ValidationException(
+                                "Invalid cursor value",
+                                Map.of(
+                                                "opId", "unknown",
+                                                "field", "cursor",
+                                                "reason", reason));
+        }
+
+        private String snapshotCursor(long highWaterChangeId, String entityType, String entityId) {
+                return SNAPSHOT_CURSOR_PREFIX + highWaterChangeId + ":" + entityType + ":" + entityId;
         }
 
         private void validateOps(List<SyncOp> ops, List<String> allowedEntityTypes) {
@@ -501,6 +574,31 @@ public class SyncService {
                 }
                 for (SyncOp op : ops) {
                         validateOp(op, allowedEntityTypes);
+                }
+        }
+
+        private enum CursorMode {
+                INCREMENTAL,
+                SNAPSHOT
+        }
+
+        private record ParsedCursor(
+                        CursorMode mode,
+                        long numericValue,
+                        long snapshotHighWaterChangeId,
+                        String snapshotAfterEntityType,
+                        String snapshotAfterEntityId) {
+                static ParsedCursor fresh() {
+                        return incremental(0L);
+                }
+
+                static ParsedCursor incremental(long cursor) {
+                        return new ParsedCursor(CursorMode.INCREMENTAL, cursor, 0L, null, null);
+                }
+
+                static ParsedCursor snapshot(long highWaterChangeId, String afterEntityType, String afterEntityId) {
+                        return new ParsedCursor(CursorMode.SNAPSHOT, 0L, highWaterChangeId, afterEntityType,
+                                        afterEntityId);
                 }
         }
 

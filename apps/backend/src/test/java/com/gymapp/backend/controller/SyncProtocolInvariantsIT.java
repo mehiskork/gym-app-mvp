@@ -7,6 +7,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import java.lang.reflect.Field;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import javax.sql.DataSource;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeEach;
@@ -65,31 +67,35 @@ class SyncProtocolInvariantsIT {
         }
 
         @Test
-        void syncUsesLimitPlusOneFetchWithoutAdvancingCursorPastReturnedPage() throws Exception {
+        void freshSyncUsesSnapshotPagingWithoutAdvancingCursorPastReturnedPage() throws Exception {
                 RegisteredDevice registeredDevice = registerDevice();
                 int deltaLimit = deltaLimit();
-                seedChangeLog(registeredDevice.guestUserId(), deltaLimit + 1);
+                seedEntityStateAndChangeLog(registeredDevice.guestUserId(), deltaLimit + 1);
+                long highWater = maxChangeId(registeredDevice.guestUserId());
 
                 JsonNode firstResponse = sync(registeredDevice.deviceToken(), "0", "[]");
 
                 assertThat(firstResponse.path("deltas")).hasSize(deltaLimit);
                 assertThat(firstResponse.path("hasMore").asBoolean()).isTrue();
-                long firstPageLastReturnedChangeId = firstResponse.path("deltas").get(deltaLimit - 1).path("changeId")
-                                .asLong();
-                long firstPageCursor = firstResponse.path("cursor").asLong();
-                assertThat(firstPageCursor).isEqualTo(firstPageLastReturnedChangeId);
+                assertThat(firstResponse.path("cursor").asString())
+                                .startsWith("snapshot:" + highWater + ":program:");
 
                 JsonNode secondResponse = sync(
                                 registeredDevice.deviceToken(),
-                                String.valueOf(firstPageCursor),
+                                firstResponse.path("cursor").asString(),
                                 "[]");
 
                 assertThat(secondResponse.path("deltas")).hasSize(1);
                 assertThat(secondResponse.path("hasMore").asBoolean()).isFalse();
-                long secondPageLastReturnedChangeId = secondResponse.path("deltas").get(0).path("changeId").asLong();
-                long secondPageCursor = secondResponse.path("cursor").asLong();
-                assertThat(secondPageCursor).isEqualTo(secondPageLastReturnedChangeId);
-                assertThat(secondPageLastReturnedChangeId).isGreaterThan(firstPageLastReturnedChangeId);
+                assertThat(secondResponse.path("cursor").asString()).isEqualTo(String.valueOf(highWater));
+
+                JsonNode thirdResponse = sync(
+                                registeredDevice.deviceToken(),
+                                secondResponse.path("cursor").asString(),
+                                "[]");
+
+                assertThat(thirdResponse.path("deltas")).isEmpty();
+                assertThat(thirdResponse.path("hasMore").asBoolean()).isFalse();
         }
 
         @Test
@@ -181,20 +187,41 @@ class SyncProtocolInvariantsIT {
                 return objectMapper.readTree(result.getResponse().getContentAsString());
         }
 
-        private void seedChangeLog(String guestUserId, int count) {
+        private void seedEntityStateAndChangeLog(String guestUserId, int count) {
+                String stateSql = """
+                                INSERT INTO entity_state (guest_user_id, entity_type, entity_id, row_json, last_received_at)
+                                VALUES (?, ?, ?, ?::jsonb, ?)
+                                """;
                 String sql = """
                                 INSERT INTO change_log (guest_user_id, entity_type, entity_id, op_type, row_json)
                                 VALUES (?, ?, ?, ?, ?::jsonb)
                                 """;
                 for (int i = 1; i <= count; i += 1) {
+                        String entityId = "program-" + i;
+                        jdbcTemplate.update(
+                                        stateSql,
+                                        guestUserId,
+                                        "program",
+                                        entityId,
+                                        "{\"id\":\"" + entityId + "\"}",
+                                        OffsetDateTime.now(ZoneOffset.UTC));
                         jdbcTemplate.update(
                                         sql,
                                         guestUserId,
                                         "program",
-                                        "program-" + i,
+                                        entityId,
                                         "upsert",
-                                        "{\"id\":\"program-" + i + "\"}");
+                                        "{\"id\":\"" + entityId + "\"}");
                 }
+        }
+
+        private long maxChangeId(String guestUserId) {
+                Long maxChangeId = jdbcTemplate.queryForObject(
+                                "SELECT MAX(change_id) FROM change_log WHERE guest_user_id = ?",
+                                Long.class,
+                                guestUserId);
+                assertThat(maxChangeId).isNotNull();
+                return maxChangeId;
         }
 
         private int deltaLimit() {

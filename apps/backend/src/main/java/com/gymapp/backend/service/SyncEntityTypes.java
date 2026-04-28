@@ -1,9 +1,10 @@
 package com.gymapp.backend.service;
 
+import java.util.List;
 import java.util.Set;
 
 public final class SyncEntityTypes {
-    public static final Set<String> ALLOWED_TYPES = Set.of(
+    public static final List<String> ORDERED_TYPES = List.of(
             "program",
             "program_week",
             "program_day",
@@ -15,6 +16,8 @@ public final class SyncEntityTypes {
             "workout_set",
             "pr_event",
             "app_meta");
+
+    public static final Set<String> ALLOWED_TYPES = Set.copyOf(ORDERED_TYPES);
 
     private SyncEntityTypes() {
     }

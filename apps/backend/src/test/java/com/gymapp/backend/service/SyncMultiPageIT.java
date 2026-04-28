@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.gymapp.backend.model.SyncDelta;
 import com.gymapp.backend.model.SyncResponse;
+import java.sql.Timestamp;
+import java.time.Instant;
 import java.lang.reflect.Field;
 import java.util.HashSet;
 import java.util.List;
@@ -66,7 +68,7 @@ class SyncMultiPageIT {
     void syncFetchesAllDeltasAcrossMultiplePages_withoutSkippingOrDuplicates() {
         int limit = deltaLimit();
         int seedCount = limit * 2 + 500;
-        seedChangeLog(seedCount);
+        seedEntityStateAndChangeLog(seedCount);
 
         SyncResponse page1 = syncService.sync(deviceId, guestUserId, "0", List.of());
         SyncResponse page2 = syncService.sync(deviceId, guestUserId, page1.getCursor(), List.of());
@@ -79,38 +81,39 @@ class SyncMultiPageIT {
         assertThat(page3.getDeltas()).hasSize(seedCount - (2 * limit));
         assertThat(page3.getHasMore()).isFalse();
 
-        List<Long> page1Ids = changeIds(page1);
-        List<Long> page2Ids = changeIds(page2);
-        List<Long> page3Ids = changeIds(page3);
+        long highWater = maxChangeId();
+        assertThat(page1.getCursor()).startsWith("snapshot:" + highWater + ":program:");
+        assertThat(page2.getCursor()).startsWith("snapshot:" + highWater + ":program:");
+        assertThat(page3.getCursor()).isEqualTo(String.valueOf(highWater));
+        assertThat(changeIds(page1)).containsOnly(highWater);
+        assertThat(changeIds(page2)).containsOnly(highWater);
+        assertThat(changeIds(page3)).containsOnly(highWater);
 
-        long page1Max = page1Ids.get(page1Ids.size() - 1);
-        long page2Min = page2Ids.get(0);
-        long page2Max = page2Ids.get(page2Ids.size() - 1);
-        long page3Min = page3Ids.get(0);
-        long page3Max = page3Ids.get(page3Ids.size() - 1);
-
-        assertThat(page1Max).isLessThan(page2Min);
-        assertThat(page2Max).isLessThan(page3Min);
-
-        assertThat(Long.parseLong(page1.getCursor())).isEqualTo(page1Max);
-        assertThat(Long.parseLong(page2.getCursor())).isEqualTo(page2Max);
-        assertThat(Long.parseLong(page3.getCursor())).isEqualTo(page3Max);
-        assertThat(Long.parseLong(page1.getCursor())).isLessThan(Long.parseLong(page2.getCursor()));
-        assertThat(Long.parseLong(page2.getCursor())).isLessThan(Long.parseLong(page3.getCursor()));
-
-        Set<Long> allIds = new HashSet<>();
-        allIds.addAll(page1Ids);
-        allIds.addAll(page2Ids);
-        allIds.addAll(page3Ids);
-        assertThat(allIds).hasSize(seedCount);
+        Set<String> allEntityIds = new HashSet<>();
+        allEntityIds.addAll(entityIds(page1));
+        allEntityIds.addAll(entityIds(page2));
+        allEntityIds.addAll(entityIds(page3));
+        assertThat(allEntityIds).hasSize(seedCount);
     }
 
-    private void seedChangeLog(int count) {
+    private void seedEntityStateAndChangeLog(int count) {
+        Instant now = Instant.now();
+        String stateSql = """
+                INSERT INTO entity_state (guest_user_id, entity_type, entity_id, row_json, last_received_at)
+                VALUES (?, ?, ?, ?::jsonb, ?)
+                """;
         String sql = """
                 INSERT INTO change_log (guest_user_id, entity_type, entity_id, op_type, row_json)
                 VALUES (?, ?, ?, ?, ?::jsonb)
                 """;
         for (int i = 1; i <= count; i += 1) {
+            jdbcTemplate.update(
+                    stateSql,
+                    guestUserId,
+                    "program",
+                    "program-" + i,
+                    "{\"id\":\"program-" + i + "\"}",
+                    Timestamp.from(now));
             jdbcTemplate.update(
                     sql,
                     guestUserId,
@@ -125,6 +128,21 @@ class SyncMultiPageIT {
         return response.getDeltas().stream()
                 .map(SyncDelta::changeId)
                 .toList();
+    }
+
+    private List<String> entityIds(SyncResponse response) {
+        return response.getDeltas().stream()
+                .map(SyncDelta::entityId)
+                .toList();
+    }
+
+    private long maxChangeId() {
+        Long maxChangeId = jdbcTemplate.queryForObject(
+                "SELECT MAX(change_id) FROM change_log WHERE guest_user_id = ?",
+                Long.class,
+                guestUserId);
+        assertThat(maxChangeId).isNotNull();
+        return maxChangeId;
     }
 
     private int deltaLimit() {

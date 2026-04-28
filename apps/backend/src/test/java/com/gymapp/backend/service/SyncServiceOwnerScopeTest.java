@@ -45,7 +45,10 @@ class SyncServiceOwnerScopeTest {
                 when(syncRepository.findEntityStateWithReceivedAtForOwner(eq("guest-principal"), eq("program"),
                                 eq("program-1")))
                                 .thenReturn(Optional.empty());
-                when(syncRepository.fetchDeltasForOwner(eq("guest-principal"), eq(0L), eq(1001), any()))
+                when(syncRepository.findHighWaterChangeIdForOwner(eq("guest-principal")))
+                                .thenReturn(1L);
+                when(syncRepository.fetchEntityStateSnapshotForOwner(eq("guest-principal"), eq(null), eq(null),
+                                eq(1001), any(), eq(1L)))
                                 .thenReturn(List.of());
 
                 SyncResponse response = syncService.sync("device-1", "guest-principal", "0", List.of(op));
@@ -79,7 +82,10 @@ class SyncServiceOwnerScopeTest {
                 when(syncRepository.findEntityStateWithReceivedAtForOwner(eq("issuer.example|acct-9"), eq("program"),
                                 eq("program-2")))
                                 .thenReturn(Optional.empty());
-                when(syncRepository.fetchDeltasForOwner(eq("issuer.example|acct-9"), eq(0L), eq(1001), any()))
+                when(syncRepository.findHighWaterChangeIdForOwner(eq("issuer.example|acct-9")))
+                                .thenReturn(1L);
+                when(syncRepository.fetchEntityStateSnapshotForOwner(eq("issuer.example|acct-9"), eq(null), eq(null),
+                                eq(1001), any(), eq(1L)))
                                 .thenReturn(List.of());
 
                 SyncResponse response = syncService.sync(
@@ -101,7 +107,10 @@ class SyncServiceOwnerScopeTest {
         void accountOwnerScopeAllowsMissingDeviceTransportContext() {
                 SyncService syncService = new SyncService(syncRepository);
 
-                when(syncRepository.fetchDeltasForOwner(eq("issuer.example|acct-9"), eq(0L), eq(1001), any()))
+                when(syncRepository.findHighWaterChangeIdForOwner(eq("issuer.example|acct-9")))
+                                .thenReturn(0L);
+                when(syncRepository.fetchEntityStateSnapshotForOwner(eq("issuer.example|acct-9"), eq(null), eq(null),
+                                eq(1001), any(), eq(0L)))
                                 .thenReturn(List.of());
 
                 SyncResponse response = syncService.sync(
