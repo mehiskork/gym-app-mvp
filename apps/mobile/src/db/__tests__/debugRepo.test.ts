@@ -169,12 +169,49 @@ describe('debugRepo diagnostics and repair helpers', () => {
       if (sql.includes('FROM outbox_op') && sql.includes('LIMIT 50')) return [];
       if (sql.includes('FROM sync_state')) return [{ cursor: '42' }];
       if (sql.includes('FROM sync_run')) return [];
+      if (
+        sql.includes('FROM app_meta') &&
+        params?.[0] === 'latest_sync_apply_failure_diagnostic_v1'
+      ) {
+        return [
+          {
+            value: JSON.stringify({
+              capturedAt: '2026-04-28T12:00:00.000Z',
+              errorMessage: 'UNIQUE constraint failed',
+              cursorBefore: '0',
+              responseCursor: '590',
+              deltaIndex: 0,
+              changeId: 123,
+              entityType: 'program_day_exercise',
+              entityId: 'incoming-day-ex-1',
+              opType: 'upsert',
+              tableName: 'program_day_exercise',
+              orderedParent: {
+                parentField: 'program_day_id',
+                parentId: 'day-1',
+                orderField: 'position',
+                orderValue: 1,
+              },
+              orderedPayload: {
+                id: 'incoming-day-ex-1',
+                program_day_id: 'day-1',
+                position: 1,
+              },
+              localSiblings: [],
+            }),
+          },
+        ];
+      }
       if (sql.includes('COUNT(*) AS c FROM')) return [{ c: 0 }];
       return [];
     });
 
     const bundle = getSupportBundle();
 
+    expect(bundle.latestSyncApplyFailure?.entityType).toBe('program_day_exercise');
+    expect(bundle.latestSyncApplyFailure?.orderedParent).toEqual(
+      expect.objectContaining({ parentField: 'program_day_id', parentId: 'day-1' }),
+    );
     expect(bundle.auth.accountSessionStatus).toBe('usable');
     expect(bundle.auth.syncAuthModeLastUsed).toBe('device_token');
     expect(bundle.auth.syncAuthModeNextPlanned).toBe('account_jwt');

@@ -20,7 +20,12 @@ import { inTransaction } from '../db/tx';
 import { safeJsonParse } from '../utils/json';
 import { logEvent } from '../utils/logger';
 import { getApiBaseUrl } from '../api/config';
-import { applyDeltas, type SyncDelta } from './applyDeltas';
+import {
+  applyDeltas,
+  getSyncApplyFailureDiagnosticFromError,
+  persistSyncApplyFailureDiagnostic,
+  type SyncDelta,
+} from './applyDeltas';
 
 import {
   OUTBOX_STALE_IN_FLIGHT_SECONDS,
@@ -281,7 +286,10 @@ async function runSyncPage(options: SyncNowOptions): Promise<boolean> {
         markOutboxOpsAcked(ackIds);
       }
 
-      deltaSummary = applyDeltas(data.deltas ?? []);
+      deltaSummary = applyDeltas(data.deltas ?? [], {
+        cursorBefore: cursor,
+        responseCursor: cursorAfter,
+      });
       deltasApplied = deltaSummary.applied;
       updateSyncState({
         cursor: cursorAfter,
@@ -343,6 +351,7 @@ async function runSyncPage(options: SyncNowOptions): Promise<boolean> {
       return false;
     }
     const message = err instanceof Error ? err.message : 'Unknown error';
+    persistSyncApplyFailureDiagnostic(getSyncApplyFailureDiagnosticFromError(err));
     const nextFailureCount = (syncState.consecutive_failures ?? 0) + 1;
     backoffSeconds = computeBackoffSeconds(nextFailureCount);
     const nextAttempt = nextAttemptAtFromNow(backoffSeconds);

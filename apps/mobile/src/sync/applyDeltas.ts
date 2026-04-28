@@ -11,6 +11,32 @@ export type SyncDelta = {
   changeId?: number;
 };
 
+export type SyncApplyContext = {
+  cursorBefore?: string | null;
+  responseCursor?: string | null;
+};
+
+export type SyncApplyFailureDiagnostic = {
+  capturedAt: string;
+  errorMessage: string;
+  cursorBefore: string | null;
+  responseCursor: string | null;
+  deltaIndex: number | null;
+  changeId: number | null;
+  entityType: string;
+  entityId: string;
+  opType: string;
+  tableName: string | null;
+  orderedParent: {
+    parentField: string;
+    parentId: string;
+    orderField: string;
+    orderValue: number | string | null;
+  } | null;
+  orderedPayload: Record<string, string | number | null>;
+  localSiblings: Array<Record<string, string | number | null>>;
+};
+
 type TableConfig = {
   tableName: string;
   primaryKey: string;
@@ -239,6 +265,201 @@ const tableConfigs: Record<string, TableConfig> = {
 };
 
 type DeltaOutcome = 'applied' | 'skipped';
+
+const SYNC_APPLY_FAILURE_DIAGNOSTIC_KEY = 'latest_sync_apply_failure_diagnostic_v1';
+const SYNC_APPLY_FAILURE_DIAGNOSTIC_SYMBOL = Symbol('syncApplyFailureDiagnostic');
+
+type ErrorWithSyncApplyFailureDiagnostic = Error & {
+  [SYNC_APPLY_FAILURE_DIAGNOSTIC_SYMBOL]?: SyncApplyFailureDiagnostic;
+};
+
+type OrderedEntityConfig = {
+  parentField: string;
+  orderField: string;
+};
+
+const orderedEntityConfigs: Partial<Record<string, OrderedEntityConfig>> = {
+  program_day: {
+    parentField: 'program_week_id',
+    orderField: 'day_index',
+  },
+  program_day_exercise: {
+    parentField: 'program_day_id',
+    orderField: 'position',
+  },
+  planned_set: {
+    parentField: 'program_day_exercise_id',
+    orderField: 'set_index',
+  },
+  workout_session_exercise: {
+    parentField: 'workout_session_id',
+    orderField: 'position',
+  },
+  workout_set: {
+    parentField: 'workout_session_exercise_id',
+    orderField: 'set_index',
+  },
+};
+
+function normalizeDiagnosticValue(value: unknown): string | number | null {
+  if (typeof value === 'string' || typeof value === 'number') return value;
+  if (typeof value === 'boolean') return value ? 1 : 0;
+  return null;
+}
+
+function getErrorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err ?? 'Unknown sync apply error');
+}
+
+function readLocalSiblings(
+  tableName: string,
+  parentField: string,
+  orderField: string,
+  parentId: string,
+): Array<Record<string, string | number | null>> {
+  try {
+    return query<Record<string, string | number | null>>(
+      `
+      SELECT
+        id,
+        ${parentField},
+        ${orderField},
+        deleted_at,
+        updated_at
+      FROM ${tableName}
+      WHERE ${parentField} = ?
+      ORDER BY ${orderField} ASC, id ASC;
+    `,
+      [parentId],
+    ).map((row) => ({
+      id: normalizeDiagnosticValue(row.id),
+      [parentField]: normalizeDiagnosticValue(row[parentField]),
+      [orderField]: normalizeDiagnosticValue(row[orderField]),
+      deleted_at: normalizeDiagnosticValue(row.deleted_at),
+      updated_at: normalizeDiagnosticValue(row.updated_at),
+    }));
+  } catch {
+    return [];
+  }
+}
+
+function buildSyncApplyFailureDiagnostic(input: {
+  err: unknown;
+  delta: SyncDelta;
+  deltaIndex: number | null;
+  context?: SyncApplyContext;
+}): SyncApplyFailureDiagnostic {
+  const config = tableConfigs[input.delta.entityType];
+  const payload = config
+    ? normalizePayload(input.delta.payload, input.delta.entityId, config)
+    : input.delta.payload && typeof input.delta.payload === 'object'
+      ? { ...(input.delta.payload as Record<string, unknown>) }
+      : {};
+  const orderedConfig = orderedEntityConfigs[input.delta.entityType];
+  const parentIdValue = orderedConfig ? payload[orderedConfig.parentField] : null;
+  const orderValue = orderedConfig
+    ? normalizeDiagnosticValue(payload[orderedConfig.orderField])
+    : null;
+  const parentId =
+    typeof parentIdValue === 'string' || typeof parentIdValue === 'number'
+      ? String(parentIdValue)
+      : null;
+
+  const orderedPayload: Record<string, string | number | null> = {
+    id: normalizeDiagnosticValue(payload[config?.primaryKey ?? 'id'] ?? input.delta.entityId),
+  };
+  if (orderedConfig) {
+    orderedPayload[orderedConfig.parentField] = normalizeDiagnosticValue(parentIdValue);
+    orderedPayload[orderedConfig.orderField] = orderValue;
+  }
+
+  return {
+    capturedAt: new Date().toISOString(),
+    errorMessage: getErrorMessage(input.err),
+    cursorBefore: input.context?.cursorBefore ?? null,
+    responseCursor: input.context?.responseCursor ?? null,
+    deltaIndex: input.deltaIndex,
+    changeId: input.delta.changeId ?? null,
+    entityType: input.delta.entityType,
+    entityId: input.delta.entityId,
+    opType: input.delta.opType,
+    tableName: config?.tableName ?? null,
+    orderedParent:
+      orderedConfig && parentId
+        ? {
+            parentField: orderedConfig.parentField,
+            parentId,
+            orderField: orderedConfig.orderField,
+            orderValue,
+          }
+        : null,
+    orderedPayload,
+    localSiblings:
+      orderedConfig && parentId && config
+        ? readLocalSiblings(
+            config.tableName,
+            orderedConfig.parentField,
+            orderedConfig.orderField,
+            parentId,
+          )
+        : [],
+  };
+}
+
+function attachSyncApplyFailureDiagnostic(
+  err: unknown,
+  diagnostic: SyncApplyFailureDiagnostic,
+): void {
+  if (err instanceof Error) {
+    (err as ErrorWithSyncApplyFailureDiagnostic)[SYNC_APPLY_FAILURE_DIAGNOSTIC_SYMBOL] = diagnostic;
+  }
+}
+
+export function getSyncApplyFailureDiagnosticFromError(
+  err: unknown,
+): SyncApplyFailureDiagnostic | null {
+  if (!(err instanceof Error)) return null;
+  return (err as ErrorWithSyncApplyFailureDiagnostic)[SYNC_APPLY_FAILURE_DIAGNOSTIC_SYMBOL] ?? null;
+}
+
+export function persistSyncApplyFailureDiagnostic(
+  diagnostic: SyncApplyFailureDiagnostic | null,
+): void {
+  if (!diagnostic) return;
+  try {
+    exec(
+      `
+      INSERT INTO app_meta (key, value, updated_at)
+      VALUES (?, ?, datetime('now'))
+      ON CONFLICT(key) DO UPDATE SET
+        value = excluded.value,
+        updated_at = datetime('now');
+    `,
+      [SYNC_APPLY_FAILURE_DIAGNOSTIC_KEY, JSON.stringify(diagnostic)],
+    );
+  } catch {
+    // Diagnostics must never change sync behavior.
+  }
+}
+
+export function readLatestSyncApplyFailureDiagnostic(): SyncApplyFailureDiagnostic | null {
+  try {
+    const row = query<{ value: string }>(
+      `
+      SELECT value
+      FROM app_meta
+      WHERE key = ?
+      LIMIT 1;
+    `,
+      [SYNC_APPLY_FAILURE_DIAGNOSTIC_KEY],
+    )[0];
+    if (!row?.value) return null;
+    const parsed = JSON.parse(row.value) as SyncApplyFailureDiagnostic;
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    return null;
+  }
+}
 
 function normalizePayload(
   payload: unknown,
@@ -478,13 +699,20 @@ function applyDelta(delta: SyncDelta): DeltaOutcome {
   return 'applied';
 }
 
-export function applyDeltas(deltas: SyncDelta[]): {
+export function applyDeltas(
+  deltas: SyncDelta[],
+  context: SyncApplyContext = {},
+): {
   applied: number;
   skipped: number;
   total: number;
 } {
   const total = deltas.length;
   if (total === 0) return { applied: 0, skipped: 0, total: 0 };
+  const responseIndexByDelta = new Map<SyncDelta, number>();
+  deltas.forEach((delta, index) => {
+    responseIndexByDelta.set(delta, index);
+  });
 
   const sorted = [...deltas].sort((a, b) => {
     const aOrder = tableConfigs[a.entityType]?.order ?? 9999;
@@ -514,6 +742,15 @@ export function applyDeltas(deltas: SyncDelta[]): {
           deferred.push(delta);
           continue;
         }
+        attachSyncApplyFailureDiagnostic(
+          err,
+          buildSyncApplyFailureDiagnostic({
+            err,
+            delta,
+            deltaIndex: responseIndexByDelta.get(delta) ?? null,
+            context,
+          }),
+        );
         throw err;
       }
     }

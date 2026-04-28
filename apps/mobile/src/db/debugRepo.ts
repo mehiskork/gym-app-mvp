@@ -15,6 +15,10 @@ import { getSyncState } from './syncStateRepo';
 import { DEFAULT_REST_SECONDS, OUTBOX_STATUS, WORKOUT_SESSION_STATUS } from './constants';
 import { weekStartExpression } from './dateSql';
 import { listSyncRuns, type SyncRun } from './syncRunRepo';
+import {
+  readLatestSyncApplyFailureDiagnostic,
+  type SyncApplyFailureDiagnostic,
+} from '../sync/applyDeltas';
 
 export type TableCounts = Record<string, number>;
 
@@ -361,6 +365,7 @@ export type SupportBundle = {
   };
   syncRuns: SyncRun[];
   tableCounts: TableCounts;
+  latestSyncApplyFailure: SyncApplyFailureDiagnostic | null;
 };
 
 export type WeekStartDebugInfo = {
@@ -564,5 +569,6 @@ export function getSupportBundle(): SupportBundle {
     },
     syncRuns: listSyncRuns(20),
     tableCounts: getTableCounts(),
+    latestSyncApplyFailure: readLatestSyncApplyFailureDiagnostic(),
   };
 }
