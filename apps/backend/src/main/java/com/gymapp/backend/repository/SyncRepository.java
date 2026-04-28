@@ -410,9 +410,16 @@ public class SyncRepository {
                                                         FROM active_state day_exercise
                                                         JOIN snapshot_program_day day
                                                           ON day.entity_id = day_exercise.row_json ->> 'program_day_id'
-                                                        JOIN snapshot_exercise exercise
+                                                        LEFT JOIN snapshot_exercise exercise
                                                           ON exercise.entity_id = day_exercise.row_json ->> 'exercise_id'
                                                         WHERE day_exercise.entity_type = 'program_day_exercise'
+                                                          AND (
+                                                            exercise.entity_id IS NOT NULL
+                                                            OR (
+                                                              LEFT(COALESCE(day_exercise.row_json ->> 'exercise_id', ''), 3) = 'ex_'
+                                                              AND LEFT(COALESCE(day_exercise.row_json ->> 'exercise_id', ''), 10) <> 'ex_custom_'
+                                                            )
+                                                          )
                                                 ),
                                                 snapshot_planned_set AS (
                                                         SELECT planned_set.*
@@ -444,9 +451,16 @@ public class SyncRepository {
                                                         FROM active_state pr_event
                                                         JOIN snapshot_workout_session workout_session
                                                           ON workout_session.entity_id = pr_event.row_json ->> 'session_id'
-                                                        JOIN snapshot_exercise exercise
+                                                        LEFT JOIN snapshot_exercise exercise
                                                           ON exercise.entity_id = pr_event.row_json ->> 'exercise_id'
                                                         WHERE pr_event.entity_type = 'pr_event'
+                                                          AND (
+                                                            exercise.entity_id IS NOT NULL
+                                                            OR (
+                                                              LEFT(COALESCE(pr_event.row_json ->> 'exercise_id', ''), 3) = 'ex_'
+                                                              AND LEFT(COALESCE(pr_event.row_json ->> 'exercise_id', ''), 10) <> 'ex_custom_'
+                                                            )
+                                                          )
                                                 ),
                                                 snapshot_app_meta AS (
                                                         SELECT * FROM active_state

@@ -328,6 +328,89 @@ class SyncServiceIT {
     }
 
     @Test
+    void freshSnapshotRestoresPlanExerciseAndPlannedSetForSeededExerciseReference() {
+        Instant now = Instant.now();
+        upsertPlanDayGraph(now);
+        upsertEntityStateAndChangeLog("program_day_exercise", "day-exercise-seeded", Map.of(
+                "id", "day-exercise-seeded",
+                "program_day_id", "day-1",
+                "exercise_id", "ex_bench_press_barbell",
+                "position", 0), now);
+        upsertEntityStateAndChangeLog("planned_set", "set-seeded", Map.of(
+                "id", "set-seeded",
+                "program_day_exercise_id", "day-exercise-seeded",
+                "set_index", 0), now);
+
+        SyncResponse response = syncService.sync(deviceId, guestUserId, "0", List.of());
+
+        assertThat(response.getDeltas())
+                .extracting(SyncDelta::entityId)
+                .containsExactly(
+                        "program-1",
+                        "week-1",
+                        "day-1",
+                        "day-exercise-seeded",
+                        "set-seeded");
+    }
+
+    @Test
+    void freshSnapshotRestoresCustomPlanExerciseOnlyWhenExerciseStateExists() {
+        Instant now = Instant.now();
+        upsertPlanDayGraph(now);
+        upsertEntityStateAndChangeLog("exercise", "ex_custom_owned", Map.of(
+                "id", "ex_custom_owned",
+                "name", "Custom Lift",
+                "is_custom", 1), now);
+        upsertEntityStateAndChangeLog("program_day_exercise", "day-exercise-custom-owned", Map.of(
+                "id", "day-exercise-custom-owned",
+                "program_day_id", "day-1",
+                "exercise_id", "ex_custom_owned",
+                "position", 0), now);
+
+        SyncResponse response = syncService.sync(deviceId, guestUserId, "0", List.of());
+
+        assertThat(response.getDeltas())
+                .extracting(SyncDelta::entityId)
+                .containsExactly(
+                        "program-1",
+                        "week-1",
+                        "day-1",
+                        "ex_custom_owned",
+                        "day-exercise-custom-owned");
+    }
+
+    @Test
+    void freshSnapshotOmitsCustomPlanExerciseWhenExerciseStateIsMissingOrTombstoned() {
+        Instant now = Instant.now();
+        upsertPlanDayGraph(now);
+        upsertEntityStateAndChangeLog("exercise", "ex_custom_deleted", Map.of(
+                "id", "ex_custom_deleted",
+                "name", "Deleted Custom Lift",
+                "is_custom", 1,
+                "deleted_at", "2026-04-28T00:00:00Z"), now);
+        upsertEntityStateAndChangeLog("program_day_exercise", "day-exercise-custom-missing", Map.of(
+                "id", "day-exercise-custom-missing",
+                "program_day_id", "day-1",
+                "exercise_id", "ex_custom_missing",
+                "position", 0), now);
+        upsertEntityStateAndChangeLog("program_day_exercise", "day-exercise-custom-deleted", Map.of(
+                "id", "day-exercise-custom-deleted",
+                "program_day_id", "day-1",
+                "exercise_id", "ex_custom_deleted",
+                "position", 1), now);
+        upsertEntityStateAndChangeLog("planned_set", "set-custom-omitted", Map.of(
+                "id", "set-custom-omitted",
+                "program_day_exercise_id", "day-exercise-custom-missing",
+                "set_index", 0), now);
+
+        SyncResponse response = syncService.sync(deviceId, guestUserId, "0", List.of());
+
+        assertThat(response.getDeltas())
+                .extracting(SyncDelta::entityId)
+                .containsExactly("program-1", "week-1", "day-1");
+    }
+
+    @Test
     void freshSnapshotOmitsOrphanActivePlanChildren() {
         Instant now = Instant.now();
         upsertEntityStateAndChangeLog("exercise", "exercise-1", Map.of(
@@ -415,12 +498,50 @@ class SyncServiceIT {
                 .containsExactly("exercise-1");
     }
 
+    @Test
+    void freshSnapshotIncludesPrEventWithSeededExerciseWhenSessionExists() {
+        Instant now = Instant.now();
+        upsertEntityStateAndChangeLog("workout_session", "session-1", Map.of(
+                "id", "session-1",
+                "status", "completed"), now);
+        upsertEntityStateAndChangeLog("pr_event", "pr-seeded", Map.of(
+                "id", "pr-seeded",
+                "session_id", "session-1",
+                "exercise_id", "ex_bench_press_barbell",
+                "pr_type", "max_weight",
+                "context", "",
+                "value", 100), now);
+
+        SyncResponse response = syncService.sync(deviceId, guestUserId, "0", List.of());
+
+        assertThat(response.getDeltas())
+                .extracting(SyncDelta::entityType)
+                .containsExactly("workout_session", "pr_event");
+        assertThat(response.getDeltas())
+                .extracting(SyncDelta::entityId)
+                .containsExactly("session-1", "pr-seeded");
+    }
+
     private void insertChanges(int count) {
         Instant now = Instant.now();
         for (int i = 1; i <= count; i += 1) {
             upsertEntityStateAndChangeLog("program", "program-" + i,
                     Map.of("id", "program-" + i, "name", "Program " + i), now);
         }
+    }
+
+    private void upsertPlanDayGraph(Instant now) {
+        upsertEntityStateAndChangeLog("program", "program-1", Map.of(
+                "id", "program-1",
+                "name", "Program"), now);
+        upsertEntityStateAndChangeLog("program_week", "week-1", Map.of(
+                "id", "week-1",
+                "program_id", "program-1",
+                "week_index", 0), now);
+        upsertEntityStateAndChangeLog("program_day", "day-1", Map.of(
+                "id", "day-1",
+                "program_week_id", "week-1",
+                "day_index", 0), now);
     }
 
     private void upsertEntityStateAndChangeLog(String entityType, String entityId, Map<String, Object> payload,
