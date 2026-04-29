@@ -60,12 +60,13 @@ Mobile Google Sign-In wiring is a later PR. Firebase is authentication-only; app
 From `apps/backend`:
 
 ```bash
-mvn test
-mvn verify
+./mvnw test
+./mvnw verify
 ```
 
-- `mvn test` runs the Surefire test phase and excludes `*IT.java`
-- `mvn verify` runs the Failsafe integration-test/verify phases and includes `*IT.java`
+- `./mvnw test` runs the Surefire test phase and excludes `*IT.java`
+- `./mvnw verify` runs the Failsafe integration-test/verify phases and includes `*IT.java`
+- On Windows, use `mvnw.cmd test` and `mvnw.cmd verify`
 
 Backend integration tests use Testcontainers and require a running Docker daemon.
 

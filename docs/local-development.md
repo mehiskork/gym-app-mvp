@@ -75,8 +75,8 @@ export SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/gymapp
 export SPRING_DATASOURCE_USERNAME=gymapp
 export SPRING_DATASOURCE_PASSWORD=gymapp
 
-mvn -DskipTests package
-mvn spring-boot:run
+./mvnw -DskipTests package
+./mvnw spring-boot:run
 ```
 
 Flyway migrations run automatically on startup. Do not run them manually.
@@ -192,14 +192,15 @@ These tests run in Node with SQLite and native modules mocked. They do not exerc
 From `apps/backend`:
 
 ```bash
-mvn test
-mvn verify
+./mvnw test
+./mvnw verify
 ```
 
-- `mvn test` runs the fast unit-style test phase
-- `mvn verify` also runs integration tests such as `*IT.java`
+- `./mvnw test` runs the fast unit-style test phase
+- `./mvnw verify` also runs integration tests such as `*IT.java`
+- On Windows, use `mvnw.cmd test` and `mvnw.cmd verify`
 
-**Important:** `mvn test` does **not** run integration tests. Backend integration tests use Testcontainers, so `mvn verify` requires a running Docker daemon. Always run `mvn verify` before merging backend changes that touch sync, auth, claim flow, or persistence behavior.
+**Important:** `./mvnw test` does **not** run integration tests. Backend integration tests use Testcontainers, so `./mvnw verify` requires a running Docker daemon. Always run `./mvnw verify` before merging backend changes that touch sync, auth, claim flow, or persistence behavior.
 
 ---
 
@@ -259,7 +260,7 @@ Before public or production-like deployment, verify:
 1. JWT resource server config is set (`issuer-uri` or `jwk-set-uri`) for Firebase-backed account endpoints.
 2. `/sync` auth path is validated for both account-JWT and device-token recovery behavior.
 3. Support/debug runbook is known to operators (Debug screen unlock, support bundle export).
-4. `mvn verify` and mobile test/typecheck/lint are green on the release candidate.
+4. `./mvnw verify` and mobile test/typecheck/lint are green on the release candidate.
 
 ## Troubleshooting
 
@@ -293,7 +294,7 @@ docker compose down -v
 docker compose up --build
 ```
 
-### `mvn verify` fails with a Docker/Testcontainers error
+### `./mvnw verify` fails with a Docker/Testcontainers error
 
 Backend integration tests require a running Docker daemon. Start Docker Desktop or your local Docker service and run the command again.
 
