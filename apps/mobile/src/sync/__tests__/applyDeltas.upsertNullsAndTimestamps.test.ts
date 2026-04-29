@@ -87,6 +87,27 @@ describe('applyDeltas null upsert + timestamp handling', () => {
     expect(values).toContain('Synced note');
   });
 
+  it('skips inbound pr_event because PR events are local-derived cache', () => {
+    const delta: SyncDelta = {
+      entityType: 'pr_event',
+      entityId: 'pr-1',
+      opType: 'upsert',
+      payload: {
+        id: 'pr-1',
+        session_id: 'session-1',
+        exercise_id: 'exercise-1',
+        pr_type: 'weight',
+        context: '',
+        value: 100,
+      },
+    };
+
+    const result = applyDeltas([delta]);
+
+    expect(result).toEqual({ applied: 0, skipped: 1, total: 1 });
+    expect(exec).not.toHaveBeenCalled();
+  });
+
   it('captures ordered sibling diagnostics when program_day_exercise upsert fails', () => {
     (query as jest.Mock).mockImplementation((sql: string) => {
       if (sql.includes('SELECT updated_at, version FROM program_day_exercise')) return [];

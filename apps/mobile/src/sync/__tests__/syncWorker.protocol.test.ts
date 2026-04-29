@@ -7,6 +7,7 @@ import {
 } from '../../db/outboxRepo';
 import { updateSyncState } from '../../db/syncStateRepo';
 import { applyDeltas } from '../applyDeltas';
+import { rebuildPrEventsFromWorkoutHistory } from '../../db/prRepo';
 
 let mockCursor = '0';
 let mockDeviceToken: string | null = 'device-token';
@@ -70,6 +71,10 @@ jest.mock('../../db/outboxRepo', () => ({
   repairStaleInFlightOps: jest.fn(),
 }));
 
+jest.mock('../../db/prRepo', () => ({
+  rebuildPrEventsFromWorkoutHistory: jest.fn(),
+}));
+
 jest.mock('../../db/syncStateRepo', () => ({
   getSyncState: jest.fn(() => ({
     cursor: mockCursor,
@@ -106,6 +111,10 @@ describe('syncWorker protocol invariants', () => {
     mockDeviceToken = 'device-token';
     (claimOutboxOps as jest.Mock).mockReturnValue([baseOp]);
     (applyDeltas as jest.Mock).mockReturnValue({ applied: 0, skipped: 0, total: 0 });
+    (markOutboxOpsAcked as jest.Mock).mockImplementation(() => undefined);
+    (markOutboxOpFailed as jest.Mock).mockImplementation(() => undefined);
+    (markOutboxOpsFailed as jest.Mock).mockImplementation(() => undefined);
+    (rebuildPrEventsFromWorkoutHistory as jest.Mock).mockImplementation(() => 0);
   });
 
   it('stores opaque backend cursor exactly and sends it unchanged on the next sync', async () => {
@@ -271,5 +280,30 @@ describe('syncWorker protocol invariants', () => {
     await syncNow();
 
     expect(updateSyncState).not.toHaveBeenCalledWith(expect.objectContaining({ cursor: '6' }));
+  });
+
+  it('rebuilds local PR cache after workout history deltas apply', async () => {
+    global.fetch = jest.fn().mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        acks: [{ opId: 'op-1', status: 'applied' }],
+        deltas: [
+          {
+            entityType: 'workout_set',
+            entityId: 'set-1',
+            opType: 'upsert',
+            payload: { id: 'set-1', workout_session_exercise_id: 'wse-1' },
+          },
+        ],
+        cursor: '7',
+        hasMore: false,
+      }),
+    }) as unknown as typeof fetch;
+
+    await syncNow();
+
+    expect(rebuildPrEventsFromWorkoutHistory).toHaveBeenCalledTimes(1);
+    expect(updateSyncState).toHaveBeenCalledWith(expect.objectContaining({ cursor: '7' }));
   });
 });

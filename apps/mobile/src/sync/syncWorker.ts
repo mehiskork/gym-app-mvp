@@ -29,6 +29,7 @@ import {
   persistSyncApplyFailureDiagnostic,
   type SyncDelta,
 } from './applyDeltas';
+import { rebuildPrEventsFromWorkoutHistory } from '../db/prRepo';
 
 import {
   OUTBOX_STALE_IN_FLIGHT_SECONDS,
@@ -124,6 +125,12 @@ type AckClassification = {
   missing: OutboxOp[];
   counts: { applied: number; noop: number; rejected: number };
 };
+
+const WORKOUT_HISTORY_ENTITY_TYPES = new Set([
+  'workout_session',
+  'workout_session_exercise',
+  'workout_set',
+]);
 
 async function resolveSyncAuthContext(): Promise<SyncAuthContext | null> {
   const accountSession = await getUsableAccountSessionWithFreshToken();
@@ -352,6 +359,9 @@ async function runSyncPage(options: SyncNowOptions): Promise<boolean> {
     let deltaSummary = { applied: 0, skipped: 0, total: 0 };
     deltasReceived = data.deltas?.length ?? 0;
     cursorAfter = normalizeCursor(data.cursor ?? cursor);
+    const shouldRebuildPrEvents = (data.deltas ?? []).some((delta) =>
+      WORKOUT_HISTORY_ENTITY_TYPES.has(delta.entityType),
+    );
 
     inTransaction(() => {
       if (!options.pullOnly) {
@@ -377,6 +387,9 @@ async function runSyncPage(options: SyncNowOptions): Promise<boolean> {
         responseCursor: cursorAfter,
       });
       deltasApplied = deltaSummary.applied;
+      if (shouldRebuildPrEvents) {
+        rebuildPrEventsFromWorkoutHistory();
+      }
       updateSyncState({
         cursor: cursorAfter,
         last_sync_at: new Date().toISOString(),

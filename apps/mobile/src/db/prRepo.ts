@@ -288,3 +288,24 @@ export function recomputeSessionPrsIfNeeded(sessionId: string): number {
     return detectAndStorePrsForSession(sessionId);
   });
 }
+
+export function rebuildPrEventsFromWorkoutHistory(): number {
+  return inTransaction(() => {
+    exec('DELETE FROM pr_event;');
+    const sessions = query<{ id: string }>(
+      `
+      SELECT id
+      FROM workout_session
+      WHERE status = '${WORKOUT_SESSION_STATUS.COMPLETED}'
+        AND deleted_at IS NULL
+      ORDER BY COALESCE(ended_at, started_at) ASC, id ASC;
+    `,
+    );
+
+    let inserted = 0;
+    for (const session of sessions) {
+      inserted += detectAndStorePrsForSession(session.id);
+    }
+    return inserted;
+  });
+}

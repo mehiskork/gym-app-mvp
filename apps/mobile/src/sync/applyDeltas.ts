@@ -236,31 +236,13 @@ const tableConfigs: Record<string, TableConfig> = {
     hasVersion: false,
     order: 90,
   },
-  pr_event: {
-    tableName: 'pr_event',
-    primaryKey: 'id',
-    columns: [
-      'id',
-      'session_id',
-      'exercise_id',
-      'pr_type',
-      'context',
-      'value',
-      'created_at',
-      'updated_at',
-      'deleted_at',
-    ],
-    hasDeletedAt: true,
-    hasVersion: false,
-    order: 100,
-  },
   app_meta: {
     tableName: 'app_meta',
     primaryKey: 'key',
     columns: ['key', 'value', 'created_at', 'updated_at'],
     hasDeletedAt: false,
     hasVersion: false,
-    order: 110,
+    order: 100,
   },
 };
 
