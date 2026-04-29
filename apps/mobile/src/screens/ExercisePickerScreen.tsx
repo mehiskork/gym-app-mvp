@@ -8,7 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { RootStackParamList } from '../navigation/types';
 import { Button, IconButton, Input, Screen, Text } from '../ui';
 import { tokens } from '../theme/tokens';
-import { listExercises, type ExerciseRow } from '../db/exerciseRepo';
+import { listExercisesForCurrentUser, type ExerciseRow } from '../db/exerciseRepo';
 import { EXERCISE_TYPE, type ExerciseType } from '../db/exerciseTypes';
 import {
   filterExercises,
@@ -16,7 +16,6 @@ import {
   toggleSingleSelect,
 } from './exercisePickerFilters';
 
-import { getOrCreateLocalUserId } from '../db/appMetaRepo';
 import { addExerciseToDay } from '../db/dayExerciseRepo';
 import { appendWorkoutSessionExercise, swapWorkoutSessionExercise } from '../db/workoutLoggerRepo';
 
@@ -40,8 +39,7 @@ export function ExercisePickerScreen({ route, navigation }: Props) {
   const insets = useSafeAreaInsets();
 
   const load = useCallback(() => {
-    const uid = getOrCreateLocalUserId();
-    setAll(listExercises(uid));
+    setAll(listExercisesForCurrentUser());
   }, []);
 
   useFocusEffect(

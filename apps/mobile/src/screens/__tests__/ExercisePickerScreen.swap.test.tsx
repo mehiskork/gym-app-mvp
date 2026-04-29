@@ -54,8 +54,7 @@ jest.mock('@react-navigation/native', () => ({
   useFocusEffect: (cb: () => void) => cb(),
 }));
 
-jest.mock('../../db/appMetaRepo', () => ({ getOrCreateLocalUserId: () => 'u1' }));
-jest.mock('../../db/exerciseRepo', () => ({ listExercises: jest.fn() }));
+jest.mock('../../db/exerciseRepo', () => ({ listExercisesForCurrentUser: jest.fn() }));
 jest.mock('../../db/dayExerciseRepo', () => ({ addExerciseToDay: jest.fn() }));
 jest.mock('../../db/workoutLoggerRepo', () => ({
   swapWorkoutSessionExercise: jest.fn(),
@@ -64,7 +63,7 @@ jest.mock('../../db/workoutLoggerRepo', () => ({
 import React from 'react';
 import { ExercisePickerScreen } from '../ExercisePickerScreen';
 import { Button } from '../../ui';
-import { listExercises } from '../../db/exerciseRepo';
+import { listExercisesForCurrentUser } from '../../db/exerciseRepo';
 import { swapWorkoutSessionExercise } from '../../db/workoutLoggerRepo';
 
 const findByType = (
@@ -91,7 +90,7 @@ describe('ExercisePickerScreen swap mode', () => {
     useStateMock.mockReset();
     useStateMock.mockImplementation((initial: unknown) => [initial, jest.fn()]);
     (swapWorkoutSessionExercise as jest.Mock).mockReset();
-    (listExercises as jest.Mock).mockReturnValue([
+    (listExercisesForCurrentUser as jest.Mock).mockReturnValue([
       { id: 'ex-2', name: 'Incline Bench', is_custom: 1 },
     ]);
   });

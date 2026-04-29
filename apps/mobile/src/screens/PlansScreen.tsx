@@ -6,9 +6,8 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Screen, Text } from '../ui';
 import { Button } from '../ui/Button';
 import { tokens } from '../theme/tokens';
-import { listExercises, type ExerciseRow } from '../db/exerciseRepo';
+import { listExercisesForCurrentUser, type ExerciseRow } from '../db/exerciseRepo';
 import type { RootStackParamList } from '../navigation/types';
-import { getOrCreateLocalUserId } from '../db/appMetaRepo';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -17,7 +16,7 @@ export function PlansScreen() {
   const [exercises, setExercises] = useState<ExerciseRow[]>([]);
 
   const load = useCallback(() => {
-    setExercises(listExercises(getOrCreateLocalUserId()));
+    setExercises(listExercisesForCurrentUser());
   }, []);
 
   useFocusEffect(

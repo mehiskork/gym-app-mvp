@@ -4,16 +4,31 @@ jest.mock('../db', () => ({
 }));
 
 jest.mock('../appMetaRepo', () => ({
+  getClaimedUserId: jest.fn(() => null),
   getOrCreateLocalUserId: jest.fn(() => 'user-1'),
 }));
 
+jest.mock('../tx', () => ({
+  inTransaction: jest.fn((fn: () => unknown) => fn()),
+}));
+
+jest.mock('../outboxRepo', () => ({
+  enqueueOutboxOp: jest.fn(),
+}));
+
 import { exec, query } from '../db';
+import { getClaimedUserId } from '../appMetaRepo';
+import { enqueueOutboxOp } from '../outboxRepo';
+import { inTransaction } from '../tx';
 import { deleteCustomExerciseIfUnused, getExerciseDeletionState } from '../exerciseDetailRepo';
 
 describe('exerciseDetailRepo deletion guards', () => {
   beforeEach(() => {
     (exec as jest.Mock).mockReset();
     (query as jest.Mock).mockReset();
+    (enqueueOutboxOp as jest.Mock).mockReset();
+    (inTransaction as jest.Mock).mockClear();
+    (getClaimedUserId as jest.Mock).mockReturnValue(null);
   });
 
   it('blocks deletion for curated exercises', () => {
@@ -48,10 +63,18 @@ describe('exerciseDetailRepo deletion guards', () => {
     expect(state.blockReason).toContain('cannot be deleted');
   });
 
-  it('deletes unused custom exercises', () => {
+  it('soft deletes unused custom exercises and enqueues a tombstone in one transaction', () => {
     (query as jest.Mock).mockImplementation((sql: string) => {
       if (sql.includes('FROM exercise')) {
-        return [{ id: 'ex-3', name: 'DB Press', is_custom: 1, owner_user_id: 'user-1' }];
+        return [
+          {
+            id: 'ex-3',
+            name: 'DB Press',
+            is_custom: 1,
+            owner_user_id: 'user-1',
+            deleted_at: '2026-04-29T00:00:00.000Z',
+          },
+        ];
       }
       if (sql.includes('FROM program_day_exercise')) return [{ n: 0 }];
       if (sql.includes('FROM workout_session_exercise')) return [{ n: 0 }];
@@ -63,6 +86,44 @@ describe('exerciseDetailRepo deletion guards', () => {
     expect(exec).toHaveBeenCalledWith(expect.stringContaining('UPDATE exercise'), [
       'ex-3',
       'user-1',
+    ]);
+    expect(enqueueOutboxOp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entityType: 'exercise',
+        entityId: 'ex-3',
+        opType: 'delete',
+      }),
+    );
+    expect(inTransaction).toHaveBeenCalledTimes(1);
+  });
+
+  it('allows linked account owners to delete restored custom exercises', () => {
+    (getClaimedUserId as jest.Mock).mockReturnValue('account-owner-1');
+    (query as jest.Mock).mockImplementation((sql: string) => {
+      if (sql.includes('FROM exercise')) {
+        return [
+          {
+            id: 'ex-5',
+            name: 'Restored Cable Row',
+            is_custom: 1,
+            owner_user_id: 'account-owner-1',
+            deleted_at: '2026-04-29T00:00:00.000Z',
+          },
+        ];
+      }
+      if (sql.includes('FROM program_day_exercise')) return [{ n: 0 }];
+      if (sql.includes('FROM workout_session_exercise')) return [{ n: 0 }];
+      return [];
+    });
+
+    const state = getExerciseDeletionState('ex-5');
+    expect(state.canDelete).toBe(true);
+
+    deleteCustomExerciseIfUnused('ex-5');
+
+    expect(exec).toHaveBeenCalledWith(expect.stringContaining('UPDATE exercise'), [
+      'ex-5',
+      'account-owner-1',
     ]);
   });
 

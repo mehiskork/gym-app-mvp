@@ -1,6 +1,6 @@
 import { exec, query } from './db';
 import { newId } from '../utils/ids';
-import { getOrCreateLocalUserId } from './appMetaRepo';
+import { getClaimedUserId, getOrCreateLocalUserId } from './appMetaRepo';
 import { inTransaction } from './tx';
 import { EXERCISE_TYPE, type CardioProfile, type ExerciseType } from './exerciseTypes';
 import { enqueueOutboxOp } from './outboxRepo';
@@ -17,6 +17,10 @@ export type ExerciseRow = {
 
 function normalizeName(name: string) {
   return name.trim().toLowerCase();
+}
+
+export function getCurrentExerciseOwnerUserId(): string {
+  return getClaimedUserId() ?? getOrCreateLocalUserId();
 }
 
 function enqueueExerciseSnapshot(exerciseId: string) {
@@ -61,7 +65,7 @@ export function createCustomExercise(name: string): string {
   if (!trimmed) throw new Error('Exercise name is required');
 
   const id = newId('ex_custom');
-  const ownerUserId = getOrCreateLocalUserId();
+  const ownerUserId = getCurrentExerciseOwnerUserId();
 
   inTransaction(() => {
     exec(
@@ -81,7 +85,7 @@ export function createCustomExercise(name: string): string {
 }
 
 export function listExercisesForCurrentUser(): ExerciseRow[] {
-  return listExercises(getOrCreateLocalUserId());
+  return listExercises(getCurrentExerciseOwnerUserId());
 }
 export function claimLegacyCustomExercisesForDevice(ownerUserId: string): number {
   return inTransaction(() => {

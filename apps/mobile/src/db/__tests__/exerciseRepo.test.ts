@@ -4,10 +4,11 @@ jest.mock('../db', () => ({
 }));
 
 jest.mock('../tx', () => ({
-  inTransaction: (fn: () => unknown) => fn(),
+  inTransaction: jest.fn((fn: () => unknown) => fn()),
 }));
 
 jest.mock('../appMetaRepo', () => ({
+  getClaimedUserId: jest.fn(() => null),
   getOrCreateLocalUserId: jest.fn(() => 'local-user-1'),
 }));
 
@@ -21,13 +22,22 @@ jest.mock('../outboxRepo', () => ({
 
 import { exec, query } from '../db';
 import { enqueueOutboxOp } from '../outboxRepo';
-import { createCustomExercise } from '../exerciseRepo';
+import { getClaimedUserId, getOrCreateLocalUserId } from '../appMetaRepo';
+import { inTransaction } from '../tx';
+import {
+  createCustomExercise,
+  getCurrentExerciseOwnerUserId,
+  listExercisesForCurrentUser,
+} from '../exerciseRepo';
 
 describe('exerciseRepo createCustomExercise', () => {
   beforeEach(() => {
     (exec as jest.Mock).mockReset();
     (query as jest.Mock).mockReset();
     (enqueueOutboxOp as jest.Mock).mockReset();
+    (inTransaction as jest.Mock).mockClear();
+    (getClaimedUserId as jest.Mock).mockReturnValue(null);
+    (getOrCreateLocalUserId as jest.Mock).mockReturnValue('local-user-1');
   });
 
   it('enqueues an exercise upsert snapshot after local insert', () => {
@@ -56,5 +66,30 @@ describe('exerciseRepo createCustomExercise', () => {
         opType: 'upsert',
       }),
     );
+    expect(inTransaction).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses the device-local exercise owner in true guest mode', () => {
+    expect(getCurrentExerciseOwnerUserId()).toBe('local-user-1');
+
+    listExercisesForCurrentUser();
+
+    expect(query).toHaveBeenCalledWith(expect.stringContaining('FROM exercise'), ['local-user-1']);
+  });
+
+  it('uses claimed account owner for linked account custom exercise visibility', () => {
+    (getClaimedUserId as jest.Mock).mockReturnValue(
+      'https://securetoken.google.com/gym-app-mvp-1d7f0|firebase-uid',
+    );
+
+    expect(getCurrentExerciseOwnerUserId()).toBe(
+      'https://securetoken.google.com/gym-app-mvp-1d7f0|firebase-uid',
+    );
+
+    listExercisesForCurrentUser();
+
+    expect(query).toHaveBeenCalledWith(expect.stringContaining('FROM exercise'), [
+      'https://securetoken.google.com/gym-app-mvp-1d7f0|firebase-uid',
+    ]);
   });
 });

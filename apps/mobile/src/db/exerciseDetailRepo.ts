@@ -1,7 +1,9 @@
 import { query } from './db';
 import { WORKOUT_SESSION_STATUS } from './constants';
 import { exec } from './db';
-import { getOrCreateLocalUserId } from './appMetaRepo';
+import { inTransaction } from './tx';
+import { enqueueOutboxOp } from './outboxRepo';
+import { getCurrentExerciseOwnerUserId } from './exerciseRepo';
 
 export type ExerciseRow = {
   id: string;
@@ -60,7 +62,7 @@ export function getExerciseById(exerciseId: string): ExerciseRow | null {
 }
 
 export function getExerciseDeletionState(exerciseId: string): ExerciseDeletionState {
-  const ownerUserId = getOrCreateLocalUserId();
+  const ownerUserId = getCurrentExerciseOwnerUserId();
   const exercise = getExerciseById(exerciseId);
 
   if (!exercise) {
@@ -120,24 +122,45 @@ export function getExerciseDeletionState(exerciseId: string): ExerciseDeletionSt
 }
 
 export function deleteCustomExerciseIfUnused(exerciseId: string) {
-  const ownerUserId = getOrCreateLocalUserId();
-  const state = getExerciseDeletionState(exerciseId);
+  inTransaction(() => {
+    const ownerUserId = getCurrentExerciseOwnerUserId();
+    const state = getExerciseDeletionState(exerciseId);
 
-  if (!state.canDelete) {
-    throw new Error(state.blockReason ?? 'Exercise cannot be deleted.');
-  }
+    if (!state.canDelete) {
+      throw new Error(state.blockReason ?? 'Exercise cannot be deleted.');
+    }
 
-  exec(
-    `
-    UPDATE exercise
-    SET deleted_at = datetime('now'), updated_at = datetime('now')
-    WHERE id = ?
-      AND is_custom = 1
-      AND owner_user_id = ?
-      AND deleted_at IS NULL;
-  `,
-    [exerciseId, ownerUserId],
-  );
+    exec(
+      `
+      UPDATE exercise
+      SET deleted_at = datetime('now'), updated_at = datetime('now')
+      WHERE id = ?
+        AND is_custom = 1
+        AND owner_user_id = ?
+        AND deleted_at IS NULL;
+    `,
+      [exerciseId, ownerUserId],
+    );
+
+    const row = query<Record<string, unknown>>(
+      `
+      SELECT *
+      FROM exercise
+      WHERE id = ?
+      LIMIT 1;
+    `,
+      [exerciseId],
+    )[0];
+
+    if (!row) return;
+
+    enqueueOutboxOp({
+      entityType: 'exercise',
+      entityId: exerciseId,
+      opType: 'delete',
+      payloadJson: JSON.stringify(row),
+    });
+  });
 }
 
 export function listExerciseSessionsWithSets(
