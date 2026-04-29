@@ -140,6 +140,58 @@ describe('debugRepo diagnostics and repair helpers', () => {
     expect(info.authDebug.linkedState).toBe('linked');
   });
 
+  it('reports sync debug outbox counts without malformed SQL', () => {
+    (query as jest.Mock).mockImplementation((sql: string, params?: unknown[]) => {
+      if (/FROM\s+outbox_op\s*;\s*\)/i.test(sql)) {
+        throw new Error(`Malformed SQL in test: ${sql}`);
+      }
+      if (sql.includes('SELECT COUNT(*) AS c') && sql.includes('FROM outbox_op;'))
+        return [{ c: 4 }];
+      if (sql.includes('SELECT status, COUNT(*) AS c') && sql.includes('FROM outbox_op')) {
+        return [
+          { status: 'pending', c: 1 },
+          { status: 'failed', c: 1 },
+          { status: 'in_flight', c: 1 },
+          { status: 'acked', c: 1 },
+        ];
+      }
+      if (sql.includes('FROM outbox_op') && sql.includes("status IN ('pending', 'failed')"))
+        return [{ c: 2 }];
+      if (sql.includes('FROM outbox_op') && sql.includes('LIMIT 10')) return [];
+      if (sql.includes('FROM app_meta') && params?.[0] === 'device_id') return [{ value: 'dev-1' }];
+      if (sql.includes('FROM app_meta') && params?.[0] === 'guest_user_id')
+        return [{ value: 'guest-1' }];
+      if (sql.includes('FROM app_meta') && params?.[0] === 'auth_debug_state_v1') return [];
+      if (sql.includes('FROM app_meta') && params?.[0] === 'claimed_user_id') return [];
+      if (sql.includes('FROM sync_state')) {
+        return [
+          {
+            id: 1,
+            cursor: '42',
+            last_sync_at: null,
+            last_error: null,
+            backoff_until: null,
+            consecutive_failures: 0,
+            last_delta_count: 0,
+          },
+        ];
+      }
+      return [];
+    });
+
+    const info = getSyncDebugInfo();
+
+    expect(info.outboxHistoryTotalCount).toBe(4);
+    expect(info.outboxStatusCounts).toEqual({
+      pending: 1,
+      failed: 1,
+      in_flight: 1,
+      acked: 1,
+    });
+    expect(info.pendingOpsCount).toBe(3);
+    expect(info.dueNowCount).toBe(2);
+  });
+
   it('includes auth snapshot in support bundle without secrets', () => {
     (query as jest.Mock).mockImplementation((sql: string, params?: unknown[]) => {
       if (sql.includes('FROM app_meta') && params?.[0] === 'device_id') return [{ value: 'dev-1' }];

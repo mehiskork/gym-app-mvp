@@ -410,9 +410,7 @@ export function getSyncDebugInfo(): SyncDebugInfo {
   const historyTotalRow = query<{ c: number }>(
     `
     SELECT COUNT(*) AS c
-    FROM outbox_op
-     ;
-    );
+    FROM outbox_op;
   `,
   )[0];
 
