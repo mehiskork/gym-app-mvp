@@ -19,7 +19,6 @@ import { tokens } from '../theme/tokens';
 import { VersionTapUnlock } from '../components/VersionTapUnlock';
 import { isDebugUnlocked, setDebugUnlocked } from '../utils/debugUnlock';
 import type { RootStackParamList } from '../navigation/types';
-import { getClaimed } from '../db/appMetaRepo';
 import { formatRestCountdown } from '../utils/format';
 import { getSettings, updateSettings } from '../db/settingsRepo';
 import { PRIMARY_COLOR_OPTIONS } from '../theme/primaryColors';
@@ -30,9 +29,11 @@ import {
   requestRestTimerNotificationPermission,
 } from '../utils/restTimerNotifications';
 import { resetToGuestBootstrap } from '../auth/identityTransition';
-import { accountSessionStore, type AccountSession } from '../auth/accountSessionStore';
+import type { AccountSession } from '../auth/accountSessionStore';
 import { createGoogleAccountFromGuest } from '../auth/googleAccountOrchestrator';
 import { signOutFromGoogle } from '../auth/firebaseGoogleAuthClient';
+import { resolveLocalAccountState, type LocalAccountStateStatus } from '../auth/localAccountState';
+import { getSettingsAccountUiState } from './settingsAccountUiState';
 
 const REST_TIME_OPTIONS = [
   { label: '0:30', seconds: 30 },
@@ -48,7 +49,7 @@ export function SettingsScreen() {
   const { colors, primaryColorKey, setPrimaryColorKey } = useAppTheme();
   const selectedSwatchFill = colors.primarySoft.replace(/\d*\.?\d+\)$/, '0.12)');
   const [debugUnlocked, setDebugUnlockedState] = useState(false);
-  const [claimed, setClaimedState] = useState(false);
+  const [localAccountState, setLocalAccountState] = useState<LocalAccountStateStatus>('guest');
   const [accountSession, setAccountSession] = useState<AccountSession | null>(null);
   const [accountBusy, setAccountBusy] = useState(false);
   const [accountError, setAccountError] = useState<string | null>(null);
@@ -56,8 +57,9 @@ export function SettingsScreen() {
   const [restPickerOpen, setRestPickerOpen] = useState(false);
 
   const refreshAccountState = useCallback(async () => {
-    setClaimedState(getClaimed());
-    setAccountSession(await accountSessionStore.getUsable());
+    const state = await resolveLocalAccountState();
+    setLocalAccountState(state.status);
+    setAccountSession(state.accountSession);
   }, []);
 
   useEffect(() => {
@@ -96,6 +98,7 @@ export function SettingsScreen() {
     () => formatRestCountdown(settings.defaultRestSeconds),
     [settings.defaultRestSeconds],
   );
+  const accountUiState = getSettingsAccountUiState(localAccountState, accountSession);
 
   const handleRestNotificationsToggle = useCallback(
     async (value: boolean) => {
@@ -364,12 +367,12 @@ export function SettingsScreen() {
         }}
       >
         <Text variant="subtitle">Account</Text>
-        <Text color={colors.textSecondary}>
-          Account:{' '}
-          {accountSession ? (accountSession.email ?? 'Signed in') : claimed ? 'Linked' : 'Guest'}
-        </Text>
+        <Text color={colors.textSecondary}>Account: {accountUiState.accountLabel}</Text>
+        {accountUiState.showReauthRequired ? (
+          <Text variant="muted">Reauth or reset local data before syncing this account.</Text>
+        ) : null}
         {accountError ? <Text color={colors.danger}>{accountError}</Text> : null}
-        {accountSession || claimed ? (
+        {accountUiState.showAccountActions ? (
           <>
             <Button title="Switch account" onPress={handleSwitchAccount} loading={accountBusy} />
             <Button
@@ -379,7 +382,7 @@ export function SettingsScreen() {
               loading={accountBusy}
             />
           </>
-        ) : (
+        ) : accountUiState.showGuestCreate ? (
           <>
             <Text variant="muted">Create account</Text>
             <Button
@@ -388,7 +391,7 @@ export function SettingsScreen() {
               loading={accountBusy}
             />
           </>
-        )}
+        ) : null}
       </View>
 
       <BottomSheetModal

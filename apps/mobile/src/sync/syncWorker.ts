@@ -1,6 +1,5 @@
 import {
   getOrCreateDeviceId,
-  isLinkedAccountState,
   isSyncPaused,
   setLastSyncAckSummary,
   setGuestUserId,
@@ -9,6 +8,7 @@ import {
 import { deviceCredentialStore } from '../auth/deviceCredentialStore';
 import { accountSessionStore } from '../auth/accountSessionStore';
 import { getUsableAccountSessionWithFreshToken } from '../auth/firebaseGoogleAuthClient';
+import { resolveLocalAccountStateFromSession } from '../auth/localAccountState';
 import {
   claimOutboxOps,
   markOutboxOpsAcked,
@@ -112,11 +112,17 @@ type SyncAuthContext =
 
 async function resolveSyncAuthContext(): Promise<SyncAuthContext | null> {
   const accountSession = await getUsableAccountSessionWithFreshToken();
-  if (accountSession?.accessToken) {
-    return { status: 'ready', token: accountSession.accessToken, authType: 'account_jwt' };
+  const localAccountState = resolveLocalAccountStateFromSession(accountSession);
+
+  if (localAccountState.status === 'linked_with_usable_account') {
+    return {
+      status: 'ready',
+      token: localAccountState.accountSession.accessToken,
+      authType: 'account_jwt',
+    };
   }
 
-  if (isLinkedAccountState()) {
+  if (localAccountState.status === 'linked_reauth_required') {
     return { status: 'blocked', errorCode: 'account_reauth_required' };
   }
 

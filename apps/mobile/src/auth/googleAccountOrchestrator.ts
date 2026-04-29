@@ -15,6 +15,7 @@ import {
   signInWithGoogleForFirebase,
   signOutFromGoogle,
 } from './firebaseGoogleAuthClient';
+import { resolveLocalAccountState } from './localAccountState';
 
 type ClaimStartResponse = {
   code: string;
@@ -40,9 +41,11 @@ async function assertGuestOutboxDrained(): Promise<void> {
 }
 
 export async function createGoogleAccountFromGuest(): Promise<GoogleAccountSignInResult> {
-  const existingSession = await accountSessionStore.getUsable();
-  if (existingSession?.subject) {
-    throw new Error('Sign out before using a different Google account on this device.');
+  const localAccountState = await resolveLocalAccountState();
+  if (localAccountState.status !== 'guest') {
+    throw new Error(
+      'This device is already linked. Reauth or reset local data before using a different Google account.',
+    );
   }
 
   await assertGuestOutboxDrained();

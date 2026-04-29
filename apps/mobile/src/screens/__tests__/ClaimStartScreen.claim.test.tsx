@@ -54,7 +54,7 @@ jest.mock('../../api/client', () => ({
 }));
 
 jest.mock('../../db/appMetaRepo', () => ({
-  getClaimed: jest.fn(() => false),
+  isLinkedAccountState: jest.fn(() => false),
   pauseSync: jest.fn(),
   resumeSync: jest.fn(),
 }));
@@ -64,7 +64,7 @@ import React from 'react';
 import { ClaimStartScreen } from '../ClaimStartScreen';
 import { api } from '../../api/client';
 import { Button } from '../../ui/Button';
-import { getClaimed } from '../../db/appMetaRepo';
+import { isLinkedAccountState } from '../../db/appMetaRepo';
 
 type Nav = { goBack: jest.Mock };
 
@@ -102,6 +102,7 @@ describe('ClaimStartScreen claim flow', () => {
       code: 'ABC123',
       expiresAt: '2026-01-01T00:00:00.000Z',
     });
+    (isLinkedAccountState as jest.Mock).mockReturnValue(false);
   });
 
   it('uses blessed api client for /claim/start', async () => {
@@ -124,7 +125,7 @@ describe('ClaimStartScreen claim flow', () => {
   });
 
   it('blocks claim generation when device is already linked', async () => {
-    (getClaimed as jest.Mock).mockReturnValue(true);
+    (isLinkedAccountState as jest.Mock).mockReturnValue(true);
     const navigation: Nav = { goBack: jest.fn() };
 
     const element = ClaimStartScreen({

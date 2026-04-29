@@ -1,7 +1,7 @@
 import { createGoogleAccountFromGuest } from '../googleAccountOrchestrator';
 import { api } from '../../api/client';
 import { getMeWithAccountAuth } from '../../api/accountClient';
-import { setClaimed, setClaimedUserId } from '../../db/appMetaRepo';
+import { isLinkedAccountState, setClaimed, setClaimedUserId } from '../../db/appMetaRepo';
 import { listPendingOutboxOps } from '../../db/outboxRepo';
 import { syncNow } from '../../sync/syncWorker';
 import { accountSessionStore } from '../accountSessionStore';
@@ -19,6 +19,7 @@ jest.mock('../../api/accountClient', () => ({
 
 jest.mock('../../db/appMetaRepo', () => ({
   getClaimedUserId: jest.fn(() => null),
+  isLinkedAccountState: jest.fn(() => false),
   pauseSync: jest.fn(),
   resumeSync: jest.fn(),
   setClaimed: jest.fn(),
@@ -60,6 +61,7 @@ describe('createGoogleAccountFromGuest', () => {
     jest.clearAllMocks();
     (syncNow as jest.Mock).mockResolvedValue(undefined);
     (listPendingOutboxOps as jest.Mock).mockReturnValue([]);
+    (isLinkedAccountState as jest.Mock).mockReturnValue(false);
     (accountSessionStore.getUsable as jest.Mock).mockResolvedValue(null);
     (signInWithGoogleForFirebase as jest.Mock).mockResolvedValue({
       googleIdToken: 'google-id-token',
@@ -146,6 +148,19 @@ describe('createGoogleAccountFromGuest', () => {
       'Sync pending changes before creating an account.',
     );
 
+    expect(api.post).not.toHaveBeenCalled();
+    expect(signInWithGoogleForFirebase).not.toHaveBeenCalled();
+    expect(accountSessionStore.set).not.toHaveBeenCalled();
+  });
+
+  it('stops before claim start when local state is already linked but account session is unavailable', async () => {
+    (isLinkedAccountState as jest.Mock).mockReturnValue(true);
+
+    await expect(createGoogleAccountFromGuest()).rejects.toThrow(
+      'This device is already linked. Reauth or reset local data before using a different Google account.',
+    );
+
+    expect(syncNow).not.toHaveBeenCalled();
     expect(api.post).not.toHaveBeenCalled();
     expect(signInWithGoogleForFirebase).not.toHaveBeenCalled();
     expect(accountSessionStore.set).not.toHaveBeenCalled();

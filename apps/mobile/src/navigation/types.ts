@@ -40,7 +40,6 @@ export type RootStackParamList = {
     | undefined;
 
   ClaimStart: undefined;
-  ClaimConfirm: undefined;
 
   Debug: undefined;
 };
