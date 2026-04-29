@@ -478,14 +478,17 @@ class SyncServiceIT {
     }
 
     @Test
-    void freshSnapshotOmitsPrEventWithoutSessionOrExerciseParents() {
+    void freshSnapshotExcludesPrEventBecausePrEventsAreLocalDerived() {
         Instant now = Instant.now();
         upsertEntityStateAndChangeLog("exercise", "exercise-1", Map.of(
                 "id", "exercise-1",
                 "name", "Squat"), now);
+        upsertEntityStateAndChangeLog("workout_session", "session-1", Map.of(
+                "id", "session-1",
+                "status", "completed"), now);
         upsertEntityStateAndChangeLog("pr_event", "orphan-pr", Map.of(
                 "id", "orphan-pr",
-                "session_id", "missing-session",
+                "session_id", "session-1",
                 "exercise_id", "exercise-1",
                 "pr_type", "max_weight",
                 "context", "",
@@ -494,32 +497,44 @@ class SyncServiceIT {
         SyncResponse response = syncService.sync(deviceId, guestUserId, "0", List.of());
 
         assertThat(response.getDeltas())
-                .extracting(SyncDelta::entityId)
-                .containsExactly("exercise-1");
+                .extracting(SyncDelta::entityType)
+                .containsExactly("exercise", "workout_session");
+        assertThat(response.getDeltas())
+                .extracting(SyncDelta::entityType)
+                .doesNotContain("pr_event");
     }
 
     @Test
-    void freshSnapshotIncludesPrEventWithSeededExerciseWhenSessionExists() {
-        Instant now = Instant.now();
-        upsertEntityStateAndChangeLog("workout_session", "session-1", Map.of(
-                "id", "session-1",
-                "status", "completed"), now);
-        upsertEntityStateAndChangeLog("pr_event", "pr-seeded", Map.of(
-                "id", "pr-seeded",
+    void incrementalSyncExcludesPrEventBecausePrEventsAreLocalDerived() {
+        insertChangeLog("program", "program-old", Map.of("id", "program-old"));
+        long cursor = maxChangeId();
+        insertChangeLog("pr_event", "pr-local-derived", Map.of(
+                "id", "pr-local-derived",
                 "session_id", "session-1",
                 "exercise_id", "ex_bench_press_barbell",
-                "pr_type", "max_weight",
+                "pr_type", "weight",
                 "context", "",
-                "value", 100), now);
+                "value", 100));
 
-        SyncResponse response = syncService.sync(deviceId, guestUserId, "0", List.of());
+        SyncResponse response = syncService.sync(deviceId, guestUserId, String.valueOf(cursor), List.of());
 
-        assertThat(response.getDeltas())
-                .extracting(SyncDelta::entityType)
-                .containsExactly("workout_session", "pr_event");
-        assertThat(response.getDeltas())
-                .extracting(SyncDelta::entityId)
-                .containsExactly("session-1", "pr-seeded");
+        assertThat(response.getDeltas()).isEmpty();
+        assertThat(response.getCursor()).isEqualTo(String.valueOf(cursor));
+    }
+
+    @Test
+    void outboundPrEventOpIsRejectedAsUnsupportedSyncedType() {
+        SyncOp op = new SyncOp(
+                "op-pr-event",
+                "pr_event",
+                "pr-1",
+                "upsert",
+                Map.of("id", "pr-1", "session_id", "session-1"),
+                null);
+
+        assertThatThrownBy(() -> syncService.sync(deviceId, guestUserId, "0", List.of(op)))
+                .isInstanceOf(com.gymapp.backend.controller.ValidationException.class)
+                .hasMessageContaining("Invalid sync operation");
     }
 
     private void insertChanges(int count) {

@@ -446,22 +446,6 @@ public class SyncRepository {
                                                           ON session_exercise.entity_id = workout_set.row_json ->> 'workout_session_exercise_id'
                                                         WHERE workout_set.entity_type = 'workout_set'
                                                 ),
-                                                snapshot_pr_event AS (
-                                                        SELECT pr_event.*
-                                                        FROM active_state pr_event
-                                                        JOIN snapshot_workout_session workout_session
-                                                          ON workout_session.entity_id = pr_event.row_json ->> 'session_id'
-                                                        LEFT JOIN snapshot_exercise exercise
-                                                          ON exercise.entity_id = pr_event.row_json ->> 'exercise_id'
-                                                        WHERE pr_event.entity_type = 'pr_event'
-                                                          AND (
-                                                            exercise.entity_id IS NOT NULL
-                                                            OR (
-                                                              LEFT(COALESCE(pr_event.row_json ->> 'exercise_id', ''), 3) = 'ex_'
-                                                              AND LEFT(COALESCE(pr_event.row_json ->> 'exercise_id', ''), 10) <> 'ex_custom_'
-                                                            )
-                                                          )
-                                                ),
                                                 snapshot_app_meta AS (
                                                         SELECT * FROM active_state
                                                         WHERE entity_type = 'app_meta'
@@ -476,7 +460,6 @@ public class SyncRepository {
                                                         UNION ALL SELECT * FROM snapshot_workout_session
                                                         UNION ALL SELECT * FROM snapshot_workout_session_exercise
                                                         UNION ALL SELECT * FROM snapshot_workout_set
-                                                        UNION ALL SELECT * FROM snapshot_pr_event
                                                         UNION ALL SELECT * FROM snapshot_app_meta
                                                 )
                                                 SELECT s.entity_type,
