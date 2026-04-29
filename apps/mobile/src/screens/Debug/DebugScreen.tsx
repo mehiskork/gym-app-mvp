@@ -36,6 +36,7 @@ import { getApiBaseUrl } from '../../api/config';
 import { registerDeviceIfNeeded, syncNow } from '../../sync/syncWorker';
 import { OUTBOX_STALE_IN_FLIGHT_SECONDS } from '../../sync/constants';
 import { formatTimestampForDisplay } from '../../utils/timestamp';
+import { sanitizeLogContext } from '../../utils/logger';
 
 function Card({
   title,
@@ -282,7 +283,7 @@ export function DebugScreen() {
       inProgress,
       logs: logs.map((l) => ({
         ...l,
-        context: l.context_json ? safeJsonParse(l.context_json) : null,
+        context: l.context_json ? sanitizeLogContext(safeJsonParse(l.context_json)) : null,
         context_json: undefined,
       })),
     };

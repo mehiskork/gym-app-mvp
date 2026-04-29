@@ -17,12 +17,7 @@ public class ProductionSafetyValidator {
 
     @PostConstruct
     void validate() {
-        String[] activeProfiles = environment.getActiveProfiles();
-        boolean prodLike = Arrays.stream(activeProfiles)
-                .map(String::toLowerCase)
-                .anyMatch(PROD_LIKE_PROFILES::contains);
-
-        if (!prodLike) {
+        if (!isProdLike(environment)) {
             return;
         }
 
@@ -49,5 +44,15 @@ public class ProductionSafetyValidator {
             throw new IllegalStateException(
                     "Prod-like profile cannot use default/insecure datasource password");
         }
+    }
+
+    static boolean isProdLike(Environment environment) {
+        if (environment == null) {
+            return false;
+        }
+        String[] activeProfiles = environment.getActiveProfiles();
+        return Arrays.stream(activeProfiles)
+                .map(String::toLowerCase)
+                .anyMatch(PROD_LIKE_PROFILES::contains);
     }
 }

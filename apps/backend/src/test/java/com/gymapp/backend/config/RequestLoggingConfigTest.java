@@ -30,6 +30,17 @@ class RequestLoggingConfigTest {
                 });
     }
 
+    @Test
+    void payloadLoggingCannotBeEnabledInProdLikeProfile() {
+        contextRunner
+                .withPropertyValues(
+                        "spring.profiles.active=prod",
+                        "app.logging.request.include-payload=true")
+                .run(context -> assertThat(context.getStartupFailure())
+                        .hasRootCauseInstanceOf(IllegalStateException.class)
+                        .hasRootCauseMessage("Prod-like profile cannot enable app.logging.request.include-payload"));
+    }
+
     private boolean readIncludePayload(CommonsRequestLoggingFilter filter) {
         Object includePayload = ReflectionTestUtils.getField(filter, "includePayload");
         return includePayload instanceof Boolean value && value;
