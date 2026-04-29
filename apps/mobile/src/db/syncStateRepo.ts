@@ -1,5 +1,4 @@
 import { exec, query } from './db';
-import { logEvent } from '../utils/logger';
 
 export type SyncState = {
   id: number;
@@ -13,15 +12,7 @@ export type SyncState = {
 
 export function normalizeCursor(value?: string | number | null): string {
   if (value === null || value === undefined || value === '') return '0';
-  const asNumber = Number(value);
-  if (!Number.isFinite(asNumber) || asNumber < 0) {
-    if (__DEV__) {
-      logEvent('error', 'sync', 'Invalid cursor value; resetting to 0', { value });
-    }
-    return '0';
-  }
-
-  return String(Math.trunc(asNumber));
+  return String(value);
 }
 
 export function getSyncState(): SyncState {

@@ -11,9 +11,11 @@ import { getUsableAccountSessionWithFreshToken } from '../auth/firebaseGoogleAut
 import { resolveLocalAccountStateFromSession } from '../auth/localAccountState';
 import {
   claimOutboxOps,
+  markOutboxOpFailed,
   markOutboxOpsAcked,
   markOutboxOpsFailed,
   repairStaleInFlightOps,
+  type OutboxOp,
 } from '../db/outboxRepo';
 import { getSyncState, normalizeCursor, updateSyncState } from '../db/syncStateRepo';
 import { createSyncRun, finishSyncRun } from '../db/syncRunRepo';
@@ -110,6 +112,19 @@ type SyncAuthContext =
   | { status: 'ready'; token: string; authType: 'device_token' }
   | { status: 'blocked'; errorCode: 'account_reauth_required' };
 
+type SyncAck = {
+  opId: string;
+  status?: string;
+  reason?: string | null;
+};
+
+type AckClassification = {
+  ackedIds: string[];
+  rejected: Array<{ op: OutboxOp; reason: string }>;
+  missing: OutboxOp[];
+  counts: { applied: number; noop: number; rejected: number };
+};
+
 async function resolveSyncAuthContext(): Promise<SyncAuthContext | null> {
   const accountSession = await getUsableAccountSessionWithFreshToken();
   const localAccountState = resolveLocalAccountStateFromSession(accountSession);
@@ -132,6 +147,47 @@ async function resolveSyncAuthContext(): Promise<SyncAuthContext | null> {
   }
 
   return { status: 'ready', token: deviceToken, authType: 'device_token' };
+}
+
+function classifyAcks(ops: OutboxOp[], acks: SyncAck[] = []): AckClassification {
+  const opsById = new Map(ops.map((op) => [op.op_id, op]));
+  const seen = new Set<string>();
+  const ackedIds: string[] = [];
+  const rejected: Array<{ op: OutboxOp; reason: string }> = [];
+  const counts = { applied: 0, noop: 0, rejected: 0 };
+
+  for (const ack of acks) {
+    const op = opsById.get(ack.opId);
+    if (!op) {
+      throw new Error(`sync response acked unknown opId: ${ack.opId}`);
+    }
+    if (seen.has(ack.opId)) {
+      throw new Error(`sync response duplicated opId ack: ${ack.opId}`);
+    }
+    seen.add(ack.opId);
+
+    const status = ack.status ?? 'applied';
+    if (status === 'applied') {
+      counts.applied += 1;
+      ackedIds.push(ack.opId);
+      continue;
+    }
+    if (status === 'noop') {
+      counts.noop += 1;
+      ackedIds.push(ack.opId);
+      continue;
+    }
+    if (status === 'rejected') {
+      counts.rejected += 1;
+      rejected.push({ op, reason: ack.reason ?? 'rejected' });
+      continue;
+    }
+
+    throw new Error(`sync response returned unknown ack status: ${status}`);
+  }
+
+  const missing = ops.filter((op) => !seen.has(op.op_id));
+  return { ackedIds, rejected, missing, counts };
 }
 
 export async function syncNow(): Promise<void>;
@@ -285,40 +341,35 @@ async function runSyncPage(options: SyncNowOptions): Promise<boolean> {
     }
 
     const data = (await response.json()) as {
-      acks: Array<{ opId: string; status?: string; reason?: string | null }>;
+      acks: SyncAck[];
       cursor?: string;
       deltas?: SyncDelta[];
       hasMore?: boolean;
     };
 
-    const opsById = new Map(ops.map((op) => [op.op_id, op]));
-    ackCounts = { applied: 0, noop: 0, rejected: 0 };
-    const ackIds =
-      data.acks?.map((ack) => {
-        const status = ack.status ?? 'applied';
-        if (status === 'applied') ackCounts.applied += 1;
-        else if (status === 'noop') ackCounts.noop += 1;
-        else if (status === 'rejected') ackCounts.rejected += 1;
-        if (status === 'rejected') {
-          const op = opsById.get(ack.opId);
-          logEvent('warn', 'sync', 'Sync op rejected', {
-            opId: ack.opId,
-            entityType: op?.entity_type ?? null,
-            entityId: op?.entity_id ?? null,
-            reason: ack.reason ?? null,
-          });
-        }
-        return ack.opId;
-      }) ?? [];
-    const acked = new Set(ackIds);
-    const unacked = ops.filter((op) => !acked.has(op.op_id));
+    const ackClassification = classifyAcks(ops, data.acks ?? []);
+    ackCounts = ackClassification.counts;
     let deltaSummary = { applied: 0, skipped: 0, total: 0 };
     deltasReceived = data.deltas?.length ?? 0;
     cursorAfter = normalizeCursor(data.cursor ?? cursor);
 
     inTransaction(() => {
       if (!options.pullOnly) {
-        markOutboxOpsAcked(ackIds);
+        markOutboxOpsAcked(ackClassification.ackedIds);
+        for (const { op, reason } of ackClassification.rejected) {
+          markOutboxOpFailed(
+            op.op_id,
+            `sync op rejected: ${reason}`,
+            nextAttemptAtFromNow(computeBackoffSeconds(op.attempt_count + 1)),
+          );
+        }
+        if (ackClassification.missing.length > 0) {
+          markOutboxOpsFailed(
+            ackClassification.missing,
+            'sync response missing opId ack',
+            (attemptCount) => nextAttemptAtFromNow(computeBackoffSeconds(attemptCount)),
+          );
+        }
       }
 
       deltaSummary = applyDeltas(data.deltas ?? [], {
@@ -337,24 +388,27 @@ async function runSyncPage(options: SyncNowOptions): Promise<boolean> {
       setLastSyncAckSummary(ackCounts);
       status = 'success';
     });
+    for (const { op, reason } of ackClassification.rejected) {
+      logEvent('warn', 'sync', 'Sync op rejected', {
+        opId: op.op_id,
+        entityType: op.entity_type,
+        entityId: op.entity_id,
+        reason,
+      });
+    }
     logEvent('info', 'sync', 'Sync response processed', {
-      ackCount: ackIds.length,
+      ackCount:
+        ackClassification.ackedIds.length +
+        ackClassification.rejected.length +
+        ackClassification.missing.length,
       ackApplied: ackCounts.applied,
       ackNoop: ackCounts.noop,
       ackRejected: ackCounts.rejected,
       deltaApplied: deltaSummary.applied,
       deltaSkipped: deltaSummary.skipped,
       deltaTotal: deltaSummary.total,
+      ackMissing: ackClassification.missing.length,
     });
-    if (unacked.length > 0) {
-      const message = 'sync response missing opId ack';
-      inTransaction(() => {
-        markOutboxOpsFailed(unacked, message, (attemptCount) =>
-          nextAttemptAtFromNow(computeBackoffSeconds(attemptCount)),
-        );
-        updateSyncState({ last_error: message });
-      });
-    }
 
     hasMore = data.hasMore === true;
     updateAuthDebugState({
