@@ -63,6 +63,20 @@ class ProductionSafetyValidatorTest {
     }
 
     @Test
+    void rejectsMismatchedFirebaseIssuerForProdLikeMode() {
+        IllegalStateException error = assertThrows(IllegalStateException.class, () -> validator.validateOrThrow(
+                "jdbc:postgresql://db.internal:5432/gymapp",
+                "gymapp",
+                "a-strong-password",
+                "gym-app-mvp-1d7f0",
+                "https://securetoken.google.com/other-project"));
+
+        org.assertj.core.api.Assertions.assertThat(error.getMessage())
+                .contains("expected https://securetoken.google.com/gym-app-mvp-1d7f0")
+                .contains("configured https://securetoken.google.com/other-project");
+    }
+
+    @Test
     void nonProdProfileDoesNotRequireFirebaseConfiguration() {
         MockEnvironment environment = new MockEnvironment()
                 .withProperty("spring.datasource.url", "jdbc:postgresql://localhost:5432/gymapp")

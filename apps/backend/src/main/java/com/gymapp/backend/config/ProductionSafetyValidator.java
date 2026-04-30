@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component;
 public class ProductionSafetyValidator {
     private static final Set<String> PROD_LIKE_PROFILES = Set.of("prod", "production", "staging");
     private static final Set<String> UNSAFE_PASSWORDS = Set.of("gymapp", "password", "changeme", "test");
+    private static final String FIREBASE_ISSUER_PREFIX = "https://securetoken.google.com/";
 
     private final Environment environment;
 
@@ -66,14 +67,22 @@ public class ProductionSafetyValidator {
     }
 
     private void validateAccountAuthOrThrow(String firebaseProjectId, String jwtIssuerUri) {
-        if (firebaseProjectId == null || firebaseProjectId.isBlank()) {
+        String trimmedProjectId = firebaseProjectId == null ? "" : firebaseProjectId.trim();
+        String trimmedIssuerUri = jwtIssuerUri == null ? "" : jwtIssuerUri.trim();
+        if (trimmedProjectId.isBlank()) {
             throw new IllegalStateException(
                     "Prod-like profile requires app.auth.firebase.project-id / APP_AUTH_FIREBASE_PROJECT_ID");
         }
-        if (jwtIssuerUri == null || jwtIssuerUri.isBlank()) {
+        if (trimmedIssuerUri.isBlank()) {
             throw new IllegalStateException(
                     "Prod-like profile requires spring.security.oauth2.resourceserver.jwt.issuer-uri / "
                             + "SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI");
+        }
+        String expectedIssuerUri = FIREBASE_ISSUER_PREFIX + trimmedProjectId;
+        if (!expectedIssuerUri.equals(trimmedIssuerUri)) {
+            throw new IllegalStateException(
+                    "Prod-like profile Firebase issuer URI must match project id: expected "
+                            + expectedIssuerUri + " but configured " + trimmedIssuerUri);
         }
     }
 
