@@ -101,8 +101,11 @@ The canonical mobile config lives under `apps/mobile/`. Always use these files, 
 |------|---------|
 | `apps/mobile/app.json` | Expo app config, bundle IDs, EAS project ID |
 | `apps/mobile/eas.json` | EAS build profiles |
+| `apps/mobile/google-services.json` | Android Firebase client config for the current private/dev phase |
 
 The repo root also contains `app.json` and `eas.json`, but those are not the correct files for normal mobile development. Running `eas build` from the repo root can target the wrong project.
+
+`apps/mobile/google-services.json` is intentionally tracked while this repo and app distribution are private/internal. It is Firebase client configuration, not a private service-account key. Keep Firebase API key restrictions, Android package restrictions, SHA fingerprints, and quota monitoring configured as described in `docs/firebase-client-config.md`. Before a public repo, wider public beta, or Play Store release, revisit whether this file should move to local/EAS secret-file provisioning.
 
 ### Expo Go is unsupported
 

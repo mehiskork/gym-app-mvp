@@ -7,6 +7,13 @@ apps/backend/target/
 
 .env
 .env.*
+*.env
+*.env.*
+*service-account*.json
+*service_account*.json
+firebase-adminsdk-*.json
+serviceAccountKey.json
+GoogleService-Info.plist
 *.jks
 *.p12
 *.p8

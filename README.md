@@ -49,6 +49,7 @@ This repository has Firebase-backed Google account auth: account identity is can
 - Core ownership/auth/sync foundations are in place and tested.
 - Debug/support surfaces remain intentionally available for rollout support and incident triage.
 - Firebase is auth-only; app data remains SQLite mobile source of truth synced through Spring Boot/PostgreSQL.
+- Firebase mobile client config is tracked intentionally for the current private/dev phase; see `docs/firebase-client-config.md` for the restrictions and public-release policy.
 - Local-first behavior is unchanged: local writes commit first; sync reconciles eventual server state.
 - The checked-in mobile config currently targets the Railway shared dev/QA backend by default (`https://gym-app-mvp-production.up.railway.app`). This is not the final production environment; override the API base URL when testing against a local backend.
 - PR events are local-derived cache data. Workout history is synced; PR rows are recomputed locally and are not synced inbound or outbound.
@@ -76,6 +77,7 @@ docs/
   architecture.md
   sync-protocol.md
   conflicts.md
+  firebase-client-config.md
   product-rules.md
   local-development.md
   railway-deployment.md

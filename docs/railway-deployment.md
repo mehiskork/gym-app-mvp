@@ -44,6 +44,8 @@ The JWK Set URI is an explicit Railway configuration value for the current deplo
 
 Firebase Console SHA-1 configuration is not required for Spring Boot backend startup or Railway deployment. SHA-1 is required for Android Google Sign-In and mobile auth testing.
 
+Firebase mobile client config is handled separately from Railway backend secrets. `apps/mobile/google-services.json` is tracked intentionally for the current private/dev phase and must be protected with Firebase/Google Cloud API restrictions; see `docs/firebase-client-config.md`. Do not upload Firebase service-account JSON or private keys to the repo. Backend Railway config should use environment variables only.
+
 ## Startup proof checklist
 
 After each deploy, confirm:
