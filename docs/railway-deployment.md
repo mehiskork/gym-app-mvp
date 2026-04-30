@@ -22,7 +22,7 @@ SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI=https://www.googleapis.com
 
 Firebase is used for authentication only. App data remains in PostgreSQL through the Spring Boot `/sync` API; do not use Firebase as the app database.
 
-Mobile Google Sign-In is a later PR. A valid account request to `GET /me` returns `200` only with a real Firebase ID token from the mobile sign-in flow or a controlled test token setup.
+Mobile Google Sign-In is implemented. A valid account request to `GET /me` returns `200` only with a real Firebase ID token from the mobile sign-in flow or a controlled test token setup.
 
 > **Do not use this datasource form for the Spring Boot backend:**
 >
@@ -40,7 +40,7 @@ Railway sets `PORT` for the service. The backend reads it via `server.port=${POR
 
 The backend validates Firebase token signature, expiry, issuer, audience, and nonblank subject. Railway needs the Firebase/JWT environment variables above before account auth can be tested in prod.
 
-Firebase Console SHA-1 configuration is not required for Spring Boot backend startup or Railway deployment. SHA-1 is needed later for Android Google Sign-In and mobile auth testing.
+Firebase Console SHA-1 configuration is not required for Spring Boot backend startup or Railway deployment. SHA-1 is required for Android Google Sign-In and mobile auth testing.
 
 ## Startup proof checklist
 

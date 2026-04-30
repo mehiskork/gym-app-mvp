@@ -215,8 +215,8 @@ From `apps/backend`:
 ./mvnw verify
 ```
 
-- `./mvnw test` runs the fast unit-style test phase
-- `./mvnw verify` also runs integration tests such as `*IT.java`
+- `./mvnw test` runs the fast unit-style test phase and excludes `*IT.java` / `*IntegrationTest.java`
+- `./mvnw verify` also runs integration tests such as `*IT.java` / `*IntegrationTest.java`
 - On Windows, use `mvnw.cmd test` and `mvnw.cmd verify`
 
 **Important:** `./mvnw test` does **not** run integration tests. Backend integration tests use Testcontainers, so `./mvnw verify` requires a running Docker daemon. Always run `./mvnw verify` before merging backend changes that touch sync, auth, claim flow, or persistence behavior.
@@ -267,7 +267,7 @@ The backend must be running and reachable for sync to succeed.
 
 `POST /claim/confirm` is account-authenticated and requires a valid Firebase account JWT. The backend derives the target account owner from the verified Firebase principal; do not send or trust a client-sent user/account id.
 
-Mobile Google Sign-In plus guest migration orchestration is a later mobile PR. Until that is wired, local end-to-end claim confirmation requires a controlled Firebase token test setup.
+Mobile Google Sign-In plus guest migration orchestration is implemented. In normal mobile QA, use the Settings account flow: guest data is synced, `/claim/start` runs with the device token, Google Sign-In returns a Firebase ID token, `/claim/confirm` runs with that account JWT, and the account session is stored only after claim confirmation succeeds.
 
 ---
 

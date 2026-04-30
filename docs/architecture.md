@@ -384,7 +384,7 @@ The client sends its last-known cursor. The backend returns later changes up to 
 
 The backend is stateless under Spring Security.
 
-`/sync` supports dual bearer-auth transport: Firebase account JWT and device token. Device registration issues the data needed for guest/device transport. Firebase backend ID-token validation is implemented for account-authenticated backend endpoints; mobile Google Sign-In wiring is a later PR.
+`/sync` supports dual bearer-auth transport: Firebase account JWT and device token. Device registration issues the data needed for true guest/device transport. Firebase backend ID-token validation and mobile Google Sign-In are implemented for account-authenticated flows.
 
 At a high level, the identity/auth pieces are:
 
@@ -446,12 +446,9 @@ This lifecycle is easy to misunderstand if you assume the device itself is the u
 
 ### Mobile claim flow
 
-On mobile, the claim flow lives in screens such as:
+On mobile, the production claim flow is orchestrated from the account sign-in path rather than a legacy manual confirm screen. During claim flow, sync is paused and later resumed. The app drains guest outbox work, starts a claim with the device token, completes Google Sign-In, confirms the claim with a Firebase account JWT, then stores account session material and updates local claimed-state metadata.
 
-- `ClaimStartScreen`
-- `ClaimConfirmScreen`
-
-During claim flow, sync is paused and later resumed. The flow starts a claim, then confirms it with the backend, and finally updates local claimed-state metadata.
+The legacy manual claim-confirm screen and dev identity-header confirm seam have been removed. `/claim/confirm` requires the authenticated Firebase account principal.
 
 ### Backend claim flow
 

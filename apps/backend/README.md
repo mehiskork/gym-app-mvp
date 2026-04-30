@@ -32,7 +32,7 @@ Ownership scope is always resolved from authenticated principal on the server.
 
 `/claim/confirm` requires a verified Firebase account JWT. The backend derives the target account owner from `AccountPrincipal.externalAccountId` (`issuer|subject`) and does not accept client-sent account/user ids.
 
-`/claim/start` remains device/guest-authenticated. Mobile Google Sign-In plus guest migration orchestration is a later mobile PR.
+`/claim/start` remains device/guest-authenticated. The mobile app now orchestrates guest-to-Google migration by draining guest sync, starting a claim with the device token, completing Google Sign-In, confirming the claim with the Firebase ID token, and only then storing the account session.
 
 ## JWT config for account endpoints
 
@@ -53,7 +53,7 @@ Optional override, normally not needed with issuer discovery:
 
 The backend validates Firebase token signature, expiry, issuer, audience, and nonblank subject. The account owner identity is derived from the verified issuer + Firebase UID. Missing JWT/Firebase configuration fails closed for account-token endpoints.
 
-Mobile Google Sign-In wiring is a later PR. Firebase is authentication-only; app data remains in PostgreSQL through the Spring Boot sync API.
+Mobile Google Sign-In is implemented. Firebase is authentication-only; app data remains in PostgreSQL through the Spring Boot sync API.
 
 ## Tests
 
@@ -64,8 +64,8 @@ From `apps/backend`:
 ./mvnw verify
 ```
 
-- `./mvnw test` runs the Surefire test phase and excludes `*IT.java`
-- `./mvnw verify` runs the Failsafe integration-test/verify phases and includes `*IT.java`
+- `./mvnw test` runs the Surefire test phase and excludes `*IT.java` / `*IntegrationTest.java`
+- `./mvnw verify` runs the Failsafe integration-test/verify phases and includes `*IT.java` / `*IntegrationTest.java`
 - On Windows, use `mvnw.cmd test` and `mvnw.cmd verify`
 
 Backend integration tests use Testcontainers and require a running Docker daemon.

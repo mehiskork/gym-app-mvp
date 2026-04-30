@@ -82,11 +82,15 @@ An outbox op is a **full snapshot of the entity at write time**, not a partial p
 
 The backend stores accepted state changes in `change_log`.
 
-The client asks for all deltas where:
+For normal incremental sync, the client asks for all deltas where:
 
 - `change_id > cursor`
 
 The backend returns deltas ordered by `change_id ASC`.
+
+For a fresh restore cursor (`null`, blank, or `"0"`), the backend does **not** replay raw historical `change_log` rows. It returns dependency-closed current `entity_state` snapshots so an empty local database can restore the latest account state without replaying old reorder transitions. The final snapshot page returns a numeric high-water cursor so later incremental sync continues from `change_log` after that point.
+
+PR events are intentionally excluded from backend deltas. Workout history entities are canonical synced data; `pr_event` is a local-derived cache and is recomputed by mobile after workout-history restore or sync.
 
 A delta contains:
 
@@ -244,9 +248,10 @@ Current behavior, in order:
 4. If sync is paused, the call exits without network I/O.
 5. If backoff is active and the call is not forced, the call exits early.
 6. The client resolves `/sync` auth in this order:
-   - account JWT (if an account session token exists)
-   - device token (fallback guest/device path)
-   - device registration (only when no other token exists)
+   - account JWT if local state is linked and a usable account session exists
+   - blocked reauth if local state is linked but account auth is missing, invalidated, expired with failed refresh, or otherwise unusable
+   - device token only in true guest mode
+   - device registration only in true guest mode when no device token exists
 7. The client repairs stale `in_flight` outbox rows.
 8. The client claims a batch of retryable outbox ops and marks them `in_flight`.
 9. The client reads the current cursor from local sync state.
@@ -320,7 +325,8 @@ If `/sync` returns `401` while using an **account JWT**, the app records an acco
 Invalidated account sessions are treated as **present but unusable**:
 
 - they are not selected for `/sync`
-- `/sync` falls back to a valid device token when one exists
+- if local state is linked to an account, `/sync` is blocked with `account_reauth_required` / `blocked_reauth` and does not fall back to device-token transport
+- device-token sync remains allowed only in true guest mode
 - the invalidation survives app restart until account sign-in writes a fresh session
 
 `/me` follows the same lifecycle guard:
@@ -333,7 +339,7 @@ Invalidated account sessions are treated as **present but unusable**:
 For account rollout diagnostics, the app and backend now expose a small, explicit auth/sync signal set:
 
 - `syncAuthModeLastUsed`: `account_jwt` or `device_token` from the last sync attempt.
-- `syncAuthModeNextPlanned`: which mode the next sync would choose (`account_jwt` preferred when session is usable).
+- `syncAuthModeNextPlanned`: which mode the next sync would choose (`account_jwt` when the linked account session is usable, `device_token` only in true guest mode, or `blocked_reauth` when linked state requires reauth/reset).
 - `accountSessionStatus`: `missing` | `usable` | `invalidated`.
 - `accountInvalidationReason`: enum-like reason (for example `sync_401`, `me_401`) when invalidated.
 - `accountInvalidatedAt`: ISO timestamp when invalidation was recorded.
@@ -343,7 +349,7 @@ For account rollout diagnostics, the app and backend now expose a small, explici
 Backend error responses for auth failures also include low-cardinality `details.authMode` metadata where applicable, and backend logs include low-cardinality sync/migration observability fields (auth mode, owner scope type, op counts, and migration counters) without raw token values.
 
 
-If `/sync` returns `401` while using an **account JWT**, the app records an account-session auth failure and does not clear device credentials.
+If `/sync` returns `401` while using an **account JWT**, the app records an account-session auth failure, does not clear device credentials, and blocks later linked-state sync until reauth or destructive reset.
 
 ---
 

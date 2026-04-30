@@ -133,6 +133,8 @@ Only completed sets with non-zero weight and reps are PR-eligible.
 
 PR UI appears only when actual PR events exist for the session.
 
+`pr_event` is a local-derived cache for MVP. Workout history (`workout_session`, `workout_session_exercise`, `workout_set`) is the canonical synced data; PR events are recomputed locally from that history and are not synced inbound or outbound.
+
 ### PR badge is always gold
 
 PR badge color remains gold and does not follow user-selected primary theme color.

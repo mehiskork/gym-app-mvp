@@ -5,7 +5,7 @@ An offline-first workout tracker with:
 - a React Native / Expo mobile app (`apps/mobile`)
 - a Spring Boot 4.0.5 backend (`apps/backend`)
 
-This repository has a Firebase-backed account-JWT foundation: account identity is canonical after login, guest/device identity is bootstrap-only, `/me` is account-JWT-only, `/sync` supports both account JWT and device-token transport, and `/claim/confirm` derives account ownership from the verified Firebase principal. Mobile Google Sign-In wiring is still a later PR.
+This repository has Firebase-backed Google account auth: account identity is canonical after login, guest/device identity is bootstrap-only, `/me` is account-JWT-only, `/sync` supports account JWT and true-guest device-token transport, and `/claim/confirm` derives account ownership from the verified Firebase principal.
 
 ---
 
@@ -19,6 +19,7 @@ This repository has a Firebase-backed account-JWT foundation: account identity i
 - session-only exercise swap behavior
 - plan-slot-based next-session prefill
 - history and PR event UX
+- Firebase Google Sign-In plus guest-to-account migration
 - account/session lifecycle hardening (secure storage + reset flows)
 - hidden debug/support surfaces for sync and diagnostics
 
@@ -50,6 +51,7 @@ This repository has a Firebase-backed account-JWT foundation: account identity i
 - Firebase is auth-only; app data remains SQLite mobile source of truth synced through Spring Boot/PostgreSQL.
 - Local-first behavior is unchanged: local writes commit first; sync reconciles eventual server state.
 - The checked-in mobile config currently targets the Railway shared dev/QA backend by default (`https://gym-app-mvp-production.up.railway.app`). This is not the final production environment; override the API base URL when testing against a local backend.
+- PR events are local-derived cache data. Workout history is synced; PR rows are recomputed locally and are not synced inbound or outbound.
 
 ---
 

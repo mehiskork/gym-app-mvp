@@ -37,7 +37,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @SpringBootTest
 @AutoConfigureMockMvc
 @Testcontainers
-class DeviceTokenAuthTest {
+class DeviceTokenAuthIT {
 
         @SuppressWarnings("resource")
         @Container
