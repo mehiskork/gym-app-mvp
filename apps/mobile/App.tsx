@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, AppState, StyleSheet, View, type AppStateStatus } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
@@ -13,7 +13,7 @@ import { ensureRestTimerNotificationChannel } from './src/utils/restTimerNotific
 import { Button } from './src/ui/Button';
 import { Text } from './src/ui/Text';
 import { resetToGuestBootstrap } from './src/auth/identityTransition';
-import { scheduleStartupSync } from './src/sync/syncScheduler';
+import { scheduleForegroundSync, scheduleStartupSync } from './src/sync/syncScheduler';
 
 type BootState = { kind: 'initializing' } | { kind: 'ready' } | { kind: 'failed'; error: Error };
 
@@ -57,6 +57,7 @@ function StartupRecoveryScreen({
 
 export default function App() {
   const [bootState, setBootState] = useState<BootState>({ kind: 'initializing' });
+  const appStateRef = React.useRef<AppStateStatus>(AppState.currentState);
 
   const initializeApp = useCallback(() => {
     setBootState({ kind: 'initializing' });
@@ -86,6 +87,26 @@ export default function App() {
   useEffect(() => {
     initializeApp();
   }, [initializeApp]);
+
+  useEffect(() => {
+    if (bootState.kind !== 'ready') {
+      return undefined;
+    }
+
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      const previousState = appStateRef.current;
+      appStateRef.current = nextState;
+
+      if (
+        nextState === 'active' &&
+        (previousState === 'background' || previousState === 'inactive')
+      ) {
+        scheduleForegroundSync('app_foreground');
+      }
+    });
+
+    return () => subscription.remove();
+  }, [bootState.kind]);
 
   return (
     <SafeAreaProvider>

@@ -1,8 +1,10 @@
 import { logEvent } from '../utils/logger';
 
 const SYNC_DEBOUNCE_MS = 3000;
+const FOREGROUND_SYNC_COOLDOWN_MS = 45000;
 let scheduledSync: ReturnType<typeof setTimeout> | null = null;
 let pendingReason: string | null = null;
+let lastForegroundSyncAt = 0;
 
 async function runScheduledSync(reason: string) {
   try {
@@ -33,6 +35,17 @@ export function scheduleSyncSoon(reason: string): void {
 }
 
 export function scheduleStartupSync(reason: string): void {
+  lastForegroundSyncAt = Date.now();
+  scheduleSyncSoon(reason);
+}
+
+export function scheduleForegroundSync(reason: string): void {
+  const now = Date.now();
+  if (now - lastForegroundSyncAt < FOREGROUND_SYNC_COOLDOWN_MS) {
+    return;
+  }
+
+  lastForegroundSyncAt = now;
   scheduleSyncSoon(reason);
 }
 
@@ -42,4 +55,5 @@ export function resetSyncSchedulerForTests(): void {
   }
   scheduledSync = null;
   pendingReason = null;
+  lastForegroundSyncAt = 0;
 }

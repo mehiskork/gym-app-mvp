@@ -8,7 +8,12 @@ jest.mock('../../utils/logger', () => ({
 
 import { logEvent } from '../../utils/logger';
 import { syncNow } from '../syncWorker';
-import { resetSyncSchedulerForTests, scheduleSyncSoon } from '../syncScheduler';
+import {
+  resetSyncSchedulerForTests,
+  scheduleForegroundSync,
+  scheduleStartupSync,
+  scheduleSyncSoon,
+} from '../syncScheduler';
 
 describe('syncScheduler', () => {
   beforeEach(() => {
@@ -46,5 +51,41 @@ describe('syncScheduler', () => {
       reason: 'outbox_write',
       error: 'network down',
     });
+  });
+
+  it('applies foreground cooldown across repeated active transitions', async () => {
+    jest.setSystemTime(new Date('2026-04-30T12:00:00.000Z'));
+
+    scheduleForegroundSync('app_foreground');
+    scheduleForegroundSync('app_foreground');
+
+    await jest.advanceTimersByTimeAsync(3000);
+
+    expect(syncNow).toHaveBeenCalledTimes(1);
+    expect(syncNow).toHaveBeenCalledWith({ force: false });
+
+    jest.setSystemTime(new Date('2026-04-30T12:00:30.000Z'));
+    scheduleForegroundSync('app_foreground');
+    await jest.advanceTimersByTimeAsync(3000);
+
+    expect(syncNow).toHaveBeenCalledTimes(1);
+
+    jest.setSystemTime(new Date('2026-04-30T12:00:46.000Z'));
+    scheduleForegroundSync('app_foreground');
+    await jest.advanceTimersByTimeAsync(3000);
+
+    expect(syncNow).toHaveBeenCalledTimes(2);
+  });
+
+  it('treats startup sync as a foreground cooldown anchor', async () => {
+    jest.setSystemTime(new Date('2026-04-30T12:00:00.000Z'));
+
+    scheduleStartupSync('app_start');
+    scheduleForegroundSync('app_foreground');
+
+    await jest.advanceTimersByTimeAsync(3000);
+
+    expect(syncNow).toHaveBeenCalledTimes(1);
+    expect(syncNow).toHaveBeenCalledWith({ force: false });
   });
 });

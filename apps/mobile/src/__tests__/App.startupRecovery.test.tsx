@@ -3,6 +3,7 @@ jest.mock('react', () => {
   return {
     ...actual,
     useEffect: jest.fn(),
+    useRef: jest.fn((initial: unknown) => ({ current: initial })),
     useState: jest.fn(),
     useCallback: (fn: unknown) => fn,
   };
@@ -10,8 +11,22 @@ jest.mock('react', () => {
 
 jest.mock('react-native', () => {
   const React = require('react');
+  const appStateListeners: Array<(state: string) => void> = [];
   return {
     ActivityIndicator: (props: unknown) => React.createElement('ActivityIndicator', props),
+    AppState: {
+      currentState: 'active',
+      addEventListener: jest.fn((_event: string, listener: (state: string) => void) => {
+        appStateListeners.push(listener);
+        return { remove: jest.fn() };
+      }),
+      __emitChange: (state: string) => {
+        appStateListeners.forEach((listener) => listener(state));
+      },
+      __clearListeners: () => {
+        appStateListeners.length = 0;
+      },
+    },
     StyleSheet: { create: (styles: unknown) => styles },
     View: ({ children, ...props }: { children?: React.ReactNode }) =>
       React.createElement('View', props, children),
@@ -75,6 +90,7 @@ jest.mock('../auth/identityTransition', () => ({
   resetToGuestBootstrap: jest.fn(() => Promise.resolve()),
 }));
 jest.mock('../sync/syncScheduler', () => ({
+  scheduleForegroundSync: jest.fn(),
   scheduleStartupSync: jest.fn(),
 }));
 
@@ -95,6 +111,7 @@ jest.mock('../ui/Button', () => {
 });
 
 import React from 'react';
+import { AppState } from 'react-native';
 
 import App from '../../App';
 import { seedCuratedExercises } from '../db/curatedExerciseSeed';
@@ -102,7 +119,7 @@ import { runMigrations } from '../db/migrate';
 import { repairStaleInFlightOps } from '../db/outboxRepo';
 import { ensureRestTimerNotificationChannel } from '../utils/restTimerNotifications';
 import { resetToGuestBootstrap } from '../auth/identityTransition';
-import { scheduleStartupSync } from '../sync/syncScheduler';
+import { scheduleForegroundSync, scheduleStartupSync } from '../sync/syncScheduler';
 
 const useEffectMock = React.useEffect as jest.Mock;
 const useStateMock = React.useState as jest.Mock;
@@ -135,6 +152,7 @@ function findElements(
 describe('App startup recovery', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    (AppState as any).__clearListeners();
     useEffectMock.mockImplementation((cb: () => void) => cb());
     useStateMock.mockImplementation((initial: unknown) => [initial, jest.fn()]);
   });
@@ -147,6 +165,33 @@ describe('App startup recovery', () => {
     expect(repairStaleInFlightOps).toHaveBeenCalledWith(120);
     expect(ensureRestTimerNotificationChannel).toHaveBeenCalledWith(false);
     expect(scheduleStartupSync).toHaveBeenCalledWith('app_start');
+  });
+
+  it('subscribes to foreground sync only after startup is ready', () => {
+    const addEventListener = AppState.addEventListener as jest.Mock;
+
+    App();
+
+    expect(addEventListener).not.toHaveBeenCalled();
+
+    useStateMock.mockReturnValue([{ kind: 'ready' }, jest.fn()]);
+    App();
+
+    expect(addEventListener).toHaveBeenCalledWith('change', expect.any(Function));
+    (AppState as any).__emitChange('background');
+    (AppState as any).__emitChange('active');
+
+    expect(scheduleForegroundSync).toHaveBeenCalledWith('app_foreground');
+  });
+
+  it('does not schedule foreground sync from non-resume active events', () => {
+    useStateMock.mockReturnValue([{ kind: 'ready' }, jest.fn()]);
+
+    App();
+
+    (AppState as any).__emitChange('active');
+
+    expect(scheduleForegroundSync).not.toHaveBeenCalled();
   });
 
   it('renders recovery UI when startup failed', () => {
