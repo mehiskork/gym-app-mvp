@@ -51,7 +51,13 @@ public class ReadinessService {
                 Integer successfulMigrations = jdbcTemplate.queryForObject(
                         "SELECT COUNT(*) FROM flyway_schema_history WHERE success = TRUE",
                         Integer.class);
-                flywayReady = successfulMigrations != null && successfulMigrations > 0;
+                Integer failedMigrations = jdbcTemplate.queryForObject(
+                        "SELECT COUNT(*) FROM flyway_schema_history WHERE success = FALSE",
+                        Integer.class);
+                flywayReady = successfulMigrations != null
+                        && successfulMigrations > 0
+                        && failedMigrations != null
+                        && failedMigrations == 0;
             }
         } catch (Exception ignored) {
             // Safe readiness response intentionally omits exception internals.

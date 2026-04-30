@@ -276,10 +276,12 @@ Mobile Google Sign-In plus guest migration orchestration is implemented. In norm
 
 Before public or production-like deployment, verify:
 
-1. JWT resource server config is set (`issuer-uri` or `jwk-set-uri`) for Firebase-backed account endpoints.
-2. `/sync` auth path is validated for both account-JWT and device-token recovery behavior.
-3. Support/debug runbook is known to operators (Debug screen unlock, support bundle export).
-4. `./mvnw verify` and mobile test/typecheck/lint are green on the release candidate.
+1. A prod-like Spring profile is active (`prod`, `production`, or `staging`). Railway should use `SPRING_PROFILES_ACTIVE=prod`.
+2. Firebase account-auth config is set for prod-like startup: `APP_AUTH_FIREBASE_PROJECT_ID` and `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI`. `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI` may be set as an explicit JWK override.
+3. `/ready` is checked after startup; it should report database, Flyway, and required tables healthy. Flyway readiness fails if `flyway_schema_history` contains any failed migration row.
+4. `/sync` auth path is validated for both account-JWT and device-token recovery behavior.
+5. Support/debug runbook is known to operators (Debug screen unlock, support bundle export).
+6. `./mvnw verify` and mobile test/typecheck/lint are green on the release candidate.
 
 ## Troubleshooting
 

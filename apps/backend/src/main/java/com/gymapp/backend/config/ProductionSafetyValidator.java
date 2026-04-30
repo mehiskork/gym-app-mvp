@@ -24,11 +24,30 @@ public class ProductionSafetyValidator {
         String datasourceUrl = environment.getProperty("spring.datasource.url", "");
         String datasourceUsername = environment.getProperty("spring.datasource.username", "");
         String datasourcePassword = environment.getProperty("spring.datasource.password", "");
+        String firebaseProjectId = environment.getProperty("app.auth.firebase.project-id", "");
+        String jwtIssuerUri = environment.getProperty("spring.security.oauth2.resourceserver.jwt.issuer-uri", "");
 
-        validateOrThrow(datasourceUrl, datasourceUsername, datasourcePassword);
+        validateOrThrow(datasourceUrl, datasourceUsername, datasourcePassword, firebaseProjectId, jwtIssuerUri);
     }
 
     void validateOrThrow(
+            String datasourceUrl,
+            String datasourceUsername,
+            String datasourcePassword) {
+        validateDatasourceOrThrow(datasourceUrl, datasourceUsername, datasourcePassword);
+    }
+
+    void validateOrThrow(
+            String datasourceUrl,
+            String datasourceUsername,
+            String datasourcePassword,
+            String firebaseProjectId,
+            String jwtIssuerUri) {
+        validateDatasourceOrThrow(datasourceUrl, datasourceUsername, datasourcePassword);
+        validateAccountAuthOrThrow(firebaseProjectId, jwtIssuerUri);
+    }
+
+    private void validateDatasourceOrThrow(
             String datasourceUrl,
             String datasourceUsername,
             String datasourcePassword) {
@@ -43,6 +62,18 @@ public class ProductionSafetyValidator {
         if (UNSAFE_PASSWORDS.contains(datasourcePassword.trim().toLowerCase())) {
             throw new IllegalStateException(
                     "Prod-like profile cannot use default/insecure datasource password");
+        }
+    }
+
+    private void validateAccountAuthOrThrow(String firebaseProjectId, String jwtIssuerUri) {
+        if (firebaseProjectId == null || firebaseProjectId.isBlank()) {
+            throw new IllegalStateException(
+                    "Prod-like profile requires app.auth.firebase.project-id / APP_AUTH_FIREBASE_PROJECT_ID");
+        }
+        if (jwtIssuerUri == null || jwtIssuerUri.isBlank()) {
+            throw new IllegalStateException(
+                    "Prod-like profile requires spring.security.oauth2.resourceserver.jwt.issuer-uri / "
+                            + "SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI");
         }
     }
 

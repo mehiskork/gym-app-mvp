@@ -55,6 +55,10 @@ The backend validates Firebase token signature, expiry, issuer, audience, and no
 
 Mobile Google Sign-In is implemented. Firebase is authentication-only; app data remains in PostgreSQL through the Spring Boot sync API.
 
+Prod-like profiles (`prod`, `production`, `staging`) fail startup unless datasource settings, `APP_AUTH_FIREBASE_PROJECT_ID`, and `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI` are configured. Railway should set `SPRING_PROFILES_ACTIVE=prod`; otherwise those production safety checks are not active. `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI` is supported as an explicit decoder override, but issuer discovery is sufficient for backend startup.
+
+`GET /ready` checks database connectivity, required tables, and Flyway state. It reports not-ready if `flyway_schema_history` contains any failed migration row.
+
 ## Tests
 
 From `apps/backend`:

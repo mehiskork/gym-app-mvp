@@ -18,7 +18,7 @@ SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI=https://securetoken.google.
 SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI=https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com
 ```
 
-`SPRING_PROFILES_ACTIVE` must be `prod` so production safety checks are enforced.
+`SPRING_PROFILES_ACTIVE` must be `prod` so production safety checks are enforced. Prod-like profiles are `prod`, `production`, and `staging`; Railway should use `prod` for the current shared dev/QA backend service.
 
 Firebase is used for authentication only. App data remains in PostgreSQL through the Spring Boot `/sync` API; do not use Firebase as the app database.
 
@@ -40,6 +40,8 @@ Railway sets `PORT` for the service. The backend reads it via `server.port=${POR
 
 The backend validates Firebase token signature, expiry, issuer, audience, and nonblank subject. Railway needs the Firebase/JWT environment variables above before account auth can be tested in prod.
 
+The JWK Set URI is an explicit Railway configuration value for the current deployment. The backend can also build the decoder from issuer discovery, but prod-like startup requires at least the Firebase project id and issuer URI so account auth cannot be accidentally deployed with missing config.
+
 Firebase Console SHA-1 configuration is not required for Spring Boot backend startup or Railway deployment. SHA-1 is required for Android Google Sign-In and mobile auth testing.
 
 ## Startup proof checklist
@@ -53,7 +55,7 @@ After each deploy, confirm:
 `/ready` validates:
 
 - DB connectivity (`SELECT 1`)
-- Flyway readiness (`flyway_schema_history` has successful migrations)
+- Flyway readiness (`flyway_schema_history` has successful migrations and no failed migration rows)
 - Required core tables exist:
   - `flyway_schema_history`
   - `device`
@@ -62,7 +64,7 @@ After each deploy, confirm:
   - `change_log`
   - `op_ledger`
 
-If any readiness check fails, `/ready` returns non-200 with a safe structured response and without secrets.
+If any readiness check fails, `/ready` returns non-200 with a safe structured response and without secrets. `/ready` is only a meaningful production-safety signal when Railway is also running a prod-like profile with the required environment variables above.
 
 ## Smoke tests
 

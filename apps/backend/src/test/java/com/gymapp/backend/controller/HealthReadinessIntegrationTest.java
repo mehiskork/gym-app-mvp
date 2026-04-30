@@ -76,6 +76,29 @@ class HealthReadinessIntegrationTest {
     }
 
     @Test
+    void readyFailsWhenFlywayHistoryContainsFailedMigration() throws Exception {
+        jdbcTemplate.update(
+                """
+                        UPDATE flyway_schema_history
+                        SET success = FALSE
+                        WHERE installed_rank = (
+                            SELECT MAX(installed_rank)
+                            FROM flyway_schema_history
+                        )
+                        """);
+        try {
+            mockMvc.perform(get("/ready"))
+                    .andExpect(status().isServiceUnavailable())
+                    .andExpect(jsonPath("$.status").value("not_ready"))
+                    .andExpect(jsonPath("$.checks.database").value(true))
+                    .andExpect(jsonPath("$.checks.flyway").value(false))
+                    .andExpect(jsonPath("$.checks.requiredTables").value(true));
+        } finally {
+            jdbcTemplate.update("UPDATE flyway_schema_history SET success = TRUE");
+        }
+    }
+
+    @Test
     void readyResponseDoesNotExposeSecrets() throws Exception {
         String response = mockMvc.perform(get("/ready"))
                 .andExpect(status().isOk())
