@@ -175,26 +175,26 @@ class SyncServiceIT {
                 "position", 2));
 
         Instant now = Instant.now();
-        syncRepository.upsertEntityState(guestUserId, "program", programId, Map.of(
+        upsertEntityStateAndChangeLog("program", programId, Map.of(
                 "id", programId,
                 "name", "Program"), now);
-        syncRepository.upsertEntityState(guestUserId, "program_week", weekId, Map.of(
+        upsertEntityStateAndChangeLog("program_week", weekId, Map.of(
                 "id", weekId,
                 "program_id", programId,
                 "week_index", 0), now);
-        syncRepository.upsertEntityState(guestUserId, "program_day", dayId, Map.of(
+        upsertEntityStateAndChangeLog("program_day", dayId, Map.of(
                 "id", dayId,
                 "program_week_id", weekId,
                 "day_index", 0), now);
-        syncRepository.upsertEntityState(guestUserId, "exercise", exerciseId, Map.of(
+        upsertEntityStateAndChangeLog("exercise", exerciseId, Map.of(
                 "id", exerciseId,
                 "name", "Squat"), now);
-        syncRepository.upsertEntityState(guestUserId, "program_day_exercise", firstExerciseId, Map.of(
+        upsertEntityStateAndChangeLog("program_day_exercise", firstExerciseId, Map.of(
                 "id", firstExerciseId,
                 "program_day_id", dayId,
                 "exercise_id", exerciseId,
                 "position", 2), now);
-        syncRepository.upsertEntityState(guestUserId, "program_day_exercise", secondExerciseId, Map.of(
+        upsertEntityStateAndChangeLog("program_day_exercise", secondExerciseId, Map.of(
                 "id", secondExerciseId,
                 "program_day_id", dayId,
                 "exercise_id", exerciseId,

@@ -18,6 +18,7 @@ import java.util.Optional;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -35,12 +36,12 @@ public class SyncService {
 
         private final SyncRepository syncRepository;
 
-        @Transactional
+        @Transactional(isolation = Isolation.REPEATABLE_READ)
         public SyncResponse sync(String deviceId, String guestUserId, String cursor, List<SyncOp> ops) {
                 return sync(deviceId, OwnerScope.guest(guestUserId), cursor, ops);
         }
 
-        @Transactional
+        @Transactional(isolation = Isolation.REPEATABLE_READ)
         public SyncResponse sync(String deviceId, OwnerScope ownerScope, String cursor, List<SyncOp> ops) {
                 String ownerId = ownerScope.getOwnerId();
 

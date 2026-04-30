@@ -97,6 +97,35 @@ class SyncMultiPageIT {
     }
 
     @Test
+    void snapshotContinuationPagesUseCapturedHighWater() {
+        int limit = deltaLimit();
+        seedEntityStateAndChangeLog(limit + 1);
+
+        SyncResponse page1 = syncService.sync(deviceId, guestUserId, "0", List.of());
+        long capturedHighWater = maxChangeId();
+        insertEntityStateAndChangeLog("program", "program-zz-after-highwater",
+                "{\"id\":\"program-zz-after-highwater\"}");
+
+        SyncResponse page2 = syncService.sync(deviceId, guestUserId, page1.getCursor(), List.of());
+        SyncResponse nextIncremental = syncService.sync(deviceId, guestUserId, page2.getCursor(), List.of());
+
+        assertThat(page1.getHasMore()).isTrue();
+        assertThat(page1.getCursor()).startsWith("snapshot:" + capturedHighWater + ":program:");
+        assertThat(page2.getHasMore()).isFalse();
+        assertThat(page2.getCursor()).isEqualTo(String.valueOf(capturedHighWater));
+        assertThat(page2.getDeltas())
+                .extracting(SyncDelta::entityId)
+                .doesNotContain("program-zz-after-highwater");
+        assertThat(page2.getDeltas())
+                .extracting(SyncDelta::changeId)
+                .containsOnly(capturedHighWater);
+        assertThat(nextIncremental.getDeltas())
+                .extracting(SyncDelta::entityId)
+                .containsExactly("program-zz-after-highwater");
+        assertThat(nextIncremental.getCursor()).isEqualTo(String.valueOf(maxChangeId()));
+    }
+
+    @Test
     void snapshotPagingDoesNotSendChildLayerBeforeParentLayer() {
         int limit = deltaLimit();
         seedEntityStateAndChangeLog(limit + 1);

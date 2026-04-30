@@ -348,12 +348,13 @@ public class SyncRepository {
                 }
 
                 boolean hasAfter = afterEntityType != null && afterEntityId != null;
-                Object[] params = new Object[1
+                Object[] params = new Object[2
                                 + allowedEntityTypes.size()
                                 + (hasAfter ? 2 : 0)
                                 + 1];
                 int paramIndex = 0;
                 params[paramIndex++] = ownerId;
+                params[paramIndex++] = snapshotChangeId;
                 for (String entityType : allowedEntityTypes) {
                         params[paramIndex++] = entityType;
                 }
@@ -374,11 +375,22 @@ public class SyncRepository {
 
                 String sql = String.format(
                                 """
-                                                WITH active_state AS (
-                                                        SELECT guest_user_id, entity_type, entity_id, row_json
-                                                        FROM entity_state
+                                                WITH latest_state AS (
+                                                        SELECT DISTINCT ON (guest_user_id, entity_type, entity_id)
+                                                               guest_user_id,
+                                                               entity_type,
+                                                               entity_id,
+                                                               row_json
+                                                        FROM change_log
                                                         WHERE guest_user_id = ?
-                                                          AND NOT (
+                                                          AND change_id <= ?
+                                                          AND entity_type IN (%s)
+                                                        ORDER BY guest_user_id, entity_type, entity_id, change_id DESC
+                                                ),
+                                                active_state AS (
+                                                        SELECT guest_user_id, entity_type, entity_id, row_json
+                                                        FROM latest_state
+                                                        WHERE NOT (
                                                             (jsonb_exists(row_json, 'deleted_at') AND COALESCE(row_json ->> 'deleted_at', '') <> '')
                                                             OR (jsonb_exists(row_json, 'deletedAt') AND COALESCE(row_json ->> 'deletedAt', '') <> '')
                                                           )
@@ -467,7 +479,7 @@ public class SyncRepository {
                                                        'upsert' AS op_type,
                                                        s.row_json
                                                 FROM snapshot_state s
-                                                WHERE s.entity_type IN (%s)
+                                                WHERE 1 = 1
                                                 %s
                                                 ORDER BY CASE %s ELSE 2147483647 END ASC, s.entity_id ASC
                                                 LIMIT ?
