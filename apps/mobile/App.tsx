@@ -13,6 +13,7 @@ import { ensureRestTimerNotificationChannel } from './src/utils/restTimerNotific
 import { Button } from './src/ui/Button';
 import { Text } from './src/ui/Text';
 import { resetToGuestBootstrap } from './src/auth/identityTransition';
+import { scheduleStartupSync } from './src/sync/syncScheduler';
 
 type BootState = { kind: 'initializing' } | { kind: 'ready' } | { kind: 'failed'; error: Error };
 
@@ -66,6 +67,7 @@ export default function App() {
       repairStaleInFlightOps(120);
       void ensureRestTimerNotificationChannel(false);
       setBootState({ kind: 'ready' });
+      scheduleStartupSync('app_start');
     } catch (error) {
       setBootState({ kind: 'failed', error: toError(error) });
     }

@@ -74,6 +74,9 @@ jest.mock('../utils/restTimerNotifications', () => ({
 jest.mock('../auth/identityTransition', () => ({
   resetToGuestBootstrap: jest.fn(() => Promise.resolve()),
 }));
+jest.mock('../sync/syncScheduler', () => ({
+  scheduleStartupSync: jest.fn(),
+}));
 
 jest.mock('../ui/Text', () => {
   const React = require('react');
@@ -99,6 +102,7 @@ import { runMigrations } from '../db/migrate';
 import { repairStaleInFlightOps } from '../db/outboxRepo';
 import { ensureRestTimerNotificationChannel } from '../utils/restTimerNotifications';
 import { resetToGuestBootstrap } from '../auth/identityTransition';
+import { scheduleStartupSync } from '../sync/syncScheduler';
 
 const useEffectMock = React.useEffect as jest.Mock;
 const useStateMock = React.useState as jest.Mock;
@@ -142,6 +146,7 @@ describe('App startup recovery', () => {
     expect(seedCuratedExercises).toHaveBeenCalledTimes(1);
     expect(repairStaleInFlightOps).toHaveBeenCalledWith(120);
     expect(ensureRestTimerNotificationChannel).toHaveBeenCalledWith(false);
+    expect(scheduleStartupSync).toHaveBeenCalledWith('app_start');
   });
 
   it('renders recovery UI when startup failed', () => {

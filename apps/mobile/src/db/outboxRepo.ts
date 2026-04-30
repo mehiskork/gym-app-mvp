@@ -3,6 +3,7 @@ import { inTransaction } from './tx';
 import { newId } from '../utils/ids';
 import { getEffectiveUserId, getOrCreateDeviceId } from './appMetaRepo';
 import { OUTBOX_STATUS, type OutboxStatus } from './constants';
+import { scheduleSyncSoon } from '../sync/syncScheduler';
 
 export type OutboxOp = {
   id: string;
@@ -53,6 +54,7 @@ export function enqueueOutboxOp(input: EnqueueOutboxInput): string {
     [id, opId, deviceId, userId, input.entityType, input.entityId, input.opType, input.payloadJson],
   );
 
+  scheduleSyncSoon('outbox_write');
   return id;
 }
 
