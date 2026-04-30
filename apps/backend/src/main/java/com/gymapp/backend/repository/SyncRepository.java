@@ -560,7 +560,7 @@ public class SyncRepository {
                                 """
                                                 INSERT INTO op_ledger (op_id, device_id, guest_user_id, received_at)
                                                 VALUES (?, ?, ?, ?)
-                                                ON CONFLICT (op_id) DO NOTHING
+                                                ON CONFLICT (guest_user_id, op_id) DO NOTHING
                                                 """,
                                 opId,
                                 deviceId,

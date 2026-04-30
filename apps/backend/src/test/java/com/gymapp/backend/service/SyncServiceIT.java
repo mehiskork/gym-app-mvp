@@ -149,6 +149,49 @@ class SyncServiceIT {
     }
 
     @Test
+    void sameOpIdFromDifferentOwnersAppliesIndependently() {
+        String sharedOpId = "op-shared-owner-" + System.currentTimeMillis();
+        String otherGuestUserId = "guest-other-" + System.currentTimeMillis();
+        SyncOp firstOwnerOp = new SyncOp(
+                sharedOpId,
+                "program",
+                "program-owner-1",
+                "upsert",
+                Map.of("id", "program-owner-1", "name", "Owner 1 Program"),
+                null);
+        SyncOp secondOwnerOp = new SyncOp(
+                sharedOpId,
+                "program",
+                "program-owner-2",
+                "upsert",
+                Map.of("id", "program-owner-2", "name", "Owner 2 Program"),
+                null);
+
+        SyncResponse firstResponse = syncService.sync(deviceId, guestUserId, "0", List.of(firstOwnerOp));
+        SyncResponse replayResponse = syncService.sync(deviceId, guestUserId, firstResponse.getCursor(),
+                List.of(firstOwnerOp));
+        SyncResponse secondResponse = syncService.sync("device-other", otherGuestUserId, "0", List.of(secondOwnerOp));
+
+        Integer ledgerRows = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM op_ledger WHERE op_id = ?",
+                Integer.class,
+                sharedOpId);
+
+        assertThat(firstResponse.getAcks())
+                .extracting(ack -> ack.status())
+                .containsExactly("applied");
+        assertThat(replayResponse.getAcks())
+                .extracting(ack -> ack.status())
+                .containsExactly("noop");
+        assertThat(secondResponse.getAcks())
+                .extracting(ack -> ack.status())
+                .containsExactly("applied");
+        assertThat(ledgerRows).isEqualTo(2);
+        assertThat(entityOwner("program", "program-owner-1")).isEqualTo(guestUserId);
+        assertThat(entityOwner("program", "program-owner-2")).isEqualTo(otherGuestUserId);
+    }
+
+    @Test
     void freshSyncReturnsCurrentSnapshotInsteadOfHistoricalReorderDeltas() {
         String programId = "program-reorder";
         String weekId = "week-reorder";
@@ -576,6 +619,14 @@ class SyncServiceIT {
                 guestUserId);
         assertThat(maxChangeId).isNotNull();
         return maxChangeId;
+    }
+
+    private String entityOwner(String entityType, String entityId) {
+        return jdbcTemplate.queryForObject(
+                "SELECT guest_user_id FROM entity_state WHERE entity_type = ? AND entity_id = ?",
+                String.class,
+                entityType,
+                entityId);
     }
 
     private int deltaLimit() {
