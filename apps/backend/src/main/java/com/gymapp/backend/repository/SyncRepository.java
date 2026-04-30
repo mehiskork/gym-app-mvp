@@ -458,10 +458,6 @@ public class SyncRepository {
                                                           ON session_exercise.entity_id = workout_set.row_json ->> 'workout_session_exercise_id'
                                                         WHERE workout_set.entity_type = 'workout_set'
                                                 ),
-                                                snapshot_app_meta AS (
-                                                        SELECT * FROM active_state
-                                                        WHERE entity_type = 'app_meta'
-                                                ),
                                                 snapshot_state AS (
                                                         SELECT * FROM snapshot_program
                                                         UNION ALL SELECT * FROM snapshot_program_week
@@ -472,7 +468,6 @@ public class SyncRepository {
                                                         UNION ALL SELECT * FROM snapshot_workout_session
                                                         UNION ALL SELECT * FROM snapshot_workout_session_exercise
                                                         UNION ALL SELECT * FROM snapshot_workout_set
-                                                        UNION ALL SELECT * FROM snapshot_app_meta
                                                 )
                                                 SELECT s.entity_type,
                                                        s.entity_id,
