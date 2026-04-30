@@ -51,7 +51,7 @@ This decision does **not** implement full auth. It defines the ownership model t
 ### Claim/link seams today
 
 - Claim start is device-authenticated.
-- Claim confirm is currently a guarded/dev-oriented bridge, not real account auth.
+- Claim confirm is Firebase account JWT authenticated and derives the account owner from the verified account principal.
 - `identity_link (guest_user_id -> user_id)` already exists as a transitional seam.
 
 ### Mobile local ownership assumptions today
@@ -130,7 +130,7 @@ Recommended staged direction:
 2. Introduce server-side owner-resolution vocabulary/abstraction so sync internals are not permanently hard-coded to guest naming.
 3. On first authenticated account bind, run controlled migration/link of existing guest scope into account scope.
 4. Keep guest mode operational for users who have not signed in yet.
-5. De-emphasize claim-confirm dev-oriented behavior as real auth arrives.
+5. Keep claim confirmation account-authenticated and principal-derived; do not reintroduce client-sent account/user ids.
 
 Guest-to-account migration must be retry-safe and must not duplicate, orphan, or cross-assign ownership.
 

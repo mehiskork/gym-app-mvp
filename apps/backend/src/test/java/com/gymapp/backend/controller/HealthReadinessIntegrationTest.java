@@ -76,6 +76,28 @@ class HealthReadinessIntegrationTest {
     }
 
     @Test
+    void readyFailsWhenRequiredAccountTableIsMissing() throws Exception {
+        jdbcTemplate.execute("DROP TABLE identity_link");
+        try {
+            mockMvc.perform(get("/ready"))
+                    .andExpect(status().isServiceUnavailable())
+                    .andExpect(jsonPath("$.status").value("not_ready"))
+                    .andExpect(jsonPath("$.checks.database").value(true))
+                    .andExpect(jsonPath("$.checks.requiredTables").value(false))
+                    .andExpect(jsonPath("$.missingTables[0]").value("identity_link"));
+        } finally {
+            jdbcTemplate.execute(
+                    "CREATE TABLE identity_link ("
+                            + "guest_user_id TEXT PRIMARY KEY,"
+                            + "user_id TEXT NOT NULL,"
+                            + "created_at TIMESTAMPTZ NOT NULL)");
+            jdbcTemplate.execute(
+                    "COMMENT ON COLUMN identity_link.guest_user_id IS "
+                            + "'Original guest/device owner scope id linked to an account owner.'");
+        }
+    }
+
+    @Test
     void readyFailsWhenFlywayHistoryContainsFailedMigration() throws Exception {
         jdbcTemplate.update(
                 """

@@ -536,11 +536,11 @@ Nested `inTransaction()` calls join the same transaction boundary.
 
 The current implementation has a few important limitations that are useful to know while reading the architecture:
 
-- sync is not auto-triggered in the current MVP
+- account-entry flows auto-sync after guest-to-account migration, clean account sign-in restore, and reconnect/reauth; routine periodic/background sync is not implemented yet
 - `last_modified_by_device_id` exists in conflict logic but is not currently populated by mobile write paths
 - device token lookup is not yet optimized for large scale
 - rate limiting is single-process only
-- claim confirm remains partially dev-oriented
+- `/claim/confirm` is Firebase account JWT authenticated and derives ownership from the verified account principal
 
 These are known tradeoffs, not necessarily immediate bugs.
 

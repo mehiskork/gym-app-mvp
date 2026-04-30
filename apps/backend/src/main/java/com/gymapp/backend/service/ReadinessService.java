@@ -23,7 +23,10 @@ public class ReadinessService {
             "device_token",
             "entity_state",
             "change_log",
-            "op_ledger");
+            "op_ledger",
+            "claim",
+            "identity_link",
+            "guest_account_migration_audit");
 
     private final DataSource dataSource;
 
