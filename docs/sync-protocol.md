@@ -92,6 +92,8 @@ For a fresh restore cursor (`null`, blank, or `"0"`), the backend does **not** r
 
 PR events are intentionally excluded from backend deltas. Workout history entities are canonical synced data; `pr_event` is a local-derived cache and is recomputed by mobile after workout-history restore or sync.
 
+`app_meta` is also intentionally excluded from backend deltas. It stores local implementation metadata such as device/local identity, linked-state markers, debug state, and support diagnostics. If synced settings are needed later, add a narrow allowlisted settings entity instead of syncing broad `app_meta`.
+
 A delta contains:
 
 - `changeId`
@@ -615,14 +617,14 @@ For the exact policy, see:
 
 - `docs/conflicts.md`
 
-### Sanitization before outbound deltas
+### Local-only metadata before outbound deltas
 
-The backend strips or suppresses sensitive data before sending deltas.
+The backend suppresses local-only metadata and strips sensitive data before sending deltas.
 
 Current examples:
 
 - `device_token` deltas are not sent back to clients
-- sensitive `app_meta` keys are denylisted from outbound payloads
+- `app_meta` deltas are not sent back to clients
 
 ---
 

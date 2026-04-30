@@ -236,14 +236,6 @@ const tableConfigs: Record<string, TableConfig> = {
     hasVersion: false,
     order: 90,
   },
-  app_meta: {
-    tableName: 'app_meta',
-    primaryKey: 'key',
-    columns: ['key', 'value', 'created_at', 'updated_at'],
-    hasDeletedAt: false,
-    hasVersion: false,
-    order: 100,
-  },
 };
 
 export function getSyncApplyEntityTypes(): string[] {

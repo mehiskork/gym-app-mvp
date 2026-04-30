@@ -580,6 +580,53 @@ class SyncServiceIT {
                 .hasMessageContaining("Invalid sync operation");
     }
 
+    @Test
+    void freshSnapshotExcludesAppMetaBecauseAppMetaIsLocalOnly() {
+        Instant now = Instant.now();
+        upsertEntityStateAndChangeLog("program", "program-1", Map.of("id", "program-1", "name", "Plan"), now);
+        upsertEntityStateAndChangeLog("app_meta", "claimed_user_id", Map.of(
+                "key", "claimed_user_id",
+                "value", "issuer.example|account-1"), now);
+
+        SyncResponse response = syncService.sync(deviceId, guestUserId, "0", List.of());
+
+        assertThat(response.getDeltas())
+                .extracting(SyncDelta::entityType)
+                .containsExactly("program");
+        assertThat(response.getDeltas())
+                .extracting(SyncDelta::entityType)
+                .doesNotContain("app_meta");
+    }
+
+    @Test
+    void incrementalSyncExcludesAppMetaBecauseAppMetaIsLocalOnly() {
+        insertChangeLog("program", "program-old", Map.of("id", "program-old"));
+        long cursor = maxChangeId();
+        insertChangeLog("app_meta", "auth_debug_state_v1", Map.of(
+                "key", "auth_debug_state_v1",
+                "value", "{}"));
+
+        SyncResponse response = syncService.sync(deviceId, guestUserId, String.valueOf(cursor), List.of());
+
+        assertThat(response.getDeltas()).isEmpty();
+        assertThat(response.getCursor()).isEqualTo(String.valueOf(cursor));
+    }
+
+    @Test
+    void outboundAppMetaOpIsRejectedAsUnsupportedSyncedType() {
+        SyncOp op = new SyncOp(
+                "op-app-meta",
+                "app_meta",
+                "claimed_user_id",
+                "upsert",
+                Map.of("key", "claimed_user_id", "value", "issuer.example|account-1"),
+                null);
+
+        assertThatThrownBy(() -> syncService.sync(deviceId, guestUserId, "0", List.of(op)))
+                .isInstanceOf(com.gymapp.backend.controller.ValidationException.class)
+                .hasMessageContaining("Invalid sync operation");
+    }
+
     private void insertChanges(int count) {
         Instant now = Instant.now();
         for (int i = 1; i <= count; i += 1) {

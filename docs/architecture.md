@@ -152,6 +152,7 @@ The mobile SQLite schema is easiest to understand in five groups:
    - `outbox_op`, `sync_state`, `sync_run`
 5. **App metadata / settings**
    - `app_meta`
+   - local-only; not part of `/sync`
 
 The database is opened through Expo SQLite in `src/db/db.ts`, with migrations applied at startup via `src/db/migrate.ts`.
 
@@ -397,6 +398,7 @@ Mobile storage rules (PR 8):
 
 - Sensitive credentials/session material (`device_token`, `device_secret`, account access/refresh/session secret material) are stored in platform secure storage only.
 - Non-sensitive metadata (`device_id`, `guest_user_id`, claim flags, sync cursor/state, rest timer metadata) stays in SQLite `app_meta`.
+- `app_meta` is local-only implementation metadata and is not synced inbound or outbound.
 - Reads are secure-storage-first with one-way migration fallback from legacy `app_meta` values; migrated legacy keys are removed and never written back.
 
 The important ownership key for synchronized data is **`guest_user_id`**, not the device itself.

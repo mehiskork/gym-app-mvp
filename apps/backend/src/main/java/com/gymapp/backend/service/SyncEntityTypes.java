@@ -13,8 +13,7 @@ public final class SyncEntityTypes {
             "planned_set",
             "workout_session",
             "workout_session_exercise",
-            "workout_set",
-            "app_meta");
+            "workout_set");
 
     public static final Set<String> ALLOWED_TYPES = Set.copyOf(ORDERED_TYPES);
 
