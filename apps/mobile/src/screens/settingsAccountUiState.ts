@@ -6,6 +6,8 @@ export type SettingsAccountUiState = {
   showGuestCreate: boolean;
   showAccountActions: boolean;
   showReauthRequired: boolean;
+  showReconnect: boolean;
+  reauthMessage: string | null;
 };
 
 export function getSettingsAccountUiState(
@@ -18,15 +20,19 @@ export function getSettingsAccountUiState(
       showGuestCreate: false,
       showAccountActions: true,
       showReauthRequired: false,
+      showReconnect: false,
+      reauthMessage: null,
     };
   }
 
   if (localAccountState === 'linked_reauth_required') {
     return {
-      accountLabel: 'Linked - reauth required',
+      accountLabel: 'Account session expired',
       showGuestCreate: false,
-      showAccountActions: true,
+      showAccountActions: false,
       showReauthRequired: true,
+      showReconnect: true,
+      reauthMessage: 'Reconnect with Google to sync this device again.',
     };
   }
 
@@ -35,5 +41,7 @@ export function getSettingsAccountUiState(
     showGuestCreate: true,
     showAccountActions: false,
     showReauthRequired: false,
+    showReconnect: false,
+    reauthMessage: null,
   };
 }

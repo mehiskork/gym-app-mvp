@@ -1,5 +1,5 @@
 import { api } from '../api/client';
-import { getMeWithAccountAuth } from '../api/accountClient';
+import { getMeWithAccessToken } from '../api/accountClient';
 import {
   getClaimedUserId,
   pauseSync,
@@ -40,6 +40,10 @@ async function assertGuestOutboxDrained(): Promise<void> {
   }
 }
 
+async function syncAfterAccountAuth(): Promise<void> {
+  await syncNow({ force: true });
+}
+
 export async function createGoogleAccountFromGuest(): Promise<GoogleAccountSignInResult> {
   const localAccountState = await resolveLocalAccountState();
   if (localAccountState.status !== 'guest') {
@@ -51,6 +55,7 @@ export async function createGoogleAccountFromGuest(): Promise<GoogleAccountSignI
   await assertGuestOutboxDrained();
   pauseSync('claim');
 
+  let result: GoogleAccountSignInResult | null = null;
   let sessionStored = false;
   try {
     const claimStart = await api.post<ClaimStartResponse>('/claim/start');
@@ -70,14 +75,13 @@ export async function createGoogleAccountFromGuest(): Promise<GoogleAccountSignI
       );
     }
 
-    await accountSessionStore.set(accountSession);
-    sessionStored = true;
     setClaimed(true);
     setClaimedUserId(claimConfirm.userId);
+    await getMeWithAccessToken(accountSession.accessToken);
+    await accountSessionStore.set(accountSession);
+    sessionStored = true;
 
-    await getMeWithAccountAuth();
-
-    return {
+    result = {
       userId: claimConfirm.userId,
       email: accountSession.email,
       displayName: accountSession.displayName,
@@ -89,5 +93,59 @@ export async function createGoogleAccountFromGuest(): Promise<GoogleAccountSignI
     throw error;
   } finally {
     resumeSync();
+  }
+
+  if (!result) {
+    throw new Error('Google account sign-in did not complete.');
+  }
+
+  await syncAfterAccountAuth();
+  return result;
+}
+
+export async function reconnectGoogleAccount(): Promise<GoogleAccountSignInResult> {
+  const localAccountState = await resolveLocalAccountState();
+  if (localAccountState.status === 'guest') {
+    throw new Error('This device is not linked. Use Continue with Google to create an account.');
+  }
+  if (localAccountState.status === 'linked_with_usable_account') {
+    throw new Error('This device is already signed in.');
+  }
+
+  let sessionStored = false;
+  try {
+    const { firebaseSession } = await signInWithGoogleForFirebase();
+    const accountSession = buildFirebaseAccountSession(firebaseSession);
+    const me = await getMeWithAccessToken(accountSession.accessToken);
+    const currentClaimedUserId = getClaimedUserId();
+
+    if (!currentClaimedUserId) {
+      throw new Error(
+        'This device is linked but is missing its account owner. Reset this device before signing in.',
+      );
+    }
+    if (currentClaimedUserId !== me.externalAccountId) {
+      throw new Error(
+        'Different account detected. Sign out and reset local data before switching accounts.',
+      );
+    }
+
+    await accountSessionStore.set(accountSession);
+    sessionStored = true;
+    setClaimed(true);
+    setClaimedUserId(me.externalAccountId);
+
+    await syncAfterAccountAuth();
+
+    return {
+      userId: me.externalAccountId,
+      email: accountSession.email,
+      displayName: accountSession.displayName,
+    };
+  } catch (error) {
+    if (!sessionStored) {
+      await signOutFromGoogle().catch(() => undefined);
+    }
+    throw error;
   }
 }

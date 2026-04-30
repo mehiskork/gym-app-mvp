@@ -7,6 +7,8 @@ describe('Settings account UI state', () => {
       showGuestCreate: true,
       showAccountActions: false,
       showReauthRequired: false,
+      showReconnect: false,
+      reauthMessage: null,
     });
   });
 
@@ -21,15 +23,19 @@ describe('Settings account UI state', () => {
       showGuestCreate: false,
       showAccountActions: true,
       showReauthRequired: false,
+      showReconnect: false,
+      reauthMessage: null,
     });
   });
 
   it('does not expose guest account creation when linked state needs reauth', () => {
     expect(getSettingsAccountUiState('linked_reauth_required', null)).toEqual({
-      accountLabel: 'Linked - reauth required',
+      accountLabel: 'Account session expired',
       showGuestCreate: false,
-      showAccountActions: true,
+      showAccountActions: false,
       showReauthRequired: true,
+      showReconnect: true,
+      reauthMessage: 'Reconnect with Google to sync this device again.',
     });
   });
 });

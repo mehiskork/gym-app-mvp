@@ -10,6 +10,14 @@ export type MeResponse = {
   issuer?: string;
 };
 
+export async function getMeWithAccessToken(accessToken: string): Promise<MeResponse> {
+  return api.get<MeResponse>('/me', {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+}
+
 export async function getMeWithAccountAuth(): Promise<MeResponse> {
   const session = await getUsableAccountSessionWithFreshToken();
   if (!session?.accessToken) {
@@ -17,11 +25,7 @@ export async function getMeWithAccountAuth(): Promise<MeResponse> {
   }
 
   try {
-    return await api.get<MeResponse>('/me', {
-      headers: {
-        Authorization: `Bearer ${session.accessToken}`,
-      },
-    });
+    return await getMeWithAccessToken(session.accessToken);
   } catch (error) {
     if (error instanceof ApiError && error.status === 401) {
       await accountSessionStore.invalidate('me_401');

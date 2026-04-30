@@ -1,7 +1,12 @@
-import { createGoogleAccountFromGuest } from '../googleAccountOrchestrator';
+import { createGoogleAccountFromGuest, reconnectGoogleAccount } from '../googleAccountOrchestrator';
 import { api } from '../../api/client';
-import { getMeWithAccountAuth } from '../../api/accountClient';
-import { isLinkedAccountState, setClaimed, setClaimedUserId } from '../../db/appMetaRepo';
+import { getMeWithAccessToken } from '../../api/accountClient';
+import {
+  getClaimedUserId,
+  isLinkedAccountState,
+  setClaimed,
+  setClaimedUserId,
+} from '../../db/appMetaRepo';
 import { listPendingOutboxOps } from '../../db/outboxRepo';
 import { syncNow } from '../../sync/syncWorker';
 import { accountSessionStore } from '../accountSessionStore';
@@ -14,7 +19,7 @@ jest.mock('../../api/client', () => ({
 }));
 
 jest.mock('../../api/accountClient', () => ({
-  getMeWithAccountAuth: jest.fn(),
+  getMeWithAccessToken: jest.fn(),
 }));
 
 jest.mock('../../db/appMetaRepo', () => ({
@@ -80,9 +85,10 @@ describe('createGoogleAccountFromGuest', () => {
       userId: 'https://securetoken.google.com/gym-app-mvp-1d7f0|firebase-uid',
       status: 'claimed',
     });
-    (getMeWithAccountAuth as jest.Mock).mockResolvedValue({
+    (getMeWithAccessToken as jest.Mock).mockResolvedValue({
       principalType: 'account',
       subject: 'firebase-uid',
+      externalAccountId: 'https://securetoken.google.com/gym-app-mvp-1d7f0|firebase-uid',
     });
   });
 
@@ -94,6 +100,7 @@ describe('createGoogleAccountFromGuest', () => {
     });
 
     expect(syncNow).toHaveBeenCalledWith({ force: true });
+    expect(syncNow).toHaveBeenCalledTimes(2);
     expect(api.post).toHaveBeenNthCalledWith(1, '/claim/start');
     expect(api.post).toHaveBeenNthCalledWith(
       2,
@@ -115,7 +122,22 @@ describe('createGoogleAccountFromGuest', () => {
     expect(setClaimedUserId).toHaveBeenCalledWith(
       'https://securetoken.google.com/gym-app-mvp-1d7f0|firebase-uid',
     );
-    expect(getMeWithAccountAuth).toHaveBeenCalledTimes(1);
+    expect(getMeWithAccessToken).toHaveBeenCalledWith('firebase-id-token');
+  });
+
+  it('keeps the linked account session when automatic account sync fails after claim', async () => {
+    (syncNow as jest.Mock)
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('sync failed'));
+
+    await expect(createGoogleAccountFromGuest()).rejects.toThrow('sync failed');
+
+    expect(accountSessionStore.set).toHaveBeenCalledTimes(1);
+    expect(setClaimed).toHaveBeenCalledWith(true);
+    expect(setClaimedUserId).toHaveBeenCalledWith(
+      'https://securetoken.google.com/gym-app-mvp-1d7f0|firebase-uid',
+    );
+    expect(signOutFromGoogle).not.toHaveBeenCalled();
   });
 
   it('does not store account session if claim confirm fails', async () => {
@@ -166,12 +188,104 @@ describe('createGoogleAccountFromGuest', () => {
     expect(accountSessionStore.set).not.toHaveBeenCalled();
   });
 
-  it('/me 401 after claim confirm invalidates through the existing account client path', async () => {
-    (getMeWithAccountAuth as jest.Mock).mockRejectedValue(new Error('Unauthorized'));
+  it('/me failure after claim confirm leaves linked local state without storing session', async () => {
+    (getMeWithAccessToken as jest.Mock).mockRejectedValue(new Error('Unauthorized'));
 
     await expect(createGoogleAccountFromGuest()).rejects.toThrow('Unauthorized');
 
-    expect(accountSessionStore.set).toHaveBeenCalledTimes(1);
-    expect(getMeWithAccountAuth).toHaveBeenCalledTimes(1);
+    expect(setClaimed).toHaveBeenCalledWith(true);
+    expect(accountSessionStore.set).not.toHaveBeenCalled();
+    expect(signOutFromGoogle).toHaveBeenCalledTimes(1);
+    expect(getMeWithAccessToken).toHaveBeenCalledWith('firebase-id-token');
+  });
+});
+
+describe('reconnectGoogleAccount', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (syncNow as jest.Mock).mockResolvedValue(undefined);
+    (isLinkedAccountState as jest.Mock).mockReturnValue(true);
+    (getClaimedUserId as jest.Mock).mockReturnValue(
+      'https://securetoken.google.com/gym-app-mvp-1d7f0|firebase-uid',
+    );
+    (accountSessionStore.getUsable as jest.Mock).mockResolvedValue(null);
+    (signInWithGoogleForFirebase as jest.Mock).mockResolvedValue({
+      googleIdToken: 'google-id-token',
+      firebaseSession: {
+        accessToken: 'firebase-id-token',
+        refreshToken: 'firebase-refresh-token',
+        localId: 'firebase-uid',
+        expiresAt: '2026-04-28T13:00:00.000Z',
+        email: 'user@example.test',
+        displayName: 'Test User',
+      },
+    });
+    (signOutFromGoogle as jest.Mock).mockResolvedValue(undefined);
+    (getMeWithAccessToken as jest.Mock).mockResolvedValue({
+      principalType: 'account',
+      subject: 'firebase-uid',
+      externalAccountId: 'https://securetoken.google.com/gym-app-mvp-1d7f0|firebase-uid',
+    });
+  });
+
+  it('refreshes a linked account session and triggers account sync without claim endpoints', async () => {
+    await expect(reconnectGoogleAccount()).resolves.toEqual({
+      userId: 'https://securetoken.google.com/gym-app-mvp-1d7f0|firebase-uid',
+      email: 'user@example.test',
+      displayName: 'Test User',
+    });
+
+    expect(api.post).not.toHaveBeenCalled();
+    expect(getMeWithAccessToken).toHaveBeenCalledWith('firebase-id-token');
+    expect(accountSessionStore.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accessToken: 'firebase-id-token',
+        refreshToken: 'firebase-refresh-token',
+        subject: 'firebase-uid',
+      }),
+    );
+    expect(setClaimed).toHaveBeenCalledWith(true);
+    expect(setClaimedUserId).toHaveBeenCalledWith(
+      'https://securetoken.google.com/gym-app-mvp-1d7f0|firebase-uid',
+    );
+    expect(syncNow).toHaveBeenCalledWith({ force: true });
+  });
+
+  it('does not reconnect from true guest state', async () => {
+    (isLinkedAccountState as jest.Mock).mockReturnValue(false);
+
+    await expect(reconnectGoogleAccount()).rejects.toThrow(
+      'This device is not linked. Use Continue with Google to create an account.',
+    );
+
+    expect(signInWithGoogleForFirebase).not.toHaveBeenCalled();
+    expect(accountSessionStore.set).not.toHaveBeenCalled();
+    expect(syncNow).not.toHaveBeenCalled();
+  });
+
+  it('does not reconnect if Google signs in as a different account', async () => {
+    (getMeWithAccessToken as jest.Mock).mockResolvedValue({
+      principalType: 'account',
+      subject: 'other-uid',
+      externalAccountId: 'https://securetoken.google.com/gym-app-mvp-1d7f0|other-uid',
+    });
+
+    await expect(reconnectGoogleAccount()).rejects.toThrow(
+      'Different account detected. Sign out and reset local data before switching accounts.',
+    );
+
+    expect(accountSessionStore.set).not.toHaveBeenCalled();
+    expect(signOutFromGoogle).toHaveBeenCalledTimes(1);
+    expect(syncNow).not.toHaveBeenCalled();
+  });
+
+  it('leaves linked reauth state safe when reconnect /me verification fails', async () => {
+    (getMeWithAccessToken as jest.Mock).mockRejectedValue(new Error('Unauthorized'));
+
+    await expect(reconnectGoogleAccount()).rejects.toThrow('Unauthorized');
+
+    expect(accountSessionStore.set).not.toHaveBeenCalled();
+    expect(signOutFromGoogle).toHaveBeenCalledTimes(1);
+    expect(syncNow).not.toHaveBeenCalled();
   });
 });

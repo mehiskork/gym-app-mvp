@@ -30,7 +30,10 @@ import {
 } from '../utils/restTimerNotifications';
 import { resetToGuestBootstrap } from '../auth/identityTransition';
 import type { AccountSession } from '../auth/accountSessionStore';
-import { createGoogleAccountFromGuest } from '../auth/googleAccountOrchestrator';
+import {
+  createGoogleAccountFromGuest,
+  reconnectGoogleAccount,
+} from '../auth/googleAccountOrchestrator';
 import { signOutFromGoogle } from '../auth/firebaseGoogleAuthClient';
 import { resolveLocalAccountState, type LocalAccountStateStatus } from '../auth/localAccountState';
 import { getSettingsAccountUiState } from './settingsAccountUiState';
@@ -190,11 +193,25 @@ export function SettingsScreen() {
     setAccountError(null);
     try {
       await createGoogleAccountFromGuest();
-      await refreshAccountState();
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Google sign-in failed.';
       setAccountError(message);
     } finally {
+      await refreshAccountState();
+      setAccountBusy(false);
+    }
+  }, [refreshAccountState]);
+
+  const handleReconnectGoogleAccount = useCallback(async () => {
+    setAccountBusy(true);
+    setAccountError(null);
+    try {
+      await reconnectGoogleAccount();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Google reconnect failed.';
+      setAccountError(message);
+    } finally {
+      await refreshAccountState();
       setAccountBusy(false);
     }
   }, [refreshAccountState]);
@@ -369,10 +386,24 @@ export function SettingsScreen() {
         <Text variant="subtitle">Account</Text>
         <Text color={colors.textSecondary}>Account: {accountUiState.accountLabel}</Text>
         {accountUiState.showReauthRequired ? (
-          <Text variant="muted">Reauth or reset local data before syncing this account.</Text>
+          <Text variant="muted">{accountUiState.reauthMessage}</Text>
         ) : null}
         {accountError ? <Text color={colors.danger}>{accountError}</Text> : null}
-        {accountUiState.showAccountActions ? (
+        {accountUiState.showReconnect ? (
+          <>
+            <Button
+              title="Reconnect with Google"
+              onPress={handleReconnectGoogleAccount}
+              loading={accountBusy}
+            />
+            <Button
+              title="Reset this device"
+              variant="destructive"
+              onPress={handleLogout}
+              loading={accountBusy}
+            />
+          </>
+        ) : accountUiState.showAccountActions ? (
           <>
             <Button title="Switch account" onPress={handleSwitchAccount} loading={accountBusy} />
             <Button
