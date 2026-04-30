@@ -258,9 +258,9 @@ When writing code or docs, be precise about which one you mean.
 
 ### How sync is triggered today
 
-The sync system exists, but it is **not automatically triggered** by app launch, focus, or a background timer in the current MVP.
+The sync system exists, and account-entry flows trigger sync automatically after safe account auth state is established. Routine sync still does not run from app launch, focus, or a background timer in the current MVP.
 
-In development, sync is primarily triggered from the hidden Debug screen. See `docs/local-development.md` for the operational details.
+In development, manual sync is still available from the hidden Debug screen for troubleshooting. See `docs/local-development.md` for the operational details.
 
 ### Core sync loop
 
@@ -301,7 +301,7 @@ A `/sync` response contains both:
 - **acks** — what happened to the submitted ops
 - **deltas** — what rows the client should apply locally
 
-An important subtlety: “acked” does **not** necessarily mean “the server accepted the local version as the winner.” The backend can acknowledge an op as processed even if it became a noop or was rejected by business rules. The next delta application is what corrects local state toward the backend’s canonical result.
+An important subtlety: `noop` acks are treated as idempotent success and become locally `acked`, but rejected ops do not. Rejected ops are marked failed with the server reason so they remain visible in Debug/support output instead of being silently dropped.
 
 ### Atomic delta application
 

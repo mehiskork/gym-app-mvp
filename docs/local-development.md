@@ -245,17 +245,23 @@ Go to **Settings → About** and tap the version string **7 times quickly**.
 
 Long-press the version string.
 
-The Debug screen is currently the main way to trigger sync during development.
+The Debug screen remains the main manual sync tool during development and troubleshooting.
 
 ---
 
 ## Sync in development
 
-The sync system is implemented, but **sync is not automatically triggered** in the current MVP.
+The sync system is implemented. Account-entry flows trigger sync automatically, but routine background sync is still not implemented in the current MVP.
 
-There is no background timer, app-focus listener, or launch-time sync hook wired into the normal app flow.
+Automatic account-entry sync currently runs after:
 
-To sync in development:
+- guest-to-Google account migration completes claim confirm, `/me`, and SecureStore session write
+- signing back into an account from a clean local database
+- reconnecting from `linked_reauth_required`
+
+There is no periodic timer, app-focus listener, or general launch-time background sync hook wired into the normal app flow.
+
+To trigger sync manually in development or troubleshooting:
 
 1. Unlock the Debug screen
 2. Use the **Sync** or **Pull** buttons there

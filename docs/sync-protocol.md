@@ -204,11 +204,13 @@ Ack statuses:
 
 Important consequence:
 
-- `applied`, `noop`, and `rejected` all stop retries for that `opId`
-- if an op was explicitly acked, it becomes `acked` locally
-- rejected ops are **not retried**
+- `applied` becomes `acked` locally
+- `noop` becomes `acked` locally because it is treated as an idempotent successful outcome
+- `rejected` does **not** become `acked` locally
+- rejected ops are marked `failed` with the server reason so they remain visible in Debug/support output
+- missing ack entries are not marked `acked`; they are marked failed/retryable according to the outbox backoff policy
 
-So “acked” does **not** mean “successfully applied.” It means “the backend has definitively processed this op.”
+So “acked” means the backend explicitly confirmed an applied or idempotent outcome for that op. Rejections and missing acks are not silently dropped.
 
 #### `deltas`
 
@@ -664,8 +666,9 @@ Stale `in_flight` rows must be repairable on the next sync attempt.
 
 ## Known MVP limitations and tradeoffs
 
-- Sync is not automatically triggered in normal app flow.
-- In development, sync is often triggered manually.
+- Account login, guest-to-account migration, and linked-account reconnect trigger account sync automatically.
+- Routine periodic/background sync is not implemented yet.
+- In development, manual Debug sync remains available for troubleshooting.
 - Continuation paging is capped per `syncNow()` call.
 - Old `acked` outbox rows are not automatically pruned by sync logic.
 - Missing ack entries are treated as failures and retried later.
