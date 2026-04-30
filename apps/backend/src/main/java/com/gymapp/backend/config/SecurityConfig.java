@@ -39,6 +39,7 @@ public class SecurityConfig {
 
     private final DeviceTokenRepository deviceTokenRepository;
     private final RateLimitFilter rateLimitFilter;
+    private final AccountSyncRateLimitFilter accountSyncRateLimitFilter;
     private final ObjectMapper objectMapper;
     private final PrincipalMapper principalMapper;
     private final FirebaseJwtValidator firebaseJwtValidator;
@@ -117,6 +118,7 @@ public class SecurityConfig {
                         .anyRequest().denyAll())
                 .addFilterBefore(bearerFilter, BearerTokenAuthenticationFilter.class)
                 .addFilterBefore(rateLimitFilter, BearerDeviceAuthFilter.class)
+                .addFilterAfter(accountSyncRateLimitFilter, BearerTokenAuthenticationFilter.class)
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .bearerTokenResolver(jwtLikeBearerTokenResolver())
                         .jwt(jwt -> jwt.jwtAuthenticationConverter(accountJwtAuthenticationConverter))

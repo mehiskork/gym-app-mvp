@@ -74,6 +74,13 @@ From `apps/backend`:
 
 Backend integration tests use Testcontainers and require a running Docker daemon.
 
+## Rate limiting
+
+`POST /sync` uses layered in-process limits: every request gets a remote-address safety bucket, device-token sync gets a device-id bucket, and account JWT sync gets an account-owner bucket derived from the authenticated principal. Account sync limits default to the general sync settings and can be overridden with:
+
+- `rateLimit.sync.account.capacity`
+- `rateLimit.sync.account.refillPerSecond`
+
 ## Quick curl examples
 
 Register device:

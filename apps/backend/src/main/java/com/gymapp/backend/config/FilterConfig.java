@@ -23,6 +23,20 @@ public class FilterConfig {
     }
 
     @Bean
+    public AccountSyncRateLimitFilter accountSyncRateLimitFilter(
+            com.gymapp.backend.config.RateLimitFilter rateLimitFilter) {
+        return new AccountSyncRateLimitFilter(rateLimitFilter);
+    }
+
+    @Bean
+    public FilterRegistrationBean<AccountSyncRateLimitFilter> accountSyncRateLimitFilterRegistration(
+            AccountSyncRateLimitFilter filter) {
+        FilterRegistrationBean<AccountSyncRateLimitFilter> reg = new FilterRegistrationBean<>(filter);
+        reg.setEnabled(false);
+        return reg;
+    }
+
+    @Bean
     public FilterRegistrationBean<com.gymapp.backend.config.RateLimitFilter> rateLimitFilterRegistration(
             com.gymapp.backend.config.RateLimitFilter filter) {
         FilterRegistrationBean<com.gymapp.backend.config.RateLimitFilter> reg = new FilterRegistrationBean<>(filter);

@@ -28,6 +28,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
     private static final long NANOS_PER_SECOND = 1_000_000_000L;
     private static final String SYNC_PREFIX = "sync:";
     private static final String SYNC_REMOTE_PREFIX = "syncRemote:";
+    private static final String SYNC_ACCOUNT_PREFIX = "syncAccount:";
 
     private final ObjectMapper objectMapper;
     private final DeviceTokenRepository deviceTokenRepository;
@@ -38,6 +39,12 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
     @Value("${rateLimit.sync.refillPerSecond:10}")
     private double syncRefillPerSecond;
+
+    @Value("${rateLimit.sync.account.capacity:${rateLimit.sync.capacity:30}}")
+    private int syncAccountCapacity;
+
+    @Value("${rateLimit.sync.account.refillPerSecond:${rateLimit.sync.refillPerSecond:10}}")
+    private double syncAccountRefillPerSecond;
 
     @Value("${rateLimit.sync.maxBuckets:20000}")
     private int syncMaxBuckets;
@@ -105,6 +112,19 @@ public class RateLimitFilter extends OncePerRequestFilter {
         filterChain.doFilter(request, response);
     }
 
+    boolean rateLimitAccountSync(AccountPrincipal accountPrincipal, HttpServletResponse response) throws IOException {
+        if (accountPrincipal == null
+                || accountPrincipal.getExternalAccountId() == null
+                || accountPrincipal.getExternalAccountId().isBlank()) {
+            return false;
+        }
+        return isRateLimited(
+                SYNC_ACCOUNT_PREFIX + accountPrincipal.getExternalAccountId(),
+                syncAccountCapacity,
+                syncAccountRefillPerSecond,
+                response);
+    }
+
     private boolean isRateLimited(
             String key,
             int capacity,
@@ -152,7 +172,9 @@ public class RateLimitFilter extends OncePerRequestFilter {
     }
 
     private boolean isSyncScopedKey(String key) {
-        return key != null && (key.startsWith(SYNC_PREFIX) || key.startsWith(SYNC_REMOTE_PREFIX));
+        return key != null && (key.startsWith(SYNC_PREFIX)
+                || key.startsWith(SYNC_REMOTE_PREFIX)
+                || key.startsWith(SYNC_ACCOUNT_PREFIX));
     }
 
     private boolean isSyncRemoteKey(String key) {

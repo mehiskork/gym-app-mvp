@@ -39,6 +39,9 @@ rateLimit:
   sync:
     capacity: 30
     refillPerSecond: 10
+    account:
+      capacity: ${rateLimit.sync.capacity}
+      refillPerSecond: ${rateLimit.sync.refillPerSecond}
     maxBuckets: 20000
     cleanupBatchSize: 200
     staleAfterSeconds: 1800
