@@ -49,6 +49,7 @@ This repository has a Firebase-backed account-JWT foundation: account identity i
 - Debug/support surfaces remain intentionally available for rollout support and incident triage.
 - Firebase is auth-only; app data remains SQLite mobile source of truth synced through Spring Boot/PostgreSQL.
 - Local-first behavior is unchanged: local writes commit first; sync reconciles eventual server state.
+- The checked-in mobile config currently targets the Railway shared dev/QA backend by default (`https://gym-app-mvp-production.up.railway.app`). This is not the final production environment; override the API base URL when testing against a local backend.
 
 ---
 

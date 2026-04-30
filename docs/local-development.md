@@ -145,15 +145,30 @@ Use `development` for normal coding. Use `preview` when you want behavior closer
 
 ## Connecting the mobile app to the backend
 
-The app defaults to `http://localhost:8080`.
+The checked-in mobile app currently targets the Railway shared dev/QA backend by default:
+
+```text
+https://gym-app-mvp-production.up.railway.app
+```
+
+That default lives in `apps/mobile/app.json` under `expo.extra.EXPO_PUBLIC_API_BASE_URL`. This is intentional for the current phase because there is no separate production environment yet. It should not be treated as the final public-beta or production backend.
+
+The mobile API URL precedence is:
+
+1. Expo extra config: `API_BASE_URL` or `EXPO_PUBLIC_API_BASE_URL`
+2. Environment variables: `EXPO_PUBLIC_API_BASE_URL` or `API_BASE_URL`, when Expo constants are unavailable
+3. Fallback only: `http://localhost:8080`
+
+Because the checked-in Expo extra is present, normal dev builds use Railway unless you deliberately override it.
 
 ### What works where
 
-- **iOS Simulator:** `localhost` usually works
-- **Physical device:** `localhost` points to the phone itself
-- **Android emulator:** `localhost` points to the emulator, not your machine
+- **Railway shared dev/QA:** works from simulators, emulators, and physical devices without a local backend.
+- **iOS Simulator local backend:** `localhost` usually works if you override the API URL to `http://localhost:8080`.
+- **Physical device local backend:** `localhost` points to the phone itself; use your computer's LAN IP.
+- **Android emulator local backend:** use `http://10.0.2.2:8080` for the host machine, or a LAN IP for a physical device.
 
-For a physical device or Android emulator, set `EXPO_PUBLIC_API_BASE_URL` in `apps/mobile/app.json` under `expo.extra`:
+To test against a local backend, temporarily set `EXPO_PUBLIC_API_BASE_URL` in `apps/mobile/app.json` under `expo.extra`:
 
 ```json
 {
@@ -165,11 +180,15 @@ For a physical device or Android emulator, set `EXPO_PUBLIC_API_BASE_URL` in `ap
 }
 ```
 
-Replace `192.168.1.x` with your machine’s LAN IP. Your phone and computer must be on the same network.
+Replace `192.168.1.x` with your machine's LAN IP, or use `http://localhost:8080` for an iOS simulator and `http://10.0.2.2:8080` for the Android emulator. Restart Metro or rebuild the dev client if the app does not pick up the changed Expo config.
 
 > Do not commit a local IP address. Revert the change before pushing.
 
+To verify what the app is using, open the hidden Debug screen and check **Backend / Environment** -> **Backend URL**.
+
 The app is offline-first, so core local workout logging still works without the backend. Backend reachability mainly matters for sync, claim flow testing, and multi-device scenarios.
+
+Before real production or public beta, split dev/QA/prod backend config so local development cannot silently hit a production backend.
 
 ---
 
@@ -275,11 +294,13 @@ npx eas build --profile development --platform android
 
 ### The app cannot reach the backend on a physical device
 
-`localhost` on a phone points to the phone itself. Set `EXPO_PUBLIC_API_BASE_URL` to your computer’s LAN IP, for example:
+The checked-in mobile default is Railway. If you intentionally override the app to use a local backend, remember that `localhost` on a phone points to the phone itself. Set `EXPO_PUBLIC_API_BASE_URL` in `apps/mobile/app.json` to your computer's LAN IP, for example:
 
 ```json
 "http://192.168.1.x:8080"
 ```
+
+Then confirm the resolved value in Debug -> Backend / Environment -> Backend URL.
 
 ### `docker compose up --build` fails with a port conflict
 

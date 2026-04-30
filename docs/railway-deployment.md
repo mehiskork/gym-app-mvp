@@ -84,6 +84,18 @@ Expected results:
 - `/me` -> `401`
 - `/me` with `invalid-token` -> `401 AUTH_UNAUTHORIZED` / malformed token
 
+## Mobile app default during QA
+
+The checked-in mobile config in `apps/mobile/app.json` currently points to this Railway backend:
+
+```text
+https://gym-app-mvp-production.up.railway.app
+```
+
+Treat this Railway service as the shared dev/QA backend for the current phase, not as the final production environment. For local backend testing, temporarily override `expo.extra.EXPO_PUBLIC_API_BASE_URL` in `apps/mobile/app.json` and confirm the resolved value in the mobile Debug screen under **Backend / Environment** -> **Backend URL**.
+
+Before public beta or real production, split dev/QA/prod backend config so local development and test builds cannot silently target production.
+
 ## Troubleshooting
 
 ### `/ready` fails after a successful build

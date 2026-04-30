@@ -23,6 +23,20 @@ describe('getApiBaseUrl', () => {
     expect(getApiBaseUrl()).toBe('https://expo.example.test');
   });
 
+  it('uses checked-in Expo public API base URL config when present', () => {
+    jest.doMock('expo-constants', () => ({
+      expoConfig: {
+        extra: {
+          EXPO_PUBLIC_API_BASE_URL: 'https://railway.example.test',
+        },
+      },
+    }));
+
+    const { getApiBaseUrl } = require('../config') as typeof import('../config');
+
+    expect(getApiBaseUrl()).toBe('https://railway.example.test');
+  });
+
   it('uses environment variables when Expo extras are unavailable', () => {
     process.env.EXPO_PUBLIC_API_BASE_URL = 'https://env.example.test';
 

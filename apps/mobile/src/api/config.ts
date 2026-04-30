@@ -1,3 +1,5 @@
+// The checked-in Expo extra in app.json currently points to the shared Railway dev/QA backend.
+// This localhost value is only a final fallback when no Expo extra or environment config exists.
 const DEFAULT_BASE_URL = 'http://localhost:8080';
 
 type ExpoConstantsModule = {
