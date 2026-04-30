@@ -246,6 +246,12 @@ const tableConfigs: Record<string, TableConfig> = {
   },
 };
 
+export function getSyncApplyEntityTypes(): string[] {
+  return Object.entries(tableConfigs)
+    .sort(([, a], [, b]) => a.order - b.order)
+    .map(([entityType]) => entityType);
+}
+
 type DeltaOutcome = 'applied' | 'skipped';
 
 const SYNC_APPLY_FAILURE_DIAGNOSTIC_KEY = 'latest_sync_apply_failure_diagnostic_v1';
