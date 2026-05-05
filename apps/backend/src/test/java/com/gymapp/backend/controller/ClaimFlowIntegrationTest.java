@@ -622,6 +622,7 @@ class ClaimFlowIntegrationTest {
                                                 .subject(subject)
                                                 .issueTime(Date.from(Instant.now()))
                                                 .expirationTime(Date.from(expiresAt))
+                                                .claim("auth_time", Instant.now().minusSeconds(60).getEpochSecond())
                                                 .build();
                                 SignedJWT jwt = new SignedJWT(
                                                 new JWSHeader.Builder(JWSAlgorithm.RS256)

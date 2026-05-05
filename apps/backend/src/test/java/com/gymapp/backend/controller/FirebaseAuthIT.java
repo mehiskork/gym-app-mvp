@@ -142,6 +142,31 @@ class FirebaseAuthIT {
     }
 
     @Test
+    void meRejectsMissingFirebaseAuthTime() throws Exception {
+        mockMvc.perform(get("/me")
+                .header("Authorization", "Bearer " + TOKEN_SIGNER.tokenWithoutAuthTime(
+                        FIREBASE_ISSUER,
+                        FIREBASE_PROJECT_ID,
+                        "firebase-user-missing-auth-time",
+                        Instant.now().plusSeconds(3600))))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("AUTH_UNAUTHORIZED"));
+    }
+
+    @Test
+    void meRejectsInvalidFirebaseAuthTime() throws Exception {
+        mockMvc.perform(get("/me")
+                .header("Authorization", "Bearer " + TOKEN_SIGNER.tokenWithAuthTime(
+                        FIREBASE_ISSUER,
+                        FIREBASE_PROJECT_ID,
+                        "firebase-user-invalid-auth-time",
+                        Instant.now().plusSeconds(3600),
+                        "not-a-timestamp")))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("AUTH_UNAUTHORIZED"));
+    }
+
+    @Test
     void meRejectsWrongFirebaseIssuer() throws Exception {
         mockMvc.perform(get("/me")
                 .header("Authorization", "Bearer " + TOKEN_SIGNER.token(
@@ -286,14 +311,34 @@ class FirebaseAuthIT {
         }
 
         String token(String issuer, String audience, String subject, Instant expiresAt) {
-            return token(issuer, audience, subject, expiresAt, true);
+            return token(issuer, audience, subject, expiresAt, true, true, Instant.now().minusSeconds(60).getEpochSecond());
         }
 
         String tokenWithoutSubject(String issuer, String audience, Instant expiresAt) {
-            return token(issuer, audience, null, expiresAt, false);
+            return token(issuer, audience, null, expiresAt, false, true, Instant.now().minusSeconds(60).getEpochSecond());
         }
 
-        private String token(String issuer, String audience, String subject, Instant expiresAt, boolean includeSubject) {
+        String tokenWithoutAuthTime(String issuer, String audience, String subject, Instant expiresAt) {
+            return token(issuer, audience, subject, expiresAt, true, false, null);
+        }
+
+        String tokenWithAuthTime(
+                String issuer,
+                String audience,
+                String subject,
+                Instant expiresAt,
+                Object authTime) {
+            return token(issuer, audience, subject, expiresAt, true, true, authTime);
+        }
+
+        private String token(
+                String issuer,
+                String audience,
+                String subject,
+                Instant expiresAt,
+                boolean includeSubject,
+                boolean includeAuthTime,
+                Object authTime) {
             try {
                 JWTClaimsSet.Builder claims = new JWTClaimsSet.Builder()
                         .issuer(issuer)
@@ -302,6 +347,9 @@ class FirebaseAuthIT {
                         .expirationTime(Date.from(expiresAt));
                 if (includeSubject) {
                     claims.subject(subject);
+                }
+                if (includeAuthTime) {
+                    claims.claim("auth_time", authTime);
                 }
                 SignedJWT jwt = new SignedJWT(
                         new JWSHeader.Builder(JWSAlgorithm.RS256)

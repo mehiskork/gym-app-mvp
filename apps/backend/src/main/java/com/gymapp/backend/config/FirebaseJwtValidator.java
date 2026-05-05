@@ -1,5 +1,7 @@
 package com.gymapp.backend.config;
 
+import java.time.Instant;
+import java.util.Date;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.OAuth2TokenValidator;
@@ -25,7 +27,11 @@ public class FirebaseJwtValidator {
             if (audienceResult.hasErrors()) {
                 return audienceResult;
             }
-            return validateFirebaseSubject(token);
+            OAuth2TokenValidatorResult subjectResult = validateFirebaseSubject(token);
+            if (subjectResult.hasErrors()) {
+                return subjectResult;
+            }
+            return validateFirebaseAuthTime(token);
         };
     }
 
@@ -45,6 +51,50 @@ public class FirebaseJwtValidator {
             return invalidToken("Firebase token subject is required");
         }
         return OAuth2TokenValidatorResult.success();
+    }
+
+    private OAuth2TokenValidatorResult validateFirebaseAuthTime(Jwt jwt) {
+        Object rawAuthTime = jwt.getClaim("auth_time");
+        if (rawAuthTime == null) {
+            return invalidToken("Firebase token auth_time is required");
+        }
+
+        Instant authTime = parseAuthTime(rawAuthTime);
+        if (authTime == null) {
+            return invalidToken("Firebase token auth_time is invalid");
+        }
+        if (authTime.isAfter(Instant.now())) {
+            return invalidToken("Firebase token auth_time must be in the past");
+        }
+        return OAuth2TokenValidatorResult.success();
+    }
+
+    private Instant parseAuthTime(Object rawAuthTime) {
+        if (rawAuthTime instanceof Instant instant) {
+            return instant;
+        }
+        if (rawAuthTime instanceof Date date) {
+            return date.toInstant();
+        }
+        if (rawAuthTime instanceof Number number) {
+            return Instant.ofEpochSecond(number.longValue());
+        }
+        if (rawAuthTime instanceof String value) {
+            String trimmed = value.trim();
+            if (trimmed.isBlank()) {
+                return null;
+            }
+            try {
+                return Instant.ofEpochSecond(Long.parseLong(trimmed));
+            } catch (NumberFormatException ignored) {
+                try {
+                    return Instant.parse(trimmed);
+                } catch (RuntimeException ignoredAgain) {
+                    return null;
+                }
+            }
+        }
+        return null;
     }
 
     private OAuth2TokenValidatorResult invalidToken(String description) {
