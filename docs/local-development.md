@@ -214,9 +214,9 @@ Before real production or public beta, split dev/QA/prod backend config so local
 From `apps/mobile`:
 
 ```bash
-npm test
-npm run typecheck
 npm run lint
+npm run typecheck
+TMPDIR=/tmp npm test -- --runInBand
 ```
 
 These tests run in Node with SQLite and native modules mocked. They do not exercise real device behavior.
@@ -235,6 +235,15 @@ From `apps/backend`:
 - On Windows, use `mvnw.cmd test` and `mvnw.cmd verify`
 
 **Important:** `./mvnw test` does **not** run integration tests. Backend integration tests use Testcontainers, so `./mvnw verify` requires a running Docker daemon. Always run `./mvnw verify` before merging backend changes that touch sync, auth, claim flow, or persistence behavior.
+
+### CI fast gates
+
+GitHub Actions runs `.github/workflows/ci-fast.yml` on pull requests and pushes:
+
+- mobile `npm ci`, lint, typecheck, and Jest with `TMPDIR=/tmp`
+- backend `./mvnw test`
+
+Backend integration tests live in `.github/workflows/backend-integration.yml`. That workflow runs `./mvnw verify` on `main` pushes and can be started manually with `workflow_dispatch`; it requires Docker/Testcontainers support.
 
 ---
 

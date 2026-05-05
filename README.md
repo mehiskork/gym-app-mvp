@@ -68,6 +68,17 @@ This repository has Firebase-backed Google account auth: account identity is can
 
 ---
 
+## CI
+
+GitHub Actions fast gates run on pull requests and pushes:
+
+- mobile lint, typecheck, and Jest from `apps/mobile`
+- backend unit tests from `apps/backend`
+
+Backend integration tests run separately with Docker/Testcontainers on `main` pushes or manually. Local equivalents are documented in `docs/local-development.md`.
+
+---
+
 ## Repository structure
 
 ```text

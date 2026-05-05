@@ -1,0 +1,35 @@
+name: Backend Integration Tests
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  backend-integration:
+    name: Backend verify with Testcontainers
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/backend
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Confirm Docker is available
+        run: docker version
+
+      - name: Run backend integration tests
+        run: ./mvnw verify
