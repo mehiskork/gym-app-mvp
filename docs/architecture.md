@@ -162,11 +162,15 @@ User-facing terminology is **Plan -> Session -> Exercises**. Internal names such
 
 Migrations are versioned and recorded in `schema_migrations`. They run during app startup before normal app usage.
 
-Important implication: schema evolution is code-driven and sequential. If you change table shape, you must think about all three of these together:
+The current mobile schema is a **reset-only private-beta baseline**. The migration chain was squashed before any external testers existed. Existing internal/dev installs from before that squash must uninstall the app, clear app storage, or use the destructive reset flow before relying on the new baseline.
+
+Important implication: future schema evolution is code-driven and sequential. If you change table shape after this baseline, you must think about all three of these together:
 
 - fresh install bootstrap
 - upgrade path from older installs
 - sync column handling in `applyDeltas.ts`
+
+The mobile database engine remains SQLite. This baseline squash is only a local schema cleanup, not a move away from SQLite as the device source of truth.
 
 ### Repository + transaction model
 

@@ -111,6 +111,18 @@ The repo root also contains `app.json` and `eas.json`, but those are not the cor
 
 This app uses native modules such as `expo-sqlite`. **Expo Go will not work.** Use a development build or another native build.
 
+### Local SQLite baseline reset
+
+The mobile SQLite migrations are currently squashed into one reset-only private-beta baseline. This was done before any external testers existed, so old internal/dev SQLite databases are not supported across the squash.
+
+If your dev build was installed before the mobile baseline squash, reset local mobile data before testing:
+
+- uninstall and reinstall the app, or
+- clear the app storage from the simulator/device, or
+- use the app's destructive reset flow.
+
+SQLite remains the mobile source of truth. This is not a database-engine change and does not change sync/auth behavior.
+
 ### Start Metro
 
 ```bash
