@@ -99,7 +99,7 @@ The canonical mobile config lives under `apps/mobile/`. Always use these files, 
 
 | File | Purpose |
 |------|---------|
-| `apps/mobile/app.json` | Expo app config, bundle IDs, EAS project ID |
+| `apps/mobile/app.json` | Expo app config, app name, bundle IDs, EAS project ID |
 | `apps/mobile/eas.json` | EAS build profiles |
 | `apps/mobile/google-services.json` | Android Firebase client config for the current private/dev phase |
 
@@ -156,6 +156,39 @@ Once installed, open the dev build and connect it to the running Metro bundler.
 
 Use `development` for normal coding. Use `preview` when you want behavior closer to a production build.
 
+### Android tester preview build
+
+Controlled external Android tester builds should use the `preview` EAS profile from `apps/mobile`.
+
+```bash
+cd apps/mobile
+npx eas build --profile preview --platform android
+```
+
+The preview profile is configured as `distribution: internal`, so it produces an installable internal Android build rather than a Play Store production submission. The visible app name is `TrainFrame`; the Android package remains `com.mehka.gymappmvp` so Firebase and existing backend/client assumptions continue to line up.
+
+After installing the build, confirm the backend target inside the app:
+
+1. Open **Settings -> About**.
+2. Tap the version string 7 times quickly to unlock Debug.
+3. Open **Debug -> Backend / Environment**.
+4. Confirm **Backend URL** is:
+
+```text
+https://gym-app-mvp-production.up.railway.app
+```
+
+That Railway URL is intentionally the shared dev/QA backend for the current tester phase. It is not the final public production backend.
+
+Before sharing the build with testers, verify Firebase Android fingerprints for the exact build signing certificate. In Firebase Console / Google Cloud Console, the Android app for package `com.mehka.gymappmvp` should include the SHA-1 and SHA-256 fingerprints used by the EAS preview build. You can inspect EAS credentials with:
+
+```bash
+cd apps/mobile
+npx eas credentials --platform android
+```
+
+Compare the listed Android signing certificate fingerprints with Firebase project settings. If the preview build uses a new EAS signing key, add both SHA-1 and SHA-256 fingerprints in Firebase, then rebuild the preview app.
+
 ---
 
 ## Connecting the mobile app to the backend
@@ -202,6 +235,24 @@ Replace `192.168.1.x` with your machine's LAN IP, or use `http://localhost:8080`
 To verify what the app is using, open the hidden Debug screen and check **Backend / Environment** -> **Backend URL**.
 
 The app is offline-first, so core local workout logging still works without the backend. Backend reachability mainly matters for sync, claim flow testing, and multi-device scenarios.
+
+For backend smoke tests against the shared dev/QA Railway service:
+
+```bash
+BASE="https://gym-app-mvp-production.up.railway.app"
+
+curl -i "$BASE/health"
+curl -i "$BASE/ready"
+curl -i "$BASE/me"
+curl -i "$BASE/me" -H "Authorization: Bearer invalid-token"
+```
+
+Expected results:
+
+- `/health` returns `200`
+- `/ready` returns `200` with database, Flyway, and required-table checks healthy
+- `/me` without auth returns `401`
+- `/me` with an invalid bearer token returns `401`
 
 Before real production or public beta, split dev/QA/prod backend config so local development cannot silently hit a production backend.
 
