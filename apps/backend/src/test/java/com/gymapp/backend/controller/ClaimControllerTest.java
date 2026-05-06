@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.gymapp.backend.config.AccountPrincipal;
+import com.gymapp.backend.config.DevicePrincipal;
 import com.gymapp.backend.model.ClaimConfirmResponse;
 import com.gymapp.backend.service.ClaimService;
 import java.util.UUID;
@@ -25,11 +26,14 @@ class ClaimControllerTest {
     @Mock
     private ClaimService claimService;
 
+    @Mock
+    private ClaimDeviceCredentialResolver claimDeviceCredentialResolver;
+
     private MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
-        ClaimController controller = new ClaimController(claimService);
+        ClaimController controller = new ClaimController(claimService, claimDeviceCredentialResolver);
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setControllerAdvice(new ApiExceptionHandler())
                 .build();
@@ -59,13 +63,16 @@ class ClaimControllerTest {
                 .build();
         TestingAuthenticationToken authentication = new TestingAuthenticationToken(accountPrincipal, null);
 
-        when(claimService.confirmClaim("ABC12345", accountOwnerId))
+        when(claimDeviceCredentialResolver.resolve("Bearer device-token"))
+                .thenReturn(new DevicePrincipal("device-1", "guest-1"));
+        when(claimService.confirmClaim("ABC12345", accountOwnerId, "guest-1", "device-1"))
                 .thenReturn(new ClaimConfirmResponse(guestUserId, accountOwnerId, "CLAIMED"));
 
         mockMvc.perform(post("/claim/confirm")
                 .contentType(MediaType.APPLICATION_JSON)
                 .principal(authentication)
                 .header("X-User-Id", "00000000-0000-0000-0000-000000000000")
+                .header(ClaimDeviceCredentialResolver.DEVICE_AUTHORIZATION_HEADER, "Bearer device-token")
                 .content("{\"code\":\"ABC12345\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.guestUserId").value(guestUserId))

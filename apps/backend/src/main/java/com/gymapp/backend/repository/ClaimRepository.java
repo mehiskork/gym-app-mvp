@@ -96,6 +96,40 @@ public class ClaimRepository {
                 toTimestamp(createdAfter));
     }
 
+    public List<ClaimRecord> findClaimCandidatesForGuestDevice(
+            ClaimType claimType,
+            String guestUserId,
+            String deviceId,
+            Instant createdAfter) {
+        return jdbcTemplate.query(
+                """
+                        SELECT claim_id,
+                               claim_type,
+                               secret_hash,
+                               guest_user_id,
+                               device_id,
+                               status,
+                               created_at,
+                               expires_at,
+                               claimed_at,
+                               claimed_by_user_id
+                        FROM claim
+                        WHERE claim_type = ?
+                          AND guest_user_id = ?
+                          AND device_id = ?
+                          AND status IN (?, ?)
+                          AND created_at >= ?
+                        ORDER BY created_at DESC
+                        """,
+                (rs, rowNum) -> mapClaim(rs),
+                claimType.name(),
+                guestUserId,
+                deviceId,
+                ClaimStatus.PENDING.name(),
+                ClaimStatus.CLAIMED.name(),
+                toTimestamp(createdAfter));
+    }
+
     public int markExpired(UUID claimId) {
         return jdbcTemplate.update(
                 """

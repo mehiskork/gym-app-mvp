@@ -63,12 +63,19 @@ public class ClaimService {
     }
 
     @Transactional(noRollbackFor = BadRequestException.class)
-    public ClaimConfirmResponse confirmClaim(String codeInput, String userId) {
+    public ClaimConfirmResponse confirmClaim(
+            String codeInput,
+            String userId,
+            String guestUserId,
+            String deviceId) {
         String code = normalizeCode(codeInput);
         Instant now = Instant.now();
         Instant createdAfter = now.minus(CLAIM_LOOKBACK);
 
-        List<ClaimRepository.ClaimRecord> candidates = claimRepository.findClaimCandidates(ClaimType.CODE,
+        List<ClaimRepository.ClaimRecord> candidates = claimRepository.findClaimCandidatesForGuestDevice(
+                ClaimType.CODE,
+                guestUserId,
+                deviceId,
                 createdAfter);
 
         ClaimRepository.ClaimRecord match = null;

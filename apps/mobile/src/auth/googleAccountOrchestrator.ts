@@ -10,6 +10,7 @@ import {
 import { listPendingOutboxOps } from '../db/outboxRepo';
 import { syncNow } from '../sync/syncWorker';
 import { accountSessionStore } from './accountSessionStore';
+import { deviceCredentialStore } from './deviceCredentialStore';
 import {
   buildFirebaseAccountSession,
   signInWithGoogleForFirebase,
@@ -61,11 +62,20 @@ export async function createGoogleAccountFromGuest(): Promise<GoogleAccountSignI
     const claimStart = await api.post<ClaimStartResponse>('/claim/start');
     const { firebaseSession } = await signInWithGoogleForFirebase();
     const accountSession = buildFirebaseAccountSession(firebaseSession);
+    const deviceToken = await deviceCredentialStore.getDeviceToken();
+    if (!deviceToken) {
+      throw new Error('Device credential missing. Restart account linking from this device.');
+    }
 
     const claimConfirm = await api.post<ClaimConfirmResponse>(
       '/claim/confirm',
       { code: claimStart.code },
-      { headers: { Authorization: `Bearer ${accountSession.accessToken}` } },
+      {
+        headers: {
+          Authorization: `Bearer ${accountSession.accessToken}`,
+          'X-Device-Authorization': `Bearer ${deviceToken}`,
+        },
+      },
     );
 
     const currentClaimedUserId = getClaimedUserId();

@@ -10,6 +10,7 @@ import {
 import { listPendingOutboxOps } from '../../db/outboxRepo';
 import { syncNow } from '../../sync/syncWorker';
 import { accountSessionStore } from '../accountSessionStore';
+import { deviceCredentialStore } from '../deviceCredentialStore';
 import { signInWithGoogleForFirebase, signOutFromGoogle } from '../firebaseGoogleAuthClient';
 
 jest.mock('../../api/client', () => ({
@@ -46,6 +47,12 @@ jest.mock('../accountSessionStore', () => ({
   },
 }));
 
+jest.mock('../deviceCredentialStore', () => ({
+  deviceCredentialStore: {
+    getDeviceToken: jest.fn(),
+  },
+}));
+
 jest.mock('../firebaseGoogleAuthClient', () => ({
   buildFirebaseAccountSession: jest.fn((input) => ({
     accessToken: input.accessToken,
@@ -68,6 +75,7 @@ describe('createGoogleAccountFromGuest', () => {
     (listPendingOutboxOps as jest.Mock).mockReturnValue([]);
     (isLinkedAccountState as jest.Mock).mockReturnValue(false);
     (accountSessionStore.getUsable as jest.Mock).mockResolvedValue(null);
+    (deviceCredentialStore.getDeviceToken as jest.Mock).mockResolvedValue('device-token-123');
     (signInWithGoogleForFirebase as jest.Mock).mockResolvedValue({
       googleIdToken: 'google-id-token',
       firebaseSession: {
@@ -106,7 +114,12 @@ describe('createGoogleAccountFromGuest', () => {
       2,
       '/claim/confirm',
       { code: 'CLAIM123' },
-      { headers: { Authorization: 'Bearer firebase-id-token' } },
+      {
+        headers: {
+          Authorization: 'Bearer firebase-id-token',
+          'X-Device-Authorization': 'Bearer device-token-123',
+        },
+      },
     );
     expect((api.post as jest.Mock).mock.invocationCallOrder[1]).toBeLessThan(
       (accountSessionStore.set as jest.Mock).mock.invocationCallOrder[0],
@@ -148,6 +161,19 @@ describe('createGoogleAccountFromGuest', () => {
 
     await expect(createGoogleAccountFromGuest()).rejects.toThrow('CLAIM_INVALID');
 
+    expect(accountSessionStore.set).not.toHaveBeenCalled();
+    expect(signOutFromGoogle).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not store account session if the device token is missing after account auth', async () => {
+    (deviceCredentialStore.getDeviceToken as jest.Mock).mockResolvedValue(null);
+
+    await expect(createGoogleAccountFromGuest()).rejects.toThrow(
+      'Device credential missing. Restart account linking from this device.',
+    );
+
+    expect(api.post).toHaveBeenCalledTimes(1);
+    expect(api.post).toHaveBeenCalledWith('/claim/start');
     expect(accountSessionStore.set).not.toHaveBeenCalled();
     expect(signOutFromGoogle).toHaveBeenCalledTimes(1);
   });
@@ -236,6 +262,7 @@ describe('reconnectGoogleAccount', () => {
     });
 
     expect(api.post).not.toHaveBeenCalled();
+    expect(deviceCredentialStore.getDeviceToken).not.toHaveBeenCalled();
     expect(getMeWithAccessToken).toHaveBeenCalledWith('firebase-id-token');
     expect(accountSessionStore.set).toHaveBeenCalledWith(
       expect.objectContaining({

@@ -165,7 +165,7 @@ class ClaimFlowIntegrationTest {
         }
 
         @Test
-        void confirmRejectsDeviceTokenAndDoesNotClaim() throws Exception {
+        void confirmRejectsMissingDeviceAuthorizationHeader() throws Exception {
                 String deviceId = "device-" + UUID.randomUUID();
                 String guestUserId = UUID.randomUUID().toString();
                 String rawToken = "token-" + UUID.randomUUID();
@@ -178,10 +178,10 @@ class ClaimFlowIntegrationTest {
 
                 mockMvc.perform(post("/claim/confirm")
                                 .contentType(MediaType.APPLICATION_JSON)
-                                .header("Authorization", "Bearer " + rawToken)
+                                .header("Authorization", "Bearer " + firebaseToken("firebase-user-" + UUID.randomUUID()))
                                 .content("{\"code\":\"" + rawCode + "\"}"))
                                 .andExpect(status().isUnauthorized())
-                                .andExpect(jsonPath("$.code").value("AUTH_UNAUTHORIZED"));
+                                .andExpect(jsonPath("$.code").value("AUTH_DEVICE_TOKEN_REQUIRED"));
 
                 String status = jdbcTemplate.queryForObject(
                                 "SELECT status FROM claim WHERE claim_id = ?",
@@ -191,12 +191,57 @@ class ClaimFlowIntegrationTest {
         }
 
         @Test
+        void confirmRejectsMalformedDeviceAuthorizationHeader() throws Exception {
+                mockMvc.perform(post("/claim/confirm")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .header("Authorization", "Bearer " + firebaseToken("firebase-user-" + UUID.randomUUID()))
+                                .header("X-Device-Authorization", "Token nope")
+                                .content("{\"code\":\"INVALID12\"}"))
+                                .andExpect(status().isUnauthorized())
+                                .andExpect(jsonPath("$.code").value("AUTH_DEVICE_TOKEN_MALFORMED"));
+        }
+
+        @Test
+        void confirmRejectsInvalidDeviceToken() throws Exception {
+                mockMvc.perform(post("/claim/confirm")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .header("Authorization", "Bearer " + firebaseToken("firebase-user-" + UUID.randomUUID()))
+                                .header("X-Device-Authorization", "Bearer invalid-device-token")
+                                .content("{\"code\":\"INVALID12\"}"))
+                                .andExpect(status().isUnauthorized())
+                                .andExpect(jsonPath("$.code").value("AUTH_INVALID_DEVICE_TOKEN"));
+        }
+
+        @Test
+        void confirmRejectsExpiredDeviceToken() throws Exception {
+                String deviceId = "device-" + UUID.randomUUID();
+                String guestUserId = UUID.randomUUID().toString();
+                String rawToken = "token-" + UUID.randomUUID();
+                insertDevice(deviceId, guestUserId);
+                insertToken(rawToken, deviceId, Instant.now().minusSeconds(60));
+
+                mockMvc.perform(post("/claim/confirm")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .header("Authorization", "Bearer " + firebaseToken("firebase-user-" + UUID.randomUUID()))
+                                .header("X-Device-Authorization", "Bearer " + rawToken)
+                                .content("{\"code\":\"INVALID12\"}"))
+                                .andExpect(status().isUnauthorized())
+                                .andExpect(jsonPath("$.code").value("AUTH_TOKEN_EXPIRED"));
+        }
+
+        @Test
         void confirmWithInvalidCodeReturnsBadRequest() throws Exception {
                 String userId = accountOwnerId("firebase-user-" + UUID.randomUUID());
+                String deviceId = "device-" + UUID.randomUUID();
+                String guestUserId = UUID.randomUUID().toString();
+                String rawToken = "token-" + UUID.randomUUID();
+                insertDevice(deviceId, guestUserId);
+                insertToken(rawToken, deviceId, Instant.now().plusSeconds(3600));
 
                 mockMvc.perform(post("/claim/confirm")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .header("Authorization", "Bearer " + firebaseTokenForOwner(userId))
+                                .header("X-Device-Authorization", "Bearer " + rawToken)
                                 .content("{\"code\":\"INVALID12\"}"))
                                 .andExpect(status().isBadRequest())
                                 .andExpect(jsonPath("$.code").value("CLAIM_INVALID"));
@@ -208,15 +253,19 @@ class ClaimFlowIntegrationTest {
                 String guestUserId = UUID.randomUUID().toString();
                 String deviceId = "device-" + UUID.randomUUID();
                 String rawCode = "9X3K7H2M";
+                String rawToken = "token-" + UUID.randomUUID();
                 UUID claimId = UUID.randomUUID();
                 Instant createdAt = Instant.now().minusSeconds(7200);
                 Instant expiresAt = Instant.now().minusSeconds(60);
 
+                insertDevice(deviceId, guestUserId);
+                insertToken(rawToken, deviceId, Instant.now().plusSeconds(3600));
                 insertClaim(claimId, rawCode, guestUserId, deviceId, createdAt, expiresAt);
 
                 mockMvc.perform(post("/claim/confirm")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .header("Authorization", "Bearer " + firebaseTokenForOwner(userId))
+                                .header("X-Device-Authorization", "Bearer " + rawToken)
                                 .content("{\"code\":\"" + rawCode + "\"}"))
                                 .andExpect(status().isBadRequest())
                                 .andExpect(jsonPath("$.code").value("CLAIM_EXPIRED"));
@@ -251,6 +300,7 @@ class ClaimFlowIntegrationTest {
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .header("Authorization", "Bearer " + firebaseTokenForOwner(userId))
                                 .header("X-User-Id", accountOwnerId("ignored-" + UUID.randomUUID()))
+                                .header("X-Device-Authorization", "Bearer " + rawToken)
                                 .content("{\"code\":\"" + code + "\"}"))
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$.guestUserId").value(guestUserId))
@@ -268,6 +318,73 @@ class ClaimFlowIntegrationTest {
                                 UUID.fromString(claimId));
                 assertThat(claimRow.get("status")).isEqualTo("CLAIMED");
                 assertThat(claimRow.get("claimed_by_user_id")).isEqualTo(userId);
+        }
+
+        @Test
+        void confirmWithAnotherDeviceTokenReturnsClaimInvalid() throws Exception {
+                String claimDeviceId = "device-" + UUID.randomUUID();
+                String claimGuestUserId = UUID.randomUUID().toString();
+                String claimDeviceToken = "token-" + UUID.randomUUID();
+                String otherDeviceId = "device-" + UUID.randomUUID();
+                String otherGuestUserId = UUID.randomUUID().toString();
+                String otherDeviceToken = "token-" + UUID.randomUUID();
+                String userId = accountOwnerId("firebase-user-" + UUID.randomUUID());
+                insertDevice(claimDeviceId, claimGuestUserId);
+                insertToken(claimDeviceToken, claimDeviceId, Instant.now().plusSeconds(3600));
+                insertDevice(otherDeviceId, otherGuestUserId);
+                insertToken(otherDeviceToken, otherDeviceId, Instant.now().plusSeconds(3600));
+
+                String code = objectMapper.readTree(mockMvc.perform(post("/claim/start")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .header("Authorization", "Bearer " + claimDeviceToken))
+                                .andExpect(status().isOk())
+                                .andReturn()
+                                .getResponse()
+                                .getContentAsString()).get("code").asString();
+
+                mockMvc.perform(post("/claim/confirm")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .header("Authorization", "Bearer " + firebaseTokenForOwner(userId))
+                                .header("X-Device-Authorization", "Bearer " + otherDeviceToken)
+                                .content("{\"code\":\"" + code + "\"}"))
+                                .andExpect(status().isBadRequest())
+                                .andExpect(jsonPath("$.code").value("CLAIM_INVALID"));
+
+                Long linkCount = jdbcTemplate.queryForObject(
+                                "SELECT COUNT(*) FROM identity_link WHERE guest_user_id = ?",
+                                Long.class,
+                                claimGuestUserId);
+                assertThat(linkCount).isZero();
+        }
+
+        @Test
+        void confirmWithCodeForAnotherGuestCannotClaim() throws Exception {
+                String deviceId = "device-" + UUID.randomUUID();
+                String guestUserId = UUID.randomUUID().toString();
+                String rawToken = "token-" + UUID.randomUUID();
+                String otherDeviceId = "device-" + UUID.randomUUID();
+                String otherGuestUserId = UUID.randomUUID().toString();
+                String rawCode = "7J3K9M2N";
+                String userId = accountOwnerId("firebase-user-" + UUID.randomUUID());
+                Instant now = Instant.now();
+                insertDevice(deviceId, guestUserId);
+                insertToken(rawToken, deviceId, now.plusSeconds(3600));
+                insertClaim(UUID.randomUUID(), rawCode, otherGuestUserId, otherDeviceId, now, now.plusSeconds(600));
+
+                mockMvc.perform(post("/claim/confirm")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .header("Authorization", "Bearer " + firebaseTokenForOwner(userId))
+                                .header("X-Device-Authorization", "Bearer " + rawToken)
+                                .content("{\"code\":\"" + rawCode + "\"}"))
+                                .andExpect(status().isBadRequest())
+                                .andExpect(jsonPath("$.code").value("CLAIM_INVALID"));
+
+                Long linkCount = jdbcTemplate.queryForObject(
+                                "SELECT COUNT(*) FROM identity_link WHERE guest_user_id IN (?, ?)",
+                                Long.class,
+                                guestUserId,
+                                otherGuestUserId);
+                assertThat(linkCount).isZero();
         }
 
         @Test
@@ -291,6 +408,7 @@ class ClaimFlowIntegrationTest {
                 mockMvc.perform(post("/claim/confirm")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .header("Authorization", "Bearer " + firebaseTokenForOwner(userId))
+                                .header("X-Device-Authorization", "Bearer " + rawToken)
                                 .content("{\"code\":\"" + code + "\"}"))
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$.userId").value(userId));
@@ -298,6 +416,7 @@ class ClaimFlowIntegrationTest {
                 mockMvc.perform(post("/claim/confirm")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .header("Authorization", "Bearer " + firebaseTokenForOwner(userId))
+                                .header("X-Device-Authorization", "Bearer " + rawToken)
                                 .content("{\"code\":\"" + code + "\"}"))
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$.userId").value(userId));
@@ -340,6 +459,7 @@ class ClaimFlowIntegrationTest {
                 mockMvc.perform(post("/claim/confirm")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .header("Authorization", "Bearer " + firebaseTokenForOwner(userId))
+                                .header("X-Device-Authorization", "Bearer " + rawToken)
                                 .content("{\"code\":\"" + code + "\"}"))
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$.guestUserId").value(guestUserId))
@@ -407,6 +527,7 @@ class ClaimFlowIntegrationTest {
                 mockMvc.perform(post("/claim/confirm")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .header("Authorization", "Bearer " + firebaseTokenForOwner(userId))
+                                .header("X-Device-Authorization", "Bearer " + rawToken)
                                 .content("{\"code\":\"" + code + "\"}"))
                                 .andExpect(status().isOk());
 
@@ -437,16 +558,20 @@ class ClaimFlowIntegrationTest {
                 String userB = accountOwnerId("firebase-user-b-" + UUID.randomUUID());
                 String guestUserId = UUID.randomUUID().toString();
                 String deviceId = "device-" + UUID.randomUUID();
+                String rawToken = "token-" + UUID.randomUUID();
                 String rawCode = "7H2M9X3K";
                 UUID claimId = UUID.randomUUID();
                 Instant now = Instant.now();
 
+                insertDevice(deviceId, guestUserId);
+                insertToken(rawToken, deviceId, Instant.now().plusSeconds(3600));
                 insertClaim(claimId, rawCode, guestUserId, deviceId, now, now.plusSeconds(600));
                 insertIdentityLink(guestUserId, userA, now.minusSeconds(60));
 
                 mockMvc.perform(post("/claim/confirm")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .header("Authorization", "Bearer " + firebaseTokenForOwner(userB))
+                                .header("X-Device-Authorization", "Bearer " + rawToken)
                                 .content("{\"code\":\"" + rawCode + "\"}"))
                                 .andExpect(status().isConflict())
                                 .andExpect(jsonPath("$.code").value("CLAIM_CONFLICT"));

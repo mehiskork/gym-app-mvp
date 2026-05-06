@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class ClaimController {
     private final ClaimService claimService;
+    private final ClaimDeviceCredentialResolver claimDeviceCredentialResolver;
 
     @PostMapping("/claim/start")
     public ResponseEntity<ClaimStartResponse> startClaim(Authentication authentication) {
@@ -30,11 +31,19 @@ public class ClaimController {
     @PostMapping("/claim/confirm")
     public ResponseEntity<ClaimConfirmResponse> confirmClaim(
             Authentication authentication,
+            @org.springframework.web.bind.annotation.RequestHeader(
+                    value = ClaimDeviceCredentialResolver.DEVICE_AUTHORIZATION_HEADER,
+                    required = false) String deviceAuthorization,
             @Valid @RequestBody ClaimConfirmRequest request) {
         Object principal = authentication.getPrincipal();
         if (!(principal instanceof AccountPrincipal accountPrincipal)) {
             throw new UnauthorizedException("Account authentication required");
         }
-        return ResponseEntity.ok(claimService.confirmClaim(request.code(), accountPrincipal.getExternalAccountId()));
+        DevicePrincipal devicePrincipal = claimDeviceCredentialResolver.resolve(deviceAuthorization);
+        return ResponseEntity.ok(claimService.confirmClaim(
+                request.code(),
+                accountPrincipal.getExternalAccountId(),
+                devicePrincipal.getGuestUserId(),
+                devicePrincipal.getDeviceId()));
     }
 }
