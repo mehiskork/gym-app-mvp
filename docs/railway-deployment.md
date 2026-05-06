@@ -18,6 +18,8 @@ SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI=https://securetoken.google.
 SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI=https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com
 ```
 
+The backend requires Java 25. If Railway builds the checked-in backend Dockerfile, no `NIXPACKS_JDK_VERSION` variable is needed because the Dockerfile pins Java 25 build and runtime images. If Railway uses Nixpacks/Railpack instead of the Dockerfile, verify Java 25 support in that builder and set the Java 25 runtime/build configuration before deploying.
+
 `SPRING_PROFILES_ACTIVE` must be `prod` so production safety checks are enforced. Prod-like profiles are `prod`, `production`, and `staging`; Railway should use `prod` for the current shared dev/QA backend service.
 
 Firebase is used for authentication only. App data remains in PostgreSQL through the Spring Boot `/sync` API; do not use Firebase as the app database.

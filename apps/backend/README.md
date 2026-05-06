@@ -2,6 +2,11 @@
 
 Spring Boot 4.0.5 backend for Gym App MVP sync, ownership/auth boundaries, and claim migration seams.
 
+## Requirements
+
+- JDK 25 for local Maven commands. GraalVM CE 25.0.2 is the tested local runtime; any compatible JDK 25 should work.
+- Docker for `docker compose up --build` and Testcontainers-backed integration tests.
+
 ## Local run
 
 From repo root:

@@ -1,5 +1,5 @@
 # Build stage
-FROM maven:3.9.8-eclipse-temurin-21 AS build
+FROM maven:3.9-eclipse-temurin-25 AS build
 WORKDIR /app
 
 COPY pom.xml .
@@ -10,7 +10,7 @@ COPY src ./src
 RUN mvn -q -DskipTests package
 
 # Runtime stage
-FROM eclipse-temurin:21-jre
+FROM eclipse-temurin:25-jre
 WORKDIR /app
 
 # Copy all jars from target

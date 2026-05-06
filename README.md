@@ -62,7 +62,7 @@ This repository has Firebase-backed Google account auth: account identity is can
 | Area | Technology |
 |---|---|
 | Mobile | Expo, React Native, TypeScript, React Navigation, `expo-sqlite` |
-| Backend | Java 21, Spring Boot 4.0.5, Spring Security, PostgreSQL, Flyway |
+| Backend | Java 25, Spring Boot 4.0.5, Spring Security, PostgreSQL, Flyway |
 | Testing | Jest, JUnit, Testcontainers |
 | Infra | Docker Compose, EAS Build |
 

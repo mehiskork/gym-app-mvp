@@ -9,7 +9,7 @@ Run the backend and mobile app locally without guesswork.
 ```text
 apps/
   mobile/      Expo + React Native app (TypeScript)
-  backend/     Spring Boot + PostgreSQL API (Java 21)
+  backend/     Spring Boot + PostgreSQL API (Java 25)
 docs/          Project documentation
 
 docker-compose.yml   Starts Postgres + backend together (local dev only credentials)
@@ -273,6 +273,8 @@ TMPDIR=/tmp npm test -- --runInBand
 These tests run in Node with SQLite and native modules mocked. They do not exercise real device behavior.
 
 ### Backend
+
+Backend Maven commands require JDK 25. GraalVM CE 25.0.2 is the tested local runtime; any compatible JDK 25 should work.
 
 From `apps/backend`:
 
