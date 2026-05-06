@@ -10,7 +10,7 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#070A0F"
     },
     "ios": {
       "supportsTablet": true,
@@ -22,7 +22,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#070A0F"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
@@ -32,7 +32,11 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "plugins": ["expo-sqlite", "expo-secure-store", "@react-native-google-signin/google-signin"],
+    "plugins": [
+      "expo-sqlite",
+      "expo-secure-store",
+      "@react-native-google-signin/google-signin"
+    ],
     "extra": {
       "EXPO_PUBLIC_API_BASE_URL": "https://gym-app-mvp-production.up.railway.app",
       "eas": {
