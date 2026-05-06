@@ -22,7 +22,7 @@ docker-compose.yml   Starts Postgres + backend together (local dev only credenti
 | Tool | Version |
 |------|---------|
 | Node.js | 18+ |
-| Java | 21 |
+| Java | 25 |
 | Docker + Docker Compose | Any recent version |
 | EAS CLI | `>= 16.28.0` — `npm install -g eas-cli` |
 
