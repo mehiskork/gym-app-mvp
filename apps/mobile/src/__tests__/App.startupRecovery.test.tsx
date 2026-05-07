@@ -84,8 +84,18 @@ jest.mock('../db/migrate', () => ({ runMigrations: jest.fn() }));
 jest.mock('../db/curatedExerciseSeed', () => ({ seedCuratedExercises: jest.fn() }));
 jest.mock('../db/outboxRepo', () => ({ repairStaleInFlightOps: jest.fn() }));
 jest.mock('../utils/restTimerNotifications', () => ({
-  ensureRestTimerNotificationChannel: jest.fn(),
+  ensureRestTimerNotificationChannel: jest.fn(() => Promise.resolve()),
 }));
+jest.mock('../utils/logger', () => ({
+  logEvent: jest.fn(),
+}));
+jest.mock('../components/AppErrorBoundary', () => {
+  const React = require('react');
+  return {
+    AppErrorBoundary: ({ children }: { children?: React.ReactNode }) =>
+      React.createElement('AppErrorBoundary', null, children),
+  };
+});
 jest.mock('../auth/identityTransition', () => ({
   resetToGuestBootstrap: jest.fn(() => Promise.resolve()),
 }));
@@ -128,6 +138,7 @@ import { repairStaleInFlightOps } from '../db/outboxRepo';
 import { ensureRestTimerNotificationChannel } from '../utils/restTimerNotifications';
 import { resetToGuestBootstrap } from '../auth/identityTransition';
 import { scheduleForegroundSync, scheduleStartupSync } from '../sync/syncScheduler';
+import { logEvent } from '../utils/logger';
 
 const useEffectMock = React.useEffect as jest.Mock;
 const useStateMock = React.useState as jest.Mock;
@@ -173,6 +184,25 @@ describe('App startup recovery', () => {
     expect(repairStaleInFlightOps).toHaveBeenCalledWith(120);
     expect(ensureRestTimerNotificationChannel).toHaveBeenCalledWith(false);
     expect(scheduleStartupSync).toHaveBeenCalledWith('app_start');
+  });
+
+  it('does not fail startup when notification setup rejects', async () => {
+    (ensureRestTimerNotificationChannel as jest.Mock).mockRejectedValueOnce(
+      new Error('channel failed'),
+    );
+
+    App();
+    await Promise.resolve();
+
+    expect(runMigrations).toHaveBeenCalledTimes(1);
+    expect(seedCuratedExercises).toHaveBeenCalledTimes(1);
+    expect(scheduleStartupSync).toHaveBeenCalledWith('app_start');
+    expect(logEvent).toHaveBeenCalledWith(
+      'warn',
+      'notifications',
+      'Rest notification setup failed during startup',
+      { error: 'channel failed' },
+    );
   });
 
   it('subscribes to foreground sync only after startup is ready', () => {

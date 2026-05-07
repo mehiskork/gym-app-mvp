@@ -15,6 +15,8 @@ import { Text } from './src/ui/Text';
 import { DestructiveConfirmDialog } from './src/ui/DestructiveConfirmDialog';
 import { resetToGuestBootstrap } from './src/auth/identityTransition';
 import { scheduleForegroundSync, scheduleStartupSync } from './src/sync/syncScheduler';
+import { AppErrorBoundary } from './src/components/AppErrorBoundary';
+import { logEvent } from './src/utils/logger';
 
 type BootState = { kind: 'initializing' } | { kind: 'ready' } | { kind: 'failed'; error: Error };
 
@@ -85,7 +87,11 @@ export default function App() {
       runMigrations();
       seedCuratedExercises();
       repairStaleInFlightOps(120);
-      void ensureRestTimerNotificationChannel(false);
+      void ensureRestTimerNotificationChannel(false).catch((error) => {
+        logEvent('warn', 'notifications', 'Rest notification setup failed during startup', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
       setBootState({ kind: 'ready' });
       scheduleStartupSync('app_start');
     } catch (error) {
@@ -130,21 +136,23 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <GestureHandlerRootView style={{ flex: 1 }}>
-        <ThemeProvider>
-          {bootState.kind === 'initializing' ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#FFFFFF" />
-            </View>
-          ) : null}
-          {bootState.kind === 'failed' ? (
-            <StartupRecoveryScreen
-              error={bootState.error}
-              onRetry={initializeApp}
-              onReset={handleResetLocalData}
-            />
-          ) : null}
-          {bootState.kind === 'ready' ? <RootNavigator /> : null}
-        </ThemeProvider>
+        <AppErrorBoundary>
+          <ThemeProvider>
+            {bootState.kind === 'initializing' ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#FFFFFF" />
+              </View>
+            ) : null}
+            {bootState.kind === 'failed' ? (
+              <StartupRecoveryScreen
+                error={bootState.error}
+                onRetry={initializeApp}
+                onReset={handleResetLocalData}
+              />
+            ) : null}
+            {bootState.kind === 'ready' ? <RootNavigator /> : null}
+          </ThemeProvider>
+        </AppErrorBoundary>
       </GestureHandlerRootView>
     </SafeAreaProvider>
   );
