@@ -27,7 +27,8 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "googleServicesFile": "./google-services.json",
-      "package": "com.mehka.gymappmvp"
+      "package": "com.mehka.gymappmvp",
+      "versionCode": 1
     },
     "web": {
       "favicon": "./assets/favicon.png"

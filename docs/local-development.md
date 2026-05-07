@@ -152,20 +152,32 @@ Once installed, open the dev build and connect it to the running Metro bundler.
 | Profile | Dev client | OTA updates | Use for |
 |---------|------------|-------------|---------|
 | `development` | ✓ | ✗ | Active development, Metro, fast refresh |
-| `preview` | ✗ | ✓ | Internal testing, more production-like behavior |
+| `preview` | ✗ | ✓ | Direct Android tester/device install |
+| `production` | ✗ | ✓ | Google Play upload AAB |
 
 Use `development` for normal coding. Use `preview` when you want behavior closer to a production build.
 
-### Android tester preview build
+### Android tester and release builds
 
 Controlled external Android tester builds should use the `preview` EAS profile from `apps/mobile`.
 
 ```bash
 cd apps/mobile
-npx eas build --profile preview --platform android
+npx -y eas-cli@latest build -p android --profile preview --clear-cache
 ```
 
 The preview profile is configured as `distribution: internal`, so it produces an installable internal Android build rather than a Play Store production submission. The visible app name is `TrainFrame`; the Android package remains `com.mehka.gymappmvp` so Firebase and existing backend/client assumptions continue to line up.
+
+Production Android builds use the `production` EAS profile and output an Android App Bundle for Play Console upload:
+
+```bash
+cd apps/mobile
+npx -y eas-cli@latest build -p android --profile production --clear-cache
+```
+
+Keep `expo.name` as `TrainFrame` and keep `expo.slug` as `mobile`. The slug is tied to the existing EAS project and should not change unless the EAS project and credentials are deliberately migrated. Android `versionCode` starts at `1` and must increase for every Play upload; EAS remote app versioning may auto-increment it for production builds. Use `--clear-cache` after icon or Expo config changes.
+
+See `docs/android-release.md` for the Android release baseline.
 
 After installing the build, confirm the backend target inside the app:
 

@@ -53,6 +53,7 @@ This repository has Firebase-backed Google account auth: account identity is can
 - Local-first behavior is unchanged: local writes commit first; sync reconciles eventual server state.
 - Mobile SQLite migrations have been squashed into a reset-only private-beta baseline. Existing internal/dev installs from before the squash must uninstall, clear app storage, or use destructive reset before testing this baseline.
 - The checked-in mobile config currently targets the Railway shared dev/QA backend by default (`https://gym-app-mvp-production.up.railway.app`). This is not the final production environment; override the API base URL when testing against a local backend.
+- Android release build profiles are documented in `docs/android-release.md`; the app displays as `TrainFrame`, the Expo slug intentionally remains `mobile`, and the Android package is `com.mehka.gymappmvp`.
 - PR events are local-derived cache data. Workout history is synced; PR rows are recomputed locally and are not synced inbound or outbound.
 
 ---
