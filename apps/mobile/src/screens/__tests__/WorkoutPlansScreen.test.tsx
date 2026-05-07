@@ -72,7 +72,7 @@ import React from 'react';
 import { FlatList } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 
-import { Button } from '../../ui';
+import { Button, DestructiveConfirmDialog } from '../../ui';
 import { WorkoutPlansScreen } from '../WorkoutPlansScreen';
 import { createWorkoutPlan, listWorkoutPlans } from '../../db/workoutPlanRepo';
 
@@ -288,5 +288,21 @@ describe('WorkoutPlansScreen', () => {
     createButton.props.onPress({} as never);
 
     expect(createWorkoutPlan).toHaveBeenCalledWith({ name: 'Plan 1' });
+  });
+
+  it('explains plan deletion syncs and keeps workout history', () => {
+    const plans = [
+      { id: 'plan-1', name: 'Plan A', description: null, is_template: 0, sessionCount: 2 },
+    ];
+    useStateMock.mockImplementationOnce(() => [plans, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [plans[0], jest.fn()]);
+
+    const element = WorkoutPlansScreen();
+    type ConfirmProps = React.ComponentProps<typeof DestructiveConfirmDialog>;
+    const dialog = findElementByType<ConfirmProps>(element, DestructiveConfirmDialog);
+
+    expect(dialog?.props.body).toBe(
+      'This deletes the plan from TrainFrame and syncs the deletion across your devices. Workout history is not deleted.',
+    );
   });
 });

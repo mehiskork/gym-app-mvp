@@ -12,6 +12,7 @@ import { tokens } from './src/theme/tokens';
 import { ensureRestTimerNotificationChannel } from './src/utils/restTimerNotifications';
 import { Button } from './src/ui/Button';
 import { Text } from './src/ui/Text';
+import { DestructiveConfirmDialog } from './src/ui/DestructiveConfirmDialog';
 import { resetToGuestBootstrap } from './src/auth/identityTransition';
 import { scheduleForegroundSync, scheduleStartupSync } from './src/sync/syncScheduler';
 
@@ -31,6 +32,8 @@ function StartupRecoveryScreen({
   onRetry: () => void;
   onReset: () => void;
 }) {
+  const [resetConfirmVisible, setResetConfirmVisible] = useState(false);
+
   return (
     <View style={styles.recoveryContainer}>
       <Text variant="title" weight="700" style={styles.recoveryTitle}>
@@ -42,8 +45,24 @@ function StartupRecoveryScreen({
       </Text>
       <View style={styles.actions}>
         <Button title="Try again" onPress={onRetry} />
-        <Button title="Reset local data" variant="destructive" onPress={onReset} />
+        <Button
+          title="Reset local data"
+          variant="destructive"
+          onPress={() => setResetConfirmVisible(true)}
+        />
       </View>
+      <DestructiveConfirmDialog
+        visible={resetConfirmVisible}
+        title="Reset local data on this device?"
+        body="This clears local TrainFrame data and account credentials on this device. Synced account data can be restored after reconnecting. Unsynced local changes may be lost."
+        confirmLabel="Reset this device"
+        cancelLabel="Cancel"
+        onClose={() => setResetConfirmVisible(false)}
+        onConfirm={() => {
+          setResetConfirmVisible(false);
+          onReset();
+        }}
+      />
       {__DEV__ ? (
         <View style={styles.devDetails}>
           <Text variant="muted" color="#BDBDBD">

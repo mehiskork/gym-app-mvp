@@ -110,6 +110,14 @@ jest.mock('../ui/Button', () => {
   };
 });
 
+jest.mock('../ui/DestructiveConfirmDialog', () => {
+  const React = require('react');
+  return {
+    DestructiveConfirmDialog: (props: unknown) =>
+      React.createElement('DestructiveConfirmDialog', props),
+  };
+});
+
 import React from 'react';
 import { AppState } from 'react-native';
 
@@ -203,7 +211,7 @@ describe('App startup recovery', () => {
 
     const element = App();
 
-    const buttons = findElements(element, (el) => typeof el.props.title === 'string');
+    const buttons = findElements(element, (el) => el.type === 'Button');
     const titles = Array.from(new Set(buttons.map((button) => button.props.title)));
     expect(titles).toEqual(['Try again', 'Reset local data']);
 
@@ -233,9 +241,10 @@ describe('App startup recovery', () => {
     expect(resetToGuestBootstrap).not.toHaveBeenCalled();
   });
 
-  it('reset action performs explicit reset then retries startup', async () => {
+  it('reset action opens confirmation without resetting immediately', () => {
     useEffectMock.mockImplementation(() => undefined);
-    useStateMock.mockReturnValue([{ kind: 'failed', error: new Error('boom') }, jest.fn()]);
+    const setState = jest.fn();
+    useStateMock.mockReturnValue([{ kind: 'failed', error: new Error('boom') }, setState]);
 
     const element = App();
     const buttons = findElements(
@@ -245,7 +254,38 @@ describe('App startup recovery', () => {
 
     const resetButton = buttons.find((button) => button.props.title === 'Reset local data');
     expect(resetButton).toBeDefined();
-    await resetButton!.props.onPress();
+    resetButton!.props.onPress();
+
+    expect(setState).toHaveBeenCalledWith(true);
+    expect(resetToGuestBootstrap).not.toHaveBeenCalled();
+  });
+
+  it('canceling startup reset confirmation does not reset local data', () => {
+    useEffectMock.mockImplementation(() => undefined);
+    const setState = jest.fn();
+    useStateMock.mockReturnValue([{ kind: 'failed', error: new Error('boom') }, setState]);
+
+    const element = App();
+    const dialogs = findElements(element, (el) => el.type === 'DestructiveConfirmDialog');
+    const dialog = dialogs[0];
+    expect(dialog).toBeDefined();
+
+    dialog.props.onClose();
+
+    expect(setState).toHaveBeenCalledWith(false);
+    expect(resetToGuestBootstrap).not.toHaveBeenCalled();
+  });
+
+  it('confirming startup reset performs the existing reset path', async () => {
+    useEffectMock.mockImplementation(() => undefined);
+    useStateMock.mockReturnValue([{ kind: 'failed', error: new Error('boom') }, jest.fn()]);
+
+    const element = App();
+    const dialogs = findElements(element, (el) => el.type === 'DestructiveConfirmDialog');
+    const dialog = dialogs[0];
+    expect(dialog).toBeDefined();
+
+    await dialog.props.onConfirm();
 
     expect(resetToGuestBootstrap).toHaveBeenCalledTimes(1);
   });

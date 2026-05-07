@@ -72,7 +72,7 @@ jest.mock('../../db/workoutSessionRepo', () => ({
 import React from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 
-import { Button, EmptyState, Input, ListRow } from '../../ui';
+import { Button, DestructiveConfirmDialog, EmptyState, Input, ListRow } from '../../ui';
 import { WorkoutPlanDetailScreen } from '../WorkoutPlanDetailScreen';
 import {
   createSessionFromPlanDay,
@@ -336,5 +336,16 @@ describe('WorkoutPlanDetailScreen', () => {
     const serialized = JSON.stringify(element);
     expect(serialized).toContain('Pick a session');
     expect(serialized).not.toContain('Start this day');
+  });
+
+  it('explains plan deletion syncs and keeps workout history', () => {
+    const { element } = renderScreen({ days: [] });
+
+    type ConfirmProps = React.ComponentProps<typeof DestructiveConfirmDialog>;
+    const dialogs = findElementsByType<ConfirmProps>(element, DestructiveConfirmDialog);
+
+    expect(dialogs[0]?.props.body).toBe(
+      'This deletes the plan from TrainFrame and syncs the deletion across your devices. Workout history is not deleted.',
+    );
   });
 });

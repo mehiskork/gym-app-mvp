@@ -160,7 +160,7 @@ export function WorkoutPlansScreen() {
       <DestructiveConfirmDialog
         visible={deletePlanTarget !== null}
         title="Delete workout plan?"
-        body={`"${deletePlanTarget?.name ?? 'This plan'}" will be deleted from this device.`}
+        body="This deletes the plan from TrainFrame and syncs the deletion across your devices. Workout history is not deleted."
         confirmLabel="Delete"
         cancelLabel="Cancel"
         onClose={() => setDeletePlanTarget(null)}

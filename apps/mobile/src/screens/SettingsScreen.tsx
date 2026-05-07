@@ -47,6 +47,48 @@ const REST_TIME_OPTIONS = [
   { label: '5:00', seconds: 300 },
 ];
 
+type AccountAction = 'create' | 'reconnect' | 'reset' | 'switch';
+
+function getFriendlyAccountError(error: unknown, action: AccountAction): string {
+  const rawMessage = error instanceof Error ? error.message : '';
+  const message = rawMessage.toLowerCase();
+
+  if (message.includes('different account')) {
+    return 'This device is linked to a different Google account. Reset this device before switching accounts.';
+  }
+
+  if (
+    message.includes('securestore') ||
+    message.includes('secure store') ||
+    message.includes('expo-secure-store')
+  ) {
+    return "TrainFrame couldn't access secure account storage. Restart the app and try again.";
+  }
+
+  if (
+    message.includes('unauthorized') ||
+    message.includes('401') ||
+    message.includes('expired') ||
+    message.includes('reauth')
+  ) {
+    return 'Your account session expired. Reconnect with Google to sync this device.';
+  }
+
+  if (message.includes('cancel')) {
+    return 'Google sign-in did not finish. Try again.';
+  }
+
+  if (action === 'reconnect') {
+    return "Couldn't reconnect this Google account. Check your connection and try again.";
+  }
+
+  if (action === 'create') {
+    return 'Google sign-in did not finish. Try again.';
+  }
+
+  return "TrainFrame couldn't reset account data. Restart the app and try again.";
+}
+
 export function SettingsScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { colors, primaryColorKey, setPrimaryColorKey } = useAppTheme();
@@ -58,6 +100,7 @@ export function SettingsScreen() {
   const [accountError, setAccountError] = useState<string | null>(null);
   const [settings, setSettings] = useState(getSettings());
   const [restPickerOpen, setRestPickerOpen] = useState(false);
+  const [restNotificationMessage, setRestNotificationMessage] = useState<string | null>(null);
 
   const refreshAccountState = useCallback(async () => {
     const state = await resolveLocalAccountState();
@@ -106,23 +149,27 @@ export function SettingsScreen() {
   const handleRestNotificationsToggle = useCallback(
     async (value: boolean) => {
       if (!value) {
+        setRestNotificationMessage(null);
         setSettings(updateSettings({ restTimerNotifications: false }));
         await cancelRestTimerNotification();
         return;
       }
 
+      setRestNotificationMessage(
+        'TrainFrame uses notifications only to tell you when a rest timer ends.',
+      );
       const granted = await requestRestTimerNotificationPermission();
       if (!granted) {
         setSettings(updateSettings({ restTimerNotifications: false }));
-        Alert.alert(
-          'Notifications disabled',
-          'Enable notifications in Settings to get silent rest timer alerts.',
+        setRestNotificationMessage(
+          'Notifications are off. Enable TrainFrame notifications in Android Settings to get rest timer alerts.',
         );
         return;
       }
 
       await ensureRestTimerNotificationChannel(settings.restTimerVibration);
       setSettings(updateSettings({ restTimerNotifications: true }));
+      setRestNotificationMessage(null);
     },
     [setSettings, settings.restTimerVibration],
   );
@@ -145,8 +192,7 @@ export function SettingsScreen() {
                 await resetToGuestBootstrap();
                 await refreshAccountState();
               } catch (error) {
-                const message = error instanceof Error ? error.message : 'Sign out failed.';
-                setAccountError(message);
+                setAccountError(getFriendlyAccountError(error, 'reset'));
               } finally {
                 setAccountBusy(false);
               }
@@ -175,9 +221,7 @@ export function SettingsScreen() {
                 await resetToGuestBootstrap();
                 await refreshAccountState();
               } catch (error) {
-                const message =
-                  error instanceof Error ? error.message : 'Account switch reset failed.';
-                setAccountError(message);
+                setAccountError(getFriendlyAccountError(error, 'switch'));
               } finally {
                 setAccountBusy(false);
               }
@@ -194,8 +238,7 @@ export function SettingsScreen() {
     try {
       await createGoogleAccountFromGuest();
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Google sign-in failed.';
-      setAccountError(message);
+      setAccountError(getFriendlyAccountError(error, 'create'));
     } finally {
       await refreshAccountState();
       setAccountBusy(false);
@@ -208,8 +251,7 @@ export function SettingsScreen() {
     try {
       await reconnectGoogleAccount();
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Google reconnect failed.';
-      setAccountError(message);
+      setAccountError(getFriendlyAccountError(error, 'reconnect'));
     } finally {
       await refreshAccountState();
       setAccountBusy(false);
@@ -275,6 +317,7 @@ export function SettingsScreen() {
             }}
             variant="flat"
           />
+          {restNotificationMessage ? <Text variant="muted">{restNotificationMessage}</Text> : null}
         </View>
       </Card>
 

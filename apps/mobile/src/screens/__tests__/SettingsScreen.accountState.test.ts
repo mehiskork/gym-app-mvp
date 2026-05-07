@@ -168,6 +168,7 @@ import {
   reconnectGoogleAccount,
 } from '../../auth/googleAccountOrchestrator';
 import { resolveLocalAccountState } from '../../auth/localAccountState';
+import { requestRestTimerNotificationPermission } from '../../utils/restTimerNotifications';
 import { Button } from '../../ui';
 import { SettingsScreen } from '../SettingsScreen';
 import { getSettingsAccountUiState } from '../settingsAccountUiState';
@@ -228,7 +229,8 @@ function renderSettingsScreen({ accountSession = null, accountState }: StateConf
     .mockImplementationOnce(() => [false, jest.fn()])
     .mockImplementationOnce(() => [null, jest.fn()])
     .mockImplementationOnce((initial: unknown) => [initial, jest.fn()])
-    .mockImplementationOnce(() => [false, jest.fn()]);
+    .mockImplementationOnce(() => [false, jest.fn()])
+    .mockImplementationOnce(() => [null, jest.fn()]);
 
   return SettingsScreen();
 }
@@ -276,6 +278,10 @@ function buttons(node: React.ReactNode) {
   return findElements(node, (element) => element.type === 'Button' || element.type === Button);
 }
 
+function toggleRows(node: React.ReactNode) {
+  return findElements(node, (element) => element.type === 'ToggleRow');
+}
+
 describe('SettingsScreen account interactions', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -317,8 +323,10 @@ describe('SettingsScreen account interactions', () => {
     expect(resolveLocalAccountState).toHaveBeenCalled();
   });
 
-  it('surfaces reconnect errors without starting guest migration', async () => {
-    (reconnectGoogleAccount as jest.Mock).mockRejectedValueOnce(new Error('Reconnect failed.'));
+  it('surfaces friendly reconnect errors without starting guest migration', async () => {
+    (reconnectGoogleAccount as jest.Mock).mockRejectedValueOnce(
+      new Error('Firebase token exchange failed.'),
+    );
 
     const setAccountError = jest.fn();
     useStateMock.mockReset();
@@ -329,7 +337,8 @@ describe('SettingsScreen account interactions', () => {
       .mockImplementationOnce(() => [false, jest.fn()])
       .mockImplementationOnce(() => [null, setAccountError])
       .mockImplementationOnce((initial: unknown) => [initial, jest.fn()])
-      .mockImplementationOnce(() => [false, jest.fn()]);
+      .mockImplementationOnce(() => [false, jest.fn()])
+      .mockImplementationOnce(() => [null, jest.fn()]);
 
     const tree = expandTree(SettingsScreen());
     const reconnectButton = buttons(tree).find(
@@ -338,8 +347,68 @@ describe('SettingsScreen account interactions', () => {
 
     await reconnectButton?.props.onPress();
 
-    expect(setAccountError).toHaveBeenCalledWith('Reconnect failed.');
+    expect(setAccountError).toHaveBeenCalledWith(
+      "Couldn't reconnect this Google account. Check your connection and try again.",
+    );
     expect(createGoogleAccountFromGuest).not.toHaveBeenCalled();
+  });
+
+  it('maps wrong-account account errors to destructive reset guidance', async () => {
+    (reconnectGoogleAccount as jest.Mock).mockRejectedValueOnce(
+      new Error(
+        'Different account detected. Sign out and reset local data before switching accounts.',
+      ),
+    );
+
+    const setAccountError = jest.fn();
+    useStateMock.mockReset();
+    useStateMock
+      .mockImplementationOnce(() => [false, jest.fn()])
+      .mockImplementationOnce(() => ['linked_reauth_required', jest.fn()])
+      .mockImplementationOnce(() => [null, jest.fn()])
+      .mockImplementationOnce(() => [false, jest.fn()])
+      .mockImplementationOnce(() => [null, setAccountError])
+      .mockImplementationOnce((initial: unknown) => [initial, jest.fn()])
+      .mockImplementationOnce(() => [false, jest.fn()])
+      .mockImplementationOnce(() => [null, jest.fn()]);
+
+    const tree = expandTree(SettingsScreen());
+    const reconnectButton = buttons(tree).find(
+      (button) => button.props.title === 'Reconnect with Google',
+    );
+
+    await reconnectButton?.props.onPress();
+
+    expect(setAccountError).toHaveBeenCalledWith(
+      'This device is linked to a different Google account. Reset this device before switching accounts.',
+    );
+  });
+
+  it('shows an inline notification permission denial instead of a native alert', async () => {
+    (requestRestTimerNotificationPermission as jest.Mock).mockResolvedValueOnce(false);
+    const setRestNotificationMessage = jest.fn();
+    useStateMock.mockReset();
+    useStateMock
+      .mockImplementationOnce(() => [false, jest.fn()])
+      .mockImplementationOnce(() => ['guest', jest.fn()])
+      .mockImplementationOnce(() => [null, jest.fn()])
+      .mockImplementationOnce(() => [false, jest.fn()])
+      .mockImplementationOnce(() => [null, jest.fn()])
+      .mockImplementationOnce((initial: unknown) => [initial, jest.fn()])
+      .mockImplementationOnce(() => [false, jest.fn()])
+      .mockImplementationOnce(() => [null, setRestNotificationMessage]);
+
+    const tree = expandTree(SettingsScreen());
+    const restNotificationsToggle = toggleRows(tree).find(
+      (row) => row.props.title === 'Rest notifications',
+    );
+
+    await restNotificationsToggle?.props.onValueChange(true);
+
+    expect(Alert.alert).not.toHaveBeenCalledWith('Notifications disabled', expect.any(String));
+    expect(setRestNotificationMessage).toHaveBeenLastCalledWith(
+      'Notifications are off. Enable TrainFrame notifications in Android Settings to get rest timer alerts.',
+    );
   });
 
   it('tapping reset uses destructive confirmation before clearing local account data', async () => {

@@ -8,6 +8,7 @@ import * as Clipboard from 'expo-clipboard';
 
 import { Screen } from '../../ui/Screen';
 import { Text } from '../../ui/Text';
+import { DestructiveConfirmDialog } from '../../ui/DestructiveConfirmDialog';
 import { tokens } from '../../theme/tokens';
 import { safeJsonParse } from '../../utils/json';
 import {
@@ -220,6 +221,7 @@ export function DebugScreen() {
     typeof getWeekStartDebugInfo
   > | null>(null);
   const [syncRuns, setSyncRuns] = useState<ReturnType<typeof listSyncRuns>>([]);
+  const [supportBundleConfirmVisible, setSupportBundleConfirmVisible] = useState(false);
 
   const refresh = useCallback(() => {
     const c = getTableCounts();
@@ -317,7 +319,7 @@ export function DebugScreen() {
 
     const timestamp = new Date();
     const pad = (value: number) => value.toString().padStart(2, '0');
-    const fileName = `gymapp_support_${timestamp.getFullYear()}${pad(
+    const fileName = `trainframe_support_${timestamp.getFullYear()}${pad(
       timestamp.getMonth() + 1,
     )}${pad(timestamp.getDate())}_${pad(timestamp.getHours())}${pad(
       timestamp.getMinutes(),
@@ -677,7 +679,7 @@ export function DebugScreen() {
 
         <CollapsibleSection title="Support" defaultExpanded>
           <Pressable
-            onPress={exportSupportBundle}
+            onPress={() => setSupportBundleConfirmVisible(true)}
             style={{
               paddingVertical: tokens.spacing.md,
               borderRadius: tokens.radius.md,
@@ -707,6 +709,18 @@ export function DebugScreen() {
             Share support bundle for full diagnostics, or use concise diagnostics for quick tester
             updates.
           </Text>
+          <DestructiveConfirmDialog
+            visible={supportBundleConfirmVisible}
+            title="Share support bundle?"
+            body="Support bundle includes diagnostic IDs, sync status, and local counts, but not passwords or raw auth tokens. Share it only with TrainFrame support."
+            confirmLabel="Continue"
+            cancelLabel="Cancel"
+            onClose={() => setSupportBundleConfirmVisible(false)}
+            onConfirm={() => {
+              setSupportBundleConfirmVisible(false);
+              void exportSupportBundle();
+            }}
+          />
         </CollapsibleSection>
 
         <CollapsibleSection title="Backend / Environment" defaultExpanded={false}>
