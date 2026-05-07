@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { Alert, Pressable, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
 import DraggableFlatList, { type RenderItemParams } from 'react-native-draggable-flatlist';
@@ -15,6 +15,7 @@ import {
   Input,
   ListRow,
   Screen,
+  Snackbar,
   Text,
   DestructiveConfirmDialog,
 } from '../ui';
@@ -45,6 +46,7 @@ export function DayDetailScreen({ route, navigation }: Props) {
   const [items, setItems] = useState<DayExerciseRow[]>([]);
   const [startNotice, setStartNotice] = useState<string | null>(null);
   const [deleteExerciseTarget, setDeleteExerciseTarget] = useState<DayExerciseRow | null>(null);
+  const [feedback, setFeedback] = useState<string | null>(null);
   const { colors } = useAppTheme();
 
   const load = useCallback(() => {
@@ -86,14 +88,14 @@ export function DayDetailScreen({ route, navigation }: Props) {
     }
 
     if (!workoutPlanId) {
-      Alert.alert('Error', 'Missing workout plan for start flow.');
+      setFeedback("Couldn't complete that action. Try again.");
       return;
     }
 
     const sessionId = createSessionFromPlanDay({ workoutPlanId, dayId });
     const createdSession = getSessionById(sessionId);
     if (!createdSession) {
-      Alert.alert('Unable to start workout', 'Please try again.');
+      setFeedback("Couldn't complete that action. Try again.");
       return;
     }
     navigation.replace('WorkoutSession', { sessionId });
@@ -113,9 +115,8 @@ export function DayDetailScreen({ route, navigation }: Props) {
     try {
       renameDay(dayId, nextDbValue);
       setSavedName(next);
-    } catch (e) {
-      const message = e instanceof Error ? e.message : 'Failed to rename session';
-      Alert.alert('Error', message);
+    } catch {
+      setFeedback("Couldn't save changes. Try again.");
       setDayNameInput(savedName);
     }
   }, [dayId, dayNameInput, savedName]);
@@ -286,6 +287,12 @@ export function DayDetailScreen({ route, navigation }: Props) {
           onClose={() => setDeleteExerciseTarget(null)}
           onConfirm={handleDeleteExercise}
         />
+        <Snackbar
+          visible={feedback !== null}
+          message={feedback ?? ''}
+          variant="error"
+          onDismiss={() => setFeedback(null)}
+        />
       </Screen>
     );
   }
@@ -338,6 +345,12 @@ export function DayDetailScreen({ route, navigation }: Props) {
         cancelLabel="Cancel"
         onClose={() => setDeleteExerciseTarget(null)}
         onConfirm={handleDeleteExercise}
+      />
+      <Snackbar
+        visible={feedback !== null}
+        message={feedback ?? ''}
+        variant="error"
+        onDismiss={() => setFeedback(null)}
       />
     </Screen>
   );

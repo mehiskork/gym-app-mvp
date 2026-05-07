@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { Alert, FlatList, View } from 'react-native';
+import { FlatList, View } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
@@ -13,6 +13,7 @@ import {
   IconButton,
   Text,
   DestructiveConfirmDialog,
+  Snackbar,
 } from '../ui';
 import { useAppTheme } from '../theme/theme';
 import { tokens } from '../theme/tokens';
@@ -54,6 +55,7 @@ export function WorkoutPlansScreen() {
   const [deletePlanTarget, setDeletePlanTarget] = useState<WorkoutPlanWithSessionCountRow | null>(
     null,
   );
+  const [feedback, setFeedback] = useState<string | null>(null);
 
   const load = useCallback(() => {
     setWorkoutPlans(listWorkoutPlansWithSessionCounts());
@@ -70,9 +72,8 @@ export function WorkoutPlansScreen() {
       const defaultName = getNextDefaultPlanName(listWorkoutPlans());
       const workoutPlanId = createWorkoutPlan({ name: defaultName });
       navigation.navigate('WorkoutPlanDetail', { workoutPlanId });
-    } catch (e) {
-      const message = e instanceof Error ? e.message : 'Failed to create workout plan';
-      Alert.alert('Error', message);
+    } catch {
+      setFeedback("Couldn't complete that action. Try again.");
     }
   };
 
@@ -165,6 +166,12 @@ export function WorkoutPlansScreen() {
         cancelLabel="Cancel"
         onClose={() => setDeletePlanTarget(null)}
         onConfirm={handleDeletePlan}
+      />
+      <Snackbar
+        visible={feedback !== null}
+        message={feedback ?? ''}
+        variant="error"
+        onDismiss={() => setFeedback(null)}
       />
     </Screen>
   );

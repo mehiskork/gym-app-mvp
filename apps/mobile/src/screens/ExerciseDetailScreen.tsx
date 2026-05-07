@@ -1,10 +1,10 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, View } from 'react-native';
+import { Pressable, ScrollView, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
 
 import type { RootStackParamList } from '../navigation/types';
-import { Button, DestructiveConfirmDialog, Screen, Text } from '../ui';
+import { Button, DestructiveConfirmDialog, Screen, Snackbar, Text } from '../ui';
 import { tokens } from '../theme/tokens';
 import {
   deleteCustomExerciseIfUnused,
@@ -59,6 +59,7 @@ export function ExerciseDetailScreen({ route, navigation }: Props) {
   const [sessions, setSessions] = useState<SessionWithSets[]>([]);
   const [deleteState, setDeleteState] = useState<ExerciseDeletionState>(NON_DELETABLE_STATE);
   const [confirmVisible, setConfirmVisible] = useState(false);
+  const [feedback, setFeedback] = useState<string | null>(null);
 
   const load = useCallback(() => {
     setDeleteState(getExerciseDeletionState(exerciseId));
@@ -144,9 +145,8 @@ export function ExerciseDetailScreen({ route, navigation }: Props) {
       deleteCustomExerciseIfUnused(exerciseId);
       setConfirmVisible(false);
       navigation.goBack();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to delete exercise.';
-      Alert.alert('Unable to delete exercise', message);
+    } catch {
+      setFeedback("Couldn't complete that action. Try again.");
       setConfirmVisible(false);
       setDeleteState(getExerciseDeletionState(exerciseId));
     }
@@ -318,6 +318,12 @@ export function ExerciseDetailScreen({ route, navigation }: Props) {
         confirmLabel="Delete"
         onClose={() => setConfirmVisible(false)}
         onConfirm={handleDelete}
+      />
+      <Snackbar
+        visible={feedback !== null}
+        message={feedback ?? ''}
+        variant="error"
+        onDismiss={() => setFeedback(null)}
       />
     </Screen>
   );

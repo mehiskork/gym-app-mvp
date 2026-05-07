@@ -12,6 +12,7 @@ type SnackbarProps = {
   actionLabel?: string;
   onAction?: () => void;
   onDismiss?: () => void;
+  variant?: 'info' | 'success' | 'error';
 
   icon?: React.ReactNode;
   minHeight?: number;
@@ -19,15 +20,41 @@ type SnackbarProps = {
 };
 
 export function Snackbar(props: SnackbarProps) {
-  const { visible, message, actionLabel, onAction, icon, minHeight, style } = props;
+  const {
+    visible,
+    message,
+    actionLabel,
+    onAction,
+    onDismiss,
+    variant = 'info',
+    icon,
+    minHeight,
+    style,
+  } = props;
   if (!visible) return null;
 
+  const variantStyle = stylesByVariant[variant];
+  const iconName =
+    variant === 'success'
+      ? 'checkmark-circle-outline'
+      : variant === 'error'
+        ? 'alert-circle-outline'
+        : 'information-circle-outline';
+
   return (
-    <View style={[styles.container, minHeight ? { minHeight } : null, style]}>
+    <View
+      accessibilityRole="alert"
+      style={[
+        styles.container,
+        { borderColor: variantStyle.borderColor, backgroundColor: variantStyle.backgroundColor },
+        minHeight ? { minHeight } : null,
+        style,
+      ]}
+    >
       <View style={styles.content}>
         {icon ?? (
           <View style={styles.icon}>
-            <Ionicons name="trash-outline" size={16} color={tokens.colors.destructive} />
+            <Ionicons name={iconName} size={16} color={variantStyle.iconColor} />
           </View>
         )}
         <Text variant="body" style={styles.message}>
@@ -45,9 +72,37 @@ export function Snackbar(props: SnackbarProps) {
           </Text>
         </Pressable>
       ) : null}
+      {onDismiss ? (
+        <Pressable
+          onPress={onDismiss}
+          accessibilityRole="button"
+          accessibilityLabel="Dismiss message"
+          style={({ pressed }) => [styles.dismissButton, pressed ? styles.actionPressed : null]}
+        >
+          <Ionicons name="close" size={16} color={tokens.colors.mutedText} />
+        </Pressable>
+      ) : null}
     </View>
   );
 }
+
+const stylesByVariant = {
+  info: {
+    backgroundColor: tokens.colors.surface,
+    borderColor: tokens.colors.border,
+    iconColor: tokens.colors.primary,
+  },
+  success: {
+    backgroundColor: tokens.colors.successSurface,
+    borderColor: tokens.colors.success,
+    iconColor: tokens.colors.success,
+  },
+  error: {
+    backgroundColor: 'rgba(224, 82, 75, 0.16)',
+    borderColor: tokens.colors.destructive,
+    iconColor: tokens.colors.destructive,
+  },
+} as const;
 
 const styles = StyleSheet.create({
   container: {
@@ -83,6 +138,11 @@ const styles = StyleSheet.create({
   actionButton: {
     paddingHorizontal: tokens.spacing.sm,
     paddingVertical: tokens.spacing.xs,
+    borderRadius: tokens.radius.md,
+  },
+  dismissButton: {
+    marginLeft: tokens.spacing.sm,
+    padding: tokens.spacing.xs,
     borderRadius: tokens.radius.md,
   },
   actionPressed: {

@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { Alert, View } from 'react-native';
+import { View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -15,6 +15,7 @@ import {
   Button,
   Input,
   DestructiveConfirmDialog,
+  Snackbar,
 } from '../ui';
 import { useAppTheme } from '../theme/theme';
 import { tokens } from '../theme/tokens';
@@ -49,6 +50,7 @@ export function WorkoutPlanDetailScreen({ route, navigation }: Props) {
   const [planName, setPlanName] = useState('');
   const [pickerNotice, setPickerNotice] = useState<string | null>(null);
   const [deletePlanVisible, setDeletePlanVisible] = useState(false);
+  const [feedback, setFeedback] = useState<string | null>(null);
   const { colors } = useAppTheme();
   const load = useCallback(() => {
     const nextPlan = getWorkoutPlanById(workoutPlanId);
@@ -79,9 +81,8 @@ export function WorkoutPlanDetailScreen({ route, navigation }: Props) {
     try {
       updateWorkoutPlanName(workoutPlanId, trimmedName);
       setPlan({ ...plan, name: trimmedName });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to update plan name';
-      Alert.alert('Error', message);
+    } catch {
+      setFeedback("Couldn't save changes. Try again.");
       setPlanName(plan.name);
     }
   }, [plan, planName, workoutPlanId]);
@@ -245,6 +246,12 @@ export function WorkoutPlanDetailScreen({ route, navigation }: Props) {
         cancelLabel="Cancel"
         onClose={() => setDeletePlanVisible(false)}
         onConfirm={handleDeletePlan}
+      />
+      <Snackbar
+        visible={feedback !== null}
+        message={feedback ?? ''}
+        variant="error"
+        onDismiss={() => setFeedback(null)}
       />
     </Screen>
   );

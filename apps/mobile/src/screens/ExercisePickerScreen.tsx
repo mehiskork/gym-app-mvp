@@ -1,12 +1,12 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { Alert, FlatList, Pressable, View } from 'react-native';
+import { FlatList, Pressable, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { RootStackParamList } from '../navigation/types';
-import { Button, IconButton, Input, Screen, Text } from '../ui';
+import { Button, IconButton, Input, Screen, Snackbar, Text } from '../ui';
 import { tokens } from '../theme/tokens';
 import { listExercisesForCurrentUser, type ExerciseRow } from '../db/exerciseRepo';
 import { EXERCISE_TYPE, type ExerciseType } from '../db/exerciseTypes';
@@ -36,6 +36,7 @@ export function ExercisePickerScreen({ route, navigation }: Props) {
   const [all, setAll] = useState<ExerciseRow[]>([]);
   const [exerciseTypeFilter, setExerciseTypeFilter] = useState<ExerciseType | null>(null);
   const [sourceFilter, setSourceFilter] = useState<ExerciseSourceFilter>(null);
+  const [feedback, setFeedback] = useState<string | null>(null);
   const insets = useSafeAreaInsets();
 
   const load = useCallback(() => {
@@ -171,12 +172,8 @@ export function ExercisePickerScreen({ route, navigation }: Props) {
                     if (!dayId) return;
                     addExerciseToDay({ dayId, exerciseId: item.id });
                     navigation.goBack();
-                  } catch (e) {
-                    const msg = e instanceof Error ? e.message : String(e);
-                    Alert.alert(
-                      isSwapMode ? 'Failed to swap exercise' : 'Failed to add exercise',
-                      msg,
-                    );
+                  } catch {
+                    setFeedback("Couldn't complete that action. Try again.");
                   }
                 }}
                 style={({ pressed }) => [{ flex: 1 }, pressed ? { opacity: 0.85 } : null]}
@@ -223,6 +220,12 @@ export function ExercisePickerScreen({ route, navigation }: Props) {
           </Text>
         </Button>
       </View>
+      <Snackbar
+        visible={feedback !== null}
+        message={feedback ?? ''}
+        variant="error"
+        onDismiss={() => setFeedback(null)}
+      />
     </Screen>
   );
 }

@@ -47,6 +47,13 @@ jest.mock('../../ui/Button', () => {
   return { Button: MockButton };
 });
 
+jest.mock('../../ui/Snackbar', () => {
+  const React = require('react');
+  return {
+    Snackbar: (props: unknown) => React.createElement('Snackbar', props),
+  };
+});
+
 jest.mock('../../api/client', () => ({
   api: {
     post: jest.fn(),

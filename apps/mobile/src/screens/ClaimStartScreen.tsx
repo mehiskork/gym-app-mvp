@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import * as Clipboard from 'expo-clipboard';
 
@@ -7,6 +7,7 @@ import type { RootStackParamList } from '../navigation/types';
 import { Screen } from '../ui/Screen';
 import { Text } from '../ui/Text';
 import { Button } from '../ui/Button';
+import { Snackbar } from '../ui/Snackbar';
 import { tokens } from '../theme/tokens';
 import { api } from '../api/client';
 import { ApiError } from '../api/errors';
@@ -31,6 +32,7 @@ export function ClaimStartScreen({ navigation }: Props) {
   const [code, setCode] = useState<string | null>(null);
   const [expiresAt, setExpiresAt] = useState<string | null>(null);
   const [error, setError] = useState<ClaimErrorState | null>(null);
+  const [feedback, setFeedback] = useState<string | null>(null);
 
   useEffect(() => {
     pauseSync('claim');
@@ -77,7 +79,7 @@ export function ClaimStartScreen({ navigation }: Props) {
   const handleCopy = useCallback(async () => {
     if (!code) return;
     await Clipboard.setStringAsync(code);
-    Alert.alert('Copied', 'Code copied to clipboard.');
+    setFeedback('Copied to clipboard.');
   }, [code]);
 
   const handleCancel = useCallback(() => {
@@ -136,6 +138,12 @@ export function ClaimStartScreen({ navigation }: Props) {
       ) : null}
 
       <Button title="Cancel" variant="secondary" onPress={handleCancel} />
+      <Snackbar
+        visible={feedback !== null}
+        message={feedback ?? ''}
+        variant="success"
+        onDismiss={() => setFeedback(null)}
+      />
     </Screen>
   );
 }

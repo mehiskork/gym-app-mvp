@@ -7,6 +7,7 @@ import * as Sharing from 'expo-sharing';
 import * as Clipboard from 'expo-clipboard';
 
 import { Screen } from '../../ui/Screen';
+import { Snackbar } from '../../ui/Snackbar';
 import { Text } from '../../ui/Text';
 import { DestructiveConfirmDialog } from '../../ui/DestructiveConfirmDialog';
 import { tokens } from '../../theme/tokens';
@@ -122,16 +123,18 @@ function CopyableRow({
   label,
   value,
   displayValue,
+  onCopied,
 }: {
   label: string;
   value: string | null | undefined;
   displayValue?: string;
+  onCopied: (message: string) => void;
 }) {
   const renderedValue = displayValue ?? value ?? '—';
   const copy = async () => {
     if (!value) return;
     await Clipboard.setStringAsync(value);
-    Alert.alert('Copied', `${label} copied to clipboard.`);
+    onCopied(`${label} copied to clipboard.`);
   };
 
   return (
@@ -155,17 +158,19 @@ function CopyableInlineValue({
   value,
   copyValue,
   marginBottom = 8,
+  onCopied,
 }: {
   prefix: string;
   value: string;
   copyValue?: string;
   marginBottom?: number;
+  onCopied: (message: string) => void;
 }) {
   const copy = async () => {
     const text = copyValue ?? value;
     if (!text) return;
     await Clipboard.setStringAsync(text);
-    Alert.alert('Copied', `${prefix} copied to clipboard.`);
+    onCopied(`${prefix} copied to clipboard.`);
   };
 
   return (
@@ -207,6 +212,11 @@ function getUrlHost(value: string): string {
   }
 }
 
+type Feedback = {
+  message: string;
+  variant: 'info' | 'success' | 'error';
+};
+
 export function DebugScreen() {
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [inProgress, setInProgress] = useState<ReturnType<typeof getInProgressWorkout>>(null);
@@ -222,6 +232,11 @@ export function DebugScreen() {
   > | null>(null);
   const [syncRuns, setSyncRuns] = useState<ReturnType<typeof listSyncRuns>>([]);
   const [supportBundleConfirmVisible, setSupportBundleConfirmVisible] = useState(false);
+  const [feedback, setFeedback] = useState<Feedback | null>(null);
+
+  const showFeedback = useCallback((message: string, variant: Feedback['variant'] = 'success') => {
+    setFeedback({ message, variant });
+  }, []);
 
   const refresh = useCallback(() => {
     const c = getTableCounts();
@@ -310,8 +325,8 @@ export function DebugScreen() {
     }
 
     await Clipboard.setStringAsync(json);
-    Alert.alert('Copied', 'Debug JSON copied to clipboard.');
-  }, [buildInfo, counts, inProgress]);
+    showFeedback('Debug JSON copied to clipboard.');
+  }, [buildInfo, counts, inProgress, showFeedback]);
 
   const exportSupportBundle = useCallback(async () => {
     const bundle = getSupportBundle();
@@ -327,7 +342,7 @@ export function DebugScreen() {
 
     const copyToClipboard = async () => {
       await Clipboard.setStringAsync(json);
-      Alert.alert('Copied', 'Support bundle JSON copied to clipboard.');
+      showFeedback('Support bundle copied. Share it only with TrainFrame support.');
     };
 
     try {
@@ -343,10 +358,7 @@ export function DebugScreen() {
           return;
         }
 
-        Alert.alert('Sharing unavailable', 'Support bundle saved locally.', [
-          { text: 'Copy to clipboard', onPress: copyToClipboard },
-          { text: 'OK' },
-        ]);
+        await copyToClipboard();
         return;
       }
     } catch {
@@ -354,7 +366,7 @@ export function DebugScreen() {
     }
 
     await copyToClipboard();
-  }, []);
+  }, [showFeedback]);
 
   const devOnly = __DEV__;
   const baseUrl = getApiBaseUrl();
@@ -404,7 +416,7 @@ export function DebugScreen() {
 
   const copyConciseDiagnostics = useCallback(async () => {
     if (!syncInfo) {
-      Alert.alert('Unavailable', 'Diagnostics are still loading.');
+      showFeedback('Diagnostics are still loading.', 'info');
       return;
     }
 
@@ -421,8 +433,8 @@ export function DebugScreen() {
     ].join('\n');
 
     await Clipboard.setStringAsync(summary);
-    Alert.alert('Copied', 'Concise diagnostics copied to clipboard.');
-  }, [backendHost, overview.lastSyncResult, syncInfo]);
+    showFeedback('Concise diagnostics copied to clipboard.');
+  }, [backendHost, overview.lastSyncResult, showFeedback, syncInfo]);
 
   const localStorageRows = useMemo(() => {
     return Object.entries(counts).sort((a, b) => {
@@ -448,7 +460,12 @@ export function DebugScreen() {
           {syncInfo ? (
             <>
               <Row label="Sync health" value={overview.syncHealth} />
-              <CopyableInlineValue prefix="Backend" value={backendHost} copyValue={baseUrl} />
+              <CopyableInlineValue
+                prefix="Backend"
+                value={backendHost}
+                copyValue={baseUrl}
+                onCopied={showFeedback}
+              />
               <Row label="Linked state" value={toTitleCase(syncInfo.authDebug.linkedState)} />
               <Row
                 label="Device token"
@@ -467,6 +484,7 @@ export function DebugScreen() {
                 label="Cursor"
                 value={syncInfo.syncState.cursor}
                 displayValue={truncate(syncInfo.syncState.cursor, 30)}
+                onCopied={showFeedback}
               />
               <Row label="Last sync result" value={overview.lastSyncResult} />
               {syncInfo.syncState.last_sync_at ? (
@@ -491,16 +509,19 @@ export function DebugScreen() {
                 label="Guest user ID"
                 value={syncInfo.guestUserId}
                 displayValue={truncateId(syncInfo.guestUserId)}
+                onCopied={showFeedback}
               />
               <CopyableRow
                 label="Effective user ID"
                 value={syncInfo.effectiveUserId}
                 displayValue={truncateId(syncInfo.effectiveUserId)}
+                onCopied={showFeedback}
               />
               <CopyableRow
                 label="Device ID"
                 value={syncInfo.deviceId}
                 displayValue={truncateId(syncInfo.deviceId)}
+                onCopied={showFeedback}
               />
               <Row label="Linked state" value={toTitleCase(syncInfo.authDebug.linkedState)} />
               <Row
@@ -553,6 +574,7 @@ export function DebugScreen() {
                 label="Cursor"
                 value={syncInfo.syncState.cursor}
                 displayValue={truncate(syncInfo.syncState.cursor, 48)}
+                onCopied={showFeedback}
               />
               <Row label="Last sync result" value={overview.lastSyncResult} />
               <Row
@@ -625,6 +647,7 @@ export function DebugScreen() {
             onPress={async () => {
               await syncNow({ force: true });
               refresh();
+              showFeedback('Sync completed.');
             }}
             style={{
               paddingVertical: tokens.spacing.md,
@@ -642,6 +665,7 @@ export function DebugScreen() {
             onPress={async () => {
               await syncNow({ force: true, pullOnly: true });
               refresh();
+              showFeedback('Pull latest completed.');
             }}
             style={{
               paddingVertical: tokens.spacing.md,
@@ -662,7 +686,7 @@ export function DebugScreen() {
             onPress={() => {
               const repaired = repairStaleInFlightOpsForDebug(OUTBOX_STALE_IN_FLIGHT_SECONDS);
               refresh();
-              Alert.alert('Repair complete', `Returned ${repaired} op(s) to failed.`);
+              showFeedback(`Repair complete. Returned ${repaired} op(s) to failed.`);
             }}
             style={{
               paddingVertical: tokens.spacing.md,
@@ -729,6 +753,7 @@ export function DebugScreen() {
             value={baseUrl}
             copyValue={baseUrl}
             marginBottom={tokens.spacing.sm}
+            onCopied={showFeedback}
           />
           <Row label="App" value={buildInfo.appName} />
           <Row label="Version" value={`${buildInfo.version} (${buildInfo.build})`} />
@@ -776,6 +801,7 @@ export function DebugScreen() {
                 label="Session ID"
                 value={String(inProgress.sessionId)}
                 displayValue={truncateId(String(inProgress.sessionId))}
+                onCopied={showFeedback}
               />
               <Row label="Sets" value={String(inProgress.setCount)} />
               <Row label="Started" value={formatTimestampForDisplay(inProgress.startedAt)} />
@@ -810,7 +836,7 @@ export function DebugScreen() {
             disabled={!devOnly}
             onPress={() => {
               const result = validateStatusEnums();
-              Alert.alert(result.ok ? 'Success' : 'Failure', result.message);
+              showFeedback(result.message, result.ok ? 'success' : 'error');
             }}
             style={{
               opacity: devOnly ? 1 : 0.4,
@@ -829,7 +855,7 @@ export function DebugScreen() {
             disabled={!devOnly}
             onPress={() => {
               const result = testNestedTransactionRollback();
-              Alert.alert(result.ok ? 'Success' : 'Failure', result.message);
+              showFeedback(result.message, result.ok ? 'success' : 'error');
             }}
             style={{
               opacity: devOnly ? 1 : 0.4,
@@ -890,7 +916,7 @@ export function DebugScreen() {
                 () => {
                   void registerDeviceIfNeeded().then(() => {
                     refresh();
-                    Alert.alert('Done', 'Device registration attempted.');
+                    showFeedback('Device registration attempted.');
                   });
                 },
               );
@@ -917,7 +943,7 @@ export function DebugScreen() {
                 () => {
                   resetSyncCursorForDebug();
                   refresh();
-                  Alert.alert('Done', 'Sync cursor reset to 0.');
+                  showFeedback('Sync cursor reset to 0.');
                 },
               );
             }}
@@ -943,7 +969,7 @@ export function DebugScreen() {
                 () => {
                   clearOutboxForDebug();
                   refresh();
-                  Alert.alert('Done', 'Outbox cleared.');
+                  showFeedback('Outbox cleared.');
                 },
               );
             }}
@@ -969,7 +995,7 @@ export function DebugScreen() {
                 () => {
                   resetInProgressWorkoutHardDelete();
                   refresh();
-                  Alert.alert('Done', 'In-progress workout cleared.');
+                  showFeedback('In-progress workout cleared.');
                 },
               );
             }}
@@ -995,7 +1021,7 @@ export function DebugScreen() {
                 () => {
                   const repaired = repairSessionsMissingSets();
                   refresh();
-                  Alert.alert('Done', `Inserted ${repaired} missing set(s).`);
+                  showFeedback(`Inserted ${repaired} missing set(s).`);
                 },
               );
             }}
@@ -1026,7 +1052,7 @@ export function DebugScreen() {
                     onPress: () => {
                       deleteAllCompletedSessions();
                       refresh();
-                      Alert.alert('Done', 'All completed workout history deleted.');
+                      showFeedback('All completed workout history deleted.');
                     },
                   },
                 ],
@@ -1054,7 +1080,7 @@ export function DebugScreen() {
                 () => {
                   seedTestPlan();
                   refresh();
-                  Alert.alert('Done', 'Test plan seeded (if not already present).');
+                  showFeedback('Test plan seeded (if not already present).');
                 },
               );
             }}
@@ -1071,6 +1097,12 @@ export function DebugScreen() {
           </Pressable>
         </CollapsibleSection>
       </ScrollView>
+      <Snackbar
+        visible={feedback !== null}
+        message={feedback?.message ?? ''}
+        variant={feedback?.variant ?? 'info'}
+        onDismiss={() => setFeedback(null)}
+      />
     </Screen>
   );
 }

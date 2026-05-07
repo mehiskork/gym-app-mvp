@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { Alert, View } from 'react-native';
+import { View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import type { RootStackParamList } from '../navigation/types';
 import { Screen } from '../ui/Screen';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
+import { Text } from '../ui/Text';
 import { tokens } from '../theme/tokens';
 import { createCustomExercise } from '../db/exerciseRepo';
 
@@ -14,15 +15,16 @@ type Props = NativeStackScreenProps<RootStackParamList, 'CreateExercise'>;
 export function CreateExerciseScreen({ navigation }: Props) {
   const [name, setName] = useState('');
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const onSave = () => {
     try {
       setSaving(true);
+      setError(null);
       createCustomExercise(name);
       navigation.goBack();
-    } catch (e) {
-      const message = e instanceof Error ? e.message : 'Failed to create exercise';
-      Alert.alert('Error', message);
+    } catch {
+      setError("Couldn't save changes. Try again.");
       setSaving(false);
     }
   };
@@ -39,6 +41,7 @@ export function CreateExerciseScreen({ navigation }: Props) {
           placeholderTextColor={tokens.colors.textSecondary}
           autoFocus
         />
+        {error ? <Text color={tokens.colors.danger}>{error}</Text> : null}
       </View>
 
       <View style={{ flexDirection: 'row', gap: tokens.spacing.md }}>

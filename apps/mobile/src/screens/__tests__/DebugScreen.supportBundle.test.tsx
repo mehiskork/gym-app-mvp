@@ -80,6 +80,13 @@ jest.mock('../../ui/DestructiveConfirmDialog', () => {
   };
 });
 
+jest.mock('../../ui/Snackbar', () => {
+  const React = require('react');
+  return {
+    Snackbar: (props: unknown) => React.createElement('Snackbar', props),
+  };
+});
+
 jest.mock('../../theme/tokens', () => ({
   tokens: {
     colors: {
@@ -152,6 +159,7 @@ jest.mock('../../utils/logger', () => ({
 import React from 'react';
 import * as Clipboard from 'expo-clipboard';
 import * as Sharing from 'expo-sharing';
+import { Alert } from 'react-native';
 
 import { DebugScreen } from '../Debug/DebugScreen';
 
@@ -213,7 +221,8 @@ describe('DebugScreen support bundle export', () => {
       .mockImplementationOnce(() => [null, jest.fn()])
       .mockImplementationOnce(() => [null, jest.fn()])
       .mockImplementationOnce(() => [[], jest.fn()])
-      .mockImplementationOnce(() => [false, setSupportBundleConfirmVisible]);
+      .mockImplementationOnce(() => [false, setSupportBundleConfirmVisible])
+      .mockImplementationOnce(() => [null, jest.fn()]);
 
     const element = expandTree(DebugScreen());
     const exportButton = findElements(
@@ -238,7 +247,8 @@ describe('DebugScreen support bundle export', () => {
       .mockImplementationOnce(() => [null, jest.fn()])
       .mockImplementationOnce(() => [null, jest.fn()])
       .mockImplementationOnce(() => [[], jest.fn()])
-      .mockImplementationOnce(() => [true, setSupportBundleConfirmVisible]);
+      .mockImplementationOnce(() => [true, setSupportBundleConfirmVisible])
+      .mockImplementationOnce(() => [null, jest.fn()]);
 
     const element = expandTree(DebugScreen());
     const dialog = findElements(element, (node) => node.type === 'DestructiveConfirmDialog')[0];
@@ -252,5 +262,31 @@ describe('DebugScreen support bundle export', () => {
 
     expect(setSupportBundleConfirmVisible).toHaveBeenCalledWith(false);
     expect(Clipboard.setStringAsync).toHaveBeenCalledWith(expect.stringContaining('exportedAt'));
+  });
+
+  it('uses app-owned feedback after copying a support bundle fallback', async () => {
+    const setSupportBundleConfirmVisible = jest.fn();
+    const setFeedback = jest.fn();
+    useStateMock
+      .mockImplementationOnce(() => [{}, jest.fn()])
+      .mockImplementationOnce(() => [null, jest.fn()])
+      .mockImplementationOnce(() => [null, jest.fn()])
+      .mockImplementationOnce(() => [null, jest.fn()])
+      .mockImplementationOnce(() => [null, jest.fn()])
+      .mockImplementationOnce(() => [null, jest.fn()])
+      .mockImplementationOnce(() => [[], jest.fn()])
+      .mockImplementationOnce(() => [true, setSupportBundleConfirmVisible])
+      .mockImplementationOnce(() => [null, setFeedback]);
+
+    const element = expandTree(DebugScreen());
+    const dialog = findElements(element, (node) => node.type === 'DestructiveConfirmDialog')[0];
+
+    await dialog.props.onConfirm();
+
+    expect(Alert.alert).not.toHaveBeenCalled();
+    expect(setFeedback).toHaveBeenCalledWith({
+      message: 'Support bundle copied. Share it only with TrainFrame support.',
+      variant: 'success',
+    });
   });
 });

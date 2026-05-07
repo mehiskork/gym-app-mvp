@@ -258,6 +258,14 @@ describe('DayDetailScreen', () => {
 
   it('does not navigate when created session cannot be verified', () => {
     const { Alert } = require('react-native');
+    const setFeedback = jest.fn();
+    useStateMock
+      .mockImplementationOnce(() => ['', jest.fn()])
+      .mockImplementationOnce(() => ['', jest.fn()])
+      .mockImplementationOnce(() => [[], jest.fn()])
+      .mockImplementationOnce(() => [null, jest.fn()])
+      .mockImplementationOnce(() => [null, jest.fn()])
+      .mockImplementationOnce(() => [null, setFeedback]);
     (createSessionFromPlanDay as jest.Mock).mockReturnValue('session-missing');
     (getSessionById as jest.Mock).mockReturnValue(null);
 
@@ -276,7 +284,8 @@ describe('DayDetailScreen', () => {
     startButton?.props.onPress?.({} as never);
 
     expect(getSessionById).toHaveBeenCalledWith('session-missing');
-    expect(Alert.alert).toHaveBeenCalledWith('Unable to start workout', 'Please try again.');
+    expect(setFeedback).toHaveBeenCalledWith("Couldn't complete that action. Try again.");
+    expect(Alert.alert).not.toHaveBeenCalled();
     expect(navigation.replace).not.toHaveBeenCalled();
   });
 

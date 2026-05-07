@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { Alert, FlatList, View } from 'react-native';
+import { FlatList, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 
-import { Button, IconButton, Screen, Text } from '../ui';
+import { Button, IconButton, Screen, Snackbar, Text } from '../ui';
 import { tokens } from '../theme/tokens';
 import type { RootStackParamList } from '../navigation/types';
 import { importPrebuiltPlan, listPrebuiltPlans } from '../db/prebuiltPlansRepo';
@@ -18,6 +18,9 @@ export function PrebuiltPlansScreen() {
   const [importingId, setImportingId] = useState<string | null>(null);
 
   const [templates, setTemplates] = useState(() => listPrebuiltPlans());
+  const [feedback, setFeedback] = useState<{ message: string; variant: 'info' | 'error' } | null>(
+    null,
+  );
   const isBusy = importingId !== null;
 
   const handleImport = (templateId: string) => {
@@ -37,9 +40,8 @@ export function PrebuiltPlansScreen() {
         workoutPlanId: planId,
         mode: 'pickSessionToStart',
       });
-    } catch (e) {
-      const message = e instanceof Error ? e.message : 'Failed to import prebuilt plan';
-      Alert.alert('Error', message);
+    } catch {
+      setFeedback({ message: "Couldn't complete that action. Try again.", variant: 'error' });
     } finally {
       setImportingId(null);
     }
@@ -51,13 +53,12 @@ export function PrebuiltPlansScreen() {
       const planId = existingPlanId ?? importPrebuiltPlan(templateId);
       const days = listDaysForWorkoutPlan(planId);
       if (days.length === 0) {
-        Alert.alert('No sessions found', 'This plan has no sessions to preview.');
+        setFeedback({ message: 'No sessions found.', variant: 'info' });
         return;
       }
       navigation.replace('DayDetail', { dayId: days[0].id });
-    } catch (e) {
-      const message = e instanceof Error ? e.message : 'Failed to open plan preview';
-      Alert.alert('Error', message);
+    } catch {
+      setFeedback({ message: "Couldn't load this screen. Try again.", variant: 'error' });
     } finally {
       setImportingId(null);
     }
@@ -121,6 +122,12 @@ export function PrebuiltPlansScreen() {
             </View>
           </View>
         )}
+      />
+      <Snackbar
+        visible={feedback !== null}
+        message={feedback?.message ?? ''}
+        variant={feedback?.variant ?? 'info'}
+        onDismiss={() => setFeedback(null)}
       />
     </Screen>
   );
