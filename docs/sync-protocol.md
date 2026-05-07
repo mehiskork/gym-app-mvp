@@ -668,7 +668,7 @@ Stale `in_flight` rows must be repairable on the next sync attempt.
 
 ## Known MVP limitations and tradeoffs
 
-- Account login, guest-to-account migration, and linked-account reconnect trigger account sync automatically.
+- Sync is scheduled after outbox writes, app startup, foreground resume with cooldown, and account-entry flows.
 - Routine periodic/background sync is not implemented yet.
 - In development, manual Debug sync remains available for troubleshooting.
 - Continuation paging is capped per `syncNow()` call.

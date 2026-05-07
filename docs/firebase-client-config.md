@@ -12,9 +12,9 @@ This convenience is acceptable only while the repo and app distribution remain p
 
 Before relying on this config for QA or wider testing, verify in Firebase Console / Google Cloud Console:
 
-- The Firebase API key is restricted to only the Firebase/identity APIs needed by the app, especially Firebase Authentication / Identity Toolkit and Secure Token APIs.
-- The Android app restriction is configured for package name `com.mehka.gymappmvp`.
-- SHA fingerprints are configured where Google Sign-In requires them for the Android build being tested.
+- Verify the Firebase API key is restricted where possible to only the Firebase/identity APIs needed by the app, especially Firebase Authentication / Identity Toolkit and Secure Token APIs.
+- Verify Android app restrictions use package name `com.mehka.gymappmvp`.
+- Verify matching SHA-1 and SHA-256 fingerprints are present for local/debug, EAS preview/internal, production upload, and Play App Signing contexts.
 - Quota and usage monitoring are enabled so unexpected traffic is visible.
 
 ## Public repo / public beta policy

@@ -263,7 +263,7 @@ When writing code or docs, be precise about which one you mean.
 
 ### How sync is triggered today
 
-The sync system exists, and account-entry flows trigger sync automatically after safe account auth state is established. Routine sync still does not run from app launch, focus, or a background timer in the current MVP.
+The sync system exists. Sync is scheduled after outbox writes, app startup, foreground resume with cooldown, and account-entry flows. There is still no periodic timer or true OS background sync.
 
 In development, manual sync is still available from the hidden Debug screen for troubleshooting. See `docs/local-development.md` for the operational details.
 
@@ -540,7 +540,7 @@ Nested `inTransaction()` calls join the same transaction boundary.
 
 The current implementation has a few important limitations that are useful to know while reading the architecture:
 
-- account-entry flows auto-sync after guest-to-account migration, clean account sign-in restore, and reconnect/reauth; routine periodic/background sync is not implemented yet
+- sync is scheduled after outbox writes, app startup, foreground resume with cooldown, and account-entry flows; routine periodic/background sync is not implemented yet
 - `last_modified_by_device_id` exists in conflict logic but is not currently populated by mobile write paths
 - device token lookup is not yet optimized for large scale
 - rate limiting is single-process only

@@ -92,6 +92,9 @@ docs/
   conflicts.md
   firebase-client-config.md
   product-rules.md
+  android-release.md
+  android-tester-runbook.md
+  account-deletion-design.md
   local-development.md
   railway-deployment.md
   account-ownership-decision.md
@@ -106,4 +109,7 @@ docs/
 - Sync protocol contract: `docs/sync-protocol.md`
 - Conflict policy: `docs/conflicts.md`
 - Product behavior invariants: `docs/product-rules.md`
+- Android release baseline: `docs/android-release.md`
+- Android tester and Play readiness runbook: `docs/android-tester-runbook.md`
+- Account deletion design: `docs/account-deletion-design.md`
 - Railway backend deployment: `docs/railway-deployment.md`

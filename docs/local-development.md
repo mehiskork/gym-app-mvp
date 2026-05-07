@@ -103,7 +103,7 @@ The canonical mobile config lives under `apps/mobile/`. Always use these files, 
 | `apps/mobile/eas.json` | EAS build profiles |
 | `apps/mobile/google-services.json` | Android Firebase client config for the current private/dev phase |
 
-The repo root also contains `app.json` and `eas.json`, but those are not the correct files for normal mobile development. Running `eas build` from the repo root can target the wrong project.
+The canonical Expo/EAS config lives under `apps/mobile/`. Run EAS commands from `apps/mobile`; running from the repo root can fail or use the wrong context. Do not change Expo slug from `mobile` unless deliberately migrating the EAS project and credentials.
 
 `apps/mobile/google-services.json` is intentionally tracked while this repo and app distribution are private/internal. It is Firebase client configuration, not a private service-account key. Keep Firebase API key restrictions, Android package restrictions, SHA fingerprints, and quota monitoring configured as described in `docs/firebase-client-config.md`. Before a public repo, wider public beta, or Play Store release, revisit whether this file should move to local/EAS secret-file provisioning.
 
@@ -337,15 +337,15 @@ The Debug screen remains the main manual sync tool during development and troubl
 
 ## Sync in development
 
-The sync system is implemented. Account-entry flows trigger sync automatically, but routine background sync is still not implemented in the current MVP.
+The sync system is implemented. Sync is scheduled after outbox writes, app startup, foreground resume with cooldown, and account-entry flows. There is still no periodic timer or true OS background sync.
 
-Automatic account-entry sync currently runs after:
+Account-entry sync currently runs after:
 
 - guest-to-Google account migration completes claim confirm, `/me`, and SecureStore session write
 - signing back into an account from a clean local database
 - reconnecting from `linked_reauth_required`
 
-There is no periodic timer, app-focus listener, or general launch-time background sync hook wired into the normal app flow.
+Startup and foreground sync use the same scheduled sync path as outbox writes. They do not run continuously and do not imply a network-state listener.
 
 To trigger sync manually in development or troubleshooting:
 

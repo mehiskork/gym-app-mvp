@@ -41,7 +41,7 @@ Ownership scope is always resolved from authenticated principal on the server.
 
 ## JWT config for account endpoints
 
-Firebase is used for authentication only. App data remains in PostgreSQL through the Spring Boot `/sync` API; do not add Firestore, Realtime Database, Storage, or Hosting for app persistence.
+Firebase is used for authentication only. Synced backend data is stored in PostgreSQL through the Spring Boot `/sync` API; mobile SQLite remains the runtime source of truth. Do not add Firestore, Realtime Database, Storage, or Hosting for app persistence.
 
 Firebase project ID:
 

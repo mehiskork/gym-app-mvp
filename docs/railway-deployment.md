@@ -22,7 +22,7 @@ The backend requires Java 25. If Railway builds the checked-in backend Dockerfil
 
 `SPRING_PROFILES_ACTIVE` must be `prod` so production safety checks are enforced. Prod-like profiles are `prod`, `production`, and `staging`; Railway should use `prod` for the current shared dev/QA backend service.
 
-Firebase is used for authentication only. App data remains in PostgreSQL through the Spring Boot `/sync` API; do not use Firebase as the app database.
+Firebase is used for authentication only. Synced backend data is stored in PostgreSQL through the Spring Boot `/sync` API; mobile SQLite remains the runtime source of truth. Do not use Firebase as the app database.
 
 Mobile Google Sign-In is implemented. A valid account request to `GET /me` returns `200` only with a real Firebase ID token from the mobile sign-in flow or a controlled test token setup.
 
