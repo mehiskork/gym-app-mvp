@@ -6,6 +6,7 @@ type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
 
 type ApiRequestOptions = {
   body?: unknown;
+  expectedStatus?: number;
   headers?: Record<string, string>;
   timeoutMs?: number;
 };
@@ -45,7 +46,7 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T
 export async function apiRequest<T>(
   method: HttpMethod,
   path: string,
-  { body, headers: extraHeaders, timeoutMs }: ApiRequestOptions = {},
+  { body, expectedStatus, headers: extraHeaders, timeoutMs }: ApiRequestOptions = {},
 ): Promise<T> {
   const baseUrl = getApiBaseUrl();
   const url = new URL(path, baseUrl).toString();
@@ -114,12 +115,14 @@ export async function apiRequest<T>(
     }
   }
 
-  if (!response.ok) {
+  if (!response.ok || (expectedStatus !== undefined && response.status !== expectedStatus)) {
     const errorBody = parsedBody as ErrorResponseBody | undefined;
     const message =
       typeof errorBody?.message === 'string'
         ? errorBody.message
-        : `Request failed with status ${response.status}`;
+        : expectedStatus !== undefined && response.status !== expectedStatus
+          ? `Unexpected response status ${response.status}`
+          : `Request failed with status ${response.status}`;
     const requestId =
       typeof errorBody?.requestId === 'string'
         ? errorBody.requestId

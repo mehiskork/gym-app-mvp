@@ -42,6 +42,7 @@ export async function deleteMeWithAccountAuth(): Promise<void> {
 
   try {
     await api.del('/me', {
+      expectedStatus: 204,
       headers: {
         Authorization: `Bearer ${session.accessToken}`,
       },

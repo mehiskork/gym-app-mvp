@@ -68,7 +68,7 @@ describe('deleteMeWithAccountAuth', () => {
     jest.clearAllMocks();
   });
 
-  it('calls DELETE /me with account bearer token and no body', async () => {
+  it('resolves when DELETE /me returns 204 and sends account bearer token with no body', async () => {
     (getUsableAccountSessionWithFreshToken as jest.Mock).mockResolvedValue({
       accessToken: 'jwt-token',
       subject: 'acct-sub',
@@ -79,6 +79,7 @@ describe('deleteMeWithAccountAuth', () => {
     await expect(deleteMeWithAccountAuth()).resolves.toBeUndefined();
 
     expect(api.del).toHaveBeenCalledWith('/me', {
+      expectedStatus: 204,
       headers: {
         Authorization: 'Bearer jwt-token',
       },
@@ -86,6 +87,44 @@ describe('deleteMeWithAccountAuth', () => {
     expect(JSON.stringify((api.del as jest.Mock).mock.calls[0])).not.toMatch(
       /userId|accountId|guestUserId|owner/,
     );
+  });
+
+  it('rejects when DELETE /me returns 200', async () => {
+    (getUsableAccountSessionWithFreshToken as jest.Mock).mockResolvedValue({
+      accessToken: 'jwt-token',
+    });
+    (api.del as jest.Mock).mockRejectedValue(
+      new ApiError('Unexpected response status 200', { status: 200 }),
+    );
+
+    await expect(deleteMeWithAccountAuth()).rejects.toThrow('Unexpected response status 200');
+
+    expect(api.del).toHaveBeenCalledWith('/me', {
+      expectedStatus: 204,
+      headers: {
+        Authorization: 'Bearer jwt-token',
+      },
+    });
+    expect(accountSessionStore.invalidate).not.toHaveBeenCalled();
+  });
+
+  it('rejects when DELETE /me returns 202', async () => {
+    (getUsableAccountSessionWithFreshToken as jest.Mock).mockResolvedValue({
+      accessToken: 'jwt-token',
+    });
+    (api.del as jest.Mock).mockRejectedValue(
+      new ApiError('Unexpected response status 202', { status: 202 }),
+    );
+
+    await expect(deleteMeWithAccountAuth()).rejects.toThrow('Unexpected response status 202');
+
+    expect(api.del).toHaveBeenCalledWith('/me', {
+      expectedStatus: 204,
+      headers: {
+        Authorization: 'Bearer jwt-token',
+      },
+    });
+    expect(accountSessionStore.invalidate).not.toHaveBeenCalled();
   });
 
   it('throws when no account session exists', async () => {

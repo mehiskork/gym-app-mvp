@@ -68,6 +68,44 @@ describe('deleteAccountAndResetLocalState', () => {
     expect(resumeSync).toHaveBeenCalledTimes(1);
   });
 
+  it('does not reset local state when DELETE /me returns a non-204 2xx response', async () => {
+    (deleteMeWithAccountAuth as jest.Mock).mockRejectedValueOnce(
+      new ApiError('Unexpected response status 200', { status: 200 }),
+    );
+
+    await expect(deleteAccountAndResetLocalState()).rejects.toThrow(
+      'Unexpected response status 200',
+    );
+
+    expect(resetToGuestBootstrap).not.toHaveBeenCalled();
+  });
+
+  it('does not clear account or device credentials when DELETE /me returns a non-204 2xx response', async () => {
+    (deleteMeWithAccountAuth as jest.Mock).mockRejectedValueOnce(
+      new ApiError('Unexpected response status 202', { status: 202 }),
+    );
+
+    await expect(deleteAccountAndResetLocalState()).rejects.toThrow(
+      'Unexpected response status 202',
+    );
+
+    expect(signOutFromGoogle).not.toHaveBeenCalled();
+    expect(resetToGuestBootstrap).not.toHaveBeenCalled();
+  });
+
+  it('resumes sync safely when DELETE /me returns a non-204 2xx response', async () => {
+    (deleteMeWithAccountAuth as jest.Mock).mockRejectedValueOnce(
+      new ApiError('Unexpected response status 202', { status: 202 }),
+    );
+
+    await expect(deleteAccountAndResetLocalState()).rejects.toThrow(
+      'Unexpected response status 202',
+    );
+
+    expect(resumeSync).toHaveBeenCalledTimes(1);
+    expect(deleteMeWithAccountAuth).toHaveBeenCalledTimes(1);
+  });
+
   it('does not resume sync if local cleanup fails after backend deletion succeeded', async () => {
     (resetToGuestBootstrap as jest.Mock).mockRejectedValueOnce(new Error('reset failed'));
 

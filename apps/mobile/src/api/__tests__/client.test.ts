@@ -96,4 +96,36 @@ describe('api client', () => {
       code: undefined,
     });
   });
+
+  it('resolves when expectedStatus matches the response status', async () => {
+    global.fetch = jest.fn(async () => {
+      const headers = new Headers();
+      return {
+        ok: true,
+        status: 204,
+        headers,
+        json: async () => undefined,
+        text: async () => '',
+      } as Response;
+    }) as unknown as typeof fetch;
+
+    await expect(api.del('/me', { expectedStatus: 204 })).resolves.toBe('');
+  });
+
+  it('rejects when response is ok but expectedStatus does not match', async () => {
+    global.fetch = jest.fn(async () => {
+      const headers = new Headers();
+      return {
+        ok: true,
+        status: 200,
+        headers,
+        json: async () => undefined,
+        text: async () => '',
+      } as Response;
+    }) as unknown as typeof fetch;
+
+    await expect(api.del('/me', { expectedStatus: 204 })).rejects.toMatchObject({
+      status: 200,
+    });
+  });
 });
