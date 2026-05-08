@@ -214,6 +214,12 @@ export async function syncNow(options: SyncNowOptions = {}): Promise<void> {
   return run;
 }
 
+export async function waitForInFlightSync(): Promise<void> {
+  if (inFlightSync) {
+    await inFlightSync;
+  }
+}
+
 async function runSyncChain(options: SyncNowOptions): Promise<void> {
   let continuationDepth = options.continuationDepth ?? 0;
   let runOptions = options;
@@ -248,7 +254,7 @@ async function runSyncChain(options: SyncNowOptions): Promise<void> {
 
 async function runSyncPage(options: SyncNowOptions): Promise<boolean> {
   if (isSyncPaused()) {
-    logEvent('info', 'sync', 'Sync paused', { reason: 'claim' });
+    logEvent('info', 'sync', 'Sync paused');
     return false;
   }
 

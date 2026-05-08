@@ -150,7 +150,7 @@ function clearMeta(key: string) {
   );
 }
 
-export type SyncPauseReason = 'claim';
+export type SyncPauseReason = 'claim' | 'account_deletion';
 
 const SYNC_PAUSED_REASON_KEY = 'sync_paused_reason';
 const CLAIMED_KEY = 'claimed';

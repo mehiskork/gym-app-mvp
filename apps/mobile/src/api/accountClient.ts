@@ -33,3 +33,23 @@ export async function getMeWithAccountAuth(): Promise<MeResponse> {
     throw error;
   }
 }
+
+export async function deleteMeWithAccountAuth(): Promise<void> {
+  const session = await getUsableAccountSessionWithFreshToken();
+  if (!session?.accessToken) {
+    throw new Error('No account session token available');
+  }
+
+  try {
+    await api.del('/me', {
+      headers: {
+        Authorization: `Bearer ${session.accessToken}`,
+      },
+    });
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) {
+      await accountSessionStore.invalidate('delete_me_401');
+    }
+    throw error;
+  }
+}

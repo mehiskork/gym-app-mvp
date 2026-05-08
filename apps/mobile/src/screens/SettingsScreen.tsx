@@ -10,8 +10,10 @@ import {
   Button,
   Card,
   IconChip,
+  Input,
   ListRow,
   Screen,
+  Snackbar,
   Text,
   ToggleRow,
 } from '../ui';
@@ -37,6 +39,10 @@ import {
 import { signOutFromGoogle } from '../auth/firebaseGoogleAuthClient';
 import { resolveLocalAccountState, type LocalAccountStateStatus } from '../auth/localAccountState';
 import { getSettingsAccountUiState } from './settingsAccountUiState';
+import {
+  deleteAccountAndResetLocalState,
+  getFriendlyAccountDeletionError,
+} from '../auth/accountDeletion';
 
 const REST_TIME_OPTIONS = [
   { label: '0:30', seconds: 30 },
@@ -48,6 +54,7 @@ const REST_TIME_OPTIONS = [
 ];
 
 type AccountAction = 'create' | 'reconnect' | 'reset' | 'switch';
+type DeleteAccountStep = 'review' | 'confirm';
 
 function getFriendlyAccountError(error: unknown, action: AccountAction): string {
   const rawMessage = error instanceof Error ? error.message : '';
@@ -98,6 +105,9 @@ export function SettingsScreen() {
   const [accountSession, setAccountSession] = useState<AccountSession | null>(null);
   const [accountBusy, setAccountBusy] = useState(false);
   const [accountError, setAccountError] = useState<string | null>(null);
+  const [deleteAccountOpen, setDeleteAccountOpen] = useState(false);
+  const [deleteAccountStep, setDeleteAccountStep] = useState<DeleteAccountStep>('review');
+  const [deleteAccountConfirmText, setDeleteAccountConfirmText] = useState('');
   const [settings, setSettings] = useState(getSettings());
   const [restPickerOpen, setRestPickerOpen] = useState(false);
   const [restNotificationMessage, setRestNotificationMessage] = useState<string | null>(null);
@@ -257,6 +267,41 @@ export function SettingsScreen() {
       setAccountBusy(false);
     }
   }, [refreshAccountState]);
+
+  const handleOpenDeleteAccount = useCallback(() => {
+    if (accountBusy) return;
+    setAccountError(null);
+    setDeleteAccountStep('review');
+    setDeleteAccountConfirmText('');
+    setDeleteAccountOpen(true);
+  }, [accountBusy]);
+
+  const handleCloseDeleteAccount = useCallback(() => {
+    if (accountBusy) return;
+    setDeleteAccountOpen(false);
+    setDeleteAccountStep('review');
+    setDeleteAccountConfirmText('');
+  }, [accountBusy]);
+
+  const handleDeleteAccount = useCallback(async () => {
+    if (accountBusy || deleteAccountConfirmText.trim() !== 'DELETE') {
+      return;
+    }
+
+    setAccountBusy(true);
+    setAccountError(null);
+    try {
+      await deleteAccountAndResetLocalState();
+      setDeleteAccountOpen(false);
+      setDeleteAccountStep('review');
+      setDeleteAccountConfirmText('');
+      await refreshAccountState();
+    } catch (error) {
+      setAccountError(getFriendlyAccountDeletionError(error));
+    } finally {
+      setAccountBusy(false);
+    }
+  }, [accountBusy, deleteAccountConfirmText, refreshAccountState]);
 
   return (
     <Screen
@@ -431,7 +476,9 @@ export function SettingsScreen() {
         {accountUiState.showReauthRequired ? (
           <Text variant="muted">{accountUiState.reauthMessage}</Text>
         ) : null}
-        {accountError ? <Text color={colors.danger}>{accountError}</Text> : null}
+        {accountError ? (
+          <Snackbar visible message={accountError} variant="error" minHeight={44} />
+        ) : null}
         {accountUiState.showReconnect ? (
           <>
             <Button
@@ -448,12 +495,25 @@ export function SettingsScreen() {
           </>
         ) : accountUiState.showAccountActions ? (
           <>
-            <Button title="Switch account" onPress={handleSwitchAccount} loading={accountBusy} />
+            <Button
+              title="Switch account"
+              onPress={handleSwitchAccount}
+              loading={accountBusy}
+              disabled={accountBusy}
+            />
             <Button
               title="Sign out"
               variant="destructive"
               onPress={handleLogout}
               loading={accountBusy}
+              disabled={accountBusy}
+            />
+            <Button
+              title="Delete account"
+              variant="destructive"
+              onPress={handleOpenDeleteAccount}
+              loading={accountBusy}
+              disabled={accountBusy}
             />
           </>
         ) : accountUiState.showGuestCreate ? (
@@ -492,6 +552,77 @@ export function SettingsScreen() {
             />
           ))}
         </View>
+      </BottomSheetModal>
+
+      <BottomSheetModal
+        visible={deleteAccountOpen}
+        title="Delete account"
+        onClose={handleCloseDeleteAccount}
+      >
+        {deleteAccountStep === 'review' ? (
+          <View style={{ gap: tokens.spacing.md }}>
+            <Text variant="body">
+              This permanently deletes your TrainFrame account data from the server and resets this
+              device.
+            </Text>
+            <Text variant="muted">
+              This does not delete your Google account. Local app data on this device will be reset
+              only after server deletion succeeds. If deletion fails, no local data will be removed.
+            </Text>
+            <View style={{ flexDirection: 'row', gap: tokens.spacing.sm }}>
+              <View style={{ flex: 1 }}>
+                <Button
+                  title="Cancel"
+                  variant="secondary"
+                  onPress={handleCloseDeleteAccount}
+                  disabled={accountBusy}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Button
+                  title="Continue"
+                  variant="destructive"
+                  onPress={() => setDeleteAccountStep('confirm')}
+                  disabled={accountBusy}
+                />
+              </View>
+            </View>
+          </View>
+        ) : (
+          <View style={{ gap: tokens.spacing.md }}>
+            <Text variant="body">
+              This cannot be undone. Type DELETE to permanently delete your TrainFrame account data.
+            </Text>
+            <Input
+              value={deleteAccountConfirmText}
+              onChangeText={setDeleteAccountConfirmText}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              placeholder="DELETE"
+              editable={!accountBusy}
+              helperText="Required to confirm account deletion."
+            />
+            <View style={{ flexDirection: 'row', gap: tokens.spacing.sm }}>
+              <View style={{ flex: 1 }}>
+                <Button
+                  title="Back"
+                  variant="secondary"
+                  onPress={() => setDeleteAccountStep('review')}
+                  disabled={accountBusy}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Button
+                  title={accountBusy ? 'Deleting...' : 'Delete account'}
+                  variant="destructive"
+                  onPress={handleDeleteAccount}
+                  loading={accountBusy}
+                  disabled={accountBusy || deleteAccountConfirmText.trim() !== 'DELETE'}
+                />
+              </View>
+            </View>
+          </View>
+        )}
       </BottomSheetModal>
 
       <View

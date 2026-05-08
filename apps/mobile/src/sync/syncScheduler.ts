@@ -49,11 +49,15 @@ export function scheduleForegroundSync(reason: string): void {
   scheduleSyncSoon(reason);
 }
 
-export function resetSyncSchedulerForTests(): void {
+export function cancelScheduledSync(): void {
   if (scheduledSync) {
     clearTimeout(scheduledSync);
   }
   scheduledSync = null;
   pendingReason = null;
+}
+
+export function resetSyncSchedulerForTests(): void {
+  cancelScheduledSync();
   lastForegroundSyncAt = 0;
 }

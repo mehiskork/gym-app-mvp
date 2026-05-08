@@ -67,6 +67,6 @@ describe('syncNow pause guard', () => {
     expect(isSyncPaused).toHaveBeenCalled();
     expect(claimOutboxOps).not.toHaveBeenCalled();
     expect(global.fetch).not.toHaveBeenCalled();
-    expect(logEvent).toHaveBeenCalledWith('info', 'sync', 'Sync paused', { reason: 'claim' });
+    expect(logEvent).toHaveBeenCalledWith('info', 'sync', 'Sync paused');
   });
 });

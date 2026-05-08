@@ -9,6 +9,7 @@ jest.mock('../../utils/logger', () => ({
 import { logEvent } from '../../utils/logger';
 import { syncNow } from '../syncWorker';
 import {
+  cancelScheduledSync,
   resetSyncSchedulerForTests,
   scheduleForegroundSync,
   scheduleStartupSync,
@@ -87,5 +88,14 @@ describe('syncScheduler', () => {
 
     expect(syncNow).toHaveBeenCalledTimes(1);
     expect(syncNow).toHaveBeenCalledWith({ force: false });
+  });
+
+  it('cancels pending scheduled sync before it starts', async () => {
+    scheduleSyncSoon('outbox_write');
+    cancelScheduledSync();
+
+    await jest.advanceTimersByTimeAsync(3000);
+
+    expect(syncNow).not.toHaveBeenCalled();
   });
 });

@@ -41,18 +41,26 @@ jest.mock('../../ui', () => {
   const React = require('react');
   return {
     Badge: (props: unknown) => React.createElement('Badge', props),
-    BottomSheetModal: ({ children, ...props }: { children?: React.ReactNode }) =>
-      React.createElement('BottomSheetModal', props, children),
+    BottomSheetModal: ({
+      children,
+      visible,
+      ...props
+    }: {
+      children?: React.ReactNode;
+      visible?: boolean;
+    }) => React.createElement('BottomSheetModal', { visible, ...props }, visible ? children : null),
     Button: ({ title, ...props }: { title: string }) =>
       React.createElement('Button', { title, ...props }),
     Card: ({ children, ...props }: { children?: React.ReactNode }) =>
       React.createElement('Card', props, children),
     IconChip: ({ children, ...props }: { children?: React.ReactNode }) =>
       React.createElement('IconChip', props, children),
+    Input: (props: unknown) => React.createElement('Input', props),
     ListRow: ({ children, ...props }: { children?: React.ReactNode }) =>
       React.createElement('ListRow', props, children),
     Screen: ({ children, ...props }: { children?: React.ReactNode }) =>
       React.createElement('Screen', props, children),
+    Snackbar: (props: unknown) => React.createElement('Snackbar', props),
     Text: ({ children, ...props }: { children?: React.ReactNode }) =>
       React.createElement('Text', props, children),
     ToggleRow: ({ children, ...props }: { children?: React.ReactNode }) =>
@@ -158,6 +166,13 @@ jest.mock('../../auth/localAccountState', () => ({
   ),
 }));
 
+jest.mock('../../auth/accountDeletion', () => ({
+  deleteAccountAndResetLocalState: jest.fn(() => Promise.resolve()),
+  getFriendlyAccountDeletionError: jest.fn(
+    () => 'Something went wrong. Your local data was not removed.',
+  ),
+}));
+
 import React from 'react';
 import { Alert } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
@@ -168,6 +183,7 @@ import {
   reconnectGoogleAccount,
 } from '../../auth/googleAccountOrchestrator';
 import { resolveLocalAccountState } from '../../auth/localAccountState';
+import { deleteAccountAndResetLocalState } from '../../auth/accountDeletion';
 import { requestRestTimerNotificationPermission } from '../../utils/restTimerNotifications';
 import { Button } from '../../ui';
 import { SettingsScreen } from '../SettingsScreen';
@@ -228,6 +244,9 @@ function renderSettingsScreen({ accountSession = null, accountState }: StateConf
     .mockImplementationOnce(() => [accountSession, jest.fn()])
     .mockImplementationOnce(() => [false, jest.fn()])
     .mockImplementationOnce(() => [null, jest.fn()])
+    .mockImplementationOnce(() => [false, jest.fn()])
+    .mockImplementationOnce(() => ['review', jest.fn()])
+    .mockImplementationOnce(() => ['', jest.fn()])
     .mockImplementationOnce((initial: unknown) => [initial, jest.fn()])
     .mockImplementationOnce(() => [false, jest.fn()])
     .mockImplementationOnce(() => [null, jest.fn()]);
@@ -276,6 +295,10 @@ function textContent(node: React.ReactNode): string {
 
 function buttons(node: React.ReactNode) {
   return findElements(node, (element) => element.type === 'Button' || element.type === Button);
+}
+
+function inputs(node: React.ReactNode) {
+  return findElements(node, (element) => element.type === 'Input');
 }
 
 function toggleRows(node: React.ReactNode) {
@@ -336,6 +359,9 @@ describe('SettingsScreen account interactions', () => {
       .mockImplementationOnce(() => [null, jest.fn()])
       .mockImplementationOnce(() => [false, jest.fn()])
       .mockImplementationOnce(() => [null, setAccountError])
+      .mockImplementationOnce(() => [false, jest.fn()])
+      .mockImplementationOnce(() => ['review', jest.fn()])
+      .mockImplementationOnce(() => ['', jest.fn()])
       .mockImplementationOnce((initial: unknown) => [initial, jest.fn()])
       .mockImplementationOnce(() => [false, jest.fn()])
       .mockImplementationOnce(() => [null, jest.fn()]);
@@ -368,6 +394,9 @@ describe('SettingsScreen account interactions', () => {
       .mockImplementationOnce(() => [null, jest.fn()])
       .mockImplementationOnce(() => [false, jest.fn()])
       .mockImplementationOnce(() => [null, setAccountError])
+      .mockImplementationOnce(() => [false, jest.fn()])
+      .mockImplementationOnce(() => ['review', jest.fn()])
+      .mockImplementationOnce(() => ['', jest.fn()])
       .mockImplementationOnce((initial: unknown) => [initial, jest.fn()])
       .mockImplementationOnce(() => [false, jest.fn()])
       .mockImplementationOnce(() => [null, jest.fn()]);
@@ -394,6 +423,9 @@ describe('SettingsScreen account interactions', () => {
       .mockImplementationOnce(() => [null, jest.fn()])
       .mockImplementationOnce(() => [false, jest.fn()])
       .mockImplementationOnce(() => [null, jest.fn()])
+      .mockImplementationOnce(() => [false, jest.fn()])
+      .mockImplementationOnce(() => ['review', jest.fn()])
+      .mockImplementationOnce(() => ['', jest.fn()])
       .mockImplementationOnce((initial: unknown) => [initial, jest.fn()])
       .mockImplementationOnce(() => [false, jest.fn()])
       .mockImplementationOnce(() => [null, setRestNotificationMessage]);
@@ -450,6 +482,92 @@ describe('SettingsScreen account interactions', () => {
     expect(textContent(linkedTree)).toMatch(/Account:\s+user@example\.test/);
     expect(linkedButtonTitles).toContain('Switch account');
     expect(linkedButtonTitles).toContain('Sign out');
+    expect(linkedButtonTitles).toContain('Delete account');
     expect(linkedButtonTitles).not.toContain('Continue with Google');
   });
+
+  it('does not show Delete account for guest mode', () => {
+    const guestTree = expandTree(renderSettingsScreen({ accountState: 'guest' }));
+
+    expect(buttons(guestTree).map((button) => button.props.title)).not.toContain('Delete account');
+  });
+
+  it('opens destructive delete account confirmation for account users', () => {
+    const setDeleteAccountOpen = jest.fn();
+    const setDeleteAccountStep = jest.fn();
+    const setDeleteAccountConfirmText = jest.fn();
+    useStateMock.mockReset();
+    useStateMock
+      .mockImplementationOnce(() => [false, jest.fn()])
+      .mockImplementationOnce(() => ['linked_with_usable_account', jest.fn()])
+      .mockImplementationOnce(() => [
+        { accessToken: 'token', email: 'user@example.test' },
+        jest.fn(),
+      ])
+      .mockImplementationOnce(() => [false, jest.fn()])
+      .mockImplementationOnce(() => [null, jest.fn()])
+      .mockImplementationOnce(() => [false, setDeleteAccountOpen])
+      .mockImplementationOnce(() => ['review', setDeleteAccountStep])
+      .mockImplementationOnce(() => ['', setDeleteAccountConfirmText])
+      .mockImplementationOnce((initial: unknown) => [initial, jest.fn()])
+      .mockImplementationOnce(() => [false, jest.fn()])
+      .mockImplementationOnce(() => [null, jest.fn()]);
+
+    const tree = expandTree(SettingsScreen());
+    const deleteButton = buttons(tree).find((button) => button.props.title === 'Delete account');
+
+    deleteButton?.props.onPress();
+
+    expect(setDeleteAccountStep).toHaveBeenCalledWith('review');
+    expect(setDeleteAccountConfirmText).toHaveBeenCalledWith('');
+    expect(setDeleteAccountOpen).toHaveBeenCalledWith(true);
+  });
+
+  it('requires typing DELETE before final account deletion', () => {
+    const tree = expandTree(
+      renderDeleteAccountState({
+        confirmText: 'DEL',
+      }),
+    );
+    const finalDeleteButton = buttons(tree)
+      .reverse()
+      .find((button) => button.props.title === 'Delete account');
+
+    expect(finalDeleteButton?.props.disabled).toBe(true);
+    expect(inputs(tree)[0]?.props.value).toBe('DEL');
+  });
+
+  it('calls account deletion coordinator from final confirmation and prevents double submit', async () => {
+    const tree = expandTree(
+      renderDeleteAccountState({
+        confirmText: 'DELETE',
+      }),
+    );
+    const finalDeleteButton = buttons(tree)
+      .reverse()
+      .find((button) => button.props.title === 'Delete account');
+
+    expect(finalDeleteButton?.props.disabled).toBe(false);
+    await finalDeleteButton?.props.onPress();
+
+    expect(deleteAccountAndResetLocalState).toHaveBeenCalledTimes(1);
+  });
 });
+
+function renderDeleteAccountState({ confirmText }: { confirmText: string }) {
+  useStateMock.mockReset();
+  useStateMock
+    .mockImplementationOnce(() => [false, jest.fn()])
+    .mockImplementationOnce(() => ['linked_with_usable_account', jest.fn()])
+    .mockImplementationOnce(() => [{ accessToken: 'token', email: 'user@example.test' }, jest.fn()])
+    .mockImplementationOnce(() => [false, jest.fn()])
+    .mockImplementationOnce(() => [null, jest.fn()])
+    .mockImplementationOnce(() => [true, jest.fn()])
+    .mockImplementationOnce(() => ['confirm', jest.fn()])
+    .mockImplementationOnce(() => [confirmText, jest.fn()])
+    .mockImplementationOnce((initial: unknown) => [initial, jest.fn()])
+    .mockImplementationOnce(() => [false, jest.fn()])
+    .mockImplementationOnce(() => [null, jest.fn()]);
+
+  return SettingsScreen();
+}
