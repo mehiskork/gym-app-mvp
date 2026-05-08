@@ -62,4 +62,13 @@ describe('resetToGuestBootstrap', () => {
     expect(resumeSync).toHaveBeenCalledTimes(1);
     expect(ensureRestTimerNotificationChannel).toHaveBeenCalledWith(false);
   });
+
+  it('can leave sync suppressed for account deletion cleanup until the marker is cleared', async () => {
+    await resetToGuestBootstrap({ resumeSyncAfterReset: false });
+
+    expect(clearSensitiveAuthStorage).toHaveBeenCalledTimes(1);
+    expect(resetLocalDatabase).toHaveBeenCalledTimes(1);
+    expect(runMigrations).toHaveBeenCalledTimes(1);
+    expect(resumeSync).not.toHaveBeenCalled();
+  });
 });

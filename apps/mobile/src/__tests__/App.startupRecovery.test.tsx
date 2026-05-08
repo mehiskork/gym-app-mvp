@@ -99,6 +99,9 @@ jest.mock('../components/AppErrorBoundary', () => {
 jest.mock('../auth/identityTransition', () => ({
   resetToGuestBootstrap: jest.fn(() => Promise.resolve()),
 }));
+jest.mock('../auth/accountDeletion', () => ({
+  recoverPendingAccountDeletionCleanup: jest.fn(() => Promise.resolve(false)),
+}));
 jest.mock('../sync/syncScheduler', () => ({
   scheduleForegroundSync: jest.fn(),
   scheduleStartupSync: jest.fn(),
@@ -137,11 +140,17 @@ import { runMigrations } from '../db/migrate';
 import { repairStaleInFlightOps } from '../db/outboxRepo';
 import { ensureRestTimerNotificationChannel } from '../utils/restTimerNotifications';
 import { resetToGuestBootstrap } from '../auth/identityTransition';
+import { recoverPendingAccountDeletionCleanup } from '../auth/accountDeletion';
 import { scheduleForegroundSync, scheduleStartupSync } from '../sync/syncScheduler';
 import { logEvent } from '../utils/logger';
 
 const useEffectMock = React.useEffect as jest.Mock;
 const useStateMock = React.useState as jest.Mock;
+
+async function flushPromises() {
+  await Promise.resolve();
+  await Promise.resolve();
+}
 
 function findElements(
   node: React.ReactNode,
@@ -174,11 +183,15 @@ describe('App startup recovery', () => {
     (AppState as any).__clearListeners();
     useEffectMock.mockImplementation((cb: () => void) => cb());
     useStateMock.mockImplementation((initial: unknown) => [initial, jest.fn()]);
+    (recoverPendingAccountDeletionCleanup as jest.Mock).mockResolvedValue(false);
+    (resetToGuestBootstrap as jest.Mock).mockResolvedValue(undefined);
   });
 
-  it('starts normally when initialization succeeds', () => {
+  it('starts normally when initialization succeeds', async () => {
     App();
+    await flushPromises();
 
+    expect(recoverPendingAccountDeletionCleanup).toHaveBeenCalledTimes(1);
     expect(runMigrations).toHaveBeenCalledTimes(1);
     expect(seedCuratedExercises).toHaveBeenCalledTimes(1);
     expect(repairStaleInFlightOps).toHaveBeenCalledWith(120);
@@ -192,7 +205,7 @@ describe('App startup recovery', () => {
     );
 
     App();
-    await Promise.resolve();
+    await flushPromises();
 
     expect(runMigrations).toHaveBeenCalledTimes(1);
     expect(seedCuratedExercises).toHaveBeenCalledTimes(1);
@@ -205,10 +218,11 @@ describe('App startup recovery', () => {
     );
   });
 
-  it('subscribes to foreground sync only after startup is ready', () => {
+  it('subscribes to foreground sync only after startup is ready', async () => {
     const addEventListener = AppState.addEventListener as jest.Mock;
 
     App();
+    await flushPromises();
 
     expect(addEventListener).not.toHaveBeenCalled();
 
@@ -253,7 +267,7 @@ describe('App startup recovery', () => {
     expect(textContent).toContain("Couldn't open app data");
   });
 
-  it('retry action reruns initialization without reset', () => {
+  it('retry action reruns initialization without reset', async () => {
     useEffectMock.mockImplementation(() => undefined);
     useStateMock.mockReturnValue([{ kind: 'failed', error: new Error('boom') }, jest.fn()]);
 
@@ -266,6 +280,7 @@ describe('App startup recovery', () => {
     const retryButton = buttons.find((button) => button.props.title === 'Try again');
     expect(retryButton).toBeDefined();
     retryButton!.props.onPress();
+    await flushPromises();
 
     expect(runMigrations).toHaveBeenCalledTimes(1);
     expect(resetToGuestBootstrap).not.toHaveBeenCalled();
@@ -318,5 +333,38 @@ describe('App startup recovery', () => {
     await dialog.props.onConfirm();
 
     expect(resetToGuestBootstrap).toHaveBeenCalledTimes(1);
+  });
+
+  it('runs pending account deletion cleanup before normal startup sync', async () => {
+    (recoverPendingAccountDeletionCleanup as jest.Mock).mockResolvedValueOnce(true);
+
+    App();
+    await flushPromises();
+
+    expect(recoverPendingAccountDeletionCleanup).toHaveBeenCalledTimes(1);
+    expect(runMigrations).toHaveBeenCalledTimes(1);
+    expect(scheduleStartupSync).toHaveBeenCalledWith('app_start');
+    expect(
+      (recoverPendingAccountDeletionCleanup as jest.Mock).mock.invocationCallOrder[0],
+    ).toBeLessThan((scheduleStartupSync as jest.Mock).mock.invocationCallOrder[0]);
+  });
+
+  it('does not schedule startup sync when pending account deletion cleanup fails', async () => {
+    const setBootState = jest.fn();
+    useStateMock.mockImplementationOnce(() => [{ kind: 'initializing' }, setBootState]);
+    (recoverPendingAccountDeletionCleanup as jest.Mock).mockRejectedValueOnce(
+      new Error('cleanup failed'),
+    );
+
+    App();
+    await flushPromises();
+
+    expect(runMigrations).not.toHaveBeenCalled();
+    expect(scheduleStartupSync).not.toHaveBeenCalled();
+    expect(scheduleForegroundSync).not.toHaveBeenCalled();
+    expect(setBootState).toHaveBeenLastCalledWith({
+      kind: 'failed',
+      error: expect.any(Error),
+    });
   });
 });

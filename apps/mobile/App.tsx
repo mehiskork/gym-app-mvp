@@ -17,6 +17,7 @@ import { resetToGuestBootstrap } from './src/auth/identityTransition';
 import { scheduleForegroundSync, scheduleStartupSync } from './src/sync/syncScheduler';
 import { AppErrorBoundary } from './src/components/AppErrorBoundary';
 import { logEvent } from './src/utils/logger';
+import { recoverPendingAccountDeletionCleanup } from './src/auth/accountDeletion';
 
 type BootState = { kind: 'initializing' } | { kind: 'ready' } | { kind: 'failed'; error: Error };
 
@@ -83,20 +84,23 @@ export default function App() {
   const initializeApp = useCallback(() => {
     setBootState({ kind: 'initializing' });
 
-    try {
-      runMigrations();
-      seedCuratedExercises();
-      repairStaleInFlightOps(120);
-      void ensureRestTimerNotificationChannel(false).catch((error) => {
-        logEvent('warn', 'notifications', 'Rest notification setup failed during startup', {
-          error: error instanceof Error ? error.message : String(error),
+    void (async () => {
+      try {
+        await recoverPendingAccountDeletionCleanup();
+        runMigrations();
+        seedCuratedExercises();
+        repairStaleInFlightOps(120);
+        void ensureRestTimerNotificationChannel(false).catch((error) => {
+          logEvent('warn', 'notifications', 'Rest notification setup failed during startup', {
+            error: error instanceof Error ? error.message : String(error),
+          });
         });
-      });
-      setBootState({ kind: 'ready' });
-      scheduleStartupSync('app_start');
-    } catch (error) {
-      setBootState({ kind: 'failed', error: toError(error) });
-    }
+        setBootState({ kind: 'ready' });
+        scheduleStartupSync('app_start');
+      } catch (error) {
+        setBootState({ kind: 'failed', error: toError(error) });
+      }
+    })();
   }, []);
 
   const handleResetLocalData = useCallback(async () => {

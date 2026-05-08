@@ -5,6 +5,11 @@ import { resetToGuestBootstrap } from './identityTransition';
 import { signOutFromGoogle } from './firebaseGoogleAuthClient';
 import { cancelScheduledSync } from '../sync/syncScheduler';
 import { waitForInFlightSync } from '../sync/syncWorker';
+import {
+  clearAccountDeletionCleanupPending,
+  isAccountDeletionCleanupPending,
+  markAccountDeletionCleanupPending,
+} from './accountDeletionCleanupMarker';
 
 export function getFriendlyAccountDeletionError(error: unknown): string {
   if (error instanceof ApiError) {
@@ -45,15 +50,34 @@ export async function deleteAccountAndResetLocalState(): Promise<void> {
     await waitForInFlightSync();
     await deleteMeWithAccountAuth();
     backendDeleted = true;
+    await markAccountDeletionCleanupPending();
 
-    // Backend deletion succeeded. Local cleanup must now remove stale account data
-    // before normal sync resumes, because the backend has no account tombstone.
-    await signOutFromGoogle().catch(() => undefined);
-    await resetToGuestBootstrap();
+    await finishAccountDeletionLocalCleanup();
   } catch (error) {
     if (!backendDeleted) {
       resumeSync();
     }
     throw error;
   }
+}
+
+async function finishAccountDeletionLocalCleanup(): Promise<void> {
+  pauseSync('account_deletion');
+  cancelScheduledSync();
+
+  // Backend deletion already succeeded. Local cleanup must remove stale account
+  // data before normal sync resumes because the backend has no account tombstone.
+  await signOutFromGoogle().catch(() => undefined);
+  await resetToGuestBootstrap({ resumeSyncAfterReset: false });
+  await clearAccountDeletionCleanupPending();
+  resumeSync();
+}
+
+export async function recoverPendingAccountDeletionCleanup(): Promise<boolean> {
+  if (!(await isAccountDeletionCleanupPending())) {
+    return false;
+  }
+
+  await finishAccountDeletionLocalCleanup();
+  return true;
 }
