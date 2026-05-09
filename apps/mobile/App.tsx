@@ -17,6 +17,7 @@ import { resetToGuestBootstrap } from './src/auth/identityTransition';
 import { scheduleForegroundSync, scheduleStartupSync } from './src/sync/syncScheduler';
 import { AppErrorBoundary } from './src/components/AppErrorBoundary';
 import { logEvent } from './src/utils/logger';
+import { reconcileUnfinishedWorkoutReminder } from './src/utils/unfinishedWorkoutReminderNotifications';
 import {
   hasPendingAccountDeletionCleanupMarker,
   hasPendingAccountDeletionRecovery,
@@ -119,6 +120,13 @@ export default function App() {
         }
         seedCuratedExercises();
         repairStaleInFlightOps(120);
+        if (!accountDeletionRecoveryPending) {
+          void reconcileUnfinishedWorkoutReminder().catch((error) => {
+            logEvent('warn', 'notifications', 'Unfinished workout reminder reconcile failed', {
+              error: error instanceof Error ? error.message : String(error),
+            });
+          });
+        }
         void ensureRestTimerNotificationChannel(false).catch((error) => {
           logEvent('warn', 'notifications', 'Rest notification setup failed during startup', {
             error: error instanceof Error ? error.message : String(error),

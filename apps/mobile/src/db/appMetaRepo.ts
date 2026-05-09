@@ -156,6 +156,14 @@ const SYNC_PAUSED_REASON_KEY = 'sync_paused_reason';
 const CLAIMED_KEY = 'claimed';
 const CLAIMED_USER_ID_KEY = 'claimed_user_id';
 const REST_TIMER_NOTIFICATION_ID_KEY = 'rest_timer_notification_id';
+const UNFINISHED_WORKOUT_REMINDER_KEY = 'unfinished_workout_reminder_v1';
+
+export type UnfinishedWorkoutReminderState = {
+  notificationId: string;
+  sessionId: string;
+  dueAt: string;
+  lastLoggedSetAt: string;
+};
 
 export function pauseSync(reason: SyncPauseReason) {
   setMeta(SYNC_PAUSED_REASON_KEY, reason);
@@ -206,6 +214,36 @@ export async function setRestTimerNotificationId(id: string | null): Promise<voi
   }
 
   setMeta(REST_TIMER_NOTIFICATION_ID_KEY, id);
+}
+
+export function getUnfinishedWorkoutReminderState(): UnfinishedWorkoutReminderState | null {
+  const raw = getMeta(UNFINISHED_WORKOUT_REMINDER_KEY);
+  if (!raw) return null;
+  const parsed = safeJsonParse(raw) as Partial<UnfinishedWorkoutReminderState> | null;
+  if (!parsed || typeof parsed !== 'object') return null;
+
+  const { notificationId, sessionId, dueAt, lastLoggedSetAt } = parsed;
+  if (
+    typeof notificationId !== 'string' ||
+    typeof sessionId !== 'string' ||
+    typeof dueAt !== 'string' ||
+    typeof lastLoggedSetAt !== 'string'
+  ) {
+    return null;
+  }
+
+  return { notificationId, sessionId, dueAt, lastLoggedSetAt };
+}
+
+export function setUnfinishedWorkoutReminderState(
+  state: UnfinishedWorkoutReminderState | null,
+): void {
+  if (!state) {
+    clearMeta(UNFINISHED_WORKOUT_REMINDER_KEY);
+    return;
+  }
+
+  setMeta(UNFINISHED_WORKOUT_REMINDER_KEY, JSON.stringify(state));
 }
 /**
  * Device-local user id, used as owner_user_id for custom exercises until sign-in exists.

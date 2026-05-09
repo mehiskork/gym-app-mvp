@@ -10,6 +10,10 @@ import {
   type CardioSummary,
   type ExerciseType,
 } from './exerciseTypes';
+import {
+  reconcileUnfinishedWorkoutReminder,
+  scheduleUnfinishedWorkoutReminderForSession,
+} from '../utils/unfinishedWorkoutReminderNotifications';
 
 const EXERCISE_POSITION_SHIFT_OFFSET = 1_000_000;
 
@@ -160,6 +164,57 @@ function enqueueWorkoutSetSnapshot(setId: string, opType: 'upsert' | 'delete' = 
     opType,
     payloadJson: JSON.stringify(row),
   });
+}
+
+function getWorkoutSetReminderContext(setId: string): {
+  isCompleted: boolean;
+  sessionId: string;
+  status: WorkoutSessionStatus;
+} | null {
+  const row = query<{
+    is_completed: number;
+    session_id: string;
+    status: WorkoutSessionStatus;
+  }>(
+    `
+    SELECT
+      wset.is_completed AS is_completed,
+      ws.id AS session_id,
+      ws.status AS status
+    FROM workout_set wset
+    JOIN workout_session_exercise wse
+      ON wse.id = wset.workout_session_exercise_id
+      AND wse.deleted_at IS NULL
+    JOIN workout_session ws
+      ON ws.id = wse.workout_session_id
+      AND ws.deleted_at IS NULL
+    WHERE wset.id = ?
+      AND wset.deleted_at IS NULL
+    LIMIT 1;
+  `,
+    [setId],
+  )[0];
+
+  if (!row) return null;
+  return {
+    isCompleted: row.is_completed === 1,
+    sessionId: row.session_id,
+    status: row.status,
+  };
+}
+
+function updateUnfinishedWorkoutReminderAfterSetMutation(setId: string, actionAt: string): void {
+  const context = getWorkoutSetReminderContext(setId);
+  if (!context || context.status !== 'in_progress') return;
+
+  if (context.isCompleted) {
+    void scheduleUnfinishedWorkoutReminderForSession(context.sessionId, actionAt).catch(
+      () => undefined,
+    );
+    return;
+  }
+
+  void reconcileUnfinishedWorkoutReminder().catch(() => undefined);
 }
 
 export function getWorkoutLoggerData(sessionId: string): {
@@ -607,6 +662,7 @@ export function updateWorkoutSet(
 
   const cols = entries.map(([k]) => `${k} = ?`).join(', ');
   const params = entries.map(([, v]) => v);
+  const actionAt = new Date().toISOString();
 
   inTransaction(() => {
     exec(
@@ -620,10 +676,16 @@ export function updateWorkoutSet(
 
     enqueueWorkoutSetSnapshot(setId);
   });
+  updateUnfinishedWorkoutReminderAfterSetMutation(setId, actionAt);
 }
 
 export function deleteWorkoutSet(setId: string) {
+  let shouldReconcileUnfinishedReminder = false;
   inTransaction(() => {
+    const reminderContext = getWorkoutSetReminderContext(setId);
+    shouldReconcileUnfinishedReminder =
+      reminderContext?.status === 'in_progress' && reminderContext.isCompleted;
+
     exec(
       `
       UPDATE workout_set
@@ -635,6 +697,10 @@ export function deleteWorkoutSet(setId: string) {
 
     enqueueWorkoutSetSnapshot(setId, 'delete');
   });
+
+  if (shouldReconcileUnfinishedReminder) {
+    void reconcileUnfinishedWorkoutReminder().catch(() => undefined);
+  }
 }
 
 export function restoreWorkoutSet(set: RestoreWorkoutSetInput) {
@@ -709,6 +775,7 @@ export function restoreWorkoutSet(set: RestoreWorkoutSetInput) {
     }
     enqueueWorkoutSetSnapshot(set.id);
   });
+  updateUnfinishedWorkoutReminderAfterSetMutation(set.id, new Date().toISOString());
 }
 
 export function startRestTimer(sessionId: string, seconds: number, label: string) {

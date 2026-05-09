@@ -3,6 +3,7 @@ import { inTransaction } from './tx';
 import { newId } from '../utils/ids';
 import { detectAndStorePrsForSession } from './prRepo';
 import { enqueueOutboxOp } from './outboxRepo';
+import { cancelUnfinishedWorkoutReminder } from '../utils/unfinishedWorkoutReminderNotifications';
 import {
   DEFAULT_REST_SECONDS,
   WORKOUT_SESSION_STATUS,
@@ -498,6 +499,7 @@ export function completeSession(sessionId: string, workoutNote: string | null = 
     // Run PR detection AFTER marking completed
     detectAndStorePrsForSession(sessionId);
   });
+  void cancelUnfinishedWorkoutReminder().catch(() => undefined);
 }
 
 export function discardSession(sessionId: string) {
@@ -575,4 +577,5 @@ export function discardSession(sessionId: string) {
       enqueueWorkoutSessionSnapshot(id, 'delete');
     }
   });
+  void cancelUnfinishedWorkoutReminder().catch(() => undefined);
 }

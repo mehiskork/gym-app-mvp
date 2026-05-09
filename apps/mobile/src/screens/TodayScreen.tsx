@@ -1,10 +1,10 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
 
-import { Screen } from '../ui';
+import { Button, Card, Screen, Snackbar, Text } from '../ui';
 import { tokens } from '../theme/tokens';
 import { TAB_ROUTES } from '../navigation/routes';
 import type { RootStackParamList } from '../navigation/types';
@@ -15,8 +15,25 @@ import { listRecentSessionSummaries } from '../db/historyRepo';
 import { TodayPrimaryAction } from '../features/today/TodayPrimaryAction';
 import { TodayRecentActivity } from '../features/today/TodayRecentActivity';
 import { TodayWeeklyStats } from '../features/today/TodayWeeklyStats';
+import { createGoogleAccountFromGuest } from '../auth/googleAccountOrchestrator';
+import { resolveLocalAccountState, type LocalAccountStateStatus } from '../auth/localAccountState';
+import { hasPendingAccountDeletionRecovery } from '../auth/accountDeletion';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
+
+function getFriendlyGuestSignInError(error: unknown): string {
+  const message = error instanceof Error ? error.message.toLowerCase() : '';
+
+  if (message.includes('cancel')) {
+    return 'Google sign-in did not finish. Try again.';
+  }
+
+  if (message.includes('network') || message.includes('offline') || message.includes('timeout')) {
+    return 'Could not reach the server. Check your connection and try again.';
+  }
+
+  return "Couldn't finish Google sign-in. Check your connection and try again.";
+}
 
 export function TodayScreen() {
   const navigation = useNavigation<Nav>();
@@ -26,6 +43,13 @@ export function TodayScreen() {
   const [weeklyWorkouts, setWeeklyWorkouts] = useState(0);
   const [weeklyVolume, setWeeklyVolume] = useState(0);
   const [recentSessions, setRecentSessions] = useState(listRecentSessionSummaries(3));
+  const [localAccountStatus, setLocalAccountStatus] = useState<LocalAccountStateStatus | null>(
+    null,
+  );
+  const [accountSignInBusy, setAccountSignInBusy] = useState(false);
+  const [accountPromptError, setAccountPromptError] = useState<string | null>(null);
+  const [accountDeletionRecoveryActive, setAccountDeletionRecoveryActive] = useState(false);
+  const accountSignInInFlightRef = useRef(false);
 
   const load = useCallback(() => {
     const s = getInProgressSession();
@@ -38,11 +62,56 @@ export function TodayScreen() {
     setRecentSessions(listRecentSessionSummaries(3));
   }, []);
 
+  const refreshAccountPromptState = useCallback(async () => {
+    const [state, deletionRecoveryActive] = await Promise.all([
+      resolveLocalAccountState(),
+      hasPendingAccountDeletionRecovery(),
+    ]);
+    setLocalAccountStatus(state.status);
+    setAccountDeletionRecoveryActive(deletionRecoveryActive);
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
+      let active = true;
       load();
-    }, [load]),
+      void refreshAccountPromptState().catch(() => {
+        if (!active) return;
+        setLocalAccountStatus(null);
+        setAccountDeletionRecoveryActive(true);
+      });
+      return () => {
+        active = false;
+      };
+    }, [load, refreshAccountPromptState]),
   );
+
+  const handleGuestSignIn = useCallback(() => {
+    if (accountSignInBusy || accountSignInInFlightRef.current) return;
+
+    accountSignInInFlightRef.current = true;
+    setAccountSignInBusy(true);
+    setAccountPromptError(null);
+    void (async () => {
+      try {
+        await createGoogleAccountFromGuest();
+        await refreshAccountPromptState();
+      } catch (error) {
+        setAccountPromptError(getFriendlyGuestSignInError(error));
+      } finally {
+        accountSignInInFlightRef.current = false;
+        setAccountSignInBusy(false);
+      }
+    })();
+  }, [accountSignInBusy, refreshAccountPromptState]);
+
+  const hasMeaningfulLocalData =
+    Boolean(inProgressId) || weeklyWorkouts > 0 || recentSessions.length > 0;
+  const showGuestProtectionCard =
+    localAccountStatus === 'guest' &&
+    hasMeaningfulLocalData &&
+    !accountSignInBusy &&
+    !accountDeletionRecoveryActive;
 
   return (
     <Screen scroll padded={false} bottomInset="tabBar">
@@ -79,6 +148,25 @@ export function TodayScreen() {
           onViewAll={() => navigation.navigate('MainTabs', { screen: TAB_ROUTES.History })}
           onOpenSession={(sessionId) => navigation.navigate('SessionDetail', { sessionId })}
         />
+        {showGuestProtectionCard ? (
+          <Card>
+            <View style={{ gap: tokens.spacing.sm }}>
+              <Text variant="subtitle">Protect your progress</Text>
+              <Text variant="muted">
+                Sign in with Google to sync your workout data and keep it safe if you change phones.
+              </Text>
+              <Button
+                title="Sign in with Google"
+                onPress={handleGuestSignIn}
+                loading={accountSignInBusy}
+                disabled={accountSignInBusy}
+              />
+            </View>
+          </Card>
+        ) : null}
+        {accountPromptError ? (
+          <Snackbar visible message={accountPromptError} variant="error" minHeight={44} />
+        ) : null}
       </View>
     </Screen>
   );

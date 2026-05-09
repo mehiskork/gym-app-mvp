@@ -4,6 +4,7 @@ import { seedCuratedExercises } from '../db/curatedExerciseSeed';
 import { repairStaleInFlightOps } from '../db/outboxRepo';
 import { resumeSync, setClaimed, setClaimedUserId } from '../db/appMetaRepo';
 import { ensureRestTimerNotificationChannel } from '../utils/restTimerNotifications';
+import { cancelUnfinishedWorkoutReminder } from '../utils/unfinishedWorkoutReminderNotifications';
 import { removeString } from '../utils/prefs';
 import { clearSensitiveAuthStorage } from './resetSensitiveStorage';
 
@@ -21,6 +22,7 @@ type ResetToGuestBootstrapOptions = {
 export async function resetToGuestBootstrap({
   resumeSyncAfterReset = true,
 }: ResetToGuestBootstrapOptions = {}): Promise<void> {
+  await cancelUnfinishedWorkoutReminder().catch(() => undefined);
   await clearSensitiveAuthStorage();
   await removeString(CLAIM_DEV_USER_ID_KEY);
   resetLocalDatabase();

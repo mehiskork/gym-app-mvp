@@ -86,6 +86,9 @@ jest.mock('../db/outboxRepo', () => ({ repairStaleInFlightOps: jest.fn() }));
 jest.mock('../utils/restTimerNotifications', () => ({
   ensureRestTimerNotificationChannel: jest.fn(() => Promise.resolve()),
 }));
+jest.mock('../utils/unfinishedWorkoutReminderNotifications', () => ({
+  reconcileUnfinishedWorkoutReminder: jest.fn(() => Promise.resolve()),
+}));
 jest.mock('../utils/logger', () => ({
   logEvent: jest.fn(),
 }));
@@ -141,6 +144,7 @@ import { seedCuratedExercises } from '../db/curatedExerciseSeed';
 import { runMigrations } from '../db/migrate';
 import { repairStaleInFlightOps } from '../db/outboxRepo';
 import { ensureRestTimerNotificationChannel } from '../utils/restTimerNotifications';
+import { reconcileUnfinishedWorkoutReminder } from '../utils/unfinishedWorkoutReminderNotifications';
 import { resetToGuestBootstrap } from '../auth/identityTransition';
 import {
   hasPendingAccountDeletionCleanupMarker,
@@ -193,6 +197,7 @@ describe('App startup recovery', () => {
     (hasPendingAccountDeletionRecovery as jest.Mock).mockResolvedValue(false);
     (recoverAccountDeletionAfterStartup as jest.Mock).mockResolvedValue(false);
     (resetToGuestBootstrap as jest.Mock).mockResolvedValue(undefined);
+    (reconcileUnfinishedWorkoutReminder as jest.Mock).mockResolvedValue(undefined);
   });
 
   it('starts normally when initialization succeeds', async () => {
@@ -205,10 +210,14 @@ describe('App startup recovery', () => {
     expect(runMigrations).toHaveBeenCalledTimes(1);
     expect(seedCuratedExercises).toHaveBeenCalledTimes(1);
     expect(repairStaleInFlightOps).toHaveBeenCalledWith(120);
+    expect(reconcileUnfinishedWorkoutReminder).toHaveBeenCalledTimes(1);
     expect(ensureRestTimerNotificationChannel).toHaveBeenCalledWith(false);
     expect(scheduleStartupSync).toHaveBeenCalledWith('app_start');
     expect((runMigrations as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
       (hasPendingAccountDeletionRecovery as jest.Mock).mock.invocationCallOrder[0],
+    );
+    expect((repairStaleInFlightOps as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
+      (reconcileUnfinishedWorkoutReminder as jest.Mock).mock.invocationCallOrder[0],
     );
   });
 
@@ -241,6 +250,25 @@ describe('App startup recovery', () => {
       'notifications',
       'Rest notification setup failed during startup',
       { error: 'channel failed' },
+    );
+  });
+
+  it('does not fail startup when unfinished workout reminder reconciliation rejects', async () => {
+    (reconcileUnfinishedWorkoutReminder as jest.Mock).mockRejectedValueOnce(
+      new Error('reminder failed'),
+    );
+
+    App();
+    await flushPromises();
+
+    expect(runMigrations).toHaveBeenCalledTimes(1);
+    expect(seedCuratedExercises).toHaveBeenCalledTimes(1);
+    expect(scheduleStartupSync).toHaveBeenCalledWith('app_start');
+    expect(logEvent).toHaveBeenCalledWith(
+      'warn',
+      'notifications',
+      'Unfinished workout reminder reconcile failed',
+      { error: 'reminder failed' },
     );
   });
 
@@ -370,6 +398,7 @@ describe('App startup recovery', () => {
 
     expect(hasPendingAccountDeletionRecovery).toHaveBeenCalledTimes(1);
     expect(recoverAccountDeletionAfterStartup).toHaveBeenCalledTimes(1);
+    expect(reconcileUnfinishedWorkoutReminder).not.toHaveBeenCalled();
     expect(runMigrations).toHaveBeenCalledTimes(1);
     expect(scheduleStartupSync).toHaveBeenCalledWith('app_start');
     expect((runMigrations as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
