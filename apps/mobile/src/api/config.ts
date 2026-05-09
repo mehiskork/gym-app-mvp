@@ -1,6 +1,7 @@
 // The checked-in Expo extra in app.json currently points to the shared Railway dev/QA backend.
 // This localhost value is only a final fallback when no Expo extra or environment config exists.
 const DEFAULT_BASE_URL = 'http://localhost:8080';
+export const SHARED_QA_BASE_URL = 'https://gym-app-mvp-production.up.railway.app';
 
 type ExpoConstantsModule = {
   expoConfig?: { extra?: Record<string, unknown> };
@@ -22,16 +23,49 @@ function readExpoExtra(key: string): string | undefined {
   const extra = expoConstants?.expoConfig?.extra ?? expoConstants?.manifest?.extra;
   const value = extra?.[key];
   if (typeof value === 'string' && value.trim().length > 0) {
-    return value;
+    return value.trim();
   }
   return undefined;
 }
 
-export function getApiBaseUrl(): string {
-  const expoValue = readExpoExtra('API_BASE_URL') ?? readExpoExtra('EXPO_PUBLIC_API_BASE_URL');
-  const envValue = process.env.EXPO_PUBLIC_API_BASE_URL ?? process.env.API_BASE_URL;
+function readEnv(key: string): string | undefined {
+  const value = process.env[key];
+  if (typeof value === 'string' && value.trim().length > 0) {
+    return value.trim();
+  }
+  return undefined;
+}
 
-  return expoValue ?? envValue ?? DEFAULT_BASE_URL;
+function normalizeBaseUrlForComparison(value: string): string {
+  return value.replace(/\/+$/, '');
+}
+
+export function getAppEnv(): string {
+  return (
+    readEnv('EXPO_PUBLIC_APP_ENV') ??
+    readEnv('APP_ENV') ??
+    readExpoExtra('EXPO_PUBLIC_APP_ENV') ??
+    readExpoExtra('APP_ENV') ??
+    'development'
+  ).toLowerCase();
+}
+
+export function getApiBaseUrl(): string {
+  const envValue = readEnv('EXPO_PUBLIC_API_BASE_URL') ?? readEnv('API_BASE_URL');
+  const appEnv = getAppEnv();
+
+  if (appEnv === 'production') {
+    if (!envValue) {
+      throw new Error('Production builds require EXPO_PUBLIC_API_BASE_URL');
+    }
+    if (normalizeBaseUrlForComparison(envValue) === SHARED_QA_BASE_URL) {
+      throw new Error('Production builds cannot use the shared QA/dev API base URL');
+    }
+    return envValue;
+  }
+
+  const expoValue = readExpoExtra('API_BASE_URL') ?? readExpoExtra('EXPO_PUBLIC_API_BASE_URL');
+  return envValue ?? expoValue ?? DEFAULT_BASE_URL;
 }
 
 export function getAccountDeletionUrl(): string {

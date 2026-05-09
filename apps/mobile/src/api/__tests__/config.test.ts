@@ -7,7 +7,7 @@ describe('getApiBaseUrl', () => {
     jest.dontMock('expo-constants');
   });
 
-  it('prefers Expo extra config over environment variables', () => {
+  it('prefers environment variables over Expo extra config outside production', () => {
     process.env.EXPO_PUBLIC_API_BASE_URL = 'https://env.example.test';
 
     jest.doMock('expo-constants', () => ({
@@ -20,7 +20,7 @@ describe('getApiBaseUrl', () => {
 
     const { getApiBaseUrl } = require('../config') as typeof import('../config');
 
-    expect(getApiBaseUrl()).toBe('https://expo.example.test');
+    expect(getApiBaseUrl()).toBe('https://env.example.test');
   });
 
   it('uses checked-in Expo public API base URL config when present', () => {
@@ -49,6 +49,65 @@ describe('getApiBaseUrl', () => {
     expect(getApiBaseUrl()).toBe('https://env.example.test');
   });
 
+  it('allows preview to resolve the shared Railway backend URL', () => {
+    process.env.EXPO_PUBLIC_APP_ENV = 'preview';
+    process.env.EXPO_PUBLIC_API_BASE_URL = 'https://gym-app-mvp-production.up.railway.app';
+
+    jest.doMock('expo-constants', () => ({}));
+
+    const { getApiBaseUrl } = require('../config') as typeof import('../config');
+
+    expect(getApiBaseUrl()).toBe('https://gym-app-mvp-production.up.railway.app');
+  });
+
+  it('resolves explicit production API base URL', () => {
+    process.env.EXPO_PUBLIC_APP_ENV = 'production';
+    process.env.EXPO_PUBLIC_API_BASE_URL = 'https://api.trainframe.example';
+
+    jest.doMock('expo-constants', () => ({
+      expoConfig: {
+        extra: {
+          EXPO_PUBLIC_API_BASE_URL: 'https://gym-app-mvp-production.up.railway.app',
+        },
+      },
+    }));
+
+    const { getApiBaseUrl } = require('../config') as typeof import('../config');
+
+    expect(getApiBaseUrl()).toBe('https://api.trainframe.example');
+  });
+
+  it('rejects production without explicit environment API base URL', () => {
+    process.env.EXPO_PUBLIC_APP_ENV = 'production';
+    delete process.env.EXPO_PUBLIC_API_BASE_URL;
+    delete process.env.API_BASE_URL;
+
+    jest.doMock('expo-constants', () => ({
+      expoConfig: {
+        extra: {
+          EXPO_PUBLIC_API_BASE_URL: 'https://api-from-extra.example',
+        },
+      },
+    }));
+
+    const { getApiBaseUrl } = require('../config') as typeof import('../config');
+
+    expect(() => getApiBaseUrl()).toThrow('Production builds require EXPO_PUBLIC_API_BASE_URL');
+  });
+
+  it('rejects production using the shared Railway backend URL', () => {
+    process.env.EXPO_PUBLIC_APP_ENV = 'production';
+    process.env.EXPO_PUBLIC_API_BASE_URL = 'https://gym-app-mvp-production.up.railway.app/';
+
+    jest.doMock('expo-constants', () => ({}));
+
+    const { getApiBaseUrl } = require('../config') as typeof import('../config');
+
+    expect(() => getApiBaseUrl()).toThrow(
+      'Production builds cannot use the shared QA/dev API base URL',
+    );
+  });
+
   it('falls back to localhost default when no config exists', () => {
     delete process.env.EXPO_PUBLIC_API_BASE_URL;
     delete process.env.API_BASE_URL;
@@ -72,5 +131,16 @@ describe('getApiBaseUrl', () => {
     const { getAccountDeletionUrl } = require('../config') as typeof import('../config');
 
     expect(getAccountDeletionUrl()).toBe('https://api.example.test/account-deletion');
+  });
+
+  it('builds production account deletion URL from explicit production API base URL', () => {
+    process.env.EXPO_PUBLIC_APP_ENV = 'production';
+    process.env.EXPO_PUBLIC_API_BASE_URL = 'https://api.trainframe.example/root';
+
+    jest.doMock('expo-constants', () => ({}));
+
+    const { getAccountDeletionUrl } = require('../config') as typeof import('../config');
+
+    expect(getAccountDeletionUrl()).toBe('https://api.trainframe.example/account-deletion');
   });
 });

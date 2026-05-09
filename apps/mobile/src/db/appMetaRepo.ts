@@ -169,6 +169,11 @@ export function isSyncPaused(): boolean {
   return getMeta(SYNC_PAUSED_REASON_KEY) !== null;
 }
 
+export function getSyncPauseReason(): SyncPauseReason | null {
+  const value = getMeta(SYNC_PAUSED_REASON_KEY);
+  return value === 'claim' || value === 'account_deletion' ? value : null;
+}
+
 export function setClaimed(value: boolean) {
   setMeta(CLAIMED_KEY, value ? '1' : '0');
 }

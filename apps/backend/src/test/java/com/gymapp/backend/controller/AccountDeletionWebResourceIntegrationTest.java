@@ -78,7 +78,10 @@ class AccountDeletionWebResourceIntegrationTest {
                 .andExpect(content().string(containsString("Do not send passwords")))
                 .andExpect(content().string(containsString("JWTs")))
                 .andExpect(content().string(containsString("device tokens")))
-                .andExpect(content().string(containsString("support@trainframe.example")));
+                .andExpect(content().string(containsString("support@trainframe.example")))
+                .andExpect(content().string(containsString("mailto:support@trainframe.example")))
+                .andExpect(content().string(containsString("TrainFrame+account+deletion+request")))
+                .andExpect(content().string(containsString("copy and paste this address")));
     }
 
     @Test
@@ -94,7 +97,7 @@ class AccountDeletionWebResourceIntegrationTest {
     }
 
     @Test
-    void validMinimalDeletionRequestReturnsManualSupportConfirmationWithoutAuthentication() throws Exception {
+    void validMinimalDeletionRequestReturnsEmailInstructionsWithoutAuthentication() throws Exception {
         mockMvc.perform(post("/account-deletion/request")
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .param("email", "user@example.test")
@@ -102,10 +105,13 @@ class AccountDeletionWebResourceIntegrationTest {
                 .param("noAppAccess", "true"))
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_HTML))
-                .andExpect(content().string(containsString("TrainFrame deletion request received")))
-                .andExpect(content().string(containsString("manual support review")))
+                .andExpect(content().string(containsString("Email TrainFrame support to request deletion")))
+                .andExpect(content().string(containsString("does not automatically delete account data")))
+                .andExpect(content().string(containsString("mailto:support@trainframe.example")))
+                .andExpect(content().string(containsString("user@example.test")))
                 .andExpect(content().string(containsString("does not delete your Google account")))
-                .andExpect(content().string(containsString("Do not send passwords, tokens")));
+                .andExpect(content().string(containsString("Do not send passwords, tokens")))
+                .andExpect(content().string(not(containsString("request was received"))));
     }
 
     @Test

@@ -1,15 +1,20 @@
 import { ApiError } from '../api/errors';
 import { deleteMeWithAccountAuth } from '../api/accountClient';
-import { pauseSync, resumeSync } from '../db/appMetaRepo';
+import { getSyncPauseReason, pauseSync, resumeSync } from '../db/appMetaRepo';
 import { resetToGuestBootstrap } from './identityTransition';
 import { signOutFromGoogle } from './firebaseGoogleAuthClient';
 import { cancelScheduledSync } from '../sync/syncScheduler';
 import { waitForInFlightSync } from '../sync/syncWorker';
+import { accountSessionStore } from './accountSessionStore';
 import {
   clearAccountDeletionCleanupPending,
   isAccountDeletionCleanupPending,
   markAccountDeletionCleanupPending,
 } from './accountDeletionCleanupMarker';
+
+type DeleteAccountOptions = {
+  resumeSyncOnBackendFailure?: boolean;
+};
 
 export function getFriendlyAccountDeletionError(error: unknown): string {
   if (error instanceof ApiError) {
@@ -41,7 +46,9 @@ export function getFriendlyAccountDeletionError(error: unknown): string {
   return 'Something went wrong. Your local data was not removed.';
 }
 
-export async function deleteAccountAndResetLocalState(): Promise<void> {
+export async function deleteAccountAndResetLocalState({
+  resumeSyncOnBackendFailure = true,
+}: DeleteAccountOptions = {}): Promise<void> {
   pauseSync('account_deletion');
   cancelScheduledSync();
   let backendDeleted = false;
@@ -54,7 +61,7 @@ export async function deleteAccountAndResetLocalState(): Promise<void> {
 
     await finishAccountDeletionLocalCleanup();
   } catch (error) {
-    if (!backendDeleted) {
+    if (!backendDeleted && resumeSyncOnBackendFailure) {
       resumeSync();
     }
     throw error;
@@ -78,6 +85,31 @@ export async function recoverPendingAccountDeletionCleanup(): Promise<boolean> {
     return false;
   }
 
+  await finishAccountDeletionLocalCleanup();
+  return true;
+}
+
+export async function hasPendingAccountDeletionRecovery(): Promise<boolean> {
+  return getSyncPauseReason() === 'account_deletion' || (await isAccountDeletionCleanupPending());
+}
+
+export async function recoverAccountDeletionAfterStartup(): Promise<boolean> {
+  if (await isAccountDeletionCleanupPending()) {
+    await finishAccountDeletionLocalCleanup();
+    return true;
+  }
+
+  if (getSyncPauseReason() !== 'account_deletion') {
+    return false;
+  }
+
+  const accountSession = await accountSessionStore.getUsable().catch(() => null);
+  if (accountSession?.accessToken) {
+    await deleteAccountAndResetLocalState({ resumeSyncOnBackendFailure: false });
+    return true;
+  }
+
+  await markAccountDeletionCleanupPending();
   await finishAccountDeletionLocalCleanup();
   return true;
 }

@@ -2,10 +2,12 @@ import { ApiError } from '../../api/errors';
 import {
   deleteAccountAndResetLocalState,
   getFriendlyAccountDeletionError,
+  hasPendingAccountDeletionRecovery,
+  recoverAccountDeletionAfterStartup,
   recoverPendingAccountDeletionCleanup,
 } from '../accountDeletion';
 import { deleteMeWithAccountAuth } from '../../api/accountClient';
-import { pauseSync, resumeSync } from '../../db/appMetaRepo';
+import { getSyncPauseReason, pauseSync, resumeSync } from '../../db/appMetaRepo';
 import { resetToGuestBootstrap } from '../identityTransition';
 import { signOutFromGoogle } from '../firebaseGoogleAuthClient';
 import { cancelScheduledSync } from '../../sync/syncScheduler';
@@ -15,14 +17,22 @@ import {
   isAccountDeletionCleanupPending,
   markAccountDeletionCleanupPending,
 } from '../accountDeletionCleanupMarker';
+import { accountSessionStore } from '../accountSessionStore';
 
 jest.mock('../../api/accountClient', () => ({
   deleteMeWithAccountAuth: jest.fn(() => Promise.resolve()),
 }));
 
 jest.mock('../../db/appMetaRepo', () => ({
+  getSyncPauseReason: jest.fn(() => null),
   pauseSync: jest.fn(),
   resumeSync: jest.fn(),
+}));
+
+jest.mock('../accountSessionStore', () => ({
+  accountSessionStore: {
+    getUsable: jest.fn(() => Promise.resolve(null)),
+  },
 }));
 
 jest.mock('../identityTransition', () => ({
@@ -57,6 +67,8 @@ describe('deleteAccountAndResetLocalState', () => {
     (isAccountDeletionCleanupPending as jest.Mock).mockResolvedValue(false);
     (markAccountDeletionCleanupPending as jest.Mock).mockResolvedValue(undefined);
     (clearAccountDeletionCleanupPending as jest.Mock).mockResolvedValue(undefined);
+    (getSyncPauseReason as jest.Mock).mockReturnValue(null);
+    (accountSessionStore.getUsable as jest.Mock).mockResolvedValue(null);
   });
 
   it('pauses sync, waits for in-flight sync, deletes server account, marks cleanup pending, then resets local state', async () => {
@@ -155,6 +167,8 @@ describe('recoverPendingAccountDeletionCleanup', () => {
     (signOutFromGoogle as jest.Mock).mockResolvedValue(undefined);
     (isAccountDeletionCleanupPending as jest.Mock).mockResolvedValue(false);
     (clearAccountDeletionCleanupPending as jest.Mock).mockResolvedValue(undefined);
+    (getSyncPauseReason as jest.Mock).mockReturnValue(null);
+    (accountSessionStore.getUsable as jest.Mock).mockResolvedValue(null);
   });
 
   it('does nothing when no cleanup marker is pending', async () => {
@@ -185,6 +199,85 @@ describe('recoverPendingAccountDeletionCleanup', () => {
 
     expect(pauseSync).toHaveBeenCalledWith('account_deletion');
     expect(resetToGuestBootstrap).toHaveBeenCalledTimes(1);
+    expect(clearAccountDeletionCleanupPending).not.toHaveBeenCalled();
+    expect(resumeSync).not.toHaveBeenCalled();
+  });
+});
+
+describe('account deletion startup recovery detection', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (deleteMeWithAccountAuth as jest.Mock).mockResolvedValue(undefined);
+    (resetToGuestBootstrap as jest.Mock).mockResolvedValue(undefined);
+    (signOutFromGoogle as jest.Mock).mockResolvedValue(undefined);
+    (waitForInFlightSync as jest.Mock).mockResolvedValue(undefined);
+    (isAccountDeletionCleanupPending as jest.Mock).mockResolvedValue(false);
+    (markAccountDeletionCleanupPending as jest.Mock).mockResolvedValue(undefined);
+    (clearAccountDeletionCleanupPending as jest.Mock).mockResolvedValue(undefined);
+    (getSyncPauseReason as jest.Mock).mockReturnValue(null);
+    (accountSessionStore.getUsable as jest.Mock).mockResolvedValue(null);
+  });
+
+  it('detects pending recovery from marker or durable account deletion sync pause', async () => {
+    await expect(hasPendingAccountDeletionRecovery()).resolves.toBe(false);
+
+    (isAccountDeletionCleanupPending as jest.Mock).mockResolvedValueOnce(true);
+    await expect(hasPendingAccountDeletionRecovery()).resolves.toBe(true);
+
+    (isAccountDeletionCleanupPending as jest.Mock).mockResolvedValueOnce(false);
+    (getSyncPauseReason as jest.Mock).mockReturnValueOnce('account_deletion');
+    await expect(hasPendingAccountDeletionRecovery()).resolves.toBe(true);
+  });
+
+  it('retries backend deletion on startup when sync pause exists without marker and account session exists', async () => {
+    (getSyncPauseReason as jest.Mock).mockReturnValue('account_deletion');
+    (accountSessionStore.getUsable as jest.Mock).mockResolvedValue({ accessToken: 'account.jwt' });
+
+    await expect(recoverAccountDeletionAfterStartup()).resolves.toBe(true);
+
+    expect(deleteMeWithAccountAuth).toHaveBeenCalledTimes(1);
+    expect(markAccountDeletionCleanupPending).toHaveBeenCalledTimes(1);
+    expect(resetToGuestBootstrap).toHaveBeenCalledWith({ resumeSyncAfterReset: false });
+    expect(clearAccountDeletionCleanupPending).toHaveBeenCalledTimes(1);
+    expect(resumeSync).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps local data and sync suppression when startup backend retry fails before marker', async () => {
+    (getSyncPauseReason as jest.Mock).mockReturnValue('account_deletion');
+    (accountSessionStore.getUsable as jest.Mock).mockResolvedValue({ accessToken: 'account.jwt' });
+    (deleteMeWithAccountAuth as jest.Mock).mockRejectedValueOnce(
+      new ApiError('Network down', { isNetworkError: true }),
+    );
+
+    await expect(recoverAccountDeletionAfterStartup()).rejects.toThrow('Network down');
+
+    expect(markAccountDeletionCleanupPending).not.toHaveBeenCalled();
+    expect(resetToGuestBootstrap).not.toHaveBeenCalled();
+    expect(clearAccountDeletionCleanupPending).not.toHaveBeenCalled();
+    expect(resumeSync).not.toHaveBeenCalled();
+  });
+
+  it('runs local cleanup when sync pause exists without marker and account session is missing', async () => {
+    (getSyncPauseReason as jest.Mock).mockReturnValue('account_deletion');
+    (accountSessionStore.getUsable as jest.Mock).mockResolvedValue(null);
+
+    await expect(recoverAccountDeletionAfterStartup()).resolves.toBe(true);
+
+    expect(deleteMeWithAccountAuth).not.toHaveBeenCalled();
+    expect(markAccountDeletionCleanupPending).toHaveBeenCalledTimes(1);
+    expect(resetToGuestBootstrap).toHaveBeenCalledWith({ resumeSyncAfterReset: false });
+    expect(clearAccountDeletionCleanupPending).toHaveBeenCalledTimes(1);
+    expect(resumeSync).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps marker and sync suppression when startup local cleanup fails', async () => {
+    (getSyncPauseReason as jest.Mock).mockReturnValue('account_deletion');
+    (accountSessionStore.getUsable as jest.Mock).mockResolvedValue(null);
+    (resetToGuestBootstrap as jest.Mock).mockRejectedValueOnce(new Error('reset failed'));
+
+    await expect(recoverAccountDeletionAfterStartup()).rejects.toThrow('reset failed');
+
+    expect(markAccountDeletionCleanupPending).toHaveBeenCalledTimes(1);
     expect(clearAccountDeletionCleanupPending).not.toHaveBeenCalled();
     expect(resumeSync).not.toHaveBeenCalled();
   });

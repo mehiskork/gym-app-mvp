@@ -1,5 +1,7 @@
 package com.gymapp.backend.controller;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
@@ -42,12 +44,12 @@ public class AccountDeletionWebController {
         }
 
         log.info(
-                "account deletion web request received emailDomain={} hasMessage={} noAppAccess={}",
+                "account deletion web form submitted emailDomain={} hasMessage={} noAppAccess={}",
                 emailDomain(email),
                 !message.isBlank(),
                 noAppAccess);
 
-        return html(confirmationPageHtml());
+        return html(emailInstructionsPageHtml(email));
     }
 
     private String accountDeletionPageHtml(String errorMessage) {
@@ -96,7 +98,8 @@ public class AccountDeletionWebController {
                     </div>
 
                     <h2>What we need</h2>
-                    <p>Submit the Google sign-in email or contact email you used with TrainFrame, and optionally add a short note. We will use your request to verify and process deletion manually. Deletion cannot be undone once completed.</p>
+                    <p>Email <a href="mailto:%s?subject=%s">%s</a> with the Google sign-in email or contact email you used with TrainFrame, a clear sentence that you are requesting TrainFrame account/data deletion, and optional context. Deletion cannot be undone once completed.</p>
+                    <p>If the email button does not open, copy and paste this address into your email app: <strong>%s</strong>.</p>
 
                     %s
 
@@ -118,38 +121,53 @@ public class AccountDeletionWebController {
                         <span>I no longer have access to the app.</span>
                       </label>
 
-                      <button type="submit">Request TrainFrame account deletion</button>
+                      <button type="submit">Show email instructions</button>
                     </form>
 
                     <h2>Support contact</h2>
-                    <p>If the form is unavailable, email <a href="mailto:%s">%s</a> and include only your TrainFrame sign-in/contact email and a short deletion request.</p>
+                    <p><a href="mailto:%s?subject=%s">Email TrainFrame support</a> and include only your TrainFrame sign-in/contact email, that you are requesting TrainFrame account/data deletion, and optional context.</p>
                   </main>
                 </body>
                 </html>
-                """.formatted(errorBlock, MAX_MESSAGE_LENGTH, MAX_MESSAGE_LENGTH, escapedSupportEmail,
-                escapedSupportEmail);
+                """.formatted(
+                escapedSupportEmail,
+                mailtoSubject(),
+                escapedSupportEmail,
+                escapedSupportEmail,
+                errorBlock,
+                MAX_MESSAGE_LENGTH,
+                MAX_MESSAGE_LENGTH,
+                escapedSupportEmail,
+                mailtoSubject());
     }
 
-    private String confirmationPageHtml() {
+    private String emailInstructionsPageHtml(String email) {
         String escapedSupportEmail = escapeHtml(supportEmail());
+        String escapedEmail = escapeHtml(email);
         return """
                 <!doctype html>
                 <html lang="en">
                 <head>
                   <meta charset="utf-8">
                   <meta name="viewport" content="width=device-width, initial-scale=1">
-                  <title>TrainFrame deletion request received</title>
+                  <title>TrainFrame account deletion email instructions</title>
                 </head>
                 <body>
                   <main>
-                    <h1>TrainFrame deletion request received</h1>
-                    <p>Your request was received for manual support review. We will use it to verify and process deletion of TrainFrame account data.</p>
+                    <h1>Email TrainFrame support to request deletion</h1>
+                    <p>This web form does not automatically delete account data or submit a support ticket. To request manual deletion, email <a href="mailto:%s?subject=%s">%s</a>.</p>
+                    <p>Include your TrainFrame contact or Google sign-in email, for example <strong>%s</strong>, and say that you are requesting TrainFrame account/data deletion. You may add optional context.</p>
+                    <p>If the email button does not open, copy and paste this address into your email app: <strong>%s</strong>.</p>
                     <p>This does not delete your Google account. Do not send passwords, tokens, support bundles, or secrets.</p>
-                    <p>If you need to add context, email <a href="mailto:%s">%s</a>.</p>
                   </main>
                 </body>
                 </html>
-                """.formatted(escapedSupportEmail, escapedSupportEmail);
+                """.formatted(
+                escapedSupportEmail,
+                mailtoSubject(),
+                escapedSupportEmail,
+                escapedEmail,
+                escapedSupportEmail);
     }
 
     private String validationMessage(String email, boolean confirmed, String message) {
@@ -199,5 +217,9 @@ public class AccountDeletionWebController {
                 .replace(">", "&gt;")
                 .replace("\"", "&quot;")
                 .replace("'", "&#39;");
+    }
+
+    private String mailtoSubject() {
+        return URLEncoder.encode("TrainFrame account deletion request", StandardCharsets.UTF_8);
     }
 }

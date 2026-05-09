@@ -17,9 +17,16 @@ import { resetToGuestBootstrap } from './src/auth/identityTransition';
 import { scheduleForegroundSync, scheduleStartupSync } from './src/sync/syncScheduler';
 import { AppErrorBoundary } from './src/components/AppErrorBoundary';
 import { logEvent } from './src/utils/logger';
-import { recoverPendingAccountDeletionCleanup } from './src/auth/accountDeletion';
+import {
+  hasPendingAccountDeletionRecovery,
+  recoverAccountDeletionAfterStartup,
+} from './src/auth/accountDeletion';
 
-type BootState = { kind: 'initializing' } | { kind: 'ready' } | { kind: 'failed'; error: Error };
+type BootState =
+  | { kind: 'initializing' }
+  | { kind: 'ready' }
+  | { kind: 'failed'; error: Error }
+  | { kind: 'accountDeletionRecoveryFailed'; error: Error };
 
 function toError(error: unknown): Error {
   if (error instanceof Error) return error;
@@ -30,21 +37,26 @@ function StartupRecoveryScreen({
   error,
   onRetry,
   onReset,
+  accountDeletionRecovery = false,
 }: {
   error: Error;
   onRetry: () => void;
   onReset: () => void;
+  accountDeletionRecovery?: boolean;
 }) {
   const [resetConfirmVisible, setResetConfirmVisible] = useState(false);
 
   return (
     <View style={styles.recoveryContainer}>
       <Text variant="title" weight="700" style={styles.recoveryTitle}>
-        Couldn&apos;t open app data
+        {accountDeletionRecovery
+          ? "Couldn't finish account deletion cleanup"
+          : "Couldn't open app data"}
       </Text>
       <Text variant="body" style={styles.recoveryBody}>
-        The app couldn&apos;t finish updating local data. You can try again, or reset local app data
-        and start fresh on this device.
+        {accountDeletionRecovery
+          ? 'TrainFrame deleted or started deleting your server account data, but this device still needs to finish clearing local data before sync can resume.'
+          : "The app couldn't finish updating local data. You can try again, or reset local app data and start fresh on this device."}
       </Text>
       <View style={styles.actions}>
         <Button title="Try again" onPress={onRetry} />
@@ -56,8 +68,16 @@ function StartupRecoveryScreen({
       </View>
       <DestructiveConfirmDialog
         visible={resetConfirmVisible}
-        title="Reset local data on this device?"
-        body="This clears local TrainFrame data and account credentials on this device. Synced account data can be restored after reconnecting. Unsynced local changes may be lost."
+        title={
+          accountDeletionRecovery
+            ? 'Finish account deletion cleanup on this device?'
+            : 'Reset local data on this device?'
+        }
+        body={
+          accountDeletionRecovery
+            ? 'This clears local TrainFrame data and account credentials on this device. Sync stays off until cleanup completes.'
+            : 'This clears local TrainFrame data and account credentials on this device. Synced account data can be restored after reconnecting. Unsynced local changes may be lost.'
+        }
         confirmLabel="Reset this device"
         cancelLabel="Cancel"
         onClose={() => setResetConfirmVisible(false)}
@@ -85,8 +105,12 @@ export default function App() {
     setBootState({ kind: 'initializing' });
 
     void (async () => {
+      let accountDeletionRecoveryPending = false;
       try {
-        await recoverPendingAccountDeletionCleanup();
+        accountDeletionRecoveryPending = await hasPendingAccountDeletionRecovery();
+        if (accountDeletionRecoveryPending) {
+          await recoverAccountDeletionAfterStartup();
+        }
         runMigrations();
         seedCuratedExercises();
         repairStaleInFlightOps(120);
@@ -98,7 +122,10 @@ export default function App() {
         setBootState({ kind: 'ready' });
         scheduleStartupSync('app_start');
       } catch (error) {
-        setBootState({ kind: 'failed', error: toError(error) });
+        setBootState({
+          kind: accountDeletionRecoveryPending ? 'accountDeletionRecoveryFailed' : 'failed',
+          error: toError(error),
+        });
       }
     })();
   }, []);
@@ -110,6 +137,20 @@ export default function App() {
       setBootState({ kind: 'ready' });
     } catch (error) {
       setBootState({ kind: 'failed', error: toError(error) });
+    }
+  }, []);
+
+  const handleFinishAccountDeletionCleanup = useCallback(async () => {
+    setBootState({ kind: 'initializing' });
+    try {
+      await recoverAccountDeletionAfterStartup();
+      runMigrations();
+      seedCuratedExercises();
+      repairStaleInFlightOps(120);
+      setBootState({ kind: 'ready' });
+      scheduleStartupSync('app_start');
+    } catch (error) {
+      setBootState({ kind: 'accountDeletionRecoveryFailed', error: toError(error) });
     }
   }, []);
 
@@ -152,6 +193,14 @@ export default function App() {
                 error={bootState.error}
                 onRetry={initializeApp}
                 onReset={handleResetLocalData}
+              />
+            ) : null}
+            {bootState.kind === 'accountDeletionRecoveryFailed' ? (
+              <StartupRecoveryScreen
+                error={bootState.error}
+                onRetry={initializeApp}
+                onReset={handleFinishAccountDeletionCleanup}
+                accountDeletionRecovery
               />
             ) : null}
             {bootState.kind === 'ready' ? <RootNavigator /> : null}
