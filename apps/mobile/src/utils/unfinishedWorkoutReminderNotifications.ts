@@ -4,7 +4,9 @@ import { Platform } from 'react-native';
 import { query } from '../db/db';
 import { WORKOUT_SESSION_STATUS } from '../db/constants';
 import {
+  getUnfinishedWorkoutRemindersEnabled,
   getUnfinishedWorkoutReminderState,
+  setUnfinishedWorkoutRemindersEnabled,
   setUnfinishedWorkoutReminderState,
 } from '../db/appMetaRepo';
 import type { UnfinishedWorkoutReminderState } from '../db/appMetaRepo';
@@ -13,12 +15,20 @@ import { parseTimestampMs } from './timestamp';
 
 export const UNFINISHED_WORKOUT_REMINDER_CHANNEL_ID = 'unfinished-workout-reminders-v1';
 export const UNFINISHED_WORKOUT_REMINDER_DELAY_MS = 60 * 60 * 1000;
+export const UNFINISHED_WORKOUT_REMINDER_NOTIFICATION_TYPE = 'unfinished_workout_reminder';
+export const UNFINISHED_WORKOUT_REMINDER_TITLE = 'Finish your workout?';
+export const UNFINISHED_WORKOUT_REMINDER_BODY =
+  'You have logged sets in TrainFrame but haven’t finished this workout yet.';
 
 let channelSetupPromise: Promise<void> | null = null;
 
 type QualifyingWorkoutReminderRow = {
   session_id: string;
   last_logged_set_at: string;
+};
+
+export type ReminderNavigation = {
+  navigate: (routeName: string, params?: unknown) => void;
 };
 
 function logNotificationWarning(message: string, error: unknown) {
@@ -58,12 +68,26 @@ function getTriggerSeconds(dueAt: string): number {
   return Math.max(1, Math.ceil((parsed - Date.now()) / 1000));
 }
 
-async function cancelStoredNotification(state: UnfinishedWorkoutReminderState | null) {
-  if (!state?.notificationId) return;
+async function cancelStoredNotification(
+  state: UnfinishedWorkoutReminderState | null,
+): Promise<boolean> {
+  if (!state?.notificationId) return true;
   try {
     await Notifications.cancelScheduledNotificationAsync(state.notificationId);
+    return true;
   } catch (error) {
     logNotificationWarning('Unfinished workout reminder OS cancellation failed', error);
+    return false;
+  }
+}
+
+async function hasScheduledNotification(notificationId: string): Promise<boolean | null> {
+  try {
+    const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+    return scheduled.some((notification) => notification.identifier === notificationId);
+  } catch (error) {
+    logNotificationWarning('Unfinished workout reminder OS verification failed', error);
+    return null;
   }
 }
 
@@ -98,6 +122,11 @@ async function scheduleReplacement(input: {
   lastLoggedSetAt: string;
   sessionId: string;
 }) {
+  if (!getUnfinishedWorkoutRemindersEnabled()) {
+    await cancelUnfinishedWorkoutReminder();
+    return;
+  }
+
   const permissions = await Notifications.getPermissionsAsync();
   const existing = getUnfinishedWorkoutReminderState();
 
@@ -108,13 +137,20 @@ async function scheduleReplacement(input: {
   }
 
   await ensureUnfinishedWorkoutReminderChannel();
-  await cancelStoredNotification(existing);
-  setUnfinishedWorkoutReminderState(null);
+  if (existing?.notificationId) {
+    const canceled = await cancelStoredNotification(existing);
+    setUnfinishedWorkoutReminderState(null);
+    if (!canceled) return;
+  }
 
   const content = {
-    title: 'Finish your workout?',
-    body: "You have logged sets in TrainFrame but haven't finished this workout yet.",
+    title: UNFINISHED_WORKOUT_REMINDER_TITLE,
+    body: UNFINISHED_WORKOUT_REMINDER_BODY,
     channelId: UNFINISHED_WORKOUT_REMINDER_CHANNEL_ID,
+    data: {
+      type: UNFINISHED_WORKOUT_REMINDER_NOTIFICATION_TYPE,
+      sessionId: input.sessionId,
+    },
   } as Notifications.NotificationContentInput;
 
   const notificationId = await Notifications.scheduleNotificationAsync({
@@ -138,6 +174,11 @@ export async function scheduleUnfinishedWorkoutReminderForSession(
   lastLoggedSetAt = new Date().toISOString(),
 ): Promise<void> {
   try {
+    if (!getUnfinishedWorkoutRemindersEnabled()) {
+      await cancelUnfinishedWorkoutReminder();
+      return;
+    }
+
     const dueAt = getDueAt(lastLoggedSetAt);
     if (!dueAt) {
       await reconcileUnfinishedWorkoutReminder();
@@ -156,6 +197,11 @@ export async function scheduleUnfinishedWorkoutReminderForSession(
 
 export async function reconcileUnfinishedWorkoutReminder(): Promise<void> {
   try {
+    if (!getUnfinishedWorkoutRemindersEnabled()) {
+      await cancelUnfinishedWorkoutReminder();
+      return;
+    }
+
     const row = getQualifyingWorkoutReminderRow();
     if (!row) {
       await cancelUnfinishedWorkoutReminder();
@@ -170,6 +216,16 @@ export async function reconcileUnfinishedWorkoutReminder(): Promise<void> {
 
     const existing = getUnfinishedWorkoutReminderState();
     if (existing?.sessionId === row.session_id && existing.dueAt === dueAt) {
+      const scheduled = await hasScheduledNotification(existing.notificationId);
+      if (scheduled === true || scheduled === null) {
+        return;
+      }
+      setUnfinishedWorkoutReminderState(null);
+      await scheduleReplacement({
+        sessionId: row.session_id,
+        lastLoggedSetAt: row.last_logged_set_at,
+        dueAt,
+      });
       return;
     }
 
@@ -191,6 +247,62 @@ export async function cancelUnfinishedWorkoutReminder(): Promise<void> {
   } catch (error) {
     logNotificationWarning('Unfinished workout reminder cancellation failed', error);
   }
+}
+
+export function getUnfinishedWorkoutRemindersPreference(): boolean {
+  return getUnfinishedWorkoutRemindersEnabled();
+}
+
+export async function setUnfinishedWorkoutRemindersPreference(enabled: boolean): Promise<void> {
+  setUnfinishedWorkoutRemindersEnabled(enabled);
+  if (enabled) {
+    await reconcileUnfinishedWorkoutReminder();
+    return;
+  }
+  await cancelUnfinishedWorkoutReminder();
+}
+
+function getReminderSessionIdFromData(data: unknown): string | null {
+  if (!data || typeof data !== 'object') return null;
+  const payload = data as { sessionId?: unknown; type?: unknown };
+  if (payload.type !== UNFINISHED_WORKOUT_REMINDER_NOTIFICATION_TYPE) return null;
+  return typeof payload.sessionId === 'string' && payload.sessionId.trim()
+    ? payload.sessionId
+    : null;
+}
+
+function isSessionInProgress(sessionId: string): boolean {
+  const row = query<{ id: string }>(
+    `
+    SELECT id
+    FROM workout_session
+    WHERE id = ?
+      AND status = ?
+      AND deleted_at IS NULL
+    LIMIT 1;
+  `,
+    [sessionId, WORKOUT_SESSION_STATUS.IN_PROGRESS],
+  )[0];
+  return Boolean(row?.id);
+}
+
+export async function handleUnfinishedWorkoutReminderNotificationResponse(
+  response: Notifications.NotificationResponse,
+  navigation: ReminderNavigation,
+): Promise<void> {
+  const sessionId = getReminderSessionIdFromData(response.notification.request.content.data);
+  if (!sessionId) return;
+
+  try {
+    if (isSessionInProgress(sessionId)) {
+      navigation.navigate('WorkoutSession', { sessionId });
+      return;
+    }
+  } catch (error) {
+    logNotificationWarning('Unfinished workout reminder tap handling failed', error);
+  }
+
+  navigation.navigate('MainTabs', { screen: 'Home' });
 }
 
 export function resetUnfinishedWorkoutReminderStateForTests(): void {

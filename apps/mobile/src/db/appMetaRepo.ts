@@ -157,6 +157,7 @@ const CLAIMED_KEY = 'claimed';
 const CLAIMED_USER_ID_KEY = 'claimed_user_id';
 const REST_TIMER_NOTIFICATION_ID_KEY = 'rest_timer_notification_id';
 const UNFINISHED_WORKOUT_REMINDER_KEY = 'unfinished_workout_reminder_v1';
+const UNFINISHED_WORKOUT_REMINDERS_ENABLED_KEY = 'unfinished_workout_reminders_enabled_v1';
 
 export type UnfinishedWorkoutReminderState = {
   notificationId: string;
@@ -244,6 +245,14 @@ export function setUnfinishedWorkoutReminderState(
   }
 
   setMeta(UNFINISHED_WORKOUT_REMINDER_KEY, JSON.stringify(state));
+}
+
+export function getUnfinishedWorkoutRemindersEnabled(): boolean {
+  return getMeta(UNFINISHED_WORKOUT_REMINDERS_ENABLED_KEY) !== '0';
+}
+
+export function setUnfinishedWorkoutRemindersEnabled(enabled: boolean): void {
+  setMeta(UNFINISHED_WORKOUT_REMINDERS_ENABLED_KEY, enabled ? '1' : '0');
 }
 /**
  * Device-local user id, used as owner_user_id for custom exercises until sign-in exists.

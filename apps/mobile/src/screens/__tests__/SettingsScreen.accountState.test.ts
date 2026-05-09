@@ -22,6 +22,14 @@ jest.mock('react-native', () => {
   };
 });
 
+jest.mock(
+  'expo-notifications',
+  () => ({
+    getPermissionsAsync: jest.fn(() => Promise.resolve({ status: 'granted' })),
+  }),
+  { virtual: true },
+);
+
 const mockNavigate = jest.fn();
 
 jest.mock('@react-navigation/native', () => ({
@@ -151,6 +159,11 @@ jest.mock('../../utils/restTimerNotifications', () => ({
   requestRestTimerNotificationPermission: jest.fn(() => Promise.resolve(true)),
 }));
 
+jest.mock('../../utils/unfinishedWorkoutReminderNotifications', () => ({
+  getUnfinishedWorkoutRemindersPreference: jest.fn(() => true),
+  setUnfinishedWorkoutRemindersPreference: jest.fn(() => Promise.resolve()),
+}));
+
 jest.mock('../../auth/identityTransition', () => ({
   resetToGuestBootstrap: jest.fn(() => Promise.resolve()),
 }));
@@ -183,6 +196,7 @@ jest.mock('../../api/config', () => ({
 
 import React from 'react';
 import { Alert, Linking } from 'react-native';
+import * as Notifications from 'expo-notifications';
 import { useFocusEffect } from '@react-navigation/native';
 
 import { resetToGuestBootstrap } from '../../auth/identityTransition';
@@ -195,6 +209,10 @@ import { resolveLocalAccountState } from '../../auth/localAccountState';
 import { deleteAccountAndResetLocalState } from '../../auth/accountDeletion';
 import { getAccountDeletionUrl } from '../../api/config';
 import { requestRestTimerNotificationPermission } from '../../utils/restTimerNotifications';
+import {
+  getUnfinishedWorkoutRemindersPreference,
+  setUnfinishedWorkoutRemindersPreference,
+} from '../../utils/unfinishedWorkoutReminderNotifications';
 import { Button } from '../../ui';
 import { SettingsScreen } from '../SettingsScreen';
 import { getSettingsAccountUiState } from '../settingsAccountUiState';
@@ -248,6 +266,7 @@ const useStateMock = React.useState as jest.Mock;
 
 function renderSettingsScreen({ accountSession = null, accountState }: StateConfig) {
   useStateMock.mockReset();
+  useStateMock.mockImplementation((initial: unknown) => [initial, jest.fn()]);
   useStateMock
     .mockImplementationOnce(() => [false, jest.fn()])
     .mockImplementationOnce(() => [accountState, jest.fn()])
@@ -333,6 +352,9 @@ describe('SettingsScreen account interactions', () => {
       status: 'linked_reauth_required',
       accountSession: null,
     });
+    (getUnfinishedWorkoutRemindersPreference as jest.Mock).mockReturnValue(true);
+    (setUnfinishedWorkoutRemindersPreference as jest.Mock).mockResolvedValue(undefined);
+    (Notifications.getPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'granted' });
   });
 
   it('shows reconnect and reset actions instead of guest migration when reauth is required', () => {
@@ -372,6 +394,7 @@ describe('SettingsScreen account interactions', () => {
 
     const setAccountError = jest.fn();
     useStateMock.mockReset();
+    useStateMock.mockImplementation((initial: unknown) => [initial, jest.fn()]);
     useStateMock
       .mockImplementationOnce(() => [false, jest.fn()])
       .mockImplementationOnce(() => ['linked_reauth_required', jest.fn()])
@@ -409,6 +432,7 @@ describe('SettingsScreen account interactions', () => {
 
     const setAccountError = jest.fn();
     useStateMock.mockReset();
+    useStateMock.mockImplementation((initial: unknown) => [initial, jest.fn()]);
     useStateMock
       .mockImplementationOnce(() => [false, jest.fn()])
       .mockImplementationOnce(() => ['linked_reauth_required', jest.fn()])
@@ -440,6 +464,7 @@ describe('SettingsScreen account interactions', () => {
     (requestRestTimerNotificationPermission as jest.Mock).mockResolvedValueOnce(false);
     const setRestNotificationMessage = jest.fn();
     useStateMock.mockReset();
+    useStateMock.mockImplementation((initial: unknown) => [initial, jest.fn()]);
     useStateMock
       .mockImplementationOnce(() => [false, jest.fn()])
       .mockImplementationOnce(() => ['guest', jest.fn()])
@@ -468,9 +493,63 @@ describe('SettingsScreen account interactions', () => {
     );
   });
 
+  it('toggles unfinished workout reminders without changing rest timer settings', async () => {
+    const tree = expandTree(renderSettingsScreen({ accountState: 'guest' }));
+    const reminderToggle = toggleRows(tree).find(
+      (row) => row.props.title === 'Unfinished workout reminders',
+    );
+
+    expect(reminderToggle?.props.subtitle).toBe(
+      'Remind me if I leave a logged workout unfinished.',
+    );
+    expect(reminderToggle?.props.value).toBe(true);
+
+    await reminderToggle?.props.onValueChange(false);
+
+    expect(setUnfinishedWorkoutRemindersPreference).toHaveBeenCalledWith(false);
+    expect(requestRestTimerNotificationPermission).not.toHaveBeenCalled();
+  });
+
+  it('shows friendly unfinished reminder feedback when notifications are unavailable', async () => {
+    (Notifications.getPermissionsAsync as jest.Mock).mockResolvedValueOnce({ status: 'denied' });
+    const setUnfinishedReminderMessage = jest.fn();
+    useStateMock.mockReset();
+    useStateMock.mockImplementation((initial: unknown) => [initial, jest.fn()]);
+    useStateMock
+      .mockImplementationOnce(() => [false, jest.fn()])
+      .mockImplementationOnce(() => ['guest', jest.fn()])
+      .mockImplementationOnce(() => [null, jest.fn()])
+      .mockImplementationOnce(() => [false, jest.fn()])
+      .mockImplementationOnce(() => [null, jest.fn()])
+      .mockImplementationOnce(() => [false, jest.fn()])
+      .mockImplementationOnce(() => ['review', jest.fn()])
+      .mockImplementationOnce(() => ['', jest.fn()])
+      .mockImplementationOnce(() => [false, jest.fn()])
+      .mockImplementationOnce(() => [null, jest.fn()])
+      .mockImplementationOnce((initial: unknown) => [initial, jest.fn()])
+      .mockImplementationOnce(() => [false, jest.fn()])
+      .mockImplementationOnce(() => [null, jest.fn()])
+      .mockImplementationOnce(() => [true, jest.fn()])
+      .mockImplementationOnce(() => [null, setUnfinishedReminderMessage]);
+
+    const tree = expandTree(SettingsScreen());
+    const reminderToggle = toggleRows(tree).find(
+      (row) => row.props.title === 'Unfinished workout reminders',
+    );
+
+    await reminderToggle?.props.onValueChange(true);
+    await Promise.resolve();
+
+    expect(setUnfinishedWorkoutRemindersPreference).toHaveBeenCalledWith(true);
+    expect(setUnfinishedReminderMessage).toHaveBeenCalledWith(
+      'Notifications need to be enabled to receive workout reminders.',
+    );
+  });
+
   it('tapping reset opens app-owned confirmation before clearing local account data', () => {
     const setLogoutConfirmOpen = jest.fn();
     useStateMock.mockReset();
+    useStateMock.mockImplementation((initial: unknown) => [initial, jest.fn()]);
     useStateMock
       .mockImplementationOnce(() => [false, jest.fn()])
       .mockImplementationOnce(() => ['linked_reauth_required', jest.fn()])
@@ -503,6 +582,7 @@ describe('SettingsScreen account interactions', () => {
   it('tapping sign out opens app-owned confirmation instead of a native alert', () => {
     const setLogoutConfirmOpen = jest.fn();
     useStateMock.mockReset();
+    useStateMock.mockImplementation((initial: unknown) => [initial, jest.fn()]);
     useStateMock
       .mockImplementationOnce(() => [false, jest.fn()])
       .mockImplementationOnce(() => ['linked_with_usable_account', jest.fn()])
@@ -641,6 +721,7 @@ describe('SettingsScreen account interactions', () => {
     );
     const setAccountDeletionLinkError = jest.fn();
     useStateMock.mockReset();
+    useStateMock.mockImplementation((initial: unknown) => [initial, jest.fn()]);
     useStateMock
       .mockImplementationOnce(() => [false, jest.fn()])
       .mockImplementationOnce(() => ['guest', jest.fn()])
@@ -687,6 +768,7 @@ describe('SettingsScreen account interactions', () => {
     const setDeleteAccountStep = jest.fn();
     const setDeleteAccountConfirmText = jest.fn();
     useStateMock.mockReset();
+    useStateMock.mockImplementation((initial: unknown) => [initial, jest.fn()]);
     useStateMock
       .mockImplementationOnce(() => [false, jest.fn()])
       .mockImplementationOnce(() => ['linked_with_usable_account', jest.fn()])
@@ -748,6 +830,7 @@ describe('SettingsScreen account interactions', () => {
 
 function renderDeleteAccountState({ confirmText }: { confirmText: string }) {
   useStateMock.mockReset();
+  useStateMock.mockImplementation((initial: unknown) => [initial, jest.fn()]);
   useStateMock
     .mockImplementationOnce(() => [false, jest.fn()])
     .mockImplementationOnce(() => ['linked_with_usable_account', jest.fn()])
@@ -768,6 +851,7 @@ function renderDeleteAccountState({ confirmText }: { confirmText: string }) {
 
 function renderLogoutConfirmState(setLogoutConfirmOpen = jest.fn()) {
   useStateMock.mockReset();
+  useStateMock.mockImplementation((initial: unknown) => [initial, jest.fn()]);
   useStateMock
     .mockImplementationOnce(() => [false, jest.fn()])
     .mockImplementationOnce(() => ['linked_with_usable_account', jest.fn()])
@@ -788,6 +872,7 @@ function renderLogoutConfirmState(setLogoutConfirmOpen = jest.fn()) {
 
 function renderAccountDeletionLinkErrorState() {
   useStateMock.mockReset();
+  useStateMock.mockImplementation((initial: unknown) => [initial, jest.fn()]);
   useStateMock
     .mockImplementationOnce(() => [false, jest.fn()])
     .mockImplementationOnce(() => ['guest', jest.fn()])

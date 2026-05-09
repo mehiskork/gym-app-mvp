@@ -94,6 +94,7 @@ Important entry points:
 - seeding curated exercises
 - repairing stale in-flight sync state
 - bootstrapping notification channels / app startup helpers
+- reconciling local scheduled reminders after the schema is ready
 - mounting providers and navigation
 
 The main high-level composition is:
@@ -153,6 +154,13 @@ The mobile SQLite schema is easiest to understand in five groups:
 5. **App metadata / settings**
    - `app_meta`
    - local-only; not part of `/sync`
+
+Unfinished workout reminders are local scheduled notifications. They do not use backend state,
+push notifications, or sync payloads. The app stores only local reminder metadata and the local
+enable/disable preference in `app_meta`, reconciles scheduled notification IDs at startup, and
+falls back to Home if a notification tap points at a workout that is no longer in progress.
+Reminders require OS notification permission. Android may drop scheduled notifications across
+device reboot depending on OS behavior, so startup reconciliation is the source of repair.
 
 The database is opened through Expo SQLite in `src/db/db.ts`, with migrations applied at startup via `src/db/migrate.ts`.
 

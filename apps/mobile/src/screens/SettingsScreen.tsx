@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Linking, Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as Notifications from 'expo-notifications';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
@@ -31,6 +32,10 @@ import {
   ensureRestTimerNotificationChannel,
   requestRestTimerNotificationPermission,
 } from '../utils/restTimerNotifications';
+import {
+  getUnfinishedWorkoutRemindersPreference,
+  setUnfinishedWorkoutRemindersPreference,
+} from '../utils/unfinishedWorkoutReminderNotifications';
 import { resetToGuestBootstrap } from '../auth/identityTransition';
 import type { AccountSession } from '../auth/accountSessionStore';
 import {
@@ -115,6 +120,10 @@ export function SettingsScreen() {
   const [settings, setSettings] = useState(getSettings());
   const [restPickerOpen, setRestPickerOpen] = useState(false);
   const [restNotificationMessage, setRestNotificationMessage] = useState<string | null>(null);
+  const [unfinishedReminderEnabled, setUnfinishedReminderEnabled] = useState(
+    getUnfinishedWorkoutRemindersPreference(),
+  );
+  const [unfinishedReminderMessage, setUnfinishedReminderMessage] = useState<string | null>(null);
   const logoutConfirmInFlightRef = useRef(false);
 
   const refreshAccountState = useCallback(async () => {
@@ -138,6 +147,7 @@ export function SettingsScreen() {
     useCallback(() => {
       void refreshAccountState();
       setSettings(getSettings());
+      setUnfinishedReminderEnabled(getUnfinishedWorkoutRemindersPreference());
     }, [refreshAccountState]),
   );
 
@@ -195,6 +205,21 @@ export function SettingsScreen() {
     },
     [setSettings, settings.restTimerVibration],
   );
+
+  const handleUnfinishedRemindersToggle = useCallback(async (value: boolean) => {
+    setUnfinishedReminderEnabled(value);
+    setUnfinishedReminderMessage(null);
+    await setUnfinishedWorkoutRemindersPreference(value);
+
+    if (value) {
+      const permissions = await Notifications.getPermissionsAsync();
+      if (permissions.status !== 'granted') {
+        setUnfinishedReminderMessage(
+          'Notifications need to be enabled to receive workout reminders.',
+        );
+      }
+    }
+  }, []);
 
   const handleLogout = useCallback(() => {
     if (accountBusy) return;
@@ -377,6 +402,18 @@ export function SettingsScreen() {
             variant="flat"
           />
           {restNotificationMessage ? <Text variant="muted">{restNotificationMessage}</Text> : null}
+          <ToggleRow
+            title="Unfinished workout reminders"
+            subtitle="Remind me if I leave a logged workout unfinished."
+            value={unfinishedReminderEnabled}
+            onValueChange={(value) => {
+              void handleUnfinishedRemindersToggle(value);
+            }}
+            variant="flat"
+          />
+          {unfinishedReminderMessage ? (
+            <Text variant="muted">{unfinishedReminderMessage}</Text>
+          ) : null}
         </View>
       </Card>
 

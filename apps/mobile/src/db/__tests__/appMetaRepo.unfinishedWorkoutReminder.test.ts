@@ -5,7 +5,9 @@ jest.mock('../db', () => ({
 
 import { exec, query } from '../db';
 import {
+  getUnfinishedWorkoutRemindersEnabled,
   getUnfinishedWorkoutReminderState,
+  setUnfinishedWorkoutRemindersEnabled,
   setUnfinishedWorkoutReminderState,
 } from '../appMetaRepo';
 
@@ -51,5 +53,25 @@ describe('unfinished workout reminder app_meta helpers', () => {
       { value: JSON.stringify({ notificationId: 'notification-1' }) },
     ]);
     expect(getUnfinishedWorkoutReminderState()).toBeNull();
+  });
+
+  it('defaults unfinished workout reminders to enabled and stores local preference', () => {
+    (query as jest.Mock).mockReturnValueOnce([]);
+    expect(getUnfinishedWorkoutRemindersEnabled()).toBe(true);
+
+    (query as jest.Mock).mockReturnValueOnce([{ value: '0' }]);
+    expect(getUnfinishedWorkoutRemindersEnabled()).toBe(false);
+
+    setUnfinishedWorkoutRemindersEnabled(false);
+    expect(exec).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO app_meta'), [
+      'unfinished_workout_reminders_enabled_v1',
+      '0',
+    ]);
+
+    setUnfinishedWorkoutRemindersEnabled(true);
+    expect(exec).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO app_meta'), [
+      'unfinished_workout_reminders_enabled_v1',
+      '1',
+    ]);
   });
 });
