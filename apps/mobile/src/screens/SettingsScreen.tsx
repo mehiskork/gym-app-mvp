@@ -207,17 +207,22 @@ export function SettingsScreen() {
   );
 
   const handleUnfinishedRemindersToggle = useCallback(async (value: boolean) => {
-    setUnfinishedReminderEnabled(value);
-    setUnfinishedReminderMessage(null);
-    await setUnfinishedWorkoutRemindersPreference(value);
+    try {
+      setUnfinishedReminderEnabled(value);
+      setUnfinishedReminderMessage(null);
+      await setUnfinishedWorkoutRemindersPreference(value);
 
-    if (value) {
-      const permissions = await Notifications.getPermissionsAsync();
-      if (permissions.status !== 'granted') {
-        setUnfinishedReminderMessage(
-          'Notifications need to be enabled to receive workout reminders.',
-        );
+      if (value) {
+        const permissions = await Notifications.getPermissionsAsync();
+        if (permissions.status !== 'granted') {
+          setUnfinishedReminderMessage(
+            'Notifications need to be enabled to receive workout reminders.',
+          );
+        }
       }
+    } catch {
+      setUnfinishedReminderEnabled(getUnfinishedWorkoutRemindersPreference());
+      setUnfinishedReminderMessage('Could not update workout reminder settings. Try again later.');
     }
   }, []);
 

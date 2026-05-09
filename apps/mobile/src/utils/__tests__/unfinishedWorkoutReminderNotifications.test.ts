@@ -50,6 +50,27 @@ import {
   UNFINISHED_WORKOUT_REMINDER_NOTIFICATION_TYPE,
 } from '../unfinishedWorkoutReminderNotifications';
 
+function scheduledReminder(id: string, data: Record<string, unknown> = {}) {
+  return {
+    identifier: id,
+    content: {
+      data: {
+        type: UNFINISHED_WORKOUT_REMINDER_NOTIFICATION_TYPE,
+        ...data,
+      },
+    },
+  };
+}
+
+function scheduledRestTimer(id: string) {
+  return {
+    identifier: id,
+    content: {
+      data: { type: 'rest_timer' },
+    },
+  };
+}
+
 describe('unfinishedWorkoutReminderNotifications', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -164,6 +185,38 @@ describe('unfinishedWorkoutReminderNotifications', () => {
     );
   });
 
+  it('cancels orphaned OS unfinished reminders before scheduling with no metadata', async () => {
+    (getUnfinishedWorkoutReminderState as jest.Mock).mockReturnValue(null);
+    (Notifications.getAllScheduledNotificationsAsync as jest.Mock).mockResolvedValueOnce([
+      scheduledRestTimer('rest-timer-1'),
+      scheduledReminder('orphan-reminder', { sessionId: 'ws-old' }),
+    ]);
+
+    await scheduleUnfinishedWorkoutReminderForSession('ws-1', '2026-05-09T11:00:00.000Z');
+
+    expect(Notifications.cancelScheduledNotificationAsync).toHaveBeenCalledWith('orphan-reminder');
+    expect(Notifications.cancelScheduledNotificationAsync).not.toHaveBeenCalledWith('rest-timer-1');
+    expect(Notifications.scheduleNotificationAsync).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not schedule if orphaned OS reminder cancellation fails', async () => {
+    (getUnfinishedWorkoutReminderState as jest.Mock).mockReturnValue(null);
+    (Notifications.getAllScheduledNotificationsAsync as jest.Mock).mockResolvedValueOnce([
+      scheduledReminder('orphan-reminder', { sessionId: 'ws-old' }),
+    ]);
+    (Notifications.cancelScheduledNotificationAsync as jest.Mock).mockRejectedValueOnce(
+      new Error('orphan cancel failed'),
+    );
+
+    await expect(
+      scheduleUnfinishedWorkoutReminderForSession('ws-1', '2026-05-09T11:00:00.000Z'),
+    ).resolves.toBeUndefined();
+
+    expect(Notifications.cancelScheduledNotificationAsync).toHaveBeenCalledWith('orphan-reminder');
+    expect(Notifications.scheduleNotificationAsync).not.toHaveBeenCalled();
+    expect(setUnfinishedWorkoutReminderState).toHaveBeenCalledWith(null);
+  });
+
   it('clears metadata on cancel', async () => {
     (getUnfinishedWorkoutReminderState as jest.Mock).mockReturnValue({
       notificationId: 'notification-1',
@@ -175,6 +228,20 @@ describe('unfinishedWorkoutReminderNotifications', () => {
     await cancelUnfinishedWorkoutReminder();
 
     expect(Notifications.cancelScheduledNotificationAsync).toHaveBeenCalledWith('notification-1');
+    expect(setUnfinishedWorkoutReminderState).toHaveBeenCalledWith(null);
+  });
+
+  it('cancels orphaned OS unfinished reminders on cancel when metadata is missing', async () => {
+    (getUnfinishedWorkoutReminderState as jest.Mock).mockReturnValue(null);
+    (Notifications.getAllScheduledNotificationsAsync as jest.Mock).mockResolvedValueOnce([
+      scheduledRestTimer('rest-timer-1'),
+      scheduledReminder('orphan-reminder', { sessionId: 'ws-old' }),
+    ]);
+
+    await cancelUnfinishedWorkoutReminder();
+
+    expect(Notifications.cancelScheduledNotificationAsync).toHaveBeenCalledWith('orphan-reminder');
+    expect(Notifications.cancelScheduledNotificationAsync).not.toHaveBeenCalledWith('rest-timer-1');
     expect(setUnfinishedWorkoutReminderState).toHaveBeenCalledWith(null);
   });
 
@@ -346,6 +413,37 @@ describe('unfinishedWorkoutReminderNotifications', () => {
 
     expect(setUnfinishedWorkoutRemindersEnabled).toHaveBeenCalledWith(false);
     expect(Notifications.cancelScheduledNotificationAsync).toHaveBeenCalledWith('notification-1');
+    expect(setUnfinishedWorkoutReminderState).toHaveBeenCalledWith(null);
+  });
+
+  it('turning off reminder preference cancels orphaned OS unfinished reminders', async () => {
+    (getUnfinishedWorkoutReminderState as jest.Mock).mockReturnValue(null);
+    (Notifications.getAllScheduledNotificationsAsync as jest.Mock).mockResolvedValueOnce([
+      scheduledRestTimer('rest-timer-1'),
+      scheduledReminder('orphan-reminder', { sessionId: 'ws-old' }),
+    ]);
+
+    await setUnfinishedWorkoutRemindersPreference(false);
+
+    expect(setUnfinishedWorkoutRemindersEnabled).toHaveBeenCalledWith(false);
+    expect(Notifications.cancelScheduledNotificationAsync).toHaveBeenCalledWith('orphan-reminder');
+    expect(Notifications.cancelScheduledNotificationAsync).not.toHaveBeenCalledWith('rest-timer-1');
+    expect(setUnfinishedWorkoutReminderState).toHaveBeenCalledWith(null);
+  });
+
+  it('turning off reminder preference remains safe if orphan cancellation fails', async () => {
+    (getUnfinishedWorkoutReminderState as jest.Mock).mockReturnValue(null);
+    (Notifications.getAllScheduledNotificationsAsync as jest.Mock).mockResolvedValueOnce([
+      scheduledReminder('orphan-reminder', { sessionId: 'ws-old' }),
+    ]);
+    (Notifications.cancelScheduledNotificationAsync as jest.Mock).mockRejectedValueOnce(
+      new Error('orphan cancel failed'),
+    );
+
+    await expect(setUnfinishedWorkoutRemindersPreference(false)).resolves.toBeUndefined();
+
+    expect(setUnfinishedWorkoutRemindersEnabled).toHaveBeenCalledWith(false);
+    expect(Notifications.cancelScheduledNotificationAsync).toHaveBeenCalledWith('orphan-reminder');
     expect(setUnfinishedWorkoutReminderState).toHaveBeenCalledWith(null);
   });
 

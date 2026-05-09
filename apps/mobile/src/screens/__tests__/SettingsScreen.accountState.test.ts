@@ -546,6 +546,49 @@ describe('SettingsScreen account interactions', () => {
     );
   });
 
+  it('shows friendly unfinished reminder feedback if preference update fails', async () => {
+    (setUnfinishedWorkoutRemindersPreference as jest.Mock).mockRejectedValueOnce(
+      new Error('raw token preference failure'),
+    );
+    (getUnfinishedWorkoutRemindersPreference as jest.Mock).mockReturnValue(false);
+    const setUnfinishedReminderEnabled = jest.fn();
+    const setUnfinishedReminderMessage = jest.fn();
+    useStateMock.mockReset();
+    useStateMock.mockImplementation((initial: unknown) => [initial, jest.fn()]);
+    useStateMock
+      .mockImplementationOnce(() => [false, jest.fn()])
+      .mockImplementationOnce(() => ['guest', jest.fn()])
+      .mockImplementationOnce(() => [null, jest.fn()])
+      .mockImplementationOnce(() => [false, jest.fn()])
+      .mockImplementationOnce(() => [null, jest.fn()])
+      .mockImplementationOnce(() => [false, jest.fn()])
+      .mockImplementationOnce(() => ['review', jest.fn()])
+      .mockImplementationOnce(() => ['', jest.fn()])
+      .mockImplementationOnce(() => [false, jest.fn()])
+      .mockImplementationOnce(() => [null, jest.fn()])
+      .mockImplementationOnce((initial: unknown) => [initial, jest.fn()])
+      .mockImplementationOnce(() => [false, jest.fn()])
+      .mockImplementationOnce(() => [null, jest.fn()])
+      .mockImplementationOnce(() => [true, setUnfinishedReminderEnabled])
+      .mockImplementationOnce(() => [null, setUnfinishedReminderMessage]);
+
+    const tree = expandTree(SettingsScreen());
+    const reminderToggle = toggleRows(tree).find(
+      (row) => row.props.title === 'Unfinished workout reminders',
+    );
+
+    await reminderToggle?.props.onValueChange(false);
+
+    expect(setUnfinishedWorkoutRemindersPreference).toHaveBeenCalledWith(false);
+    expect(setUnfinishedReminderEnabled).toHaveBeenLastCalledWith(false);
+    expect(setUnfinishedReminderMessage).toHaveBeenCalledWith(
+      'Could not update workout reminder settings. Try again later.',
+    );
+    expect(setUnfinishedReminderMessage).not.toHaveBeenCalledWith(
+      expect.stringContaining('raw token'),
+    );
+  });
+
   it('tapping reset opens app-owned confirmation before clearing local account data', () => {
     const setLogoutConfirmOpen = jest.fn();
     useStateMock.mockReset();

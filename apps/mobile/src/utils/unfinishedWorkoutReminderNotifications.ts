@@ -27,6 +27,10 @@ type QualifyingWorkoutReminderRow = {
   last_logged_set_at: string;
 };
 
+type ScheduledNotification = Awaited<
+  ReturnType<typeof Notifications.getAllScheduledNotificationsAsync>
+>[number];
+
 export type ReminderNavigation = {
   navigate: (routeName: string, params?: unknown) => void;
 };
@@ -82,13 +86,56 @@ async function cancelStoredNotification(
 }
 
 async function hasScheduledNotification(notificationId: string): Promise<boolean | null> {
+  const scheduled = await getScheduledUnfinishedWorkoutNotifications();
+  if (scheduled === null) return null;
+  return scheduled.some((notification) => notification.identifier === notificationId);
+}
+
+function isUnfinishedWorkoutReminderNotification(notification: ScheduledNotification): boolean {
+  const data = notification.content.data;
+  return Boolean(
+    data &&
+    typeof data === 'object' &&
+    (data as { type?: unknown }).type === UNFINISHED_WORKOUT_REMINDER_NOTIFICATION_TYPE,
+  );
+}
+
+async function getScheduledUnfinishedWorkoutNotifications(): Promise<
+  ScheduledNotification[] | null
+> {
   try {
     const scheduled = await Notifications.getAllScheduledNotificationsAsync();
-    return scheduled.some((notification) => notification.identifier === notificationId);
+    return scheduled.filter(isUnfinishedWorkoutReminderNotification);
   } catch (error) {
     logNotificationWarning('Unfinished workout reminder OS verification failed', error);
     return null;
   }
+}
+
+async function cancelScheduledUnfinishedWorkoutNotifications(options?: {
+  excludeNotificationId?: string | null;
+}): Promise<boolean> {
+  const scheduled = await getScheduledUnfinishedWorkoutNotifications();
+  if (scheduled === null) return false;
+
+  for (const notification of scheduled) {
+    if (
+      options?.excludeNotificationId &&
+      notification.identifier === options.excludeNotificationId
+    ) {
+      continue;
+    }
+
+    const canceled = await cancelStoredNotification({
+      notificationId: notification.identifier,
+      sessionId: '',
+      dueAt: '',
+      lastLoggedSetAt: '',
+    });
+    if (!canceled) return false;
+  }
+
+  return true;
 }
 
 function getQualifyingWorkoutReminderRow(): QualifyingWorkoutReminderRow | null {
@@ -141,6 +188,11 @@ async function scheduleReplacement(input: {
     const canceled = await cancelStoredNotification(existing);
     setUnfinishedWorkoutReminderState(null);
     if (!canceled) return;
+  }
+  const orphanedCanceled = await cancelScheduledUnfinishedWorkoutNotifications();
+  if (!orphanedCanceled) {
+    setUnfinishedWorkoutReminderState(null);
+    return;
   }
 
   const content = {
@@ -243,6 +295,9 @@ export async function cancelUnfinishedWorkoutReminder(): Promise<void> {
   try {
     const existing = getUnfinishedWorkoutReminderState();
     await cancelStoredNotification(existing);
+    await cancelScheduledUnfinishedWorkoutNotifications({
+      excludeNotificationId: existing?.notificationId ?? null,
+    });
     setUnfinishedWorkoutReminderState(null);
   } catch (error) {
     logNotificationWarning('Unfinished workout reminder cancellation failed', error);
