@@ -2,7 +2,8 @@
 
 TrainFrame needs a clear account deletion path for release readiness and user trust. This document defines the intended behavior before implementation so the backend, mobile app, and Play readiness work can be reviewed against the same target.
 
-This is a design document only. It does not implement account deletion.
+This document records the implemented TrainFrame deletion behavior and the remaining Play
+production decisions.
 
 ## Purpose
 
@@ -40,7 +41,6 @@ Account deletion does not:
 - Affect unrelated apps that use the same Google account.
 - Preserve multiple account profiles in local SQLite.
 - Provide partial per-plan, per-session, or per-category deletion.
-- Implement account deletion in this PR.
 - Change backend sync/auth behavior, mobile sync behavior, schemas, or migration logic in this PR.
 
 ## Guest Users
@@ -76,81 +76,74 @@ Deletion handling should be explicit for each category.
 
 | Data category | Intended handling |
 |---|---|
-| Synced workout data/entities | Delete or tombstone all account-owned TrainFrame entities for the principal-derived owner. Exact hard-delete vs tombstone choice is open. |
-| `entity_state` | Delete or tombstone account-owned rows for the deleted owner. |
-| `change_log` | Delete, tombstone, or retain only minimal non-user audit metadata according to the retention decision. Must not continue serving deleted account data through sync. |
-| `op_ledger` | Delete or retain minimal dedupe/audit records according to the retention decision. Must not retain user payloads if the deletion policy requires erasure. |
-| `identity_link` | Remove or invalidate links between guest owners and the deleted account owner. |
-| Claim / guest migration audit records | Delete, tombstone, or retain minimal security/audit rows according to the retention decision. |
-| `device` records | Remove, invalidate, or detach devices associated only with the deleted account, subject to guest/account ownership modeling. |
-| `device_token` records | Revoke/delete tokens associated with the deleted account flow where applicable. |
+| Synced workout data/entities | Hard-delete account-owned TrainFrame entities for the principal-derived owner and linked claimed guest scopes. |
+| `entity_state` | Hard-delete account-owned rows and linked claimed guest rows. |
+| `change_log` | Hard-delete account-owned rows and linked claimed guest rows so old cursor replay cannot return deleted data. |
+| `op_ledger` | Hard-delete account-owned rows and linked claimed guest rows. |
+| `identity_link` | Remove links for the deleted account owner. |
+| Claim / guest migration audit records | Remove rows for the deleted account owner and linked claimed guest scopes. |
+| `device` records | Delete devices for linked claimed guest scopes. |
+| `device_token` records | Delete tokens for devices in linked claimed guest scopes. |
 | Local SQLite data | Clear only after backend deletion succeeds. |
 | SecureStore account/session material | Clear only after backend deletion succeeds. Includes account tokens/session secrets and device/session credentials used by this app. |
 | Support bundles already shared outside the app | Not recallable. The app should continue avoiding raw auth tokens/secrets in support bundles. |
 
-## Recommended Implementation Shape
+## Implemented Behavior
 
-Split implementation into small PRs.
+### Backend `DELETE /me`
 
-### PR A: Backend Deletion Endpoint
+TrainFrame implements authenticated account deletion at `DELETE /me`.
 
-Add a backend deletion endpoint, for example `DELETE /me` or `DELETE /account`.
+- Firebase account JWT is required.
+- Owner scope is derived from the authenticated principal.
+- The endpoint has no request body and ignores client-sent owner/user/account ids.
+- Deletion is transactional and idempotent.
+- The backend uses hard delete; it does not currently create a tombstone/account-state row.
+- Same Google/Firebase subject recreation is allowed and starts from a fresh empty TrainFrame state.
+- A later valid `/sync` using the same Firebase subject can create new rows after deletion. The mobile deletion flow prevents stale local re-upload by pausing sync and clearing local state after backend success.
 
-Requirements:
+### Mobile Settings Deletion
 
-- Firebase account JWT required.
-- Principal-derived owner only.
-- No client-sent owner/user/account id accepted.
-- Transactionally delete or tombstone account-owned data.
-- Revoke or invalidate TrainFrame account association.
-- Return structured success/error responses.
-- Be idempotent: repeating deletion for the same authenticated deleted account should return a safe success or stable deleted/not-found response without leaking data.
-- Tests must cover ownership, idempotency, auth failures, and data removal boundaries.
+TrainFrame implements in-app deletion under `Settings -> Delete account` for signed-in users.
 
-### PR B: Mobile Deletion UI
+- The app requires typed destructive confirmation.
+- Mobile calls `DELETE /me` with account JWT only and requires exactly `204 No Content`.
+- Sync is paused, scheduled sync is canceled, and in-flight sync is awaited before deletion.
+- SQLite and SecureStore cleanup only run after backend success.
+- A durable local cleanup marker completes local cleanup on next startup if the app crashes after backend success.
+- Backend deletion failure preserves SQLite, SecureStore, account session, and device credentials and resumes sync for retry.
 
-Add Settings -> Delete account.
+### Public Web Deletion Resource
 
-Requirements:
+TrainFrame exposes a public deletion request resource:
 
-- Strong confirmation copy.
-- Optional typed confirmation if desired.
-- Call the backend deletion endpoint with the current account JWT.
-- On success, clear local SQLite/auth/session/device state using the existing destructive local reset machinery where appropriate.
-- On failure, keep local data/session state and show friendly error copy.
-- Do not support account switching without local reset.
-- Do not attempt multi-account local storage.
+- `GET /account-deletion`
+- `POST /account-deletion/request`
 
-### PR C: External Web Deletion Request Path
+The page explains the in-app deletion path, the manual web request path, and that deleting TrainFrame account data does not delete the user's Google account. It instructs users not to send passwords, JWTs, Firebase tokens, device tokens, support bundles, keystores, private keys, or other secrets.
 
-For Google Play readiness, TrainFrame should provide a web-accessible account/data deletion request resource in addition to the in-app deletion flow or in-app deletion link. This gives users a deletion path even if they no longer have the app installed.
+The public POST endpoint accepts a contact/sign-in email, optional message, confirmation checkbox, and optional "no app access" checkbox. It does not delete account data directly because email alone is not sufficient authentication. It logs only minimal non-sensitive metadata and returns a manual support confirmation.
 
-Requirements:
+The support destination is configured with:
 
-- Provide a public web page, support form, or documented support email process for deletion requests.
-- Clearly explain that deleting TrainFrame data does not delete the user's Google account.
-- Identify the account safely.
-- Do not ask users to send passwords, raw tokens, private keys, keystores, or support bundles through an insecure path.
-- Use a manual support process until automated web deletion exists.
-- Link this resource from the privacy policy and Play Console data deletion fields when ready.
+```text
+TRAINFRAME_SUPPORT_EMAIL
+```
 
 ## Open Decisions
 
-Decide these before coding:
+Decide these before Play production submission:
 
-- Hard delete vs tombstone for backend synced entities.
 - Retention period for audit, claim, rate-limit, and security records.
 - Whether guest server data needs self-service deletion before public launch.
-- Exact endpoint name: `DELETE /me`, `DELETE /account`, or another route.
 - Whether deletion requires recent login / Google re-auth.
-- Whether to provide web deletion request before or after in-app deletion.
-- Privacy policy URL and in-app/web location.
-- Whether account deletion should revoke all device tokens for devices linked through the deleted account.
-- Whether deleted account owners can later recreate a fresh TrainFrame account with the same Google account.
+- Privacy policy URL and public hosting domain for Play Console fields.
+- Manual support SLA / reasonable processing expectation for web deletion requests.
+- Whether to automate web deletion behind a verified email/auth flow later.
 
 ## Recommended Initial Direction
 
-For private beta / first public release, the recommended starting policy is:
+For private beta / first public release, the implemented starting policy is:
 
 - Hard-delete user workout/domain data.
 - Retain only minimal non-payload security/audit metadata where legally or operationally necessary.
@@ -158,7 +151,7 @@ For private beta / first public release, the recommended starting policy is:
 - Make deletion idempotent.
 - Allow the same Google account to create a fresh TrainFrame account later unless abuse controls require otherwise.
 
-This is a recommendation for the implementation PRs, not an implemented decision in this document.
+The public web form is a manual support request path, not an automatic unauthenticated deletion mechanism.
 
 ## Proposed User-Facing Copy
 

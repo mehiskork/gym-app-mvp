@@ -27,8 +27,10 @@ public class ProductionSafetyValidator {
         String datasourcePassword = environment.getProperty("spring.datasource.password", "");
         String firebaseProjectId = environment.getProperty("app.auth.firebase.project-id", "");
         String jwtIssuerUri = environment.getProperty("spring.security.oauth2.resourceserver.jwt.issuer-uri", "");
+        String supportEmail = environment.getProperty("trainframe.support.email", "");
 
-        validateOrThrow(datasourceUrl, datasourceUsername, datasourcePassword, firebaseProjectId, jwtIssuerUri);
+        validateOrThrow(datasourceUrl, datasourceUsername, datasourcePassword, firebaseProjectId, jwtIssuerUri,
+                supportEmail);
     }
 
     void validateOrThrow(
@@ -46,6 +48,18 @@ public class ProductionSafetyValidator {
             String jwtIssuerUri) {
         validateDatasourceOrThrow(datasourceUrl, datasourceUsername, datasourcePassword);
         validateAccountAuthOrThrow(firebaseProjectId, jwtIssuerUri);
+    }
+
+    void validateOrThrow(
+            String datasourceUrl,
+            String datasourceUsername,
+            String datasourcePassword,
+            String firebaseProjectId,
+            String jwtIssuerUri,
+            String supportEmail) {
+        validateDatasourceOrThrow(datasourceUrl, datasourceUsername, datasourcePassword);
+        validateAccountAuthOrThrow(firebaseProjectId, jwtIssuerUri);
+        validateSupportEmailOrThrow(supportEmail);
     }
 
     private void validateDatasourceOrThrow(
@@ -83,6 +97,16 @@ public class ProductionSafetyValidator {
             throw new IllegalStateException(
                     "Prod-like profile Firebase issuer URI must match project id: expected "
                             + expectedIssuerUri + " but configured " + trimmedIssuerUri);
+        }
+    }
+
+    private void validateSupportEmailOrThrow(String supportEmail) {
+        String trimmedSupportEmail = supportEmail == null ? "" : supportEmail.trim();
+        if (trimmedSupportEmail.isBlank()
+                || "support@example.invalid".equalsIgnoreCase(trimmedSupportEmail)
+                || trimmedSupportEmail.endsWith(".invalid")) {
+            throw new IllegalStateException(
+                    "Prod-like profile requires trainframe.support.email / TRAINFRAME_SUPPORT_EMAIL");
         }
     }
 

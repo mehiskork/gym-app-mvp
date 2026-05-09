@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, View } from 'react-native';
+import { Alert, Linking, Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -43,6 +43,7 @@ import {
   deleteAccountAndResetLocalState,
   getFriendlyAccountDeletionError,
 } from '../auth/accountDeletion';
+import { getAccountDeletionUrl } from '../api/config';
 
 const REST_TIME_OPTIONS = [
   { label: '0:30', seconds: 30 },
@@ -149,6 +150,10 @@ export function SettingsScreen() {
   const handleOpenDebug = useCallback(() => {
     navigation.navigate('Debug');
   }, [navigation]);
+
+  const handleOpenAccountDeletionWeb = useCallback(() => {
+    void Linking.openURL(getAccountDeletionUrl());
+  }, []);
 
   const restTimeLabel = useMemo(
     () => formatRestCountdown(settings.defaultRestSeconds),
@@ -646,6 +651,9 @@ export function SettingsScreen() {
               <Text color={colors.primary}>Open Debug</Text>
             </Pressable>
           ) : null}
+          <Pressable onPress={handleOpenAccountDeletionWeb}>
+            <Text color={colors.primary}>Account deletion request</Text>
+          </Pressable>
         </View>
       </View>
     </Screen>

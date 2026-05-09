@@ -61,4 +61,16 @@ describe('getApiBaseUrl', () => {
     expect(getApiBaseUrl()).toBe(API_BASE_URL_FALLBACK);
     expect(getApiBaseUrl()).toBe('http://localhost:8080');
   });
+
+  it('builds account deletion URL from configured API base URL', () => {
+    process.env.EXPO_PUBLIC_API_BASE_URL = 'https://api.example.test/root';
+
+    jest.doMock('expo-constants', () => {
+      throw new Error('expo constants unavailable');
+    });
+
+    const { getAccountDeletionUrl } = require('../config') as typeof import('../config');
+
+    expect(getAccountDeletionUrl()).toBe('https://api.example.test/account-deletion');
+  });
 });

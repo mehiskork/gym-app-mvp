@@ -28,6 +28,10 @@ app:
     firebase:
       project-id: ${APP_AUTH_FIREBASE_PROJECT_ID:}
 
+trainframe:
+  support:
+    email: ${TRAINFRAME_SUPPORT_EMAIL:support@example.invalid}
+
 logging:
   level:
     org.springframework.web.filter.CommonsRequestLoggingFilter: INFO
@@ -51,6 +55,9 @@ rateLimit:
   claimConfirm:
     capacity: 5
     refillPerSecond: 0.1
+  accountDeletionRequest:
+    capacity: 5
+    refillPerSecond: 0.05
 ---
 spring:
   config:

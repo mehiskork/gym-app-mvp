@@ -13,6 +13,7 @@ jest.mock('react-native', () => {
   const React = require('react');
   return {
     Alert: { alert: jest.fn() },
+    Linking: { openURL: jest.fn(() => Promise.resolve()) },
     Pressable: ({ children, ...props }: { children?: React.ReactNode }) =>
       React.createElement('Pressable', props, children),
     View: ({ children, ...props }: { children?: React.ReactNode }) =>
@@ -173,8 +174,12 @@ jest.mock('../../auth/accountDeletion', () => ({
   ),
 }));
 
+jest.mock('../../api/config', () => ({
+  getAccountDeletionUrl: jest.fn(() => 'https://trainframe.example/account-deletion'),
+}));
+
 import React from 'react';
-import { Alert } from 'react-native';
+import { Alert, Linking } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 
 import { resetToGuestBootstrap } from '../../auth/identityTransition';
@@ -184,6 +189,7 @@ import {
 } from '../../auth/googleAccountOrchestrator';
 import { resolveLocalAccountState } from '../../auth/localAccountState';
 import { deleteAccountAndResetLocalState } from '../../auth/accountDeletion';
+import { getAccountDeletionUrl } from '../../api/config';
 import { requestRestTimerNotificationPermission } from '../../utils/restTimerNotifications';
 import { Button } from '../../ui';
 import { SettingsScreen } from '../SettingsScreen';
@@ -303,6 +309,10 @@ function inputs(node: React.ReactNode) {
 
 function toggleRows(node: React.ReactNode) {
   return findElements(node, (element) => element.type === 'ToggleRow');
+}
+
+function pressables(node: React.ReactNode) {
+  return findElements(node, (element) => element.type === 'Pressable');
 }
 
 describe('SettingsScreen account interactions', () => {
@@ -490,6 +500,19 @@ describe('SettingsScreen account interactions', () => {
     const guestTree = expandTree(renderSettingsScreen({ accountState: 'guest' }));
 
     expect(buttons(guestTree).map((button) => button.props.title)).not.toContain('Delete account');
+  });
+
+  it('shows account deletion web request link for guest users and opens configured URL', () => {
+    const guestTree = expandTree(renderSettingsScreen({ accountState: 'guest' }));
+    const link = pressables(guestTree).find((pressable) =>
+      textContent(pressable).includes('Account deletion request'),
+    );
+
+    expect(link).toBeDefined();
+    link?.props.onPress();
+
+    expect(getAccountDeletionUrl).toHaveBeenCalledTimes(1);
+    expect(Linking.openURL).toHaveBeenCalledWith('https://trainframe.example/account-deletion');
   });
 
   it('opens destructive delete account confirmation for account users', () => {

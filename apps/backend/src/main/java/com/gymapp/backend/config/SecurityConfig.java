@@ -146,6 +146,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/health").permitAll()
                         .requestMatchers("/ready").permitAll()
+                        .requestMatchers("/account-deletion").permitAll()
+                        .requestMatchers("/account-deletion/request").permitAll()
                         .requestMatchers("/device/register").permitAll()
                         .anyRequest().denyAll())
                 .exceptionHandling(ex -> ex

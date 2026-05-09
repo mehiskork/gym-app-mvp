@@ -63,6 +63,31 @@ class ProductionSafetyValidatorTest {
     }
 
     @Test
+    void rejectsMissingSupportEmailForProdLikeMode() {
+        IllegalStateException error = assertThrows(IllegalStateException.class, () -> validator.validateOrThrow(
+                "jdbc:postgresql://db.internal:5432/gymapp",
+                "gymapp",
+                "a-strong-password",
+                "gym-app-mvp-1d7f0",
+                "https://securetoken.google.com/gym-app-mvp-1d7f0",
+                "support@example.invalid"));
+
+        org.assertj.core.api.Assertions.assertThat(error.getMessage())
+                .contains("TRAINFRAME_SUPPORT_EMAIL");
+    }
+
+    @Test
+    void acceptsCompleteProdLikeAccountAuthAndSupportConfiguration() {
+        assertDoesNotThrow(() -> validator.validateOrThrow(
+                "jdbc:postgresql://db.internal:5432/gymapp",
+                "gymapp",
+                "a-strong-password",
+                "gym-app-mvp-1d7f0",
+                "https://securetoken.google.com/gym-app-mvp-1d7f0",
+                "support@trainframe.example"));
+    }
+
+    @Test
     void rejectsMismatchedFirebaseIssuerForProdLikeMode() {
         IllegalStateException error = assertThrows(IllegalStateException.class, () -> validator.validateOrThrow(
                 "jdbc:postgresql://db.internal:5432/gymapp",

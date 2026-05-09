@@ -67,6 +67,12 @@ public class RateLimitFilter extends OncePerRequestFilter {
     @Value("${rateLimit.claimConfirm.refillPerSecond:0.1}")
     private double claimConfirmRefillPerSecond;
 
+    @Value("${rateLimit.accountDeletionRequest.capacity:5}")
+    private int accountDeletionRequestCapacity;
+
+    @Value("${rateLimit.accountDeletionRequest.refillPerSecond:0.05}")
+    private double accountDeletionRequestRefillPerSecond;
+
     @Override
     protected void doFilterInternal(
             HttpServletRequest request,
@@ -100,6 +106,12 @@ public class RateLimitFilter extends OncePerRequestFilter {
             if (remoteAddr != null && !remoteAddr.isBlank()) {
                 key = "claimConfirm:" + remoteAddr;
                 config = new RateLimitConfig(claimConfirmCapacity, claimConfirmRefillPerSecond);
+            }
+        } else if (isAccountDeletionRequest(request)) {
+            String remoteAddr = request.getRemoteAddr();
+            if (remoteAddr != null && !remoteAddr.isBlank()) {
+                key = "accountDeletionRequest:" + remoteAddr;
+                config = new RateLimitConfig(accountDeletionRequestCapacity, accountDeletionRequestRefillPerSecond);
             }
         }
 
@@ -205,6 +217,11 @@ public class RateLimitFilter extends OncePerRequestFilter {
     private boolean isClaimConfirmRequest(HttpServletRequest request) {
         return "POST".equalsIgnoreCase(request.getMethod())
                 && "/claim/confirm".equals(request.getRequestURI());
+    }
+
+    private boolean isAccountDeletionRequest(HttpServletRequest request) {
+        return "POST".equalsIgnoreCase(request.getMethod())
+                && "/account-deletion/request".equals(request.getRequestURI());
     }
 
     private String resolveDeviceId(HttpServletRequest request) {

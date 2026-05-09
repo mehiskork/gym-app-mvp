@@ -34,4 +34,8 @@ export function getApiBaseUrl(): string {
   return expoValue ?? envValue ?? DEFAULT_BASE_URL;
 }
 
+export function getAccountDeletionUrl(): string {
+  return new URL('/account-deletion', getApiBaseUrl()).toString();
+}
+
 export const API_BASE_URL_FALLBACK = DEFAULT_BASE_URL;

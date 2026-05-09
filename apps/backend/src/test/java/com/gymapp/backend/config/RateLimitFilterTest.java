@@ -33,6 +33,8 @@ class RateLimitFilterTest {
         ReflectionTestUtils.setField(filter, "syncAccountRefillPerSecond", 0d);
         ReflectionTestUtils.setField(filter, "registerCapacity", 100);
         ReflectionTestUtils.setField(filter, "registerRefillPerSecond", 0d);
+        ReflectionTestUtils.setField(filter, "accountDeletionRequestCapacity", 100);
+        ReflectionTestUtils.setField(filter, "accountDeletionRequestRefillPerSecond", 0d);
     }
 
     @AfterEach
@@ -65,6 +67,24 @@ class RateLimitFilterTest {
                         "syncRemote:10.40.0.2");
     }
 
+    @Test
+    void rateLimitsPublicAccountDeletionRequestsByRemoteAddress() throws Exception {
+        ReflectionTestUtils.setField(filter, "accountDeletionRequestCapacity", 1);
+        ReflectionTestUtils.setField(filter, "accountDeletionRequestRefillPerSecond", 0d);
+
+        MockHttpServletResponse firstResponse = doFilterAndReturnResponse(
+                "POST",
+                "/account-deletion/request",
+                "10.41.0.1");
+        MockHttpServletResponse secondResponse = doFilterAndReturnResponse(
+                "POST",
+                "/account-deletion/request",
+                "10.41.0.1");
+
+        assertThat(firstResponse.getStatus()).isEqualTo(200);
+        assertThat(secondResponse.getStatus()).isEqualTo(429);
+    }
+
     private void hitAccountSync(String ownerId) throws Exception {
         AccountPrincipal principal = AccountPrincipal.builder()
                 .principalType("account")
@@ -92,9 +112,16 @@ class RateLimitFilterTest {
     }
 
     private void doFilter(String method, String requestUri, String remoteAddr) throws Exception {
+        doFilterAndReturnResponse(method, requestUri, remoteAddr);
+    }
+
+    private MockHttpServletResponse doFilterAndReturnResponse(String method, String requestUri, String remoteAddr)
+            throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest(method, requestUri);
         request.setRemoteAddr(remoteAddr);
-        filter.doFilter(request, new MockHttpServletResponse(), new MockFilterChain());
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        filter.doFilter(request, response, new MockFilterChain());
+        return response;
     }
 
     private Set<String> bucketKeys() {
