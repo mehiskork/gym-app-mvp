@@ -115,10 +115,12 @@ Before Play production submission:
 
 - Verify in-app deletion works from `Settings -> Delete account` for signed-in users.
 - Verify the public web deletion resource is reachable at the deployed backend URL plus `/account-deletion`.
+- Verify the public privacy policy is reachable at the deployed backend URL plus `/privacy`.
 - Configure a real support address with `TRAINFRAME_SUPPORT_EMAIL`; production-like backend profiles reject the placeholder `support@example.invalid`.
 - Configure production mobile builds with `EXPO_PUBLIC_APP_ENV=production` and a real production `EXPO_PUBLIC_API_BASE_URL`.
 - Do not use the checked-in shared Railway preview/dev backend URL for Play production builds; the mobile app rejects that URL when `EXPO_PUBLIC_APP_ENV=production`.
 - Use the public `/account-deletion` URL in Play Console account deletion / Data Safety fields.
-- Publish or link a privacy policy that references the same deletion path.
+- Use the public `/privacy` URL in the Play Console privacy policy field.
+- Confirm the privacy policy references the same `/account-deletion` deletion path.
 - Define the manual support processing expectation for web deletion requests before launch.
 - Confirm the public web form does not request passwords, tokens, support bundles, keystores, or other secrets.

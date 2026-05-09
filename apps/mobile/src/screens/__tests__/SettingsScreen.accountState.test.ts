@@ -192,6 +192,7 @@ jest.mock('../../auth/accountDeletion', () => ({
 
 jest.mock('../../api/config', () => ({
   getAccountDeletionUrl: jest.fn(() => 'https://trainframe.example/account-deletion'),
+  getPrivacyPolicyUrl: jest.fn(() => 'https://trainframe.example/privacy'),
 }));
 
 import React from 'react';
@@ -207,7 +208,7 @@ import {
 } from '../../auth/googleAccountOrchestrator';
 import { resolveLocalAccountState } from '../../auth/localAccountState';
 import { deleteAccountAndResetLocalState } from '../../auth/accountDeletion';
-import { getAccountDeletionUrl } from '../../api/config';
+import { getAccountDeletionUrl, getPrivacyPolicyUrl } from '../../api/config';
 import { requestRestTimerNotificationPermission } from '../../utils/restTimerNotifications';
 import {
   getUnfinishedWorkoutRemindersPreference,
@@ -758,6 +759,19 @@ describe('SettingsScreen account interactions', () => {
     expect(Linking.openURL).toHaveBeenCalledWith('https://trainframe.example/account-deletion');
   });
 
+  it('shows privacy policy link and opens configured URL', () => {
+    const guestTree = expandTree(renderSettingsScreen({ accountState: 'guest' }));
+    const link = pressables(guestTree).find((pressable) =>
+      textContent(pressable).includes('Privacy policy'),
+    );
+
+    expect(link).toBeDefined();
+    link?.props.onPress();
+
+    expect(getPrivacyPolicyUrl).toHaveBeenCalledTimes(1);
+    expect(Linking.openURL).toHaveBeenCalledWith('https://trainframe.example/privacy');
+  });
+
   it('shows friendly feedback if the account deletion web link cannot open', async () => {
     (Linking.openURL as jest.Mock).mockRejectedValueOnce(
       new Error('raw backend token failed to open'),
@@ -804,6 +818,81 @@ describe('SettingsScreen account interactions', () => {
       ]),
     );
     expect(textContent(feedbackTree)).not.toContain('raw backend token');
+  });
+
+  it('shows friendly feedback if the privacy policy link cannot open', async () => {
+    (Linking.openURL as jest.Mock).mockRejectedValueOnce(
+      new Error('raw privacy token failed to open'),
+    );
+    const setPrivacyPolicyLinkError = jest.fn();
+    useStateMock.mockReset();
+    useStateMock.mockImplementation((initial: unknown) => [initial, jest.fn()]);
+    useStateMock
+      .mockImplementationOnce(() => [false, jest.fn()])
+      .mockImplementationOnce(() => ['guest', jest.fn()])
+      .mockImplementationOnce(() => [null, jest.fn()])
+      .mockImplementationOnce(() => [false, jest.fn()])
+      .mockImplementationOnce(() => [null, jest.fn()])
+      .mockImplementationOnce(() => [false, jest.fn()])
+      .mockImplementationOnce(() => ['review', jest.fn()])
+      .mockImplementationOnce(() => ['', jest.fn()])
+      .mockImplementationOnce(() => [false, jest.fn()])
+      .mockImplementationOnce(() => [null, jest.fn()])
+      .mockImplementationOnce((initial: unknown) => [initial, jest.fn()])
+      .mockImplementationOnce(() => [false, jest.fn()])
+      .mockImplementationOnce(() => [null, jest.fn()])
+      .mockImplementationOnce(() => [true, jest.fn()])
+      .mockImplementationOnce(() => [null, jest.fn()])
+      .mockImplementationOnce(() => [null, setPrivacyPolicyLinkError]);
+
+    const guestTree = expandTree(SettingsScreen());
+    const link = pressables(guestTree).find((pressable) =>
+      textContent(pressable).includes('Privacy policy'),
+    );
+
+    link?.props.onPress();
+    await Promise.resolve();
+
+    expect(setPrivacyPolicyLinkError).toHaveBeenCalledWith(
+      'Could not open the privacy policy. Try again later.',
+    );
+
+    // Re-render the privacy error state to assert user-visible copy and raw error hiding.
+    useStateMock.mockReset();
+    useStateMock.mockImplementation((initial: unknown) => [initial, jest.fn()]);
+    useStateMock
+      .mockImplementationOnce(() => [false, jest.fn()])
+      .mockImplementationOnce(() => ['guest', jest.fn()])
+      .mockImplementationOnce(() => [null, jest.fn()])
+      .mockImplementationOnce(() => [false, jest.fn()])
+      .mockImplementationOnce(() => [null, jest.fn()])
+      .mockImplementationOnce(() => [false, jest.fn()])
+      .mockImplementationOnce(() => ['review', jest.fn()])
+      .mockImplementationOnce(() => ['', jest.fn()])
+      .mockImplementationOnce(() => [false, jest.fn()])
+      .mockImplementationOnce(() => [null, jest.fn()])
+      .mockImplementationOnce((initial: unknown) => [initial, jest.fn()])
+      .mockImplementationOnce(() => [false, jest.fn()])
+      .mockImplementationOnce(() => [null, jest.fn()])
+      .mockImplementationOnce(() => [true, jest.fn()])
+      .mockImplementationOnce(() => [null, jest.fn()])
+      .mockImplementationOnce(() => [
+        'Could not open the privacy policy. Try again later.',
+        setPrivacyPolicyLinkError,
+      ]);
+
+    const feedbackTree = expandTree(SettingsScreen());
+    const snackbars = findElements(feedbackTree, (element) => element.type === 'Snackbar');
+    expect(snackbars).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          props: expect.objectContaining({
+            message: 'Could not open the privacy policy. Try again later.',
+          }),
+        }),
+      ]),
+    );
+    expect(textContent(feedbackTree)).not.toContain('raw privacy token');
   });
 
   it('opens destructive delete account confirmation for account users', () => {

@@ -49,7 +49,7 @@ import {
   deleteAccountAndResetLocalState,
   getFriendlyAccountDeletionError,
 } from '../auth/accountDeletion';
-import { getAccountDeletionUrl } from '../api/config';
+import { getAccountDeletionUrl, getPrivacyPolicyUrl } from '../api/config';
 
 const REST_TIME_OPTIONS = [
   { label: '0:30', seconds: 30 },
@@ -124,6 +124,7 @@ export function SettingsScreen() {
     getUnfinishedWorkoutRemindersPreference(),
   );
   const [unfinishedReminderMessage, setUnfinishedReminderMessage] = useState<string | null>(null);
+  const [privacyPolicyLinkError, setPrivacyPolicyLinkError] = useState<string | null>(null);
   const logoutConfirmInFlightRef = useRef(false);
 
   const refreshAccountState = useCallback(async () => {
@@ -169,6 +170,13 @@ export function SettingsScreen() {
     setAccountDeletionLinkError(null);
     void Linking.openURL(getAccountDeletionUrl()).catch(() => {
       setAccountDeletionLinkError('Could not open the account deletion page. Try again later.');
+    });
+  }, []);
+
+  const handleOpenPrivacyPolicy = useCallback(() => {
+    setPrivacyPolicyLinkError(null);
+    void Linking.openURL(getPrivacyPolicyUrl()).catch(() => {
+      setPrivacyPolicyLinkError('Could not open the privacy policy. Try again later.');
     });
   }, []);
 
@@ -720,6 +728,12 @@ export function SettingsScreen() {
           </Pressable>
           {accountDeletionLinkError ? (
             <Snackbar visible message={accountDeletionLinkError} variant="error" minHeight={44} />
+          ) : null}
+          <Pressable onPress={handleOpenPrivacyPolicy}>
+            <Text color={colors.primary}>Privacy policy</Text>
+          </Pressable>
+          {privacyPolicyLinkError ? (
+            <Snackbar visible message={privacyPolicyLinkError} variant="error" minHeight={44} />
           ) : null}
         </View>
       </View>

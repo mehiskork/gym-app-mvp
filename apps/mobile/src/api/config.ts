@@ -72,4 +72,8 @@ export function getAccountDeletionUrl(): string {
   return new URL('/account-deletion', getApiBaseUrl()).toString();
 }
 
+export function getPrivacyPolicyUrl(): string {
+  return new URL('/privacy', getApiBaseUrl()).toString();
+}
+
 export const API_BASE_URL_FALLBACK = DEFAULT_BASE_URL;

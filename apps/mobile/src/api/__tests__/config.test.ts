@@ -133,6 +133,18 @@ describe('getApiBaseUrl', () => {
     expect(getAccountDeletionUrl()).toBe('https://api.example.test/account-deletion');
   });
 
+  it('builds privacy policy URL from configured API base URL', () => {
+    process.env.EXPO_PUBLIC_API_BASE_URL = 'https://api.example.test/root';
+
+    jest.doMock('expo-constants', () => {
+      throw new Error('expo constants unavailable');
+    });
+
+    const { getPrivacyPolicyUrl } = require('../config') as typeof import('../config');
+
+    expect(getPrivacyPolicyUrl()).toBe('https://api.example.test/privacy');
+  });
+
   it('builds production account deletion URL from explicit production API base URL', () => {
     process.env.EXPO_PUBLIC_APP_ENV = 'production';
     process.env.EXPO_PUBLIC_API_BASE_URL = 'https://api.trainframe.example/root';
