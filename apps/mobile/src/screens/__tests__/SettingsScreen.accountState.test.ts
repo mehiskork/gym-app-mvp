@@ -3,6 +3,7 @@ jest.mock('react', () => {
   return {
     ...actual,
     useEffect: jest.fn(),
+    useRef: jest.fn((initial: unknown) => ({ current: initial })),
     useState: jest.fn(),
     useCallback: (fn: unknown) => fn,
     useMemo: (fn: () => unknown) => fn(),
@@ -564,6 +565,19 @@ describe('SettingsScreen account interactions', () => {
     expect(resetToGuestBootstrap).toHaveBeenCalledTimes(1);
     expect(reconnectGoogleAccount).not.toHaveBeenCalled();
     expect(createGoogleAccountFromGuest).not.toHaveBeenCalled();
+  });
+
+  it('ignores a second immediate sign-out confirmation submit', async () => {
+    const tree = expandTree(renderLogoutConfirmState());
+    const dialog = destructiveDialogs(tree)[0];
+
+    dialog?.props.onConfirm();
+    dialog?.props.onConfirm();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(signOutFromGoogle).toHaveBeenCalledTimes(1);
+    expect(resetToGuestBootstrap).toHaveBeenCalledTimes(1);
   });
 
   it('keeps existing guest and linked usable account actions visible in their states', () => {

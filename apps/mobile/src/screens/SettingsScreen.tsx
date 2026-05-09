@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Linking, Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
@@ -115,6 +115,7 @@ export function SettingsScreen() {
   const [settings, setSettings] = useState(getSettings());
   const [restPickerOpen, setRestPickerOpen] = useState(false);
   const [restNotificationMessage, setRestNotificationMessage] = useState<string | null>(null);
+  const logoutConfirmInFlightRef = useRef(false);
 
   const refreshAccountState = useCallback(async () => {
     const state = await resolveLocalAccountState();
@@ -207,6 +208,8 @@ export function SettingsScreen() {
   }, [accountBusy]);
 
   const handleConfirmLogout = useCallback(() => {
+    if (accountBusy || logoutConfirmInFlightRef.current) return;
+    logoutConfirmInFlightRef.current = true;
     setLogoutConfirmOpen(false);
     void (async () => {
       try {
@@ -218,10 +221,11 @@ export function SettingsScreen() {
       } catch (error) {
         setAccountError(getFriendlyAccountError(error, 'reset'));
       } finally {
+        logoutConfirmInFlightRef.current = false;
         setAccountBusy(false);
       }
     })();
-  }, [refreshAccountState]);
+  }, [accountBusy, refreshAccountState]);
 
   const handleSwitchAccount = useCallback(() => {
     Alert.alert(
