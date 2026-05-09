@@ -54,6 +54,8 @@ jest.mock('../../ui', () => {
       React.createElement('Button', { title, ...props }),
     Card: ({ children, ...props }: { children?: React.ReactNode }) =>
       React.createElement('Card', props, children),
+    DestructiveConfirmDialog: (props: unknown) =>
+      React.createElement('DestructiveConfirmDialog', props),
     IconChip: ({ children, ...props }: { children?: React.ReactNode }) =>
       React.createElement('IconChip', props, children),
     Input: (props: unknown) => React.createElement('Input', props),
@@ -183,6 +185,7 @@ import { Alert, Linking } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 
 import { resetToGuestBootstrap } from '../../auth/identityTransition';
+import { signOutFromGoogle } from '../../auth/firebaseGoogleAuthClient';
 import {
   createGoogleAccountFromGuest,
   reconnectGoogleAccount,
@@ -253,6 +256,8 @@ function renderSettingsScreen({ accountSession = null, accountState }: StateConf
     .mockImplementationOnce(() => [false, jest.fn()])
     .mockImplementationOnce(() => ['review', jest.fn()])
     .mockImplementationOnce(() => ['', jest.fn()])
+    .mockImplementationOnce(() => [false, jest.fn()])
+    .mockImplementationOnce(() => [null, jest.fn()])
     .mockImplementationOnce((initial: unknown) => [initial, jest.fn()])
     .mockImplementationOnce(() => [false, jest.fn()])
     .mockImplementationOnce(() => [null, jest.fn()]);
@@ -307,6 +312,10 @@ function inputs(node: React.ReactNode) {
   return findElements(node, (element) => element.type === 'Input');
 }
 
+function destructiveDialogs(node: React.ReactNode) {
+  return findElements(node, (element) => element.type === 'DestructiveConfirmDialog');
+}
+
 function toggleRows(node: React.ReactNode) {
   return findElements(node, (element) => element.type === 'ToggleRow');
 }
@@ -333,10 +342,9 @@ describe('SettingsScreen account interactions', () => {
     expect(text).toContain('Account session expired');
     expect(text).toContain('Reconnect with Google to sync this device again.');
     expect(text).not.toMatch(/Account:\s+Guest/);
-    expect(text).not.toContain('Create account');
     expect(buttonTitles).toContain('Reconnect with Google');
     expect(buttonTitles).toContain('Reset this device');
-    expect(buttonTitles).not.toContain('Continue with Google');
+    expect(buttonTitles).not.toContain('Sign in with Google');
   });
 
   it('tapping reconnect uses reconnect flow without guest migration or claim navigation', async () => {
@@ -372,6 +380,8 @@ describe('SettingsScreen account interactions', () => {
       .mockImplementationOnce(() => [false, jest.fn()])
       .mockImplementationOnce(() => ['review', jest.fn()])
       .mockImplementationOnce(() => ['', jest.fn()])
+      .mockImplementationOnce(() => [false, jest.fn()])
+      .mockImplementationOnce(() => [null, jest.fn()])
       .mockImplementationOnce((initial: unknown) => [initial, jest.fn()])
       .mockImplementationOnce(() => [false, jest.fn()])
       .mockImplementationOnce(() => [null, jest.fn()]);
@@ -407,6 +417,8 @@ describe('SettingsScreen account interactions', () => {
       .mockImplementationOnce(() => [false, jest.fn()])
       .mockImplementationOnce(() => ['review', jest.fn()])
       .mockImplementationOnce(() => ['', jest.fn()])
+      .mockImplementationOnce(() => [false, jest.fn()])
+      .mockImplementationOnce(() => [null, jest.fn()])
       .mockImplementationOnce((initial: unknown) => [initial, jest.fn()])
       .mockImplementationOnce(() => [false, jest.fn()])
       .mockImplementationOnce(() => [null, jest.fn()]);
@@ -436,6 +448,8 @@ describe('SettingsScreen account interactions', () => {
       .mockImplementationOnce(() => [false, jest.fn()])
       .mockImplementationOnce(() => ['review', jest.fn()])
       .mockImplementationOnce(() => ['', jest.fn()])
+      .mockImplementationOnce(() => [false, jest.fn()])
+      .mockImplementationOnce(() => [null, jest.fn()])
       .mockImplementationOnce((initial: unknown) => [initial, jest.fn()])
       .mockImplementationOnce(() => [false, jest.fn()])
       .mockImplementationOnce(() => [null, setRestNotificationMessage]);
@@ -453,23 +467,100 @@ describe('SettingsScreen account interactions', () => {
     );
   });
 
-  it('tapping reset uses destructive confirmation before clearing local account data', async () => {
-    const tree = expandTree(renderSettingsScreen({ accountState: 'linked_reauth_required' }));
+  it('tapping reset opens app-owned confirmation before clearing local account data', () => {
+    const setLogoutConfirmOpen = jest.fn();
+    useStateMock.mockReset();
+    useStateMock
+      .mockImplementationOnce(() => [false, jest.fn()])
+      .mockImplementationOnce(() => ['linked_reauth_required', jest.fn()])
+      .mockImplementationOnce(() => [null, jest.fn()])
+      .mockImplementationOnce(() => [false, jest.fn()])
+      .mockImplementationOnce(() => [null, jest.fn()])
+      .mockImplementationOnce(() => [false, jest.fn()])
+      .mockImplementationOnce(() => ['review', jest.fn()])
+      .mockImplementationOnce(() => ['', jest.fn()])
+      .mockImplementationOnce(() => [false, setLogoutConfirmOpen])
+      .mockImplementationOnce(() => [null, jest.fn()])
+      .mockImplementationOnce((initial: unknown) => [initial, jest.fn()])
+      .mockImplementationOnce(() => [false, jest.fn()])
+      .mockImplementationOnce(() => [null, jest.fn()]);
+
+    const tree = expandTree(SettingsScreen());
     const resetButton = buttons(tree).find((button) => button.props.title === 'Reset this device');
 
     resetButton?.props.onPress();
 
-    expect(Alert.alert).toHaveBeenCalledWith(
+    expect(setLogoutConfirmOpen).toHaveBeenCalledWith(true);
+    expect(Alert.alert).not.toHaveBeenCalledWith(
       'Log out and clear local data?',
       expect.any(String),
       expect.any(Array),
     );
     expect(resetToGuestBootstrap).not.toHaveBeenCalled();
+  });
 
-    const alertButtons = (Alert.alert as jest.Mock).mock.calls[0][2];
-    await alertButtons[1].onPress();
+  it('tapping sign out opens app-owned confirmation instead of a native alert', () => {
+    const setLogoutConfirmOpen = jest.fn();
+    useStateMock.mockReset();
+    useStateMock
+      .mockImplementationOnce(() => [false, jest.fn()])
+      .mockImplementationOnce(() => ['linked_with_usable_account', jest.fn()])
+      .mockImplementationOnce(() => [
+        { accessToken: 'token', email: 'user@example.test' },
+        jest.fn(),
+      ])
+      .mockImplementationOnce(() => [false, jest.fn()])
+      .mockImplementationOnce(() => [null, jest.fn()])
+      .mockImplementationOnce(() => [false, jest.fn()])
+      .mockImplementationOnce(() => ['review', jest.fn()])
+      .mockImplementationOnce(() => ['', jest.fn()])
+      .mockImplementationOnce(() => [false, setLogoutConfirmOpen])
+      .mockImplementationOnce(() => [null, jest.fn()])
+      .mockImplementationOnce((initial: unknown) => [initial, jest.fn()])
+      .mockImplementationOnce(() => [false, jest.fn()])
+      .mockImplementationOnce(() => [null, jest.fn()]);
+
+    const tree = expandTree(SettingsScreen());
+    const signOutButton = buttons(tree).find((button) => button.props.title === 'Sign out');
+
+    signOutButton?.props.onPress();
+
+    expect(setLogoutConfirmOpen).toHaveBeenCalledWith(true);
+    expect(Alert.alert).not.toHaveBeenCalledWith(
+      'Log out and clear local data?',
+      expect.any(String),
+      expect.any(Array),
+    );
+  });
+
+  it('canceling sign-out confirmation leaves local account data intact', () => {
+    const setLogoutConfirmOpen = jest.fn();
+    const tree = expandTree(renderLogoutConfirmState(setLogoutConfirmOpen));
+    const dialog = destructiveDialogs(tree)[0];
+
+    expect(dialog?.props.title).toBe('Log out and clear local data?');
+    expect(dialog?.props.body).toBe(
+      'This device will sign out and remove local synced data so another account cannot inherit it.',
+    );
+    expect(dialog?.props.cancelLabel).toBe('Cancel');
+    expect(dialog?.props.confirmLabel).toBe('Log out');
+
+    dialog?.props.onClose();
+
+    expect(setLogoutConfirmOpen).toHaveBeenCalledWith(false);
+    expect(resetToGuestBootstrap).not.toHaveBeenCalled();
+    expect(signOutFromGoogle).not.toHaveBeenCalled();
+  });
+
+  it('confirming sign-out uses the existing sign-out and local clear path', async () => {
+    const tree = expandTree(renderLogoutConfirmState());
+    const dialog = destructiveDialogs(tree)[0];
+
+    dialog?.props.onConfirm();
+    await Promise.resolve();
     await Promise.resolve();
 
+    expect(signOutFromGoogle).toHaveBeenCalledTimes(1);
     expect(resetToGuestBootstrap).toHaveBeenCalledTimes(1);
     expect(reconnectGoogleAccount).not.toHaveBeenCalled();
     expect(createGoogleAccountFromGuest).not.toHaveBeenCalled();
@@ -477,10 +568,12 @@ describe('SettingsScreen account interactions', () => {
 
   it('keeps existing guest and linked usable account actions visible in their states', () => {
     const guestTree = expandTree(renderSettingsScreen({ accountState: 'guest' }));
-    expect(textContent(guestTree)).toMatch(/Account:\s+Guest/);
-    expect(buttons(guestTree).map((button) => button.props.title)).toContain(
-      'Continue with Google',
+    const guestText = textContent(guestTree);
+    expect(guestText).toContain('Using guest mode');
+    expect(guestText).toContain(
+      'Your workout data is saved on this device. Sign in with Google to sync it and keep it safe if you change phones.',
     );
+    expect(buttons(guestTree).map((button) => button.props.title)).toContain('Sign in with Google');
 
     const linkedTree = expandTree(
       renderSettingsScreen({
@@ -489,11 +582,24 @@ describe('SettingsScreen account interactions', () => {
       }),
     );
     const linkedButtonTitles = buttons(linkedTree).map((button) => button.props.title);
-    expect(textContent(linkedTree)).toMatch(/Account:\s+user@example\.test/);
+    expect(textContent(linkedTree)).toContain('Signed in as user@example.test');
+    expect(textContent(linkedTree)).not.toContain('Account: user@example.test');
     expect(linkedButtonTitles).toContain('Switch account');
     expect(linkedButtonTitles).toContain('Sign out');
     expect(linkedButtonTitles).toContain('Delete account');
-    expect(linkedButtonTitles).not.toContain('Continue with Google');
+    expect(linkedButtonTitles).not.toContain('Sign in with Google');
+  });
+
+  it('uses the existing guest-to-account migration flow from guest Settings sign-in', async () => {
+    const guestTree = expandTree(renderSettingsScreen({ accountState: 'guest' }));
+    const signInButton = buttons(guestTree).find(
+      (button) => button.props.title === 'Sign in with Google',
+    );
+
+    await signInButton?.props.onPress();
+
+    expect(createGoogleAccountFromGuest).toHaveBeenCalledTimes(1);
+    expect(resetToGuestBootstrap).not.toHaveBeenCalled();
   });
 
   it('does not show Delete account for guest mode', () => {
@@ -515,6 +621,53 @@ describe('SettingsScreen account interactions', () => {
     expect(Linking.openURL).toHaveBeenCalledWith('https://trainframe.example/account-deletion');
   });
 
+  it('shows friendly feedback if the account deletion web link cannot open', async () => {
+    (Linking.openURL as jest.Mock).mockRejectedValueOnce(
+      new Error('raw backend token failed to open'),
+    );
+    const setAccountDeletionLinkError = jest.fn();
+    useStateMock.mockReset();
+    useStateMock
+      .mockImplementationOnce(() => [false, jest.fn()])
+      .mockImplementationOnce(() => ['guest', jest.fn()])
+      .mockImplementationOnce(() => [null, jest.fn()])
+      .mockImplementationOnce(() => [false, jest.fn()])
+      .mockImplementationOnce(() => [null, jest.fn()])
+      .mockImplementationOnce(() => [false, jest.fn()])
+      .mockImplementationOnce(() => ['review', jest.fn()])
+      .mockImplementationOnce(() => ['', jest.fn()])
+      .mockImplementationOnce(() => [false, jest.fn()])
+      .mockImplementationOnce(() => [null, setAccountDeletionLinkError])
+      .mockImplementationOnce((initial: unknown) => [initial, jest.fn()])
+      .mockImplementationOnce(() => [false, jest.fn()])
+      .mockImplementationOnce(() => [null, jest.fn()]);
+
+    const guestTree = expandTree(SettingsScreen());
+    const link = pressables(guestTree).find((pressable) =>
+      textContent(pressable).includes('Account deletion request'),
+    );
+
+    link?.props.onPress();
+    await Promise.resolve();
+
+    expect(setAccountDeletionLinkError).toHaveBeenCalledWith(
+      'Could not open the account deletion page. Try again later.',
+    );
+
+    const feedbackTree = expandTree(renderAccountDeletionLinkErrorState());
+    const snackbars = findElements(feedbackTree, (element) => element.type === 'Snackbar');
+    expect(snackbars).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          props: expect.objectContaining({
+            message: 'Could not open the account deletion page. Try again later.',
+          }),
+        }),
+      ]),
+    );
+    expect(textContent(feedbackTree)).not.toContain('raw backend token');
+  });
+
   it('opens destructive delete account confirmation for account users', () => {
     const setDeleteAccountOpen = jest.fn();
     const setDeleteAccountStep = jest.fn();
@@ -532,6 +685,8 @@ describe('SettingsScreen account interactions', () => {
       .mockImplementationOnce(() => [false, setDeleteAccountOpen])
       .mockImplementationOnce(() => ['review', setDeleteAccountStep])
       .mockImplementationOnce(() => ['', setDeleteAccountConfirmText])
+      .mockImplementationOnce(() => [false, jest.fn()])
+      .mockImplementationOnce(() => [null, jest.fn()])
       .mockImplementationOnce((initial: unknown) => [initial, jest.fn()])
       .mockImplementationOnce(() => [false, jest.fn()])
       .mockImplementationOnce(() => [null, jest.fn()]);
@@ -588,6 +743,51 @@ function renderDeleteAccountState({ confirmText }: { confirmText: string }) {
     .mockImplementationOnce(() => [true, jest.fn()])
     .mockImplementationOnce(() => ['confirm', jest.fn()])
     .mockImplementationOnce(() => [confirmText, jest.fn()])
+    .mockImplementationOnce(() => [false, jest.fn()])
+    .mockImplementationOnce(() => [null, jest.fn()])
+    .mockImplementationOnce((initial: unknown) => [initial, jest.fn()])
+    .mockImplementationOnce(() => [false, jest.fn()])
+    .mockImplementationOnce(() => [null, jest.fn()]);
+
+  return SettingsScreen();
+}
+
+function renderLogoutConfirmState(setLogoutConfirmOpen = jest.fn()) {
+  useStateMock.mockReset();
+  useStateMock
+    .mockImplementationOnce(() => [false, jest.fn()])
+    .mockImplementationOnce(() => ['linked_with_usable_account', jest.fn()])
+    .mockImplementationOnce(() => [{ accessToken: 'token', email: 'user@example.test' }, jest.fn()])
+    .mockImplementationOnce(() => [false, jest.fn()])
+    .mockImplementationOnce(() => [null, jest.fn()])
+    .mockImplementationOnce(() => [false, jest.fn()])
+    .mockImplementationOnce(() => ['review', jest.fn()])
+    .mockImplementationOnce(() => ['', jest.fn()])
+    .mockImplementationOnce(() => [true, setLogoutConfirmOpen])
+    .mockImplementationOnce(() => [null, jest.fn()])
+    .mockImplementationOnce((initial: unknown) => [initial, jest.fn()])
+    .mockImplementationOnce(() => [false, jest.fn()])
+    .mockImplementationOnce(() => [null, jest.fn()]);
+
+  return SettingsScreen();
+}
+
+function renderAccountDeletionLinkErrorState() {
+  useStateMock.mockReset();
+  useStateMock
+    .mockImplementationOnce(() => [false, jest.fn()])
+    .mockImplementationOnce(() => ['guest', jest.fn()])
+    .mockImplementationOnce(() => [null, jest.fn()])
+    .mockImplementationOnce(() => [false, jest.fn()])
+    .mockImplementationOnce(() => [null, jest.fn()])
+    .mockImplementationOnce(() => [false, jest.fn()])
+    .mockImplementationOnce(() => ['review', jest.fn()])
+    .mockImplementationOnce(() => ['', jest.fn()])
+    .mockImplementationOnce(() => [false, jest.fn()])
+    .mockImplementationOnce(() => [
+      'Could not open the account deletion page. Try again later.',
+      jest.fn(),
+    ])
     .mockImplementationOnce((initial: unknown) => [initial, jest.fn()])
     .mockImplementationOnce(() => [false, jest.fn()])
     .mockImplementationOnce(() => [null, jest.fn()]);

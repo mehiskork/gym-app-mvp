@@ -9,6 +9,7 @@ import {
   BottomSheetModal,
   Button,
   Card,
+  DestructiveConfirmDialog,
   IconChip,
   Input,
   ListRow,
@@ -109,6 +110,8 @@ export function SettingsScreen() {
   const [deleteAccountOpen, setDeleteAccountOpen] = useState(false);
   const [deleteAccountStep, setDeleteAccountStep] = useState<DeleteAccountStep>('review');
   const [deleteAccountConfirmText, setDeleteAccountConfirmText] = useState('');
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
+  const [accountDeletionLinkError, setAccountDeletionLinkError] = useState<string | null>(null);
   const [settings, setSettings] = useState(getSettings());
   const [restPickerOpen, setRestPickerOpen] = useState(false);
   const [restNotificationMessage, setRestNotificationMessage] = useState<string | null>(null);
@@ -152,7 +155,10 @@ export function SettingsScreen() {
   }, [navigation]);
 
   const handleOpenAccountDeletionWeb = useCallback(() => {
-    void Linking.openURL(getAccountDeletionUrl());
+    setAccountDeletionLinkError(null);
+    void Linking.openURL(getAccountDeletionUrl()).catch(() => {
+      setAccountDeletionLinkError('Could not open the account deletion page. Try again later.');
+    });
   }, []);
 
   const restTimeLabel = useMemo(
@@ -190,32 +196,31 @@ export function SettingsScreen() {
   );
 
   const handleLogout = useCallback(() => {
-    Alert.alert(
-      'Log out and clear local data?',
-      'This device will sign out and remove local synced data so another account cannot inherit it.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Log out',
-          style: 'destructive',
-          onPress: () => {
-            void (async () => {
-              try {
-                setAccountBusy(true);
-                setAccountError(null);
-                await signOutFromGoogle();
-                await resetToGuestBootstrap();
-                await refreshAccountState();
-              } catch (error) {
-                setAccountError(getFriendlyAccountError(error, 'reset'));
-              } finally {
-                setAccountBusy(false);
-              }
-            })();
-          },
-        },
-      ],
-    );
+    if (accountBusy) return;
+    setAccountError(null);
+    setLogoutConfirmOpen(true);
+  }, [accountBusy]);
+
+  const handleCloseLogoutConfirm = useCallback(() => {
+    if (accountBusy) return;
+    setLogoutConfirmOpen(false);
+  }, [accountBusy]);
+
+  const handleConfirmLogout = useCallback(() => {
+    setLogoutConfirmOpen(false);
+    void (async () => {
+      try {
+        setAccountBusy(true);
+        setAccountError(null);
+        await signOutFromGoogle();
+        await resetToGuestBootstrap();
+        await refreshAccountState();
+      } catch (error) {
+        setAccountError(getFriendlyAccountError(error, 'reset'));
+      } finally {
+        setAccountBusy(false);
+      }
+    })();
   }, [refreshAccountState]);
 
   const handleSwitchAccount = useCallback(() => {
@@ -477,7 +482,21 @@ export function SettingsScreen() {
         }}
       >
         <Text variant="subtitle">Account</Text>
-        <Text color={colors.textSecondary}>Account: {accountUiState.accountLabel}</Text>
+        {accountUiState.showGuestCreate ? (
+          <>
+            <Text color={colors.textSecondary}>Using guest mode</Text>
+            <Text variant="muted">
+              Your workout data is saved on this device. Sign in with Google to sync it and keep it
+              safe if you change phones.
+            </Text>
+          </>
+        ) : (
+          <Text color={colors.textSecondary}>
+            {accountUiState.showAccountActions
+              ? `Signed in as ${accountUiState.accountLabel}`
+              : accountUiState.accountLabel}
+          </Text>
+        )}
         {accountUiState.showReauthRequired ? (
           <Text variant="muted">{accountUiState.reauthMessage}</Text>
         ) : null}
@@ -523,9 +542,8 @@ export function SettingsScreen() {
           </>
         ) : accountUiState.showGuestCreate ? (
           <>
-            <Text variant="muted">Create account</Text>
             <Button
-              title="Continue with Google"
+              title="Sign in with Google"
               onPress={handleCreateGoogleAccount}
               loading={accountBusy}
             />
@@ -654,8 +672,21 @@ export function SettingsScreen() {
           <Pressable onPress={handleOpenAccountDeletionWeb}>
             <Text color={colors.primary}>Account deletion request</Text>
           </Pressable>
+          {accountDeletionLinkError ? (
+            <Snackbar visible message={accountDeletionLinkError} variant="error" minHeight={44} />
+          ) : null}
         </View>
       </View>
+      <DestructiveConfirmDialog
+        visible={logoutConfirmOpen}
+        title="Log out and clear local data?"
+        body="This device will sign out and remove local synced data so another account cannot inherit it."
+        cancelLabel="Cancel"
+        confirmLabel="Log out"
+        onClose={handleCloseLogoutConfirm}
+        onConfirm={handleConfirmLogout}
+        testID="logout-confirm-dialog"
+      />
     </Screen>
   );
 }
