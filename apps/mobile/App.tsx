@@ -18,6 +18,7 @@ import { scheduleForegroundSync, scheduleStartupSync } from './src/sync/syncSche
 import { AppErrorBoundary } from './src/components/AppErrorBoundary';
 import { logEvent } from './src/utils/logger';
 import {
+  hasPendingAccountDeletionCleanupMarker,
   hasPendingAccountDeletionRecovery,
   recoverAccountDeletionAfterStartup,
 } from './src/auth/accountDeletion';
@@ -105,13 +106,17 @@ export default function App() {
     setBootState({ kind: 'initializing' });
 
     void (async () => {
+      let markerPending = false;
       let accountDeletionRecoveryPending = false;
       try {
-        accountDeletionRecoveryPending = await hasPendingAccountDeletionRecovery();
+        markerPending = await hasPendingAccountDeletionCleanupMarker();
+        accountDeletionRecoveryPending = markerPending;
+        runMigrations();
+        accountDeletionRecoveryPending =
+          markerPending || (await hasPendingAccountDeletionRecovery());
         if (accountDeletionRecoveryPending) {
           await recoverAccountDeletionAfterStartup();
         }
-        runMigrations();
         seedCuratedExercises();
         repairStaleInFlightOps(120);
         void ensureRestTimerNotificationChannel(false).catch((error) => {
@@ -143,6 +148,7 @@ export default function App() {
   const handleFinishAccountDeletionCleanup = useCallback(async () => {
     setBootState({ kind: 'initializing' });
     try {
+      runMigrations();
       await recoverAccountDeletionAfterStartup();
       runMigrations();
       seedCuratedExercises();

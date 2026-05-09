@@ -100,6 +100,7 @@ jest.mock('../auth/identityTransition', () => ({
   resetToGuestBootstrap: jest.fn(() => Promise.resolve()),
 }));
 jest.mock('../auth/accountDeletion', () => ({
+  hasPendingAccountDeletionCleanupMarker: jest.fn(() => Promise.resolve(false)),
   hasPendingAccountDeletionRecovery: jest.fn(() => Promise.resolve(false)),
   recoverAccountDeletionAfterStartup: jest.fn(() => Promise.resolve(false)),
 }));
@@ -142,6 +143,7 @@ import { repairStaleInFlightOps } from '../db/outboxRepo';
 import { ensureRestTimerNotificationChannel } from '../utils/restTimerNotifications';
 import { resetToGuestBootstrap } from '../auth/identityTransition';
 import {
+  hasPendingAccountDeletionCleanupMarker,
   hasPendingAccountDeletionRecovery,
   recoverAccountDeletionAfterStartup,
 } from '../auth/accountDeletion';
@@ -187,6 +189,7 @@ describe('App startup recovery', () => {
     (AppState as any).__clearListeners();
     useEffectMock.mockImplementation((cb: () => void) => cb());
     useStateMock.mockImplementation((initial: unknown) => [initial, jest.fn()]);
+    (hasPendingAccountDeletionCleanupMarker as jest.Mock).mockResolvedValue(false);
     (hasPendingAccountDeletionRecovery as jest.Mock).mockResolvedValue(false);
     (recoverAccountDeletionAfterStartup as jest.Mock).mockResolvedValue(false);
     (resetToGuestBootstrap as jest.Mock).mockResolvedValue(undefined);
@@ -196,12 +199,29 @@ describe('App startup recovery', () => {
     App();
     await flushPromises();
 
+    expect(hasPendingAccountDeletionCleanupMarker).toHaveBeenCalledTimes(1);
     expect(hasPendingAccountDeletionRecovery).toHaveBeenCalledTimes(1);
     expect(recoverAccountDeletionAfterStartup).not.toHaveBeenCalled();
     expect(runMigrations).toHaveBeenCalledTimes(1);
     expect(seedCuratedExercises).toHaveBeenCalledTimes(1);
     expect(repairStaleInFlightOps).toHaveBeenCalledWith(120);
     expect(ensureRestTimerNotificationChannel).toHaveBeenCalledWith(false);
+    expect(scheduleStartupSync).toHaveBeenCalledWith('app_start');
+    expect((runMigrations as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
+      (hasPendingAccountDeletionRecovery as jest.Mock).mock.invocationCallOrder[0],
+    );
+  });
+
+  it('runs migrations before checking SQLite-backed account deletion pause state on fresh startup', async () => {
+    (hasPendingAccountDeletionRecovery as jest.Mock).mockImplementation(() => {
+      expect(runMigrations).toHaveBeenCalledTimes(1);
+      return Promise.resolve(false);
+    });
+
+    App();
+    await flushPromises();
+
+    expect(runMigrations).toHaveBeenCalledTimes(1);
     expect(scheduleStartupSync).toHaveBeenCalledWith('app_start');
   });
 
@@ -352,9 +372,29 @@ describe('App startup recovery', () => {
     expect(recoverAccountDeletionAfterStartup).toHaveBeenCalledTimes(1);
     expect(runMigrations).toHaveBeenCalledTimes(1);
     expect(scheduleStartupSync).toHaveBeenCalledWith('app_start');
+    expect((runMigrations as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
+      (hasPendingAccountDeletionRecovery as jest.Mock).mock.invocationCallOrder[0],
+    );
     expect(
       (recoverAccountDeletionAfterStartup as jest.Mock).mock.invocationCallOrder[0],
     ).toBeLessThan((scheduleStartupSync as jest.Mock).mock.invocationCallOrder[0]);
+  });
+
+  it('runs migrations before SecureStore marker cleanup recovery', async () => {
+    (hasPendingAccountDeletionCleanupMarker as jest.Mock).mockResolvedValueOnce(true);
+    (recoverAccountDeletionAfterStartup as jest.Mock).mockResolvedValueOnce(true);
+
+    App();
+    await flushPromises();
+
+    expect(hasPendingAccountDeletionCleanupMarker).toHaveBeenCalledTimes(1);
+    expect(hasPendingAccountDeletionRecovery).not.toHaveBeenCalled();
+    expect(runMigrations).toHaveBeenCalledTimes(1);
+    expect(recoverAccountDeletionAfterStartup).toHaveBeenCalledTimes(1);
+    expect((runMigrations as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
+      (recoverAccountDeletionAfterStartup as jest.Mock).mock.invocationCallOrder[0],
+    );
+    expect(scheduleStartupSync).toHaveBeenCalledWith('app_start');
   });
 
   it('does not schedule startup sync when pending account deletion cleanup fails', async () => {
@@ -368,7 +408,7 @@ describe('App startup recovery', () => {
     App();
     await flushPromises();
 
-    expect(runMigrations).not.toHaveBeenCalled();
+    expect(runMigrations).toHaveBeenCalledTimes(1);
     expect(scheduleStartupSync).not.toHaveBeenCalled();
     expect(scheduleForegroundSync).not.toHaveBeenCalled();
     expect(setBootState).toHaveBeenLastCalledWith({

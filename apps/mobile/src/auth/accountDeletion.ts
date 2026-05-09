@@ -89,6 +89,10 @@ export async function recoverPendingAccountDeletionCleanup(): Promise<boolean> {
   return true;
 }
 
+export async function hasPendingAccountDeletionCleanupMarker(): Promise<boolean> {
+  return isAccountDeletionCleanupPending();
+}
+
 export async function hasPendingAccountDeletionRecovery(): Promise<boolean> {
   return getSyncPauseReason() === 'account_deletion' || (await isAccountDeletionCleanupPending());
 }
