@@ -1,6 +1,6 @@
 # Railway backend deployment
 
-This project expects Railway to provide runtime configuration through Railway service variables.
+This project expects Railway to provide runtime configuration through Railway service variables. Resolved Railway values, database credentials, and deployment secrets must stay outside the repo.
 
 ## Railway environment variables
 
@@ -101,7 +101,7 @@ The checked-in mobile config in `apps/mobile/app.json` currently names the app `
 https://gym-app-mvp-production.up.railway.app
 ```
 
-Treat this Railway service as the shared dev/QA backend for the current tester phase, not as the final production environment. For local backend testing, temporarily override `expo.extra.EXPO_PUBLIC_API_BASE_URL` in `apps/mobile/app.json` and confirm the resolved value in the mobile Debug screen under **Backend / Environment** -> **Backend URL**.
+Treat this Railway service as the shared dev/QA backend for the current tester phase, not as the final production environment. The URL is public routing information and must not be relied on for privacy or access control. For local backend testing, temporarily override `expo.extra.EXPO_PUBLIC_API_BASE_URL` in `apps/mobile/app.json` and confirm the resolved value in the mobile Debug screen under **Backend / Environment** -> **Backend URL**.
 
 Before public beta or real production, split dev/QA/prod backend config so local development and test builds cannot silently target production.
 

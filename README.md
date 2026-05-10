@@ -52,9 +52,10 @@ This repository has Firebase-backed Google account auth: account identity is can
 - Firebase mobile client config is tracked intentionally for the current private/dev phase; see `docs/firebase-client-config.md` for the restrictions and public-release policy.
 - Local-first behavior is unchanged: local writes commit first; sync reconciles eventual server state.
 - Mobile SQLite migrations have been squashed into a reset-only private-beta baseline. Existing internal/dev installs from before the squash must uninstall, clear app storage, or use destructive reset before testing this baseline.
-- The checked-in mobile preview config targets the Railway shared dev/QA backend by default (`https://gym-app-mvp-production.up.railway.app`). This is not the final production environment. Production builds must set `EXPO_PUBLIC_APP_ENV=production` and a real production `EXPO_PUBLIC_API_BASE_URL`; the app rejects the shared dev/QA URL in production mode.
+- The checked-in mobile preview config targets the Railway shared dev/QA backend by default (`https://gym-app-mvp-production.up.railway.app`). This URL is not private and must not be treated as a security boundary. It is not the final production environment. Production builds must set `EXPO_PUBLIC_APP_ENV=production` and a real production `EXPO_PUBLIC_API_BASE_URL`; the app rejects the shared dev/QA URL in production mode.
 - Android release build profiles are documented in `docs/android-release.md`; the app displays as `TrainFrame`, the Expo slug intentionally remains `mobile`, and the Android package is `com.mehka.gymappmvp`.
 - PR events are local-derived cache data. Workout history is synced; PR rows are recomputed locally and are not synced inbound or outbound.
+- Public repository readiness checklist: `docs/public-repo-safety.md`
 
 ---
 
@@ -97,6 +98,7 @@ docs/
   account-deletion-design.md
   local-development.md
   railway-deployment.md
+  public-repo-safety.md
   account-ownership-decision.md
 ```
 
@@ -113,3 +115,4 @@ docs/
 - Android tester and Play readiness runbook: `docs/android-tester-runbook.md`
 - Account deletion design: `docs/account-deletion-design.md`
 - Railway backend deployment: `docs/railway-deployment.md`
+- Public repository safety checklist: `docs/public-repo-safety.md`

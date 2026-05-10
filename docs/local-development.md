@@ -190,7 +190,7 @@ After installing the build, confirm the backend target inside the app:
 https://gym-app-mvp-production.up.railway.app
 ```
 
-That Railway URL is intentionally the shared dev/QA backend for the current tester phase. It is not the final public production backend.
+That Railway URL is intentionally the shared dev/QA backend for the current tester phase. It is public routing information, not a private protection mechanism, and it is not the final public production backend.
 
 Before sharing the build with testers, verify Firebase Android fingerprints for the exact build signing certificate. In Firebase Console / Google Cloud Console, the Android app for package `com.mehka.gymappmvp` should include the SHA-1 and SHA-256 fingerprints used by the EAS preview build. You can inspect EAS credentials with:
 
@@ -211,7 +211,7 @@ The checked-in mobile app currently targets the Railway shared dev/QA backend by
 https://gym-app-mvp-production.up.railway.app
 ```
 
-That default lives in `apps/mobile/app.json` under `expo.extra.EXPO_PUBLIC_API_BASE_URL`. This is intentional for the current phase because there is no separate production environment yet. It should not be treated as the final public-beta or production backend.
+That default lives in `apps/mobile/app.json` under `expo.extra.EXPO_PUBLIC_API_BASE_URL`. This is intentional for the current phase because there is no separate production environment yet. It should not be treated as private, as the final public-beta backend, or as the production backend.
 
 The mobile API URL precedence is:
 

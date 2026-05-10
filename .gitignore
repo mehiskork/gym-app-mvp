@@ -4,20 +4,26 @@ apps/backend/target/
 .idea/
 .classpath
 .project
+.codex
 
 .env
 .env.*
 *.env
 *.env.*
+!.env.example
+!.env.*.example
 *service-account*.json
 *service_account*.json
 firebase-adminsdk-*.json
 serviceAccountKey.json
 GoogleService-Info.plist
+*.keystore
 *.jks
 *.p12
 *.p8
 *.key
 *.pem
+*.cer
+*.crt
 *.mobileprovision
 .expo/
