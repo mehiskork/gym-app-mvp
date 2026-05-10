@@ -227,6 +227,36 @@ class SyncControllerValidationIT {
         }
 
         @Test
+        void childWithMissingParentReturnsValidationErrorAndWritesNoSyncRows() throws Exception {
+                String deviceId = "device-child-missing-parent";
+                String token = seedDeviceAndToken(deviceId);
+                String payload = """
+                                {"cursor":null,"ops":[{"opId":"op-child-missing-parent","entityType":"program_week","entityId":"week-missing-parent","opType":"upsert","payload":{"id":"week-missing-parent","program_id":"missing-program","updated_at":"2026-02-13T12:34:56Z"}}]}
+                                """;
+
+                MvcResult result = mockMvc.perform(post("/sync")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .header("Authorization", "Bearer " + token)
+                                .content(payload))
+                                .andExpect(status().isBadRequest())
+                                .andExpect(jsonPath("$.code").value("SYNC_VALIDATION_ERROR"))
+                                .andExpect(jsonPath("$.details.opId").value("op-child-missing-parent"))
+                                .andExpect(jsonPath("$.details.entityType").value("program_week"))
+                                .andExpect(jsonPath("$.details.field").value("program_id"))
+                                .andExpect(jsonPath("$.details.reason")
+                                                .value("required parent is missing or inactive"))
+                                .andReturn();
+
+                assertThat(result.getResponse().getContentAsString())
+                                .doesNotContain("missing-program")
+                                .doesNotContain("SELECT")
+                                .doesNotContain("INSERT")
+                                .doesNotContain("Exception")
+                                .doesNotContain("stack");
+                assertNoSyncRowsForRejectedOwner(guestUserIdForDevice(deviceId));
+        }
+
+        @Test
         void unsupportedEntityTypeReturnsValidationError() throws Exception {
                 String token = seedDeviceAndToken("device-entity-unsupported");
                 String payload = """

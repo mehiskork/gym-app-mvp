@@ -12,6 +12,9 @@ import com.gymapp.backend.repository.SyncRepository;
 import com.gymapp.backend.security.OwnerScope;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -35,6 +38,19 @@ public class SyncService {
                         "refresh_token",
                         "secret",
                         "token");
+        private static final Map<String, List<ParentReference>> REQUIRED_PARENT_REFERENCES = Map.of(
+                        "program_week", List.of(new ParentReference("program_id", "program", false)),
+                        "program_day", List.of(new ParentReference("program_week_id", "program_week", false)),
+                        "program_day_exercise", List.of(
+                                        new ParentReference("program_day_id", "program_day", false),
+                                        new ParentReference("exercise_id", "exercise", true)),
+                        "planned_set", List.of(new ParentReference("program_day_exercise_id", "program_day_exercise",
+                                        false)),
+                        "workout_session_exercise", List.of(
+                                        new ParentReference("workout_session_id", "workout_session", false),
+                                        new ParentReference("exercise_id", "exercise", true)),
+                        "workout_set", List.of(new ParentReference("workout_session_exercise_id",
+                                        "workout_session_exercise", false)));
 
         private final SyncRepository syncRepository;
         private final AccountDeletionRepository accountDeletionRepository;
@@ -60,73 +76,260 @@ public class SyncService {
                         }
                 }
 
-                List<SyncAck> acks = new ArrayList<>();
                 List<String> allowedEntityTypes = SyncEntityTypes.ORDERED_TYPES;
 
                 ParsedCursor parsedCursor = parseCursorOrThrow(cursor, allowedEntityTypes);
 
                 validateOps(ops, allowedEntityTypes);
                 Instant requestReceivedAt = Instant.now();
+                List<SyncOpPlan> plans = buildSyncPlan(ownerId, ops, requestReceivedAt);
+                List<SyncAck> acks = persistSyncPlan(deviceId, ownerId, plans, ops.size(), requestReceivedAt);
 
+                SyncResponse deltaResponse = fetchResponseDeltas(ownerId, cursor, parsedCursor, allowedEntityTypes);
+                return new SyncResponse(acks, deltaResponse.getCursor(), deltaResponse.getDeltas(),
+                                deltaResponse.getHasMore());
+        }
+
+        private List<SyncOpPlan> buildSyncPlan(String ownerId, List<SyncOp> ops, Instant receivedAt) {
+                Set<String> opIds = new HashSet<>();
                 for (SyncOp op : ops) {
-                        String opType = op.opType().toLowerCase();
+                        opIds.add(op.opId());
+                }
+                Set<String> existingLedgerIds = syncRepository.findExistingOpLedgerIdsForOwner(ownerId, opIds);
+                Set<String> seenRequestOpIds = new HashSet<>();
+                List<IndexedSyncOp> candidates = new ArrayList<>();
+                List<SyncOpPlan> plans = new ArrayList<>();
 
-                        Instant receivedAt = requestReceivedAt;
+                for (int i = 0; i < ops.size(); i += 1) {
+                        SyncOp op = ops.get(i);
+                        if (existingLedgerIds.contains(op.opId()) || !seenRequestOpIds.add(op.opId())) {
+                                plans.add(new SyncOpPlan(
+                                                i,
+                                                op,
+                                                op.opType().toLowerCase(),
+                                                new ResolutionResult("noop", "duplicate op", null),
+                                                true));
+                                continue;
+                        }
+                        candidates.add(new IndexedSyncOp(i, op));
+                }
 
-                        enforceOwnership(ownerId, op);
+                Set<SyncRepository.EntityKey> referencedParentKeys = collectReferencedParentKeys(candidates);
+                Map<SyncRepository.EntityKey, SyncRepository.EntityPresence> existingParentPresence = syncRepository
+                                .findEntityPresenceForOwner(ownerId, referencedParentKeys);
+                Set<SyncRepository.EntityKey> foreignParentKeys = syncRepository.findForeignEntityKeys(ownerId,
+                                referencedParentKeys);
+                Set<SyncRepository.EntityKey> appliedActiveKeys = new HashSet<>();
+                Map<SyncRepository.EntityKey, SyncRepository.EntityStateRecord> plannedStateByKey = new HashMap<>();
 
-                        // Atomic dedupe: insert ledger row if absent
-                        boolean inserted = syncRepository.insertOpLedgerIfAbsentForOwner(op.opId(), deviceId, ownerId,
-                                        receivedAt);
-                        if (!inserted) {
-                                acks.add(new SyncAck(op.opId(), "noop", "duplicate op"));
+                candidates.stream()
+                                .sorted(Comparator
+                                                .comparingInt((IndexedSyncOp indexed) -> entityTypeOrder(
+                                                                indexed.op().entityType()))
+                                                .thenComparingInt(IndexedSyncOp::originalIndex))
+                                .forEach(indexed -> plans.add(buildCandidatePlan(
+                                                ownerId,
+                                                indexed,
+                                                receivedAt,
+                                                existingParentPresence,
+                                                foreignParentKeys,
+                                                appliedActiveKeys,
+                                                plannedStateByKey)));
+
+                return plans;
+        }
+
+        private SyncOpPlan buildCandidatePlan(
+                        String ownerId,
+                        IndexedSyncOp indexed,
+                        Instant receivedAt,
+                        Map<SyncRepository.EntityKey, SyncRepository.EntityPresence> existingParentPresence,
+                        Set<SyncRepository.EntityKey> foreignParentKeys,
+                        Set<SyncRepository.EntityKey> appliedActiveKeys,
+                        Map<SyncRepository.EntityKey, SyncRepository.EntityStateRecord> plannedStateByKey) {
+                SyncOp op = indexed.op();
+                String opType = op.opType().toLowerCase();
+                enforceOwnership(ownerId, op);
+
+                SyncRepository.EntityKey key = new SyncRepository.EntityKey(op.entityType(), op.entityId());
+                SyncRepository.EntityStateRecord plannedState = plannedStateByKey.get(key);
+                Optional<SyncRepository.EntityStateRecord> existingState = plannedState == null
+                                ? syncRepository.findEntityStateWithReceivedAtForOwner(
+                                                ownerId,
+                                                op.entityType(),
+                                                op.entityId())
+                                : Optional.of(plannedState);
+
+                Map<String, Object> existingPayload = existingState
+                                .map(SyncRepository.EntityStateRecord::payload)
+                                .orElse(null);
+                Instant existingReceivedAt = existingState
+                                .map(SyncRepository.EntityStateRecord::lastReceivedAt)
+                                .orElse(null);
+
+                ResolutionResult resolution = resolveConflict(
+                                ownerId,
+                                op,
+                                opType,
+                                existingPayload,
+                                existingReceivedAt,
+                                receivedAt);
+
+                if ("applied".equals(resolution.status())) {
+                        validateParentsForAppliedOp(
+                                        op,
+                                        opType,
+                                        resolution.payload(),
+                                        existingParentPresence,
+                                        foreignParentKeys,
+                                        appliedActiveKeys);
+                        plannedStateByKey.put(key, new SyncRepository.EntityStateRecord(resolution.payload(),
+                                        receivedAt));
+                        if (isActiveUpsert(opType, resolution.payload())) {
+                                appliedActiveKeys.add(key);
+                        } else {
+                                appliedActiveKeys.remove(key);
+                        }
+                }
+
+                return new SyncOpPlan(indexed.originalIndex(), op, opType, resolution, false);
+        }
+
+        private List<SyncAck> persistSyncPlan(
+                        String deviceId,
+                        String ownerId,
+                        List<SyncOpPlan> plans,
+                        int opCount,
+                        Instant receivedAt) {
+                SyncAck[] ackByOriginalIndex = new SyncAck[opCount];
+                for (SyncOpPlan plan : plans) {
+                        SyncOp op = plan.op();
+                        if (plan.duplicate()) {
+                                ackByOriginalIndex[plan.originalIndex()] = new SyncAck(
+                                                op.opId(),
+                                                plan.resolution().status(),
+                                                plan.resolution().reason());
                                 continue;
                         }
 
-                        Optional<SyncRepository.EntityStateRecord> existingState = syncRepository
-                                        .findEntityStateWithReceivedAtForOwner(
-                                                        ownerId,
-                                                        op.entityType(),
-                                                        op.entityId());
-
-                        Map<String, Object> existingPayload = existingState
-                                        .map(SyncRepository.EntityStateRecord::payload)
-                                        .orElse(null);
-
-                        Instant existingReceivedAt = existingState
-                                        .map(SyncRepository.EntityStateRecord::lastReceivedAt)
-                                        .orElse(null);
-
-                        ResolutionResult resolution = resolveConflict(
-                                        ownerId,
-                                        op,
-                                        opType,
-                                        existingPayload,
-                                        existingReceivedAt,
+                        boolean inserted = syncRepository.insertOpLedgerIfAbsentForOwner(op.opId(), deviceId, ownerId,
                                         receivedAt);
+                        if (!inserted) {
+                                ackByOriginalIndex[plan.originalIndex()] = new SyncAck(op.opId(), "noop",
+                                                "duplicate op");
+                                continue;
+                        }
 
-                        if (resolution.status().equals("applied")) {
+                        if ("applied".equals(plan.resolution().status())) {
                                 syncRepository.upsertEntityStateForOwner(
                                                 ownerId,
                                                 op.entityType(),
                                                 op.entityId(),
-                                                resolution.payload(),
+                                                plan.resolution().payload(),
                                                 receivedAt);
 
                                 syncRepository.insertChangeLogForOwner(
                                                 ownerId,
                                                 op.entityType(),
                                                 op.entityId(),
-                                                opType,
-                                                resolution.payload());
+                                                plan.opType(),
+                                                plan.resolution().payload());
                         }
 
-                        acks.add(new SyncAck(op.opId(), resolution.status(), resolution.reason()));
+                        ackByOriginalIndex[plan.originalIndex()] = new SyncAck(
+                                        op.opId(),
+                                        plan.resolution().status(),
+                                        plan.resolution().reason());
                 }
 
-                SyncResponse deltaResponse = fetchResponseDeltas(ownerId, cursor, parsedCursor, allowedEntityTypes);
-                return new SyncResponse(acks, deltaResponse.getCursor(), deltaResponse.getDeltas(),
-                                deltaResponse.getHasMore());
+                List<SyncAck> acks = new ArrayList<>(opCount);
+                for (SyncAck ack : ackByOriginalIndex) {
+                        if (ack != null) {
+                                acks.add(ack);
+                        }
+                }
+                return acks;
+        }
+
+        private Set<SyncRepository.EntityKey> collectReferencedParentKeys(List<IndexedSyncOp> ops) {
+                Set<SyncRepository.EntityKey> keys = new HashSet<>();
+                for (IndexedSyncOp indexed : ops) {
+                        SyncOp op = indexed.op();
+                        String opType = op.opType().toLowerCase();
+                        if ("delete".equals(opType) || hasTombstone(op.payload())) {
+                                continue;
+                        }
+                        for (ParentReference reference : REQUIRED_PARENT_REFERENCES.getOrDefault(
+                                        op.entityType(),
+                                        List.of())) {
+                                String parentId = getText(op.payload(), reference.field());
+                                if (parentId == null || (reference.exerciseReference()
+                                                && isBuiltInExerciseReference(parentId))) {
+                                        continue;
+                                }
+                                keys.add(new SyncRepository.EntityKey(reference.parentEntityType(), parentId));
+                        }
+                }
+                return keys;
+        }
+
+        private void validateParentsForAppliedOp(
+                        SyncOp op,
+                        String opType,
+                        Map<String, Object> payload,
+                        Map<SyncRepository.EntityKey, SyncRepository.EntityPresence> existingParentPresence,
+                        Set<SyncRepository.EntityKey> foreignParentKeys,
+                        Set<SyncRepository.EntityKey> appliedActiveKeys) {
+                if (!isActiveUpsert(opType, payload)) {
+                        return;
+                }
+
+                for (ParentReference reference : REQUIRED_PARENT_REFERENCES.getOrDefault(op.entityType(), List.of())) {
+                        String parentId = getText(payload, reference.field());
+                        if (parentId == null) {
+                                throw invalidParentReference(op, reference.field());
+                        }
+                        if (reference.exerciseReference() && isBuiltInExerciseReference(parentId)) {
+                                continue;
+                        }
+
+                        SyncRepository.EntityKey parentKey = new SyncRepository.EntityKey(reference.parentEntityType(),
+                                        parentId);
+                        if (foreignParentKeys.contains(parentKey)) {
+                                throw invalidParentReference(op, reference.field());
+                        }
+                        if (appliedActiveKeys.contains(parentKey)) {
+                                continue;
+                        }
+                        if (existingParentPresence.get(parentKey) == SyncRepository.EntityPresence.ACTIVE) {
+                                continue;
+                        }
+                        throw invalidParentReference(op, reference.field());
+                }
+        }
+
+        private ValidationException invalidParentReference(SyncOp op, String field) {
+                return new ValidationException(
+                                "Invalid sync operation",
+                                buildDetails(op, field, "required parent is missing or inactive"));
+        }
+
+        private boolean isActiveUpsert(String opType, Map<String, Object> payload) {
+                return !"delete".equals(opType) && !hasTombstone(payload);
+        }
+
+        private boolean hasTombstone(Map<String, Object> payload) {
+                return getText(payload, "deleted_at") != null || getText(payload, "deletedAt") != null;
+        }
+
+        private boolean isBuiltInExerciseReference(String id) {
+                // Seeded catalog exercise ids are shared constants, while ex_custom_* is owner data.
+                return id != null && id.startsWith("ex_") && !id.startsWith("ex_custom_");
+        }
+
+        private int entityTypeOrder(String entityType) {
+                int index = SyncEntityTypes.ORDERED_TYPES.indexOf(entityType);
+                return index >= 0 ? index : Integer.MAX_VALUE;
         }
 
         private SyncResponse fetchResponseDeltas(
@@ -518,6 +721,20 @@ public class SyncService {
         }
 
         private record ResolutionResult(String status, String reason, Map<String, Object> payload) {
+        }
+
+        private record ParentReference(String field, String parentEntityType, boolean exerciseReference) {
+        }
+
+        private record IndexedSyncOp(int originalIndex, SyncOp op) {
+        }
+
+        private record SyncOpPlan(
+                        int originalIndex,
+                        SyncOp op,
+                        String opType,
+                        ResolutionResult resolution,
+                        boolean duplicate) {
         }
 
         private ParsedCursor parseCursorOrThrow(String cursor, List<String> allowedEntityTypes) {

@@ -18,6 +18,7 @@ import com.gymapp.backend.security.OwnerScope;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -45,6 +46,8 @@ class SyncServiceOwnerScopeTest {
 
                 when(syncRepository.findEntityOwnerIdForOwner(eq("guest-principal"), eq("program"), eq("program-1")))
                                 .thenReturn(Optional.empty());
+                when(syncRepository.findExistingOpLedgerIdsForOwner(eq("guest-principal"), eq(Set.of("op-1"))))
+                                .thenReturn(Set.of());
                 when(syncRepository.insertOpLedgerIfAbsentForOwner(eq("op-1"), eq("device-1"), eq("guest-principal"),
                                 any()))
                                 .thenReturn(true);
@@ -84,6 +87,9 @@ class SyncServiceOwnerScopeTest {
                                 .thenReturn(Optional.empty());
                 when(accountDeletionRepository.isAccountDeleted(eq("issuer.example|acct-9")))
                                 .thenReturn(false);
+                when(syncRepository.findExistingOpLedgerIdsForOwner(eq("issuer.example|acct-9"),
+                                eq(Set.of("op-account-1"))))
+                                .thenReturn(Set.of());
                 when(syncRepository.insertOpLedgerIfAbsentForOwner(eq("op-account-1"), eq("device-2"),
                                 eq("issuer.example|acct-9"), any()))
                                 .thenReturn(true);

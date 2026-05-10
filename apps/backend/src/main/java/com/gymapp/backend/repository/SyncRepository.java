@@ -5,10 +5,13 @@ import tools.jackson.databind.ObjectMapper;
 import com.gymapp.backend.model.SyncDelta;
 import java.time.Instant;
 import java.sql.Timestamp;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Optional;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.StringJoiner;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -293,6 +296,101 @@ public class SyncRepository {
                 return findEntityStateWithReceivedAt(ownerId, entityType, entityId);
         }
 
+        public Set<String> findExistingOpLedgerIdsForOwner(String ownerId, Set<String> opIds) {
+                if (opIds == null || opIds.isEmpty()) {
+                        return Set.of();
+                }
+
+                StringJoiner placeholders = new StringJoiner(", ");
+                List<Object> params = new ArrayList<>();
+                params.add(ownerId);
+                for (String opId : opIds) {
+                        placeholders.add("?");
+                        params.add(opId);
+                }
+
+                String sql = String.format(
+                                """
+                                                SELECT op_id
+                                                FROM op_ledger
+                                                WHERE guest_user_id = ?
+                                                  AND op_id IN (%s)
+                                                """,
+                                placeholders);
+                return new HashSet<>(jdbcTemplate.query(
+                                sql,
+                                (rs, rowNum) -> rs.getString("op_id"),
+                                params.toArray()));
+        }
+
+        public Map<EntityKey, EntityPresence> findEntityPresenceForOwner(String ownerId, Set<EntityKey> keys) {
+                if (keys == null || keys.isEmpty()) {
+                        return Map.of();
+                }
+
+                ValuesClause values = valuesClause(keys);
+                List<Object> params = new ArrayList<>(values.params());
+                params.add(ownerId);
+                String sql = String.format(
+                                """
+                                                SELECT v.entity_type,
+                                                       v.entity_id,
+                                                       CASE
+                                                         WHEN (
+                                                           (jsonb_exists(es.row_json, 'deleted_at') AND COALESCE(es.row_json ->> 'deleted_at', '') <> '')
+                                                           OR (jsonb_exists(es.row_json, 'deletedAt') AND COALESCE(es.row_json ->> 'deletedAt', '') <> '')
+                                                         )
+                                                           THEN 'DELETED'
+                                                         ELSE 'ACTIVE'
+                                                       END AS presence
+                                                FROM (VALUES %s) AS v(entity_type, entity_id)
+                                                JOIN entity_state es
+                                                  ON es.entity_type = v.entity_type
+                                                 AND es.entity_id = v.entity_id
+                                                 AND es.guest_user_id = ?
+                                                """,
+                                values.sql());
+
+                List<EntityPresenceRow> rows = jdbcTemplate.query(
+                                sql,
+                                (rs, rowNum) -> new EntityPresenceRow(
+                                                new EntityKey(rs.getString("entity_type"), rs.getString("entity_id")),
+                                                EntityPresence.valueOf(rs.getString("presence"))),
+                                params.toArray());
+                Map<EntityKey, EntityPresence> presenceByKey = new LinkedHashMap<>();
+                for (EntityPresenceRow row : rows) {
+                        presenceByKey.put(row.key(), row.presence());
+                }
+                return presenceByKey;
+        }
+
+        public Set<EntityKey> findForeignEntityKeys(String ownerId, Set<EntityKey> keys) {
+                if (keys == null || keys.isEmpty()) {
+                        return Set.of();
+                }
+
+                ValuesClause values = valuesClause(keys);
+                List<Object> params = new ArrayList<>(values.params());
+                params.add(ownerId);
+                String sql = String.format(
+                                """
+                                                SELECT DISTINCT v.entity_type, v.entity_id
+                                                FROM (VALUES %s) AS v(entity_type, entity_id)
+                                                JOIN entity_state es
+                                                  ON es.entity_type = v.entity_type
+                                                 AND es.entity_id = v.entity_id
+                                                 AND es.guest_user_id <> ?
+                                                """,
+                                values.sql());
+
+                return new HashSet<>(jdbcTemplate.query(
+                                sql,
+                                (rs, rowNum) -> new EntityKey(
+                                                rs.getString("entity_type"),
+                                                rs.getString("entity_id")),
+                                params.toArray()));
+        }
+
         public List<SyncDelta> fetchDeltas(String guestUserId, long cursor, int limit,
                         List<String> allowedEntityTypes) {
                 StringJoiner placeholders = new StringJoiner(", ");
@@ -548,6 +646,31 @@ public class SyncRepository {
         }
 
         public record EntityStateRecord(Map<String, Object> payload, Instant lastReceivedAt) {
+        }
+
+        public record EntityKey(String entityType, String entityId) {
+        }
+
+        public enum EntityPresence {
+                ACTIVE,
+                DELETED
+        }
+
+        private record ValuesClause(String sql, List<Object> params) {
+        }
+
+        private record EntityPresenceRow(EntityKey key, EntityPresence presence) {
+        }
+
+        private ValuesClause valuesClause(Set<EntityKey> keys) {
+                StringJoiner values = new StringJoiner(", ");
+                List<Object> params = new ArrayList<>();
+                for (EntityKey key : keys) {
+                        values.add("(?, ?)");
+                        params.add(key.entityType());
+                        params.add(key.entityId());
+                }
+                return new ValuesClause(values.toString(), params);
         }
 
         public boolean insertOpLedgerIfAbsent(String opId, String deviceId, String guestUserId, Instant receivedAt) {
