@@ -63,6 +63,178 @@ describe('applyDeltas null upsert + timestamp handling', () => {
     expect(exec).not.toHaveBeenCalled();
     expect(result.skipped).toBe(1);
   });
+
+  it('applies delete delta even when local row has newer updated_at', () => {
+    (query as jest.Mock).mockReturnValue([{ updated_at: '2026-05-01T12:00:00.000Z', version: 1 }]);
+
+    const result = applyDeltas([
+      {
+        entityType: 'exercise',
+        entityId: 'e-delete-newer-local',
+        opType: 'delete',
+        payload: {
+          id: 'e-delete-newer-local',
+          deleted_at: '2026-05-01T10:00:00.000Z',
+          updated_at: '2026-05-01T10:00:00.000Z',
+          version: 1,
+        },
+      },
+    ]);
+
+    expect(result).toEqual({ applied: 1, skipped: 0, total: 1 });
+    expect(exec).toHaveBeenCalledTimes(1);
+    expect((exec as jest.Mock).mock.calls[0][0]).toContain('SET deleted_at = COALESCE');
+    expect((exec as jest.Mock).mock.calls[0][1]).toEqual([
+      '2026-05-01T10:00:00.000Z',
+      '2026-05-01T10:00:00.000Z',
+      'e-delete-newer-local',
+    ]);
+  });
+
+  it('applies delete delta even when local row has higher version', () => {
+    (query as jest.Mock).mockReturnValue([{ updated_at: '2026-05-01T09:00:00.000Z', version: 5 }]);
+
+    const result = applyDeltas([
+      {
+        entityType: 'program',
+        entityId: 'p-delete-higher-version',
+        opType: 'delete',
+        payload: {
+          id: 'p-delete-higher-version',
+          deleted_at: '2026-05-01T10:00:00.000Z',
+          updated_at: '2026-05-01T10:00:00.000Z',
+          version: 2,
+        },
+      },
+    ]);
+
+    expect(result).toEqual({ applied: 1, skipped: 0, total: 1 });
+    expect(exec).toHaveBeenCalledTimes(1);
+    expect((exec as jest.Mock).mock.calls[0][0]).toContain('UPDATE program');
+    expect((exec as jest.Mock).mock.calls[0][0]).toContain('SET deleted_at = COALESCE');
+  });
+
+  it('treats any delta with deleted_at as a delete before LWW skip logic', () => {
+    (query as jest.Mock).mockReturnValue([{ updated_at: '2026-05-01T12:00:00.000Z', version: 5 }]);
+
+    const result = applyDeltas([
+      {
+        entityType: 'program',
+        entityId: 'p-upsert-tombstone',
+        opType: 'upsert',
+        payload: {
+          id: 'p-upsert-tombstone',
+          name: 'Deleted Program',
+          deleted_at: '2026-05-01T10:00:00.000Z',
+          updated_at: '2026-05-01T10:00:00.000Z',
+          version: 2,
+        },
+      },
+    ]);
+
+    expect(result).toEqual({ applied: 1, skipped: 0, total: 1 });
+    expect((exec as jest.Mock).mock.calls[0][0]).toContain('UPDATE program');
+    expect((exec as jest.Mock).mock.calls[0][0]).not.toContain('INSERT INTO program');
+  });
+
+  it('applies missing-row delete as a safe idempotent no-op', () => {
+    (query as jest.Mock).mockReturnValue([]);
+
+    const result = applyDeltas([
+      {
+        entityType: 'exercise',
+        entityId: 'missing-exercise',
+        opType: 'delete',
+        payload: {
+          id: 'missing-exercise',
+          deleted_at: '2026-05-01T10:00:00.000Z',
+        },
+      },
+    ]);
+
+    expect(result).toEqual({ applied: 1, skipped: 0, total: 1 });
+    expect(exec).toHaveBeenCalledTimes(1);
+    expect((exec as jest.Mock).mock.calls[0][0]).toContain('WHERE id = ?');
+    expect((exec as jest.Mock).mock.calls[0][1]).toEqual([
+      '2026-05-01T10:00:00.000Z',
+      '2026-05-01T10:00:00.000Z',
+      'missing-exercise',
+    ]);
+  });
+
+  it('applies duplicate delete deltas idempotently without inserting active rows', () => {
+    const rows: Record<
+      string,
+      { id: string; updated_at: string; deleted_at: string | null; version: number }
+    > = {
+      'program-dup-delete': {
+        id: 'program-dup-delete',
+        updated_at: '2026-05-01T12:00:00.000Z',
+        deleted_at: null,
+        version: 3,
+      },
+    };
+    (query as jest.Mock).mockImplementation((sql: string, params?: unknown[]) => {
+      if (sql.includes('SELECT updated_at, version FROM program')) {
+        const id = params?.[0] as string;
+        const row = rows[id];
+        return row ? [{ updated_at: row.updated_at, version: row.version }] : [];
+      }
+      return [];
+    });
+    (exec as jest.Mock).mockImplementation((sql: string, params?: unknown[]) => {
+      if (sql.includes('UPDATE program')) {
+        const [deletedAt, updatedAt, id] = params as [string, string, string];
+        if (rows[id]) {
+          rows[id].deleted_at = deletedAt;
+          rows[id].updated_at = updatedAt;
+        }
+      }
+    });
+
+    const delta: SyncDelta = {
+      entityType: 'program',
+      entityId: 'program-dup-delete',
+      opType: 'delete',
+      payload: {
+        id: 'program-dup-delete',
+        deleted_at: '2026-05-01T10:00:00.000Z',
+        updated_at: '2026-05-01T10:00:00.000Z',
+        version: 2,
+      },
+    };
+
+    const result = applyDeltas([delta, delta]);
+
+    expect(result).toEqual({ applied: 2, skipped: 0, total: 2 });
+    expect(rows['program-dup-delete'].deleted_at).toBe('2026-05-01T10:00:00.000Z');
+    expect(Object.values(rows).filter((row) => row.deleted_at === null)).toHaveLength(0);
+    expect((exec as jest.Mock).mock.calls.map(([sql]) => sql).join('\n')).not.toContain(
+      'INSERT INTO program',
+    );
+  });
+
+  it('still applies newer remote upsert', () => {
+    (query as jest.Mock).mockReturnValue([{ updated_at: '2026-05-01T10:00:00.000Z', version: 1 }]);
+
+    const result = applyDeltas([
+      {
+        entityType: 'exercise',
+        entityId: 'e-newer-remote',
+        opType: 'upsert',
+        payload: {
+          id: 'e-newer-remote',
+          name: 'Remote Name',
+          updated_at: '2026-05-01T12:00:00.000Z',
+          version: 2,
+        },
+      },
+    ]);
+
+    expect(result).toEqual({ applied: 1, skipped: 0, total: 1 });
+    expect((exec as jest.Mock).mock.calls[0][0]).toContain('INSERT INTO exercise');
+  });
+
   it('upserts workout_session workout_note from sync payload', () => {
     (query as jest.Mock).mockReturnValue([]);
 

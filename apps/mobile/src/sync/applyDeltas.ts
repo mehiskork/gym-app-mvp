@@ -474,6 +474,12 @@ function parseVersion(payload: Record<string, unknown>): number | null {
   return null;
 }
 
+function getDeletedAt(payload: Record<string, unknown>): string | null {
+  const deletedAt =
+    (payload.deleted_at as string | undefined) ?? (payload.deletedAt as string | undefined) ?? null;
+  return typeof deletedAt === 'string' && deletedAt.length > 0 ? deletedAt : null;
+}
+
 function fetchLocalRow(
   config: TableConfig,
   id: string,
@@ -559,8 +565,7 @@ function toSqlValue(value: unknown): SQLite.SQLiteBindValue {
 
 function applyDelete(config: TableConfig, payload: Record<string, unknown>) {
   const id = String(payload[config.primaryKey]);
-  const incomingDeletedAt =
-    (payload.deleted_at as string | undefined) ?? (payload.deletedAt as string | undefined) ?? null;
+  const incomingDeletedAt = getDeletedAt(payload);
   const incomingUpdatedAt = parseUpdatedAt(payload);
 
   if (config.hasDeletedAt) {
@@ -638,6 +643,24 @@ function applyDelta(delta: SyncDelta): DeltaOutcome {
   }
 
   const payload = normalizePayload(delta.payload, delta.entityId, config);
+  const opType = delta.opType.toLowerCase();
+  const incomingDeletedAt = getDeletedAt(payload);
+  if (incomingDeletedAt) {
+    // Server tombstones are authoritative. Apply them before local-newer LWW checks
+    // so a stale local row cannot survive while the sync cursor advances.
+    applyDelete(config, payload);
+    return 'applied';
+  }
+
+  if (opType === 'delete') {
+    logEvent('warn', 'sync', 'Skipped delete delta without deleted_at', {
+      entityType: delta.entityType,
+      entityId: delta.entityId,
+      changeId: delta.changeId ?? null,
+    });
+    return 'skipped';
+  }
+
   if (shouldSkipInProgressConflict(delta, payload)) {
     return 'skipped';
   }
@@ -651,24 +674,6 @@ function applyDelta(delta: SyncDelta): DeltaOutcome {
       opType: delta.opType,
     });
     return 'skipped';
-  }
-
-  const opType = delta.opType.toLowerCase();
-  if (opType === 'delete') {
-    const incomingDeletedAt =
-      (payload.deleted_at as string | undefined) ??
-      (payload.deletedAt as string | undefined) ??
-      null;
-    if (!incomingDeletedAt) {
-      logEvent('warn', 'sync', 'Skipped delete delta without deleted_at', {
-        entityType: delta.entityType,
-        entityId: delta.entityId,
-        changeId: delta.changeId ?? null,
-      });
-      return 'skipped';
-    }
-    applyDelete(config, payload);
-    return 'applied';
   }
 
   if (opType !== 'upsert') {
