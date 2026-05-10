@@ -1,11 +1,13 @@
 package com.gymapp.backend.service;
 
+import com.gymapp.backend.controller.AccountDeletedException;
 import com.gymapp.backend.controller.ForbiddenException;
 import com.gymapp.backend.controller.ValidationException;
 import com.gymapp.backend.model.SyncAck;
 import com.gymapp.backend.model.SyncDelta;
 import com.gymapp.backend.model.SyncOp;
 import com.gymapp.backend.model.SyncResponse;
+import com.gymapp.backend.repository.AccountDeletionRepository;
 import com.gymapp.backend.repository.SyncRepository;
 import com.gymapp.backend.security.OwnerScope;
 import java.time.Instant;
@@ -35,6 +37,7 @@ public class SyncService {
                         "token");
 
         private final SyncRepository syncRepository;
+        private final AccountDeletionRepository accountDeletionRepository;
 
         @Transactional(isolation = Isolation.REPEATABLE_READ)
         public SyncResponse sync(String deviceId, String guestUserId, String cursor, List<SyncOp> ops) {
@@ -49,6 +52,12 @@ public class SyncService {
                         throw new ValidationException(
                                         "sync transport context missing device id",
                                         Map.of("field", "deviceId", "ownerType", ownerScope.getType()));
+                }
+                if ("account".equals(ownerScope.getType())) {
+                        accountDeletionRepository.lockAccountOwnerForTransaction(ownerId);
+                        if (accountDeletionRepository.isAccountDeleted(ownerId)) {
+                                throw new AccountDeletedException();
+                        }
                 }
 
                 List<SyncAck> acks = new ArrayList<>();

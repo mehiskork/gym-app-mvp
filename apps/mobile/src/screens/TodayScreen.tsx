@@ -18,11 +18,15 @@ import { TodayWeeklyStats } from '../features/today/TodayWeeklyStats';
 import { createGoogleAccountFromGuest } from '../auth/googleAccountOrchestrator';
 import { resolveLocalAccountState, type LocalAccountStateStatus } from '../auth/localAccountState';
 import { hasPendingAccountDeletionRecovery } from '../auth/accountDeletion';
+import { ACCOUNT_DELETED_MESSAGE } from '../api/errors';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
 function getFriendlyGuestSignInError(error: unknown): string {
   const message = error instanceof Error ? error.message.toLowerCase() : '';
+  if (error instanceof Error && error.message === ACCOUNT_DELETED_MESSAGE) {
+    return ACCOUNT_DELETED_MESSAGE;
+  }
 
   if (message.includes('cancel')) {
     return 'Google sign-in did not finish. Try again.';

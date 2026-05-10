@@ -41,7 +41,7 @@ Account deletion does not:
 - Affect unrelated apps that use the same Google account.
 - Preserve multiple account profiles in local SQLite.
 - Provide partial per-plan, per-session, or per-category deletion.
-- Change backend sync/auth behavior, mobile sync behavior, schemas, or migration logic in this PR.
+- Add account epoch or TrainFrame app session-token architecture in this PR.
 
 ## Guest Users
 
@@ -98,9 +98,11 @@ TrainFrame implements authenticated account deletion at `DELETE /me`.
 - Owner scope is derived from the authenticated principal.
 - The endpoint has no request body and ignores client-sent owner/user/account ids.
 - Deletion is transactional and idempotent.
-- The backend uses hard delete; it does not currently create a tombstone/account-state row.
-- Same Google/Firebase subject recreation is allowed and starts from a fresh empty TrainFrame state.
-- A later valid `/sync` using the same Firebase subject can create new rows after deletion. The mobile deletion flow prevents stale local re-upload by pausing sync and clearing local state after backend success.
+- The backend hard-deletes account-owned and linked claimed guest sync rows.
+- The backend also writes an active `account_deletion_tombstone` row keyed by the derived account owner id.
+- Account `/sync`, `GET /me`, and `/claim/confirm` return `410 ACCOUNT_DELETED` while the tombstone is active.
+- Same Google/Firebase subject recreation is intentionally blocked for v1 because the backend cannot distinguish a fresh reinstall from stale offline-device replay under Firebase-JWT-only auth.
+- Tombstone protection applies only to deletions performed after the tombstone migration is deployed.
 
 ### Mobile Settings Deletion
 
@@ -112,6 +114,8 @@ TrainFrame implements in-app deletion under `Settings -> Delete account` for sig
 - SQLite and SecureStore cleanup only run after backend success.
 - A durable local cleanup marker completes local cleanup on next startup if the app crashes after backend success.
 - Backend deletion failure preserves SQLite, SecureStore, account session, and device credentials and resumes sync for retry.
+- If a stale signed-in install later receives `410 ACCOUNT_DELETED` from account `/sync`, mobile invalidates the account session, signs out of Google best-effort, runs the same guest-bootstrap local cleanup path, and resumes as a fresh guest without retrying old account outbox ops.
+- If guest `claim/confirm` receives `410 ACCOUNT_DELETED`, mobile preserves guest SQLite data, invalidates/signs out of the attempted account session, resumes guest sync, and tells the user to contact support if they want to use that Google account again.
 
 ### Public Web Deletion Resource
 
@@ -139,7 +143,7 @@ Decide these before Play production submission:
 - Whether deletion requires recent login / Google re-auth.
 - Privacy policy URL and public hosting domain for Play Console fields.
 - Manual support SLA / reasonable processing expectation for web deletion requests.
-- Whether to automate web deletion behind a verified email/auth flow later.
+- Whether to add an account epoch or TrainFrame app session later to support safe self-service same-Google recreation.
 
 ## Recommended Initial Direction
 
@@ -149,9 +153,28 @@ For private beta / first public release, the implemented starting policy is:
 - Retain only minimal non-payload security/audit metadata where legally or operationally necessary.
 - Do not retain user workout payloads after account deletion.
 - Make deletion idempotent.
-- Allow the same Google account to create a fresh TrainFrame account later unless abuse controls require otherwise.
+- Block same-Google automatic recreation until support/admin clears the tombstone manually.
 
 The public web form is a manual support request path, not an automatic unauthenticated deletion mechanism.
+
+## Support Tombstone Runbook
+
+`ACCOUNT_DELETED` means the Google/Firebase identity previously deleted its TrainFrame account. This is expected after in-app account deletion and prevents stale authenticated sync replay from offline devices.
+
+Support/admin may clear a tombstone only manually in PostgreSQL. Do not add a public tombstone-clear endpoint for v1.
+
+Before clearing a tombstone, support must instruct the user to reset, uninstall, or sign out from all old TrainFrame installs. Clearing the tombstone can allow stale offline devices that still have old local data to replay deleted data if they reconnect.
+
+Manual clear example:
+
+```sql
+UPDATE account_deletion_tombstone
+SET cleared_at = now(),
+    cleared_by = 'support',
+    clear_reason = 'user requested same-Google recreation after confirming all old installs were reset'
+WHERE account_owner_id = '<issuer>|<subject>'
+  AND cleared_at IS NULL;
+```
 
 ## Proposed User-Facing Copy
 

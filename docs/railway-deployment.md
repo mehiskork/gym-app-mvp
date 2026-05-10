@@ -70,6 +70,7 @@ After each deploy, confirm:
   - `claim`
   - `identity_link`
   - `guest_account_migration_audit`
+  - `account_deletion_tombstone`
 
 If any readiness check fails, `/ready` returns non-200 with a safe structured response and without secrets. `/ready` is only a meaningful production-safety signal when Railway is also running a prod-like profile with the required environment variables above.
 

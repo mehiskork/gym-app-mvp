@@ -1,5 +1,6 @@
 package com.gymapp.backend.service;
 
+import com.gymapp.backend.controller.AccountDeletedException;
 import com.gymapp.backend.config.ClaimProperties;
 import com.gymapp.backend.controller.BadRequestException;
 import com.gymapp.backend.controller.ConflictCodeException;
@@ -7,6 +8,7 @@ import com.gymapp.backend.model.ClaimConfirmResponse;
 import com.gymapp.backend.model.ClaimStartResponse;
 import com.gymapp.backend.model.ClaimStatus;
 import com.gymapp.backend.model.ClaimType;
+import com.gymapp.backend.repository.AccountDeletionRepository;
 import com.gymapp.backend.repository.ClaimRepository;
 import com.gymapp.backend.repository.IdentityLinkRepository;
 import com.gymapp.backend.repository.SyncRepository;
@@ -32,6 +34,7 @@ public class ClaimService {
     private final ClaimRepository claimRepository;
     private final IdentityLinkRepository identityLinkRepository;
     private final SyncRepository syncRepository;
+    private final AccountDeletionRepository accountDeletionRepository;
     private final PasswordEncoder passwordEncoder;
     private final ClaimCodeGenerator claimCodeGenerator;
 
@@ -71,6 +74,11 @@ public class ClaimService {
         String code = normalizeCode(codeInput);
         Instant now = Instant.now();
         Instant createdAfter = now.minus(CLAIM_LOOKBACK);
+
+        accountDeletionRepository.lockAccountOwnerForTransaction(userId);
+        if (accountDeletionRepository.isAccountDeleted(userId)) {
+            throw new AccountDeletedException();
+        }
 
         List<ClaimRepository.ClaimRecord> candidates = claimRepository.findClaimCandidatesForGuestDevice(
                 ClaimType.CODE,

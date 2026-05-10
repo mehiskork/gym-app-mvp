@@ -51,6 +51,11 @@ public class ApiExceptionHandler {
         return buildResponse(HttpStatus.UNAUTHORIZED, ex.getCode(), ex.getMessage(), ex.getDetails());
     }
 
+    @ExceptionHandler(AccountDeletedException.class)
+    public ResponseEntity<ErrorResponse> handleAccountDeleted(AccountDeletedException ex) {
+        return buildResponse(HttpStatus.GONE, ex.getCode(), ex.getMessage(), ex.getDetails());
+    }
+
     @ExceptionHandler(ValidationException.class)
     public ResponseEntity<ErrorResponse> handleSyncValidation(ValidationException ex) {
         return buildResponse(HttpStatus.BAD_REQUEST, ex.getCode(), ex.getMessage(), ex.getDetails());

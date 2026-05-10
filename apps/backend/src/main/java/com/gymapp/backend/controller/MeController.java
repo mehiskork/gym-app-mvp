@@ -18,6 +18,7 @@ public class MeController {
     public ResponseEntity<AccountPrincipal> me(Authentication authentication) {
         Object principal = authentication.getPrincipal();
         if (principal instanceof AccountPrincipal accountPrincipal) {
+            accountDeletionService.rejectIfAccountDeleted(accountPrincipal.getExternalAccountId());
             return ResponseEntity.ok(accountPrincipal);
         }
         throw new IllegalArgumentException("Unsupported principal for /me: " + principal.getClass().getName());

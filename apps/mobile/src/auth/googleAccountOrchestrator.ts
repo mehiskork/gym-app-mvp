@@ -1,4 +1,5 @@
 import { api } from '../api/client';
+import { ACCOUNT_DELETED_MESSAGE, isAccountDeletedApiError } from '../api/errors';
 import { getMeWithAccessToken } from '../api/accountClient';
 import {
   getClaimedUserId,
@@ -17,6 +18,7 @@ import {
   signOutFromGoogle,
 } from './firebaseGoogleAuthClient';
 import { resolveLocalAccountState } from './localAccountState';
+import { logEvent } from '../utils/logger';
 
 type ClaimStartResponse = {
   code: string;
@@ -97,6 +99,16 @@ export async function createGoogleAccountFromGuest(): Promise<GoogleAccountSignI
       displayName: accountSession.displayName,
     };
   } catch (error) {
+    if (isAccountDeletedApiError(error)) {
+      await accountSessionStore.invalidate('claim_account_deleted_remote').catch(() => undefined);
+      await signOutFromGoogle().catch(() => undefined);
+      logEvent('warn', 'auth', 'Claim confirm rejected by account deletion tombstone', {
+        reason: 'account_deleted_remote',
+      });
+      resumeSync();
+      await syncNow({ force: true }).catch(() => undefined);
+      throw new Error(ACCOUNT_DELETED_MESSAGE);
+    }
     if (!sessionStored) {
       await signOutFromGoogle().catch(() => undefined);
     }

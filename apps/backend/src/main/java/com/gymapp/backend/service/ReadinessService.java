@@ -26,7 +26,8 @@ public class ReadinessService {
             "op_ledger",
             "claim",
             "identity_link",
-            "guest_account_migration_audit");
+            "guest_account_migration_audit",
+            "account_deletion_tombstone");
 
     private final DataSource dataSource;
 

@@ -72,8 +72,9 @@ async function finishAccountDeletionLocalCleanup(): Promise<void> {
   pauseSync('account_deletion');
   cancelScheduledSync();
 
-  // Backend deletion already succeeded. Local cleanup must remove stale account
-  // data before normal sync resumes because the backend has no account tombstone.
+  // Backend deletion already succeeded and writes a tombstone that blocks stale
+  // authenticated replay. Local cleanup still removes this install's account data
+  // before normal guest sync resumes.
   await signOutFromGoogle().catch(() => undefined);
   await resetToGuestBootstrap({ resumeSyncAfterReset: false });
   await clearAccountDeletionCleanupPending();

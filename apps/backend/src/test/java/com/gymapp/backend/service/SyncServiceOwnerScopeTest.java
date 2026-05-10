@@ -5,11 +5,14 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.gymapp.backend.controller.AccountDeletedException;
 import com.gymapp.backend.controller.ValidationException;
 import com.gymapp.backend.model.SyncOp;
 import com.gymapp.backend.model.SyncResponse;
+import com.gymapp.backend.repository.AccountDeletionRepository;
 import com.gymapp.backend.repository.SyncRepository;
 import com.gymapp.backend.security.OwnerScope;
 import java.util.List;
@@ -26,9 +29,12 @@ class SyncServiceOwnerScopeTest {
         @Mock
         private SyncRepository syncRepository;
 
+        @Mock
+        private AccountDeletionRepository accountDeletionRepository;
+
         @Test
         void guestOwnerScopeRemainsSourceOfTruthForSyncOwnership() {
-                SyncService syncService = new SyncService(syncRepository);
+                SyncService syncService = new SyncService(syncRepository, accountDeletionRepository);
                 SyncOp op = new SyncOp(
                                 "op-1",
                                 "program",
@@ -64,7 +70,7 @@ class SyncServiceOwnerScopeTest {
 
         @Test
         void accountOwnerScopeUsesAccountNamespaceAndIgnoresPayloadUserId() {
-                SyncService syncService = new SyncService(syncRepository);
+                SyncService syncService = new SyncService(syncRepository, accountDeletionRepository);
                 SyncOp op = new SyncOp(
                                 "op-account-1",
                                 "program",
@@ -76,6 +82,8 @@ class SyncServiceOwnerScopeTest {
                 when(syncRepository.findEntityOwnerIdForOwner(eq("issuer.example|acct-9"), eq("program"),
                                 eq("program-2")))
                                 .thenReturn(Optional.empty());
+                when(accountDeletionRepository.isAccountDeleted(eq("issuer.example|acct-9")))
+                                .thenReturn(false);
                 when(syncRepository.insertOpLedgerIfAbsentForOwner(eq("op-account-1"), eq("device-2"),
                                 eq("issuer.example|acct-9"), any()))
                                 .thenReturn(true);
@@ -96,6 +104,7 @@ class SyncServiceOwnerScopeTest {
 
                 assertThat(response.getAcks()).hasSize(1);
                 assertThat(response.getAcks().get(0).status()).isEqualTo("applied");
+                verify(accountDeletionRepository).lockAccountOwnerForTransaction("issuer.example|acct-9");
                 verify(syncRepository).upsertEntityStateForOwner(eq("issuer.example|acct-9"), eq("program"),
                                 eq("program-2"),
                                 any(), any());
@@ -105,8 +114,10 @@ class SyncServiceOwnerScopeTest {
 
         @Test
         void accountOwnerScopeAllowsMissingDeviceTransportContext() {
-                SyncService syncService = new SyncService(syncRepository);
+                SyncService syncService = new SyncService(syncRepository, accountDeletionRepository);
 
+                when(accountDeletionRepository.isAccountDeleted(eq("issuer.example|acct-9")))
+                                .thenReturn(false);
                 when(syncRepository.findHighWaterChangeIdForOwner(eq("issuer.example|acct-9")))
                                 .thenReturn(0L);
                 when(syncRepository.fetchEntityStateSnapshotForOwner(eq("issuer.example|acct-9"), eq(null), eq(null),
@@ -121,11 +132,36 @@ class SyncServiceOwnerScopeTest {
 
                 assertThat(response.getAcks()).isEmpty();
                 assertThat(response.getDeltas()).isEmpty();
+                verify(accountDeletionRepository).lockAccountOwnerForTransaction("issuer.example|acct-9");
+        }
+
+        @Test
+        void accountOwnerScopeLocksAndRejectsTombstonedAccountBeforeProcessingOps() {
+                SyncService syncService = new SyncService(syncRepository, accountDeletionRepository);
+                SyncOp op = new SyncOp(
+                                "op-account-deleted",
+                                "program",
+                                "program-deleted",
+                                "upsert",
+                                Map.of("updated_at", "2026-03-01T00:00:00Z"),
+                                null);
+                when(accountDeletionRepository.isAccountDeleted(eq("issuer.example|deleted")))
+                                .thenReturn(true);
+
+                assertThatThrownBy(() -> syncService.sync(
+                                null,
+                                OwnerScope.account("issuer.example|deleted"),
+                                "0",
+                                List.of(op)))
+                                .isInstanceOf(AccountDeletedException.class);
+
+                verify(accountDeletionRepository).lockAccountOwnerForTransaction("issuer.example|deleted");
+                verifyNoInteractions(syncRepository);
         }
 
         @Test
         void guestOwnerScopeStillRequiresDeviceTransportContext() {
-                SyncService syncService = new SyncService(syncRepository);
+                SyncService syncService = new SyncService(syncRepository, accountDeletionRepository);
 
                 assertThatThrownBy(() -> syncService.sync(
                                 null,

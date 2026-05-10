@@ -7,6 +7,10 @@ export type ApiErrorOptions = {
   isNetworkError?: boolean;
 };
 
+export const ACCOUNT_DELETED_CODE = 'ACCOUNT_DELETED';
+export const ACCOUNT_DELETED_MESSAGE =
+  'This Google account was previously deleted from TrainFrame. Contact support if you want to use it again.';
+
 export class ApiError extends Error {
   status?: number;
   code?: string;
@@ -25,4 +29,8 @@ export class ApiError extends Error {
     this.isTimeout = options.isTimeout;
     this.isNetworkError = options.isNetworkError;
   }
+}
+
+export function isAccountDeletedApiError(error: unknown): error is ApiError {
+  return error instanceof ApiError && error.status === 410 && error.code === ACCOUNT_DELETED_CODE;
 }

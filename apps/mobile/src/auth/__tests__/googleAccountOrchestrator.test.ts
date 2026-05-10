@@ -1,5 +1,6 @@
 import { createGoogleAccountFromGuest, reconnectGoogleAccount } from '../googleAccountOrchestrator';
 import { api } from '../../api/client';
+import { ApiError, ACCOUNT_DELETED_MESSAGE } from '../../api/errors';
 import { getMeWithAccessToken } from '../../api/accountClient';
 import {
   getClaimedUserId,
@@ -43,6 +44,7 @@ jest.mock('../../sync/syncWorker', () => ({
 jest.mock('../accountSessionStore', () => ({
   accountSessionStore: {
     getUsable: jest.fn(),
+    invalidate: jest.fn(() => Promise.resolve()),
     set: jest.fn(),
   },
 }));
@@ -66,6 +68,10 @@ jest.mock('../firebaseGoogleAuthClient', () => ({
   })),
   signInWithGoogleForFirebase: jest.fn(),
   signOutFromGoogle: jest.fn(),
+}));
+
+jest.mock('../../utils/logger', () => ({
+  logEvent: jest.fn(),
 }));
 
 describe('createGoogleAccountFromGuest', () => {
@@ -163,6 +169,31 @@ describe('createGoogleAccountFromGuest', () => {
 
     expect(accountSessionStore.set).not.toHaveBeenCalled();
     expect(signOutFromGoogle).toHaveBeenCalledTimes(1);
+  });
+
+  it('preserves guest data and invalidates attempted account session when claim confirm returns ACCOUNT_DELETED', async () => {
+    (api.post as jest.Mock)
+      .mockReset()
+      .mockResolvedValueOnce({ code: 'CLAIM123' })
+      .mockRejectedValueOnce(
+        new ApiError('TrainFrame account was deleted', {
+          status: 410,
+          code: 'ACCOUNT_DELETED',
+          requestId: 'req-1',
+          details: null,
+        }),
+      );
+
+    await expect(createGoogleAccountFromGuest()).rejects.toThrow(ACCOUNT_DELETED_MESSAGE);
+
+    expect(accountSessionStore.invalidate).toHaveBeenCalledWith('claim_account_deleted_remote');
+    expect(signOutFromGoogle).toHaveBeenCalledTimes(1);
+    expect(accountSessionStore.set).not.toHaveBeenCalled();
+    expect(setClaimed).not.toHaveBeenCalled();
+    expect(setClaimedUserId).not.toHaveBeenCalled();
+    expect(syncNow).toHaveBeenCalledTimes(2);
+    expect(syncNow).toHaveBeenNthCalledWith(1, { force: true });
+    expect(syncNow).toHaveBeenNthCalledWith(2, { force: true });
   });
 
   it('does not store account session if the device token is missing after account auth', async () => {

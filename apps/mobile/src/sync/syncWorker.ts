@@ -23,6 +23,8 @@ import { inTransaction } from '../db/tx';
 import { safeJsonParse } from '../utils/json';
 import { logEvent } from '../utils/logger';
 import { getApiBaseUrl } from '../api/config';
+import { ACCOUNT_DELETED_CODE } from '../api/errors';
+import { handleRemoteAccountDeletedCleanup } from '../auth/remoteAccountDeletion';
 import {
   applyDeltas,
   getSyncApplyFailureDiagnosticFromError,
@@ -119,6 +121,10 @@ type SyncAck = {
   reason?: string | null;
 };
 
+type ErrorResponseBody = {
+  code?: string;
+};
+
 type AckClassification = {
   ackedIds: string[];
   rejected: Array<{ op: OutboxOp; reason: string }>;
@@ -195,6 +201,15 @@ function classifyAcks(ops: OutboxOp[], acks: SyncAck[] = []): AckClassification 
 
   const missing = ops.filter((op) => !seen.has(op.op_id));
   return { ackedIds, rejected, missing, counts };
+}
+
+async function readErrorResponseCode(response: Response): Promise<string | null> {
+  try {
+    const body = (await response.json()) as ErrorResponseBody | null;
+    return typeof body?.code === 'string' ? body.code : null;
+  } catch {
+    return null;
+  }
 }
 
 export async function syncNow(): Promise<void>;
@@ -349,6 +364,21 @@ async function runSyncPage(options: SyncNowOptions): Promise<boolean> {
     httpStatus = response.status;
 
     if (!response.ok) {
+      const responseCode = await readErrorResponseCode(response);
+      if (
+        authContext.authType === 'account_jwt' &&
+        response.status === 410 &&
+        responseCode === ACCOUNT_DELETED_CODE
+      ) {
+        errorCode = 'account_deleted_remote';
+        errorMessage = 'TrainFrame account was deleted';
+        await handleRemoteAccountDeletedCleanup();
+        updateAuthDebugState({
+          syncAuthModeLastUsed: authContext.authType,
+          syncAuthModeNextPlanned: 'device_token',
+        });
+        return false;
+      }
       errorCode = classifyErrorCode(null, response.status);
       throw new Error(`sync failed: ${response.status}`);
     }

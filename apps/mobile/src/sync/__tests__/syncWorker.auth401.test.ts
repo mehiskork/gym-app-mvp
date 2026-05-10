@@ -3,9 +3,13 @@ import { claimOutboxOps, markOutboxOpsFailed, repairStaleInFlightOps } from '../
 import { finishSyncRun } from '../../db/syncRunRepo';
 import { deviceCredentialStore } from '../../auth/deviceCredentialStore';
 import { accountSessionStore } from '../../auth/accountSessionStore';
-import { getUsableAccountSessionWithFreshToken } from '../../auth/firebaseGoogleAuthClient';
+import {
+  getUsableAccountSessionWithFreshToken,
+  signOutFromGoogle,
+} from '../../auth/firebaseGoogleAuthClient';
 import { updateSyncState } from '../../db/syncStateRepo';
 import { updateAuthDebugState } from '../../db/appMetaRepo';
+import { resetToGuestBootstrap } from '../../auth/identityTransition';
 
 let mockToken: string | null = 'device-token';
 let mockAccountAccessToken: string | null = null;
@@ -23,6 +27,7 @@ jest.mock('../../db/appMetaRepo', () => ({
   getOrCreateDeviceId: jest.fn(() => 'device-1'),
   isLinkedAccountState: jest.fn(() => mockLinkedAccountState),
   isSyncPaused: jest.fn(() => false),
+  pauseSync: jest.fn(),
   setLastSyncAckSummary: jest.fn(),
   setGuestUserId: jest.fn(),
   updateAuthDebugState: jest.fn(),
@@ -65,6 +70,15 @@ jest.mock('../../auth/firebaseGoogleAuthClient', () => ({
       ? { accessToken: mockAccountAccessToken }
       : null;
   }),
+  signOutFromGoogle: jest.fn(async () => undefined),
+}));
+
+jest.mock('../../auth/identityTransition', () => ({
+  resetToGuestBootstrap: jest.fn(async () => undefined),
+}));
+
+jest.mock('../syncScheduler', () => ({
+  cancelScheduledSync: jest.fn(),
 }));
 
 jest.mock('../../db/outboxRepo', () => ({
@@ -95,6 +109,8 @@ jest.mock('../../utils/logger', () => ({
 
 jest.mock('../applyDeltas', () => ({
   applyDeltas: jest.fn(() => ({ applied: 0, skipped: 0, total: 0 })),
+  getSyncApplyFailureDiagnosticFromError: jest.fn(() => null),
+  persistSyncApplyFailureDiagnostic: jest.fn(),
 }));
 
 describe('syncNow 401 self-heal', () => {
@@ -233,6 +249,75 @@ describe('syncNow 401 self-heal', () => {
     expect(updateAuthDebugState).toHaveBeenCalledWith({
       syncAuthModeNextPlanned: 'blocked_reauth',
     });
+  });
+
+  it('handles account JWT 410 ACCOUNT_DELETED with remote-deleted cleanup and no retry marking', async () => {
+    mockAccountAccessToken = 'account-jwt-token';
+    global.fetch = jest.fn().mockResolvedValueOnce({
+      ok: false,
+      status: 410,
+      json: async () => ({
+        code: 'ACCOUNT_DELETED',
+        message: 'TrainFrame account was deleted',
+        requestId: 'req-1',
+        details: null,
+      }),
+    }) as unknown as typeof fetch;
+
+    await syncNow();
+
+    expect(accountSessionStore.invalidate).toHaveBeenCalledWith('account_deleted_remote');
+    expect(signOutFromGoogle).toHaveBeenCalledTimes(1);
+    expect(resetToGuestBootstrap).toHaveBeenCalledWith({ resumeSyncAfterReset: true });
+    expect(markOutboxOpsFailed).not.toHaveBeenCalled();
+    expect(finishSyncRun).toHaveBeenCalledWith(
+      'run-1',
+      expect.objectContaining({
+        status: 'failed',
+        httpStatus: 410,
+        errorCode: 'account_deleted_remote',
+        errorMessage: 'TrainFrame account was deleted',
+      }),
+    );
+  });
+
+  it('does not treat device-token 410 ACCOUNT_DELETED as remote account deletion', async () => {
+    global.fetch = jest.fn().mockResolvedValueOnce({
+      ok: false,
+      status: 410,
+      json: async () => ({ code: 'ACCOUNT_DELETED' }),
+    }) as unknown as typeof fetch;
+
+    await syncNow();
+
+    expect(accountSessionStore.invalidate).not.toHaveBeenCalled();
+    expect(signOutFromGoogle).not.toHaveBeenCalled();
+    expect(resetToGuestBootstrap).not.toHaveBeenCalled();
+    expect(markOutboxOpsFailed).toHaveBeenCalledWith(
+      expect.arrayContaining([expect.objectContaining({ op_id: 'op-1' })]),
+      'sync failed: 410',
+      expect.any(Function),
+    );
+  });
+
+  it('does not treat generic account JWT 410 as remote account deletion', async () => {
+    mockAccountAccessToken = 'account-jwt-token';
+    global.fetch = jest.fn().mockResolvedValueOnce({
+      ok: false,
+      status: 410,
+      json: async () => ({ code: 'SOMETHING_ELSE' }),
+    }) as unknown as typeof fetch;
+
+    await syncNow();
+
+    expect(accountSessionStore.invalidate).not.toHaveBeenCalled();
+    expect(signOutFromGoogle).not.toHaveBeenCalled();
+    expect(resetToGuestBootstrap).not.toHaveBeenCalled();
+    expect(markOutboxOpsFailed).toHaveBeenCalledWith(
+      expect.arrayContaining([expect.objectContaining({ op_id: 'op-1' })]),
+      'sync failed: 410',
+      expect.any(Function),
+    );
   });
 
   it('blocks sync instead of using device token when linked account session is missing', async () => {

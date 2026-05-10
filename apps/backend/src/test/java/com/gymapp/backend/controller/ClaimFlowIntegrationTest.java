@@ -553,6 +553,59 @@ class ClaimFlowIntegrationTest {
         }
 
         @Test
+        void confirmForTombstonedAccountReturnsGoneAndPreservesGuestData() throws Exception {
+                String deviceId = "device-" + UUID.randomUUID();
+                String guestUserId = UUID.randomUUID().toString();
+                String rawToken = "token-" + UUID.randomUUID();
+                String userId = accountOwnerId("firebase-user-deleted-" + UUID.randomUUID());
+                insertDevice(deviceId, guestUserId);
+                insertToken(rawToken, deviceId, Instant.now().plusSeconds(3600));
+                seedGuestSyncData(guestUserId, deviceId);
+                markAccountDeleted(userId);
+
+                MvcResult startResult = mockMvc.perform(post("/claim/start")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .header("Authorization", "Bearer " + rawToken))
+                                .andExpect(status().isOk())
+                                .andReturn();
+
+                JsonNode startBody = objectMapper.readTree(startResult.getResponse().getContentAsString());
+                String claimId = startBody.get("claimId").asString();
+                String code = startBody.get("code").asString();
+
+                mockMvc.perform(post("/claim/confirm")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .header("Authorization", "Bearer " + firebaseTokenForOwner(userId))
+                                .header("X-Device-Authorization", "Bearer " + rawToken)
+                                .content("{\"code\":\"" + code + "\"}"))
+                                .andExpect(status().isGone())
+                                .andExpect(jsonPath("$.code").value("ACCOUNT_DELETED"))
+                                .andExpect(jsonPath("$.message").value("TrainFrame account was deleted"));
+
+                Long linkCount = jdbcTemplate.queryForObject(
+                                "SELECT COUNT(*) FROM identity_link WHERE guest_user_id = ?",
+                                Long.class,
+                                guestUserId);
+                Long accountEntityRows = jdbcTemplate.queryForObject(
+                                "SELECT COUNT(*) FROM entity_state WHERE guest_user_id = ?",
+                                Long.class,
+                                userId);
+                Long guestEntityRows = jdbcTemplate.queryForObject(
+                                "SELECT COUNT(*) FROM entity_state WHERE guest_user_id = ?",
+                                Long.class,
+                                guestUserId);
+                String claimStatus = jdbcTemplate.queryForObject(
+                                "SELECT status FROM claim WHERE claim_id = ?",
+                                String.class,
+                                UUID.fromString(claimId));
+
+                assertThat(linkCount).isZero();
+                assertThat(accountEntityRows).isZero();
+                assertThat(guestEntityRows).isEqualTo(1L);
+                assertThat(claimStatus).isEqualTo("PENDING");
+        }
+
+        @Test
         void confirmConflictReturns409() throws Exception {
                 String userA = accountOwnerId("firebase-user-a-" + UUID.randomUUID());
                 String userB = accountOwnerId("firebase-user-b-" + UUID.randomUUID());
@@ -691,6 +744,19 @@ class ClaimFlowIntegrationTest {
                                 entityId,
                                 rowJson,
                                 OffsetDateTime.ofInstant(lastReceivedAt, ZoneOffset.UTC));
+        }
+
+        private void markAccountDeleted(String accountOwnerId) {
+                jdbcTemplate.update(
+                                """
+                                                INSERT INTO account_deletion_tombstone (
+                                                        account_owner_id,
+                                                        deleted_at,
+                                                        deletion_reason
+                                                )
+                                                VALUES (?, now(), 'test')
+                                                """,
+                                accountOwnerId);
         }
 
         private String accountOwnerId(String uid) {

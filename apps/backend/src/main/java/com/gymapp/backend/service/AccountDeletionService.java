@@ -1,8 +1,10 @@
 package com.gymapp.backend.service;
 
+import com.gymapp.backend.controller.AccountDeletedException;
 import com.gymapp.backend.repository.AccountDeletionRepository;
 import com.gymapp.backend.security.OwnerScope;
 import com.gymapp.backend.security.PrincipalOwnerResolver;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -20,11 +22,8 @@ public class AccountDeletionService {
      * account owner and linked claimed guest scopes.
      *
      * <p>
-     * There is intentionally no tombstone or account-state table in this PR. A
-     * concurrent or later authenticated /sync using the same Firebase subject can
-     * write fresh rows after this transaction commits. Mobile account deletion must
-     * pause sync, call DELETE /me, and clear or rotate local SQLite, account session,
-     * and device credentials only after the 204 response.
+     * Account deletion writes a durable tombstone before removing sync data so later
+     * authenticated sync from stale devices cannot recreate deleted rows.
      */
     @Transactional
     public void deleteAccount(Object principal) {
@@ -32,9 +31,13 @@ public class AccountDeletionService {
         if (!"account".equals(ownerScope.getType())) {
             throw new IllegalArgumentException("Account principal required for account deletion");
         }
+        String accountOwnerId = ownerScope.getOwnerId();
 
+        accountDeletionRepository.lockAccountOwnerForTransaction(accountOwnerId);
+        List<String> linkedGuestScopes = accountDeletionRepository.findLinkedGuestScopes(accountOwnerId);
+        accountDeletionRepository.markAccountDeleted(accountOwnerId);
         AccountDeletionRepository.AccountDeletionResult result = accountDeletionRepository
-                .deleteAccountData(ownerScope.getOwnerId());
+                .deleteAccountData(accountOwnerId, linkedGuestScopes);
 
         log.info(
                 "account deletion completed linkedGuestScopes={} deviceTokensDeleted={} opLedgerDeleted={} changeLogDeleted={} entityStateDeleted={} claimsDeleted={} identityLinksDeleted={} migrationAuditsDeleted={} devicesDeleted={}",
@@ -47,5 +50,19 @@ public class AccountDeletionService {
                 result.identityLinkRowsDeleted(),
                 result.migrationAuditRowsDeleted(),
                 result.deviceRowsDeleted());
+    }
+
+    public void rejectIfAccountDeleted(Object principal) {
+        OwnerScope ownerScope = principalOwnerResolver.resolve(principal);
+        if (!"account".equals(ownerScope.getType())) {
+            throw new IllegalArgumentException("Account principal required");
+        }
+        rejectIfAccountDeleted(ownerScope.getOwnerId());
+    }
+
+    public void rejectIfAccountDeleted(String accountOwnerId) {
+        if (accountDeletionRepository.isAccountDeleted(accountOwnerId)) {
+            throw new AccountDeletedException();
+        }
     }
 }

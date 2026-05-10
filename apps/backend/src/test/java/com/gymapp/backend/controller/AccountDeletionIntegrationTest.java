@@ -1,12 +1,15 @@
 package com.gymapp.backend.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.gymapp.backend.config.FirebaseJwtValidator;
+import com.gymapp.backend.repository.AccountDeletionRepository;
 import com.gymapp.backend.repository.DeviceTokenRepository;
 import com.nimbusds.jose.JOSEObjectType;
 import com.nimbusds.jose.JWSAlgorithm;
@@ -100,6 +103,9 @@ class AccountDeletionIntegrationTest {
     private PasswordEncoder passwordEncoder;
 
     @Autowired
+    private AccountDeletionRepository accountDeletionRepository;
+
+    @Autowired
     private DataSource dataSource;
 
     @BeforeEach
@@ -153,10 +159,12 @@ class AccountDeletionIntegrationTest {
         assertThat(rowCount("change_log", accountOwnerId)).isZero();
         assertThat(rowCount("op_ledger", accountOwnerId)).isZero();
         assertThat(claimCountForAccount(accountOwnerId)).isZero();
+        assertThat(activeTombstoneCount(accountOwnerId)).isEqualTo(1L);
 
         mockMvc.perform(delete("/me")
                 .header("Authorization", "Bearer " + firebaseTokenForOwner(accountOwnerId)))
                 .andExpect(status().isNoContent());
+        assertThat(activeTombstoneCount(accountOwnerId)).isEqualTo(1L);
     }
 
     @Test
@@ -249,22 +257,23 @@ class AccountDeletionIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Authorization", "Bearer " + firebaseTokenForOwner(accountOwnerId))
                 .content("{\"cursor\":\"0\",\"ops\":[]}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.deltas").isEmpty());
+                .andExpect(status().isGone())
+                .andExpect(jsonPath("$.code").value("ACCOUNT_DELETED"))
+                .andExpect(jsonPath("$.message").value("TrainFrame account was deleted"));
 
         mockMvc.perform(post("/sync")
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Authorization", "Bearer " + firebaseTokenForOwner(accountOwnerId))
                 .content("{\"cursor\":\"" + oldCursor + "\",\"ops\":[]}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.deltas").isEmpty());
+                .andExpect(status().isGone())
+                .andExpect(jsonPath("$.code").value("ACCOUNT_DELETED"));
 
         assertThat(totalSyncRows(linkedGuest)).isZero();
         assertThat(deviceCount(deviceId)).isZero();
     }
 
     @Test
-    void sameFirebaseSubjectCanCreateFreshDataAfterDeletion() throws Exception {
+    void staleAccountSyncReplayAfterDeletionIsBlockedAndWritesNoRows() throws Exception {
         String accountOwnerId = accountOwnerId("delete-recreate-" + UUID.randomUUID());
         seedSyncRows(accountOwnerId, null, "before-delete");
 
@@ -272,8 +281,7 @@ class AccountDeletionIntegrationTest {
                 .header("Authorization", "Bearer " + firebaseTokenForOwner(accountOwnerId)))
                 .andExpect(status().isNoContent());
 
-        // There is no tombstone/account table in this PR; same-subject recreation is accepted.
-        String entityId = "program-fresh-" + UUID.randomUUID();
+        String entityId = "program-stale-" + UUID.randomUUID();
         mockMvc.perform(post("/sync")
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Authorization", "Bearer " + firebaseTokenForOwner(accountOwnerId))
@@ -293,11 +301,149 @@ class AccountDeletionIntegrationTest {
                           }]
                         }
                         """.formatted(UUID.randomUUID(), entityId, entityId)))
-                .andExpect(status().isOk());
+                .andExpect(status().isGone())
+                .andExpect(jsonPath("$.code").value("ACCOUNT_DELETED"))
+                .andExpect(jsonPath("$.details").value(nullValue()));
+
+        assertThat(rowCount("entity_state", accountOwnerId)).isZero();
+        assertThat(rowCount("change_log", accountOwnerId)).isZero();
+        assertThat(rowCount("op_ledger", accountOwnerId)).isZero();
+    }
+
+    @Test
+    void getMeWithTombstonedAccountReturnsAccountDeleted() throws Exception {
+        String accountOwnerId = accountOwnerId("delete-me-get-" + UUID.randomUUID());
+
+        mockMvc.perform(delete("/me")
+                .header("Authorization", "Bearer " + firebaseTokenForOwner(accountOwnerId)))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/me")
+                .header("Authorization", "Bearer " + firebaseTokenForOwner(accountOwnerId)))
+                .andExpect(status().isGone())
+                .andExpect(jsonPath("$.code").value("ACCOUNT_DELETED"))
+                .andExpect(jsonPath("$.message").value("TrainFrame account was deleted"));
+    }
+
+    @Test
+    void guestSyncRemainsUnaffectedWhenAnotherAccountIsTombstoned() throws Exception {
+        String accountOwnerId = accountOwnerId("delete-account-guest-unaffected-" + UUID.randomUUID());
+        mockMvc.perform(delete("/me")
+                .header("Authorization", "Bearer " + firebaseTokenForOwner(accountOwnerId)))
+                .andExpect(status().isNoContent());
+
+        String deviceId = "device-guest-unaffected-" + UUID.randomUUID();
+        String guestUserId = "guest-unaffected-" + UUID.randomUUID();
+        String rawToken = "token-guest-unaffected-" + UUID.randomUUID();
+        insertDevice(deviceId, guestUserId, "secret");
+        insertToken(rawToken, deviceId, Instant.now().plusSeconds(3600));
+
+        String entityId = "program-guest-unaffected-" + UUID.randomUUID();
+        mockMvc.perform(post("/sync")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", "Bearer " + rawToken)
+                .content("""
+                        {
+                          "cursor":"0",
+                          "ops":[{
+                            "opId":"op-guest-%s",
+                            "entityType":"program",
+                            "entityId":"%s",
+                            "opType":"upsert",
+                            "payload":{
+                              "id":"%s",
+                              "name":"Guest Program",
+                              "updated_at":"2026-05-08T00:00:00Z"
+                            }
+                          }]
+                        }
+                        """.formatted(UUID.randomUUID(), entityId, entityId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.acks[0].status").value("applied"));
+
+        assertThat(rowCount("entity_state", guestUserId)).isEqualTo(1L);
+    }
+
+    @Test
+    void deviceRegisterAndClaimStartRemainUnaffectedByAccountTombstone() throws Exception {
+        String accountOwnerId = accountOwnerId("delete-account-public-unaffected-" + UUID.randomUUID());
+        mockMvc.perform(delete("/me")
+                .header("Authorization", "Bearer " + firebaseTokenForOwner(accountOwnerId)))
+                .andExpect(status().isNoContent());
+
+        String deviceId = "device-public-unaffected-" + UUID.randomUUID();
+        String deviceSecret = "secret-public-unaffected";
+        MvcResult registerResult = mockMvc.perform(post("/device/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"deviceId":"%s","deviceSecret":"%s"}
+                        """.formatted(deviceId, deviceSecret)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.deviceToken").isString())
+                .andReturn();
+        String deviceToken = objectMapper.readTree(registerResult.getResponse().getContentAsString())
+                .path("deviceToken")
+                .asString();
+
+        mockMvc.perform(post("/claim/start")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", "Bearer " + deviceToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").isString());
+    }
+
+    @Test
+    void clearedTombstoneAllowsSameAccountMeAndSyncAgain() throws Exception {
+        String accountOwnerId = accountOwnerId("delete-cleared-" + UUID.randomUUID());
+        mockMvc.perform(delete("/me")
+                .header("Authorization", "Bearer " + firebaseTokenForOwner(accountOwnerId)))
+                .andExpect(status().isNoContent());
+        clearTombstone(accountOwnerId);
+
+        mockMvc.perform(get("/me")
+                .header("Authorization", "Bearer " + firebaseTokenForOwner(accountOwnerId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.externalAccountId").value(accountOwnerId));
+
+        String entityId = "program-cleared-" + UUID.randomUUID();
+        mockMvc.perform(post("/sync")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", "Bearer " + firebaseTokenForOwner(accountOwnerId))
+                .content("""
+                        {
+                          "cursor":"0",
+                          "ops":[{
+                            "opId":"op-cleared-%s",
+                            "entityType":"program",
+                            "entityId":"%s",
+                            "opType":"upsert",
+                            "payload":{
+                              "id":"%s",
+                              "name":"Cleared Program",
+                              "updated_at":"2026-05-08T00:00:00Z"
+                            }
+                          }]
+                        }
+                        """.formatted(UUID.randomUUID(), entityId, entityId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.acks[0].status").value("applied"));
 
         assertThat(rowCount("entity_state", accountOwnerId)).isEqualTo(1L);
-        assertThat(rowCount("change_log", accountOwnerId)).isEqualTo(1L);
-        assertThat(rowCount("op_ledger", accountOwnerId)).isEqualTo(1L);
+    }
+
+    @Test
+    void repositoryIgnoresClearedTombstoneAndMarkReactivatesIt() {
+        String accountOwnerId = accountOwnerId("repo-reactivate-" + UUID.randomUUID());
+
+        accountDeletionRepository.markAccountDeleted(accountOwnerId);
+        assertThat(accountDeletionRepository.isAccountDeleted(accountOwnerId)).isTrue();
+
+        clearTombstone(accountOwnerId);
+        assertThat(accountDeletionRepository.isAccountDeleted(accountOwnerId)).isFalse();
+
+        accountDeletionRepository.markAccountDeleted(accountOwnerId);
+        assertThat(accountDeletionRepository.isAccountDeleted(accountOwnerId)).isTrue();
+        assertThat(activeTombstoneCount(accountOwnerId)).isEqualTo(1L);
     }
 
     @Test
@@ -466,6 +612,29 @@ class AccountDeletionIntegrationTest {
         return jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM claim WHERE claimed_by_user_id = ?",
                 Long.class,
+                accountOwnerId);
+    }
+
+    private long activeTombstoneCount(String accountOwnerId) {
+        return jdbcTemplate.queryForObject(
+                """
+                        SELECT COUNT(*)
+                        FROM account_deletion_tombstone
+                        WHERE account_owner_id = ? AND cleared_at IS NULL
+                        """,
+                Long.class,
+                accountOwnerId);
+    }
+
+    private void clearTombstone(String accountOwnerId) {
+        jdbcTemplate.update(
+                """
+                        UPDATE account_deletion_tombstone
+                        SET cleared_at = now(),
+                            cleared_by = 'test-support',
+                            clear_reason = 'test clear'
+                        WHERE account_owner_id = ?
+                        """,
                 accountOwnerId);
     }
 

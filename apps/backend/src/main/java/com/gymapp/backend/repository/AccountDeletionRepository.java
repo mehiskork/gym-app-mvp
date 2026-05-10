@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
@@ -13,9 +14,14 @@ import org.springframework.stereotype.Repository;
 @RequiredArgsConstructor
 public class AccountDeletionRepository {
     private final NamedParameterJdbcTemplate jdbcTemplate;
+    private final JdbcTemplate plainJdbcTemplate;
 
     public AccountDeletionResult deleteAccountData(String accountOwnerId) {
         List<String> linkedGuestScopes = findLinkedGuestScopes(accountOwnerId);
+        return deleteAccountData(accountOwnerId, linkedGuestScopes);
+    }
+
+    public AccountDeletionResult deleteAccountData(String accountOwnerId, List<String> linkedGuestScopes) {
         Set<String> allDeletionScopes = new LinkedHashSet<>();
         allDeletionScopes.add(accountOwnerId);
         allDeletionScopes.addAll(linkedGuestScopes);
@@ -39,6 +45,51 @@ public class AccountDeletionRepository {
                 identityLinkRowsDeleted,
                 migrationAuditRowsDeleted,
                 deviceRowsDeleted);
+    }
+
+    public void lockAccountOwnerForTransaction(String accountOwnerId) {
+        plainJdbcTemplate.query(
+                "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))",
+                rs -> null,
+                accountOwnerId);
+    }
+
+    public void markAccountDeleted(String accountOwnerId) {
+        jdbcTemplate.update(
+                """
+                        INSERT INTO account_deletion_tombstone (
+                            account_owner_id,
+                            deleted_at,
+                            deletion_reason,
+                            cleared_at,
+                            cleared_by,
+                            clear_reason
+                        )
+                        VALUES (:accountOwnerId, now(), 'user_delete_me', NULL, NULL, NULL)
+                        ON CONFLICT (account_owner_id)
+                        DO UPDATE SET
+                            deleted_at = now(),
+                            deletion_reason = 'user_delete_me',
+                            cleared_at = NULL,
+                            cleared_by = NULL,
+                            clear_reason = NULL
+                        """,
+                Map.of("accountOwnerId", accountOwnerId));
+    }
+
+    public boolean isAccountDeleted(String accountOwnerId) {
+        Boolean deleted = jdbcTemplate.queryForObject(
+                """
+                        SELECT EXISTS (
+                            SELECT 1
+                            FROM account_deletion_tombstone
+                            WHERE account_owner_id = :accountOwnerId
+                              AND cleared_at IS NULL
+                        )
+                        """,
+                Map.of("accountOwnerId", accountOwnerId),
+                Boolean.class);
+        return Boolean.TRUE.equals(deleted);
     }
 
     public List<String> findLinkedGuestScopes(String accountOwnerId) {

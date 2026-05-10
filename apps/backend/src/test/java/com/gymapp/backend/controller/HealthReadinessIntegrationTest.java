@@ -98,6 +98,31 @@ class HealthReadinessIntegrationTest {
     }
 
     @Test
+    void readyFailsWhenAccountDeletionTombstoneTableIsMissing() throws Exception {
+        jdbcTemplate.execute("DROP TABLE account_deletion_tombstone");
+        try {
+            mockMvc.perform(get("/ready"))
+                    .andExpect(status().isServiceUnavailable())
+                    .andExpect(jsonPath("$.status").value("not_ready"))
+                    .andExpect(jsonPath("$.checks.database").value(true))
+                    .andExpect(jsonPath("$.checks.requiredTables").value(false))
+                    .andExpect(jsonPath("$.missingTables[0]").value("account_deletion_tombstone"));
+        } finally {
+            jdbcTemplate.execute(
+                    "CREATE TABLE account_deletion_tombstone ("
+                            + "account_owner_id TEXT PRIMARY KEY,"
+                            + "deleted_at TIMESTAMPTZ NOT NULL DEFAULT now(),"
+                            + "deletion_reason TEXT NOT NULL DEFAULT 'user_delete_me',"
+                            + "cleared_at TIMESTAMPTZ NULL,"
+                            + "cleared_by TEXT NULL,"
+                            + "clear_reason TEXT NULL)");
+            jdbcTemplate.execute(
+                    "CREATE INDEX idx_account_deletion_tombstone_active "
+                            + "ON account_deletion_tombstone (account_owner_id) WHERE cleared_at IS NULL");
+        }
+    }
+
+    @Test
     void readyFailsWhenFlywayHistoryContainsFailedMigration() throws Exception {
         jdbcTemplate.update(
                 """
