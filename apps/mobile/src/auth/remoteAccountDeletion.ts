@@ -10,8 +10,16 @@ export async function handleRemoteAccountDeletedCleanup(): Promise<void> {
   cancelScheduledSync();
   await accountSessionStore.invalidate('account_deleted_remote').catch(() => undefined);
   await signOutFromGoogle().catch(() => undefined);
-  logEvent('warn', 'auth', 'Remote account deletion tombstone received', {
-    reason: 'account_deleted_remote',
-  });
   await resetToGuestBootstrap({ resumeSyncAfterReset: true });
+  writeRemoteAccountDeletedCleanupDiagnostic();
+}
+
+function writeRemoteAccountDeletedCleanupDiagnostic(): void {
+  try {
+    logEvent('warn', 'auth', 'Remote account deletion cleanup completed', {
+      reason: 'account_deleted_remote',
+    });
+  } catch {
+    // Cleanup has already succeeded. Diagnostics must not put the app back into account state.
+  }
 }
