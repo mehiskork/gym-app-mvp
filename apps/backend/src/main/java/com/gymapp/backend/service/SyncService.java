@@ -637,6 +637,12 @@ public class SyncService {
                                         "Invalid sync operation",
                                         buildDetails(op, "entity_type", "unsupported entity type"));
                 }
+                String entityId = normalizeValue(op.entityId());
+                if (entityId == null) {
+                        throw new ValidationException(
+                                        "Invalid sync operation",
+                                        buildDetails(op, "entity_id", "entity_id must not be blank"));
+                }
                 String opType = normalizeValue(op.opType());
                 if (opType == null) {
                         throw new ValidationException(
@@ -654,10 +660,27 @@ public class SyncService {
                                         "Invalid sync operation",
                                         buildDetails(op, "payload", "payload must not be null"));
                 }
+                validatePayloadEntityId(op, entityId);
                 if (normalizedOpType.equals("delete")) {
                         validateDeletePayload(op);
                 } else {
                         validateUpsertPayload(op);
+                }
+        }
+
+        private void validatePayloadEntityId(SyncOp op, String entityId) {
+                Object payloadId = op.payload().get("id");
+                if (payloadId == null) {
+                        return;
+                }
+
+                String normalizedPayloadId = normalizeValue(payloadId.toString());
+                // The transport entityId is the row key used for ownership, ledger, and storage.
+                // If payload.id disagrees, clients would later materialize a different logical row.
+                if (!entityId.equals(normalizedPayloadId)) {
+                        throw new ValidationException(
+                                        "Invalid sync operation",
+                                        buildDetails(op, "payload.id", "payload.id must match entity_id"));
                 }
         }
 

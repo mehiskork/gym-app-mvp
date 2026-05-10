@@ -160,6 +160,30 @@ class SyncServiceOwnerScopeTest {
         }
 
         @Test
+        void mismatchedPayloadIdIsRejectedBeforeLedgerOrStateWrites() {
+                SyncService syncService = new SyncService(syncRepository, accountDeletionRepository);
+                SyncOp op = new SyncOp(
+                                "op-mismatched-id",
+                                "program",
+                                "program-a",
+                                "upsert",
+                                Map.of(
+                                                "id", "program-b",
+                                                "updated_at", "2026-03-01T00:00:00Z"),
+                                null);
+
+                assertThatThrownBy(() -> syncService.sync(
+                                "device-1",
+                                "guest-principal",
+                                "0",
+                                List.of(op)))
+                                .isInstanceOf(ValidationException.class)
+                                .hasMessageContaining("Invalid sync operation");
+
+                verifyNoInteractions(syncRepository);
+        }
+
+        @Test
         void guestOwnerScopeStillRequiresDeviceTransportContext() {
                 SyncService syncService = new SyncService(syncRepository, accountDeletionRepository);
 

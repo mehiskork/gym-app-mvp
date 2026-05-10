@@ -1,5 +1,6 @@
 package com.gymapp.backend.controller;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -20,6 +21,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -145,6 +147,86 @@ class SyncControllerValidationIT {
         }
 
         @Test
+        void upsertWithMatchingPayloadIdIsAccepted() throws Exception {
+                String token = seedDeviceAndToken("device-upsert-matching-id");
+                String payload = """
+                                {"cursor":null,"ops":[{"opId":"op-matching-id","entityType":"program","entityId":"program-matching-id","opType":"upsert","payload":{"id":"program-matching-id","updated_at":"2026-02-13T12:34:56Z"}}]}
+                                """;
+
+                mockMvc.perform(post("/sync")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .header("Authorization", "Bearer " + token)
+                                .content(payload))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.acks[0].opId").value("op-matching-id"));
+        }
+
+        @Test
+        void upsertWithMissingPayloadIdIsAcceptedAndInjectsEntityId() throws Exception {
+                String deviceId = "device-upsert-missing-id";
+                String token = seedDeviceAndToken(deviceId);
+                String payload = """
+                                {"cursor":null,"ops":[{"opId":"op-missing-id","entityType":"program","entityId":"program-missing-id","opType":"upsert","payload":{"updated_at":"2026-02-13T12:34:56Z"}}]}
+                                """;
+
+                mockMvc.perform(post("/sync")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .header("Authorization", "Bearer " + token)
+                                .content(payload))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.acks[0].opId").value("op-missing-id"));
+
+                assertThat(storedPayloadId(guestUserIdForDevice(deviceId), "program", "program-missing-id"))
+                                .isEqualTo("program-missing-id");
+        }
+
+        @Test
+        void upsertWithMismatchedPayloadIdReturnsValidationErrorAndWritesNoSyncRows() throws Exception {
+                String deviceId = "device-upsert-mismatched-id";
+                String token = seedDeviceAndToken(deviceId);
+                String payload = """
+                                {"cursor":null,"ops":[{"opId":"op-mismatch-upsert","entityType":"program","entityId":"program-a","opType":"upsert","payload":{"id":"program-b","updated_at":"2026-02-13T12:34:56Z"}}]}
+                                """;
+
+                MvcResult result = mockMvc.perform(post("/sync")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .header("Authorization", "Bearer " + token)
+                                .content(payload))
+                                .andExpect(status().isBadRequest())
+                                .andExpect(jsonPath("$.code").value("SYNC_VALIDATION_ERROR"))
+                                .andExpect(jsonPath("$.details.opId").value("op-mismatch-upsert"))
+                                .andExpect(jsonPath("$.details.field").value("payload.id"))
+                                .andReturn();
+
+                assertThat(result.getResponse().getContentAsString())
+                                .doesNotContain("SELECT")
+                                .doesNotContain("INSERT")
+                                .doesNotContain("Exception")
+                                .doesNotContain("stack");
+                assertNoSyncRowsForRejectedOwner(guestUserIdForDevice(deviceId));
+        }
+
+        @Test
+        void deleteWithMismatchedPayloadIdReturnsValidationErrorAndWritesNoSyncRows() throws Exception {
+                String deviceId = "device-delete-mismatched-id";
+                String token = seedDeviceAndToken(deviceId);
+                String payload = """
+                                {"cursor":null,"ops":[{"opId":"op-mismatch-delete","entityType":"program","entityId":"program-a","opType":"delete","payload":{"id":"program-b","deleted_at":"2026-02-13T12:34:56Z"}}]}
+                                """;
+
+                mockMvc.perform(post("/sync")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .header("Authorization", "Bearer " + token)
+                                .content(payload))
+                                .andExpect(status().isBadRequest())
+                                .andExpect(jsonPath("$.code").value("SYNC_VALIDATION_ERROR"))
+                                .andExpect(jsonPath("$.details.opId").value("op-mismatch-delete"))
+                                .andExpect(jsonPath("$.details.field").value("payload.id"));
+
+                assertNoSyncRowsForRejectedOwner(guestUserIdForDevice(deviceId));
+        }
+
+        @Test
         void unsupportedEntityTypeReturnsValidationError() throws Exception {
                 String token = seedDeviceAndToken("device-entity-unsupported");
                 String payload = """
@@ -183,11 +265,41 @@ class SyncControllerValidationIT {
         }
 
         private String seedDeviceAndToken(String deviceId) {
-                String guestUserId = "guest-" + deviceId;
+                String guestUserId = guestUserIdForDevice(deviceId);
                 String rawToken = "token-" + deviceId;
                 insertDevice(deviceId, guestUserId);
                 insertToken(rawToken, deviceId, Instant.now().plusSeconds(3600));
                 return rawToken;
+        }
+
+        private String guestUserIdForDevice(String deviceId) {
+                return "guest-" + deviceId;
+        }
+
+        private void assertNoSyncRowsForRejectedOwner(String guestUserId) {
+                assertThat(countOwnerRows("entity_state", guestUserId)).isZero();
+                assertThat(countOwnerRows("change_log", guestUserId)).isZero();
+                assertThat(countOwnerRows("op_ledger", guestUserId)).isZero();
+        }
+
+        private Long countOwnerRows(String table, String guestUserId) {
+                return jdbcTemplate.queryForObject(
+                                "SELECT COUNT(*) FROM " + table + " WHERE guest_user_id = ?",
+                                Long.class,
+                                guestUserId);
+        }
+
+        private String storedPayloadId(String guestUserId, String entityType, String entityId) {
+                return jdbcTemplate.queryForObject(
+                                """
+                                                SELECT row_json ->> 'id'
+                                                FROM entity_state
+                                                WHERE guest_user_id = ? AND entity_type = ? AND entity_id = ?
+                                                """,
+                                String.class,
+                                guestUserId,
+                                entityType,
+                                entityId);
         }
 
         private void insertDevice(String deviceId, String guestUserId) {
