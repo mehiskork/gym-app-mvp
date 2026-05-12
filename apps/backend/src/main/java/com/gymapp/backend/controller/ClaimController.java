@@ -42,7 +42,7 @@ public class ClaimController {
         DevicePrincipal devicePrincipal = claimDeviceCredentialResolver.resolve(deviceAuthorization);
         return ResponseEntity.ok(claimService.confirmClaim(
                 request.code(),
-                accountPrincipal.getExternalAccountId(),
+                accountPrincipal,
                 devicePrincipal.getGuestUserId(),
                 devicePrincipal.getDeviceId()));
     }

@@ -22,9 +22,13 @@ class AccountDeletionServiceTest {
     @Mock
     private PrincipalOwnerResolver principalOwnerResolver;
 
+    @Mock
+    private AccountIdentityService accountIdentityService;
+
     @Test
     void deleteAccountLocksReadsLinkedScopesMarksTombstoneThenDeletesRows() {
-        AccountDeletionService service = new AccountDeletionService(accountDeletionRepository, principalOwnerResolver);
+        AccountDeletionService service = new AccountDeletionService(accountDeletionRepository, principalOwnerResolver,
+                accountIdentityService);
         AccountPrincipal principal = AccountPrincipal.builder()
                 .principalType("account")
                 .issuer("issuer")
@@ -33,6 +37,7 @@ class AccountDeletionServiceTest {
                 .build();
         List<String> linkedGuestScopes = List.of("guest-1");
 
+        when(accountIdentityService.resolveActivePrincipal(principal)).thenReturn(principal);
         when(principalOwnerResolver.resolve(principal)).thenReturn(OwnerScope.account("issuer|subject"));
         when(accountDeletionRepository.findLinkedGuestScopes("issuer|subject")).thenReturn(linkedGuestScopes);
         when(accountDeletionRepository.deleteAccountData("issuer|subject", linkedGuestScopes))

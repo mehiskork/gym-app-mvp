@@ -1,5 +1,7 @@
 package com.gymapp.backend.config;
 
+import java.time.Instant;
+import java.util.Date;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Component;
 
@@ -25,6 +27,28 @@ public class PrincipalMapper {
                 .issuer(issuer)
                 .subject(subject)
                 .externalAccountId(externalAccountId)
+                .authTime(readAuthTime(jwt))
                 .build();
+    }
+
+    private Instant readAuthTime(Jwt jwt) {
+        Object value = jwt.getClaims().get("auth_time");
+        if (value instanceof Instant instant) {
+            return instant;
+        }
+        if (value instanceof Date date) {
+            return date.toInstant();
+        }
+        if (value instanceof Number number) {
+            return Instant.ofEpochSecond(number.longValue());
+        }
+        if (value instanceof String stringValue && !stringValue.isBlank()) {
+            try {
+                return Instant.ofEpochSecond(Long.parseLong(stringValue));
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+        return null;
     }
 }

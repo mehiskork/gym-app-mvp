@@ -12,6 +12,7 @@ import com.gymapp.backend.model.SyncRequest;
 import com.gymapp.backend.model.SyncResponse;
 import com.gymapp.backend.security.OwnerScope;
 import com.gymapp.backend.security.PrincipalOwnerResolver;
+import com.gymapp.backend.service.AccountIdentityService;
 import com.gymapp.backend.service.SyncService;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -30,10 +31,14 @@ class SyncControllerOwnerScopeTest {
     @Mock
     private PrincipalOwnerResolver principalOwnerResolver;
 
+    @Mock
+    private AccountIdentityService accountIdentityService;
+
     @Test
     void syncUsesGuestOwnerScopeForDevicePrincipal() {
         SyncGuardrailsProperties guardrailsProperties = new SyncGuardrailsProperties();
-        SyncController controller = new SyncController(syncService, guardrailsProperties, principalOwnerResolver);
+        SyncController controller = new SyncController(syncService, guardrailsProperties, principalOwnerResolver,
+                accountIdentityService);
 
         DevicePrincipal principal = new DevicePrincipal("device-1", "guest-1");
         Authentication authentication = new UsernamePasswordAuthenticationToken(principal, null, List.of());
@@ -54,7 +59,8 @@ class SyncControllerOwnerScopeTest {
     @Test
     void syncUsesAccountOwnerScopeWhenPrincipalIsAccount() {
         SyncGuardrailsProperties guardrailsProperties = new SyncGuardrailsProperties();
-        SyncController controller = new SyncController(syncService, guardrailsProperties, principalOwnerResolver);
+        SyncController controller = new SyncController(syncService, guardrailsProperties, principalOwnerResolver,
+                accountIdentityService);
 
         AccountPrincipal principal = AccountPrincipal.builder()
                 .principalType("account")
@@ -66,6 +72,7 @@ class SyncControllerOwnerScopeTest {
         SyncRequest request = new SyncRequest("0", List.of());
         OwnerScope ownerScope = OwnerScope.account("issuer-a|sub-a");
 
+        when(accountIdentityService.resolveActivePrincipal(principal)).thenReturn(principal);
         when(principalOwnerResolver.resolve(principal)).thenReturn(ownerScope);
         when(syncService.sync(eq(null), eq(ownerScope), eq("0"), eq(List.of())))
                 .thenReturn(new SyncResponse(List.of(), "0", List.of(), false));

@@ -1,5 +1,6 @@
 package com.gymapp.backend.service;
 
+import com.gymapp.backend.config.AccountPrincipal;
 import com.gymapp.backend.controller.AccountDeletedException;
 import com.gymapp.backend.repository.AccountDeletionRepository;
 import com.gymapp.backend.security.OwnerScope;
@@ -16,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class AccountDeletionService {
     private final AccountDeletionRepository accountDeletionRepository;
     private final PrincipalOwnerResolver principalOwnerResolver;
+    private final AccountIdentityService accountIdentityService;
 
     /**
      * Deletes backend rows visible to this transaction for the authenticated
@@ -27,7 +29,11 @@ public class AccountDeletionService {
      */
     @Transactional
     public void deleteAccount(Object principal) {
-        OwnerScope ownerScope = principalOwnerResolver.resolve(principal);
+        AccountPrincipal accountPrincipal = principal instanceof AccountPrincipal rawAccountPrincipal
+                ? accountIdentityService.resolveActivePrincipal(rawAccountPrincipal)
+                : null;
+        Object resolvedPrincipal = accountPrincipal == null ? principal : accountPrincipal;
+        OwnerScope ownerScope = principalOwnerResolver.resolve(resolvedPrincipal);
         if (!"account".equals(ownerScope.getType())) {
             throw new IllegalArgumentException("Account principal required for account deletion");
         }
@@ -36,6 +42,8 @@ public class AccountDeletionService {
         accountDeletionRepository.lockAccountOwnerForTransaction(accountOwnerId);
         List<String> linkedGuestScopes = accountDeletionRepository.findLinkedGuestScopes(accountOwnerId);
         accountDeletionRepository.markAccountDeleted(accountOwnerId);
+        accountIdentityService.recordActiveAccountDeleted(accountPrincipal, accountOwnerId,
+                accountDeletionRepository.findActiveTombstoneDeletedAt(accountOwnerId).orElse(null));
         AccountDeletionRepository.AccountDeletionResult result = accountDeletionRepository
                 .deleteAccountData(accountOwnerId, linkedGuestScopes);
 

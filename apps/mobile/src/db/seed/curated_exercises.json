@@ -96,6 +96,10 @@
     "name": "Bench Dips"
   },
   {
+    "id": "ex_toes_to_bar",
+    "name": "Toes to Bar"
+  },
+  {
     "id": "ex_pullup",
     "name": "Pull-Up"
   },

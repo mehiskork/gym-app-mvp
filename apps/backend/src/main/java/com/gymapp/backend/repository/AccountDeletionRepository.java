@@ -3,6 +3,7 @@ package com.gymapp.backend.repository;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -75,6 +76,20 @@ public class AccountDeletionRepository {
                             clear_reason = NULL
                         """,
                 Map.of("accountOwnerId", accountOwnerId));
+    }
+
+    public Optional<java.time.Instant> findActiveTombstoneDeletedAt(String accountOwnerId) {
+        return jdbcTemplate.query(
+                """
+                        SELECT deleted_at
+                        FROM account_deletion_tombstone
+                        WHERE account_owner_id = :accountOwnerId
+                          AND cleared_at IS NULL
+                        """,
+                Map.of("accountOwnerId", accountOwnerId),
+                (rs, rowNum) -> rs.getTimestamp("deleted_at").toInstant())
+                .stream()
+                .findFirst();
     }
 
     public boolean isAccountDeleted(String accountOwnerId) {

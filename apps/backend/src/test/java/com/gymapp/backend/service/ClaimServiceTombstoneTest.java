@@ -5,6 +5,7 @@ import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.gymapp.backend.config.AccountPrincipal;
 import com.gymapp.backend.config.ClaimProperties;
 import com.gymapp.backend.controller.AccountDeletedException;
 import com.gymapp.backend.repository.AccountDeletionRepository;
@@ -33,6 +34,9 @@ class ClaimServiceTombstoneTest {
     private AccountDeletionRepository accountDeletionRepository;
 
     @Mock
+    private AccountIdentityService accountIdentityService;
+
+    @Mock
     private PasswordEncoder passwordEncoder;
 
     @Mock
@@ -45,17 +49,23 @@ class ClaimServiceTombstoneTest {
                 identityLinkRepository,
                 syncRepository,
                 accountDeletionRepository,
+                accountIdentityService,
                 passwordEncoder,
                 claimCodeGenerator,
                 new ClaimProperties());
-        when(accountDeletionRepository.isAccountDeleted("issuer|subject")).thenReturn(true);
+        AccountPrincipal principal = AccountPrincipal.builder()
+                .principalType("account")
+                .externalAccountId("issuer|subject")
+                .issuer("issuer")
+                .subject("subject")
+                .build();
+        when(accountIdentityService.resolveOrCreateForClaim(principal)).thenThrow(new AccountDeletedException());
 
-        assertThatThrownBy(() -> service.confirmClaim("ABCDEFGH", "issuer|subject", "guest-1", "device-1"))
+        assertThatThrownBy(() -> service.confirmClaim("ABCDEFGH", principal, "guest-1", "device-1"))
                 .isInstanceOf(AccountDeletedException.class);
 
-        InOrder inOrder = inOrder(accountDeletionRepository);
-        inOrder.verify(accountDeletionRepository).lockAccountOwnerForTransaction("issuer|subject");
-        inOrder.verify(accountDeletionRepository).isAccountDeleted("issuer|subject");
-        verifyNoInteractions(claimRepository, identityLinkRepository, syncRepository);
+        InOrder inOrder = inOrder(accountIdentityService);
+        inOrder.verify(accountIdentityService).resolveOrCreateForClaim(principal);
+        verifyNoInteractions(claimRepository, identityLinkRepository, syncRepository, accountDeletionRepository);
     }
 }

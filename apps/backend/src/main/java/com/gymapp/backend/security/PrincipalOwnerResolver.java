@@ -14,7 +14,10 @@ public class PrincipalOwnerResolver {
             return OwnerScope.guest(devicePrincipal.getGuestUserId());
         }
         if (principal instanceof AccountPrincipal accountPrincipal) {
-            return OwnerScope.account(validateAccountOwnerId(accountPrincipal.getExternalAccountId()));
+            String ownerId = accountPrincipal.getActiveAccountOwnerId() == null
+                    ? accountPrincipal.getExternalAccountId()
+                    : accountPrincipal.getActiveAccountOwnerId();
+            return OwnerScope.account(validateAccountOwnerId(ownerId));
         }
         if (principal instanceof Jwt jwt) {
             String issuer = jwt.getIssuer() == null ? null : jwt.getIssuer().toString();

@@ -1,6 +1,7 @@
 package com.gymapp.backend.controller;
 
 import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.same;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -65,8 +66,9 @@ class ClaimControllerTest {
 
         when(claimDeviceCredentialResolver.resolve("Bearer device-token"))
                 .thenReturn(new DevicePrincipal("device-1", "guest-1"));
-        when(claimService.confirmClaim("ABC12345", accountOwnerId, "guest-1", "device-1"))
-                .thenReturn(new ClaimConfirmResponse(guestUserId, accountOwnerId, "CLAIMED"));
+        when(claimService.confirmClaim(org.mockito.ArgumentMatchers.eq("ABC12345"), same(accountPrincipal),
+                org.mockito.ArgumentMatchers.eq("guest-1"), org.mockito.ArgumentMatchers.eq("device-1")))
+                .thenReturn(new ClaimConfirmResponse(guestUserId, accountOwnerId, "CLAIMED", false));
 
         mockMvc.perform(post("/claim/confirm")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -77,6 +79,7 @@ class ClaimControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.guestUserId").value(guestUserId))
                 .andExpect(jsonPath("$.userId").value(accountOwnerId))
-                .andExpect(jsonPath("$.status").value("CLAIMED"));
+                .andExpect(jsonPath("$.status").value("CLAIMED"))
+                .andExpect(jsonPath("$.recreated").value(false));
     }
 }

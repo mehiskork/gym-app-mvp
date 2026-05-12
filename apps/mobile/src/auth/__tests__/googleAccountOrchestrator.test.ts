@@ -1,6 +1,6 @@
 import { createGoogleAccountFromGuest, reconnectGoogleAccount } from '../googleAccountOrchestrator';
 import { api } from '../../api/client';
-import { ApiError, ACCOUNT_DELETED_MESSAGE } from '../../api/errors';
+import { ApiError } from '../../api/errors';
 import { getMeWithAccessToken } from '../../api/accountClient';
 import {
   getClaimedUserId,
@@ -98,6 +98,7 @@ describe('createGoogleAccountFromGuest', () => {
       guestUserId: 'guest-1',
       userId: 'https://securetoken.google.com/gym-app-mvp-1d7f0|firebase-uid',
       status: 'claimed',
+      recreated: false,
     });
     (getMeWithAccessToken as jest.Mock).mockResolvedValue({
       principalType: 'account',
@@ -144,6 +145,35 @@ describe('createGoogleAccountFromGuest', () => {
     expect(getMeWithAccessToken).toHaveBeenCalledWith('firebase-id-token');
   });
 
+  it('treats recreated claim response as normal signed-in state', async () => {
+    (api.post as jest.Mock)
+      .mockReset()
+      .mockResolvedValueOnce({ code: 'CLAIM123' })
+      .mockResolvedValueOnce({
+        guestUserId: 'guest-1',
+        userId: 'account|new-generation',
+        status: 'claimed',
+        recreated: true,
+      });
+    (getMeWithAccessToken as jest.Mock).mockResolvedValue({
+      principalType: 'account',
+      subject: 'firebase-uid',
+      externalAccountId: 'account|new-generation',
+      activeAccountOwnerId: 'account|new-generation',
+    });
+
+    await expect(createGoogleAccountFromGuest()).resolves.toEqual({
+      userId: 'account|new-generation',
+      email: 'user@example.test',
+      displayName: 'Test User',
+    });
+
+    expect(setClaimed).toHaveBeenCalledWith(true);
+    expect(setClaimedUserId).toHaveBeenCalledWith('account|new-generation');
+    expect(accountSessionStore.set).toHaveBeenCalledTimes(1);
+    expect(signOutFromGoogle).not.toHaveBeenCalled();
+  });
+
   it('keeps the linked account session when automatic account sync fails after claim', async () => {
     (syncNow as jest.Mock)
       .mockResolvedValueOnce(undefined)
@@ -171,7 +201,7 @@ describe('createGoogleAccountFromGuest', () => {
     expect(signOutFromGoogle).toHaveBeenCalledTimes(1);
   });
 
-  it('preserves guest data and invalidates attempted account session when claim confirm returns ACCOUNT_DELETED', async () => {
+  it('uses generic sign-in failure and invalidates attempted account session when claim confirm returns ACCOUNT_DELETED', async () => {
     (api.post as jest.Mock)
       .mockReset()
       .mockResolvedValueOnce({ code: 'CLAIM123' })
@@ -184,7 +214,7 @@ describe('createGoogleAccountFromGuest', () => {
         }),
       );
 
-    await expect(createGoogleAccountFromGuest()).rejects.toThrow(ACCOUNT_DELETED_MESSAGE);
+    await expect(createGoogleAccountFromGuest()).rejects.toThrow('Google account sign-in failed.');
 
     expect(accountSessionStore.invalidate).toHaveBeenCalledWith('claim_account_deleted_remote');
     expect(signOutFromGoogle).toHaveBeenCalledTimes(1);

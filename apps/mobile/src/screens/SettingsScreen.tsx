@@ -50,7 +50,6 @@ import {
   getFriendlyAccountDeletionError,
 } from '../auth/accountDeletion';
 import { getAccountDeletionUrl, getPrivacyPolicyUrl } from '../api/config';
-import { ACCOUNT_DELETED_MESSAGE } from '../api/errors';
 
 const REST_TIME_OPTIONS = [
   { label: '0:30', seconds: 30 },
@@ -67,9 +66,6 @@ type DeleteAccountStep = 'review' | 'confirm';
 function getFriendlyAccountError(error: unknown, action: AccountAction): string {
   const rawMessage = error instanceof Error ? error.message : '';
   const message = rawMessage.toLowerCase();
-  if (rawMessage === ACCOUNT_DELETED_MESSAGE) {
-    return ACCOUNT_DELETED_MESSAGE;
-  }
 
   if (message.includes('different account')) {
     return 'This device is linked to a different Google account. Reset this device before switching accounts.';

@@ -1,6 +1,6 @@
 package com.gymapp.backend.service;
 
-import com.gymapp.backend.controller.AccountDeletedException;
+import com.gymapp.backend.config.AccountPrincipal;
 import com.gymapp.backend.config.ClaimProperties;
 import com.gymapp.backend.controller.BadRequestException;
 import com.gymapp.backend.controller.ConflictCodeException;
@@ -9,6 +9,7 @@ import com.gymapp.backend.model.ClaimStartResponse;
 import com.gymapp.backend.model.ClaimStatus;
 import com.gymapp.backend.model.ClaimType;
 import com.gymapp.backend.repository.AccountDeletionRepository;
+import com.gymapp.backend.repository.AccountIdentityRepository;
 import com.gymapp.backend.repository.ClaimRepository;
 import com.gymapp.backend.repository.IdentityLinkRepository;
 import com.gymapp.backend.repository.SyncRepository;
@@ -35,6 +36,7 @@ public class ClaimService {
     private final IdentityLinkRepository identityLinkRepository;
     private final SyncRepository syncRepository;
     private final AccountDeletionRepository accountDeletionRepository;
+    private final AccountIdentityService accountIdentityService;
     private final PasswordEncoder passwordEncoder;
     private final ClaimCodeGenerator claimCodeGenerator;
 
@@ -68,17 +70,17 @@ public class ClaimService {
     @Transactional(noRollbackFor = BadRequestException.class)
     public ClaimConfirmResponse confirmClaim(
             String codeInput,
-            String userId,
+            AccountPrincipal accountPrincipal,
             String guestUserId,
             String deviceId) {
         String code = normalizeCode(codeInput);
         Instant now = Instant.now();
         Instant createdAfter = now.minus(CLAIM_LOOKBACK);
 
+        AccountIdentityRepository.AccountIdentityRecord activeIdentity = accountIdentityService
+                .resolveOrCreateForClaim(accountPrincipal);
+        String userId = activeIdentity.activeAccountOwnerId();
         accountDeletionRepository.lockAccountOwnerForTransaction(userId);
-        if (accountDeletionRepository.isAccountDeleted(userId)) {
-            throw new AccountDeletedException();
-        }
 
         List<ClaimRepository.ClaimRecord> candidates = claimRepository.findClaimCandidatesForGuestDevice(
                 ClaimType.CODE,
@@ -104,7 +106,8 @@ public class ClaimService {
                 throw new ConflictCodeException("CLAIM_CONFLICT", "Guest user already claimed by another user");
             }
             migrateGuestSyncOwnershipIfNeeded(match.guestUserId(), linkedUserId, now);
-            return new ClaimConfirmResponse(match.guestUserId(), linkedUserId, ClaimStatus.CLAIMED.name());
+            return new ClaimConfirmResponse(match.guestUserId(), linkedUserId, ClaimStatus.CLAIMED.name(),
+                    activeIdentity.generation() > 1);
         }
 
         if (now.isAfter(match.expiresAt())) {
@@ -122,7 +125,8 @@ public class ClaimService {
         migrateGuestSyncOwnershipIfNeeded(match.guestUserId(), userId, now);
         claimRepository.markClaimed(match.claimId(), userId, now);
 
-        return new ClaimConfirmResponse(match.guestUserId(), userId, ClaimStatus.CLAIMED.name());
+        return new ClaimConfirmResponse(match.guestUserId(), userId, ClaimStatus.CLAIMED.name(),
+                activeIdentity.generation() > 1);
     }
 
     private void migrateGuestSyncOwnershipIfNeeded(String guestUserId, String userId, Instant now) {

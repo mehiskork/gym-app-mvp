@@ -7,6 +7,7 @@ import com.gymapp.backend.model.SyncRequest;
 import com.gymapp.backend.model.SyncResponse;
 import com.gymapp.backend.security.OwnerScope;
 import com.gymapp.backend.security.PrincipalOwnerResolver;
+import com.gymapp.backend.service.AccountIdentityService;
 import com.gymapp.backend.service.SyncService;
 import jakarta.validation.Valid;
 import java.util.Map;
@@ -25,6 +26,7 @@ public class SyncController {
         private final SyncService syncService;
         private final SyncGuardrailsProperties syncGuardrailsProperties;
         private final PrincipalOwnerResolver principalOwnerResolver;
+        private final AccountIdentityService accountIdentityService;
 
         @PostMapping("/sync")
         public ResponseEntity<SyncResponse> sync(
@@ -40,6 +42,9 @@ public class SyncController {
                 }
 
                 Object principal = authentication.getPrincipal();
+                if (principal instanceof AccountPrincipal accountPrincipal) {
+                        principal = accountIdentityService.resolveActivePrincipal(accountPrincipal);
+                }
                 OwnerScope ownerScope = principalOwnerResolver.resolve(principal);
                 String deviceId = principal instanceof DevicePrincipal devicePrincipal
                                 ? devicePrincipal.getDeviceId()

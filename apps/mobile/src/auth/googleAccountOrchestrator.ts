@@ -1,5 +1,5 @@
 import { api } from '../api/client';
-import { ACCOUNT_DELETED_MESSAGE, isAccountDeletedApiError } from '../api/errors';
+import { isAccountDeletedApiError } from '../api/errors';
 import { getMeWithAccessToken } from '../api/accountClient';
 import {
   getClaimedUserId,
@@ -28,6 +28,7 @@ type ClaimConfirmResponse = {
   guestUserId: string;
   userId: string;
   status: string;
+  recreated?: boolean;
 };
 
 export type GoogleAccountSignInResult = {
@@ -107,7 +108,7 @@ export async function createGoogleAccountFromGuest(): Promise<GoogleAccountSignI
       });
       resumeSync();
       await syncNow({ force: true }).catch(() => undefined);
-      throw new Error(ACCOUNT_DELETED_MESSAGE);
+      throw new Error('Google account sign-in failed.');
     }
     if (!sessionStored) {
       await signOutFromGoogle().catch(() => undefined);

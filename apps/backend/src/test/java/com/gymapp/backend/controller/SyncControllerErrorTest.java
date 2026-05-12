@@ -18,6 +18,7 @@ import com.gymapp.backend.config.SyncGuardrailsProperties;
 import com.gymapp.backend.model.ErrorResponse;
 import com.gymapp.backend.repository.DeviceTokenRepository;
 import com.gymapp.backend.security.PrincipalOwnerResolver;
+import com.gymapp.backend.service.AccountIdentityService;
 import com.gymapp.backend.service.SyncService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -43,6 +44,7 @@ class SyncControllerErrorTest {
         private DeviceTokenRepository deviceTokenRepository;
         private SyncGuardrailsProperties syncGuardrailsProperties;
         private PrincipalOwnerResolver principalOwnerResolver;
+        private AccountIdentityService accountIdentityService;
 
         @BeforeEach
         void setUp() {
@@ -52,12 +54,14 @@ class SyncControllerErrorTest {
                 deviceTokenRepository = mock(DeviceTokenRepository.class);
                 syncGuardrailsProperties = mock(SyncGuardrailsProperties.class);
                 principalOwnerResolver = mock(PrincipalOwnerResolver.class);
+                accountIdentityService = mock(AccountIdentityService.class);
 
                 mockMvc = MockMvcBuilders
                                 .standaloneSetup(new SyncController(
                                                 syncService,
                                                 syncGuardrailsProperties,
-                                                principalOwnerResolver))
+                                                principalOwnerResolver,
+                                                accountIdentityService))
                                 .setControllerAdvice(new ApiExceptionHandler())
                                 .addFilters(
                                                 new RequestIdFilter(),

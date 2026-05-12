@@ -311,6 +311,123 @@ class AccountDeletionIntegrationTest {
     }
 
     @Test
+    void deletedFirebaseIdentityCanClaimAgainWithFreshActiveOwnerAndOldSessionCannotReplay() throws Exception {
+        String uid = "recreate-same-google-" + UUID.randomUUID();
+        String deletedOwnerId = accountOwnerId(uid);
+        Instant oldAuthTime = Instant.now().minusSeconds(3600);
+        String staleAccountToken = firebaseToken(uid, Instant.now().plusSeconds(3600), oldAuthTime);
+        seedSyncRows(deletedOwnerId, null, "deleted-generation");
+
+        mockMvc.perform(delete("/me")
+                .header("Authorization", "Bearer " + staleAccountToken))
+                .andExpect(status().isNoContent());
+        Instant deletedAt = activeTombstoneDeletedAt(deletedOwnerId);
+        waitUntilAfter(deletedAt);
+
+        String deviceId = "device-recreate-" + UUID.randomUUID();
+        String guestUserId = "guest-recreate-" + UUID.randomUUID();
+        String rawToken = "token-recreate-" + UUID.randomUUID();
+        insertDevice(deviceId, guestUserId, "secret");
+        insertToken(rawToken, deviceId, Instant.now().plusSeconds(3600));
+
+        MvcResult startResult = mockMvc.perform(post("/claim/start")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", "Bearer " + rawToken))
+                .andExpect(status().isOk())
+                .andReturn();
+        String claimCode = objectMapper.readTree(startResult.getResponse().getContentAsString()).path("code")
+                .asString();
+
+        String freshAccountToken = firebaseToken(uid, Instant.now().plusSeconds(3600), Instant.now());
+        MvcResult confirmResult = mockMvc.perform(post("/claim/confirm")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", "Bearer " + freshAccountToken)
+                .header("X-Device-Authorization", "Bearer " + rawToken)
+                .content("{\"code\":\"" + claimCode + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CLAIMED"))
+                .andExpect(jsonPath("$.recreated").value(true))
+                .andReturn();
+        String recreatedOwnerId = objectMapper.readTree(confirmResult.getResponse().getContentAsString())
+                .path("userId")
+                .asString();
+
+        assertThat(recreatedOwnerId).isNotEqualTo(deletedOwnerId);
+        assertThat(totalSyncRows(deletedOwnerId)).isZero();
+        assertThat(totalSyncRows(recreatedOwnerId)).isZero();
+        assertThat(activeIdentityOwner(deletedOwnerId)).isEqualTo(recreatedOwnerId);
+
+        mockMvc.perform(post("/claim/confirm")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", "Bearer " + freshAccountToken)
+                .header("X-Device-Authorization", "Bearer " + rawToken)
+                .content("{\"code\":\"" + claimCode + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.userId").value(recreatedOwnerId))
+                .andExpect(jsonPath("$.recreated").value(true));
+
+        String staleEntityId = "program-stale-device-" + UUID.randomUUID();
+        mockMvc.perform(post("/sync")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", "Bearer " + staleAccountToken)
+                .content(syncUpsertBody("op-stale-device-" + UUID.randomUUID(), staleEntityId, "Stale Program")))
+                .andExpect(status().isGone())
+                .andExpect(jsonPath("$.code").value("ACCOUNT_DELETED"));
+
+        assertThat(rowCount("entity_state", recreatedOwnerId)).isZero();
+        assertThat(rowCount("entity_state", deletedOwnerId)).isZero();
+        assertThat(rowCount("op_ledger", recreatedOwnerId)).isZero();
+
+        String freshEntityId = "program-recreated-" + UUID.randomUUID();
+        mockMvc.perform(post("/sync")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", "Bearer " + freshAccountToken)
+                .content(syncUpsertBody("op-recreated-" + UUID.randomUUID(), freshEntityId, "Recreated Program")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.acks[0].status").value("applied"));
+
+        assertThat(rowCount("entity_state", recreatedOwnerId)).isEqualTo(1L);
+        assertThat(rowCount("entity_state", deletedOwnerId)).isZero();
+
+        mockMvc.perform(delete("/me")
+                .header("Authorization", "Bearer " + freshAccountToken))
+                .andExpect(status().isNoContent());
+        assertThat(activeTombstoneCount(recreatedOwnerId)).isEqualTo(1L);
+        assertThat(totalSyncRows(recreatedOwnerId)).isZero();
+
+        String afterDeleteEntityId = "program-after-redelete-" + UUID.randomUUID();
+        mockMvc.perform(post("/sync")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", "Bearer " + freshAccountToken)
+                .content(syncUpsertBody("op-after-redelete-" + UUID.randomUUID(), afterDeleteEntityId,
+                        "After Redelete Program")))
+                .andExpect(status().isGone())
+                .andExpect(jsonPath("$.code").value("ACCOUNT_DELETED"));
+        assertThat(totalSyncRows(recreatedOwnerId)).isZero();
+    }
+
+    @Test
+    void missingAuthTimeCannotUseRecreatedIdentity() throws Exception {
+        String uid = "recreate-missing-auth-time-" + UUID.randomUUID();
+        String deletedOwnerId = accountOwnerId(uid);
+
+        mockMvc.perform(delete("/me")
+                .header("Authorization", "Bearer " + firebaseToken(uid, Instant.now().plusSeconds(3600),
+                        Instant.now().minusSeconds(120))))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(post("/sync")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", "Bearer " + firebaseTokenWithoutAuthTime(uid,
+                        Instant.now().plusSeconds(3600)))
+                .content("{\"cursor\":\"0\",\"ops\":[]}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("AUTH_UNAUTHORIZED"));
+
+        assertThat(totalSyncRows(deletedOwnerId)).isZero();
+    }
+
+    @Test
     void getMeWithTombstonedAccountReturnsAccountDeleted() throws Exception {
         String accountOwnerId = accountOwnerId("delete-me-get-" + UUID.randomUUID());
 
@@ -626,6 +743,54 @@ class AccountDeletionIntegrationTest {
                 accountOwnerId);
     }
 
+    private Instant activeTombstoneDeletedAt(String accountOwnerId) {
+        return jdbcTemplate.queryForObject(
+                """
+                        SELECT deleted_at
+                        FROM account_deletion_tombstone
+                        WHERE account_owner_id = ? AND cleared_at IS NULL
+                        """,
+                (rs, rowNum) -> rs.getTimestamp("deleted_at").toInstant(),
+                accountOwnerId);
+    }
+
+    private String activeIdentityOwner(String firebaseSubjectId) {
+        return jdbcTemplate.queryForObject(
+                """
+                        SELECT active_account_owner_id
+                        FROM account_identity
+                        WHERE firebase_subject_id = ?
+                        """,
+                String.class,
+                firebaseSubjectId);
+    }
+
+    private String syncUpsertBody(String opId, String entityId, String name) {
+        return """
+                {
+                  "cursor":"0",
+                  "ops":[{
+                    "opId":"%s",
+                    "entityType":"program",
+                    "entityId":"%s",
+                    "opType":"upsert",
+                    "payload":{
+                      "id":"%s",
+                      "name":"%s",
+                      "updated_at":"2026-05-08T00:00:00Z"
+                    }
+                  }]
+                }
+                """.formatted(opId, entityId, entityId, name);
+    }
+
+    private void waitUntilAfter(Instant instant) throws InterruptedException {
+        long sleepMillis = instant.plusMillis(250).toEpochMilli() - Instant.now().toEpochMilli();
+        if (sleepMillis > 0) {
+            Thread.sleep(sleepMillis);
+        }
+    }
+
     private void clearTombstone(String accountOwnerId) {
         jdbcTemplate.update(
                 """
@@ -665,7 +830,17 @@ class AccountDeletionIntegrationTest {
     }
 
     private String firebaseToken(String uid, Instant expiresAt) {
-        return TOKEN_SIGNER.token(FIREBASE_ISSUER, FIREBASE_PROJECT_ID, uid, expiresAt);
+        return TOKEN_SIGNER.token(FIREBASE_ISSUER, FIREBASE_PROJECT_ID, uid, expiresAt,
+                Instant.now().minusSeconds(60), true);
+    }
+
+    private String firebaseToken(String uid, Instant expiresAt, Instant authTime) {
+        return TOKEN_SIGNER.token(FIREBASE_ISSUER, FIREBASE_PROJECT_ID, uid, expiresAt, authTime, true);
+    }
+
+    private String firebaseTokenWithoutAuthTime(String uid, Instant expiresAt) {
+        return TOKEN_SIGNER.token(FIREBASE_ISSUER, FIREBASE_PROJECT_ID, uid, expiresAt,
+                Instant.now().minusSeconds(60), false);
     }
 
     private static final class TokenSigner {
@@ -698,16 +873,19 @@ class AccountDeletionIntegrationTest {
             }
         }
 
-        String token(String issuer, String audience, String subject, Instant expiresAt) {
+        String token(String issuer, String audience, String subject, Instant expiresAt, Instant authTime,
+                boolean includeAuthTime) {
             try {
-                JWTClaimsSet claims = new JWTClaimsSet.Builder()
+                JWTClaimsSet.Builder claimsBuilder = new JWTClaimsSet.Builder()
                         .issuer(issuer)
                         .audience(audience)
                         .subject(subject)
                         .issueTime(Date.from(Instant.now()))
-                        .expirationTime(Date.from(expiresAt))
-                        .claim("auth_time", Instant.now().minusSeconds(60).getEpochSecond())
-                        .build();
+                        .expirationTime(Date.from(expiresAt));
+                if (includeAuthTime) {
+                    claimsBuilder.claim("auth_time", authTime.getEpochSecond());
+                }
+                JWTClaimsSet claims = claimsBuilder.build();
                 SignedJWT jwt = new SignedJWT(
                         new JWSHeader.Builder(JWSAlgorithm.RS256)
                                 .keyID(rsaKey.getKeyID())

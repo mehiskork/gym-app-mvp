@@ -1,5 +1,6 @@
 package com.gymapp.backend.config;
 
+import java.time.Instant;
 import lombok.Builder;
 import lombok.Value;
 
@@ -8,6 +9,8 @@ import lombok.Value;
 public class AccountPrincipal {
     String principalType;
     String externalAccountId;
+    String activeAccountOwnerId;
     String issuer;
     String subject;
+    Instant authTime;
 }
