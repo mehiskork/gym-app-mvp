@@ -884,9 +884,9 @@ class AccountDeletionIntegrationTest {
     }
 
     private void waitUntilAfter(Instant instant) throws InterruptedException {
-        long sleepMillis = instant.plusSeconds(1).plusMillis(100).toEpochMilli() - Instant.now().toEpochMilli();
-        if (sleepMillis > 0) {
-            Thread.sleep(sleepMillis);
+        long targetAuthTimeSecond = instant.getEpochSecond() + 2;
+        while (Instant.now().getEpochSecond() < targetAuthTimeSecond) {
+            Thread.sleep(100);
         }
     }
 

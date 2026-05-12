@@ -23,6 +23,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -53,6 +54,9 @@ class AccountDeletionWebResourceIntegrationTest {
     private MockMvc mockMvc;
 
     @Autowired
+    private AccountDeletionWebController accountDeletionWebController;
+
+    @Autowired
     private JdbcTemplate jdbcTemplate;
 
     @Autowired
@@ -79,7 +83,7 @@ class AccountDeletionWebResourceIntegrationTest {
                 .andExpect(content().string(containsString("JWTs")))
                 .andExpect(content().string(containsString("device tokens")))
                 .andExpect(content().string(containsString("support@trainframe.example")))
-                .andExpect(content().string(containsString("mailto:support@trainframe.example")))
+                .andExpect(content().string(containsString("mailto:support%40trainframe.example")))
                 .andExpect(content().string(containsString("TrainFrame+account+deletion+request")))
                 .andExpect(content().string(containsString("copy and paste this address")));
     }
@@ -88,7 +92,11 @@ class AccountDeletionWebResourceIntegrationTest {
     void missingRequiredFormFieldsReturnsSafeValidationPage() throws Exception {
         mockMvc.perform(post("/account-deletion/request")
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
-                .param("message", "please delete"))
+                .param("message", "please delete")
+                .with(request -> {
+                    request.setRemoteAddr("10.51.0.6");
+                    return request;
+                }))
                 .andExpect(status().isBadRequest())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_HTML))
                 .andExpect(content().string(containsString("Enter a valid email address")))
@@ -102,16 +110,91 @@ class AccountDeletionWebResourceIntegrationTest {
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .param("email", "user@example.test")
                 .param("confirmDeletion", "true")
-                .param("noAppAccess", "true"))
+                .param("noAppAccess", "true")
+                .with(request -> {
+                    request.setRemoteAddr("10.51.0.1");
+                    return request;
+                }))
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_HTML))
                 .andExpect(content().string(containsString("Email TrainFrame support to request deletion")))
                 .andExpect(content().string(containsString("does not automatically delete account data")))
-                .andExpect(content().string(containsString("mailto:support@trainframe.example")))
+                .andExpect(content().string(containsString("mailto:support%40trainframe.example")))
                 .andExpect(content().string(containsString("user@example.test")))
                 .andExpect(content().string(containsString("does not delete your Google account")))
                 .andExpect(content().string(containsString("Do not send passwords, tokens")))
                 .andExpect(content().string(not(containsString("request was received"))));
+    }
+
+    @Test
+    void accountDeletionPageEscapesConfiguredSupportEmailInTextAndAttributes() throws Exception {
+        Object originalSupportEmail = ReflectionTestUtils.getField(accountDeletionWebController, "supportEmail");
+        try {
+            ReflectionTestUtils.setField(
+                    accountDeletionWebController,
+                    "supportEmail",
+                    "support@example.invalid\" autofocus onfocus=\"alert(1)");
+
+            mockMvc.perform(get("/account-deletion"))
+                    .andExpect(status().isOk())
+                    .andExpect(content().string(containsString("support@example.invalid")))
+                    .andExpect(content().string(containsString("mailto:support%40example.invalid")))
+                    .andExpect(content().string(not(containsString("autofocus"))))
+                    .andExpect(content().string(not(containsString("onfocus"))))
+                    .andExpect(content().string(not(containsString("alert(1)"))));
+        } finally {
+            ReflectionTestUtils.setField(accountDeletionWebController, "supportEmail", originalSupportEmail);
+        }
+    }
+
+    @Test
+    void deletionRequestRejectsHtmlAndAttributeBreakingEmailInputSafely() throws Exception {
+        mockMvc.perform(post("/account-deletion/request")
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .param("email", "attacker@example.test\"><script>alert(1)</script>")
+                .param("confirmDeletion", "true")
+                .with(request -> {
+                    request.setRemoteAddr("10.51.0.2");
+                    return request;
+                }))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_HTML))
+                .andExpect(content().string(containsString("Enter a valid email address")))
+                .andExpect(content().string(not(containsString("<script>"))))
+                .andExpect(content().string(not(containsString("alert(1)"))))
+                .andExpect(content().string(not(containsString("\"<"))));
+    }
+
+    @Test
+    void deletionRequestRejectsLongMaliciousEmailWithoutRegexBacktracking() throws Exception {
+        String longEmail = "a".repeat(10_000) + "@example.test";
+
+        mockMvc.perform(post("/account-deletion/request")
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .param("email", longEmail)
+                .param("confirmDeletion", "true")
+                .with(request -> {
+                    request.setRemoteAddr("10.51.0.3");
+                    return request;
+                }))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_HTML))
+                .andExpect(content().string(containsString("Enter a valid email address")))
+                .andExpect(content().string(not(containsString(longEmail))));
+    }
+
+    @Test
+    void statelessPublicDeletionRequestStillDoesNotRequireCsrfToken() throws Exception {
+        mockMvc.perform(post("/account-deletion/request")
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .param("email", "csrf-free@example.test")
+                .param("confirmDeletion", "true")
+                .with(request -> {
+                    request.setRemoteAddr("10.51.0.4");
+                    return request;
+                }))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Email TrainFrame support to request deletion")));
     }
 
     @Test
@@ -122,7 +205,11 @@ class AccountDeletionWebResourceIntegrationTest {
         mockMvc.perform(post("/account-deletion/request")
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .param("email", "user@example.test")
-                .param("confirmDeletion", "true"))
+                .param("confirmDeletion", "true")
+                .with(request -> {
+                    request.setRemoteAddr("10.51.0.5");
+                    return request;
+                }))
                 .andExpect(status().isOk());
 
         assertThat(rowCount("entity_state", ownerId)).isEqualTo(1L);

@@ -52,7 +52,9 @@ public class SecurityConfig {
             throws Exception {
         http
                 .securityMatcher("/me", "/claim/confirm")
-                .csrf(AbstractHttpConfigurer::disable)
+                // These mobile endpoints are stateless and authenticate every request with
+                // Firebase bearer tokens in the Authorization header, not browser cookies.
+                .csrf(csrf -> csrf.ignoringRequestMatchers("/me", "/claim/confirm"))
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .formLogin(AbstractHttpConfigurer::disable)
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -81,7 +83,9 @@ public class SecurityConfig {
 
         http
                 .securityMatcher("/claim/start")
-                .csrf(AbstractHttpConfigurer::disable)
+                // Device claim start is stateless and authenticated by a device bearer token
+                // in the Authorization header, so there is no browser cookie CSRF surface.
+                .csrf(csrf -> csrf.ignoringRequestMatchers("/claim/start"))
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .formLogin(AbstractHttpConfigurer::disable)
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -109,7 +113,9 @@ public class SecurityConfig {
 
         http
                 .securityMatcher("/sync")
-                .csrf(AbstractHttpConfigurer::disable)
+                // Sync is a stateless mobile API. Account sync uses Firebase bearer tokens
+                // and guest sync uses device bearer tokens, both sent via Authorization.
+                .csrf(csrf -> csrf.ignoringRequestMatchers("/sync"))
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .formLogin(AbstractHttpConfigurer::disable)
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -138,7 +144,11 @@ public class SecurityConfig {
     @Order(4)
     public SecurityFilterChain fallbackSecurityFilterChain(HttpSecurity http) throws Exception {
         http
-                .csrf(AbstractHttpConfigurer::disable)
+                // Fallback contains only public stateless endpoints. The POST endpoints do
+                // not use cookie/session authentication, so CSRF tokens would break mobile
+                // clients and the public deletion instructions form without adding account
+                // protection.
+                .csrf(csrf -> csrf.ignoringRequestMatchers("/device/register", "/account-deletion/request"))
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .formLogin(AbstractHttpConfigurer::disable)
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))

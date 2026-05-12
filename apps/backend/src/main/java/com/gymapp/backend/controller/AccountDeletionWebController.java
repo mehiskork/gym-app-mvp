@@ -17,6 +17,9 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @Slf4j
 public class AccountDeletionWebController {
+    private static final int MAX_EMAIL_LENGTH = 254;
+    private static final int MAX_EMAIL_LOCAL_LENGTH = 64;
+    private static final int MAX_EMAIL_LABEL_LENGTH = 63;
     private static final int MAX_MESSAGE_LENGTH = 1000;
 
     @Value("${trainframe.support.email:support@example.invalid}")
@@ -53,7 +56,9 @@ public class AccountDeletionWebController {
     }
 
     private String accountDeletionPageHtml(String errorMessage) {
-        String escapedSupportEmail = escapeHtml(supportEmail());
+        String safeSupportEmail = safeSupportEmail();
+        String escapedSupportEmail = escapeHtml(safeSupportEmail);
+        String supportMailtoHref = mailtoHref(safeSupportEmail);
         String errorBlock = StringUtils.hasText(errorMessage)
                 ? """
                         <div class="error" role="alert">%s</div>
@@ -98,7 +103,7 @@ public class AccountDeletionWebController {
                     </div>
 
                     <h2>What we need</h2>
-                    <p>Email <a href="mailto:%s?subject=%s">%s</a> with the Google sign-in email or contact email you used with TrainFrame, a clear sentence that you are requesting TrainFrame account/data deletion, and optional context. Deletion cannot be undone once completed.</p>
+                    <p>Email <a href="%s">%s</a> with the Google sign-in email or contact email you used with TrainFrame, a clear sentence that you are requesting TrainFrame account/data deletion, and optional context. Deletion cannot be undone once completed.</p>
                     <p>If the email button does not open, copy and paste this address into your email app: <strong>%s</strong>.</p>
 
                     %s
@@ -125,24 +130,24 @@ public class AccountDeletionWebController {
                     </form>
 
                     <h2>Support contact</h2>
-                    <p><a href="mailto:%s?subject=%s">Email TrainFrame support</a> and include only your TrainFrame sign-in/contact email, that you are requesting TrainFrame account/data deletion, and optional context.</p>
+                    <p><a href="%s">Email TrainFrame support</a> and include only your TrainFrame sign-in/contact email, that you are requesting TrainFrame account/data deletion, and optional context.</p>
                   </main>
                 </body>
                 </html>
                 """.formatted(
-                escapedSupportEmail,
-                mailtoSubject(),
+                escapeHtmlAttribute(supportMailtoHref),
                 escapedSupportEmail,
                 escapedSupportEmail,
                 errorBlock,
                 MAX_MESSAGE_LENGTH,
                 MAX_MESSAGE_LENGTH,
-                escapedSupportEmail,
-                mailtoSubject());
+                escapeHtmlAttribute(supportMailtoHref));
     }
 
     private String emailInstructionsPageHtml(String email) {
-        String escapedSupportEmail = escapeHtml(supportEmail());
+        String safeSupportEmail = safeSupportEmail();
+        String escapedSupportEmail = escapeHtml(safeSupportEmail);
+        String supportMailtoHref = mailtoHref(safeSupportEmail);
         String escapedEmail = escapeHtml(email);
         return """
                 <!doctype html>
@@ -155,7 +160,7 @@ public class AccountDeletionWebController {
                 <body>
                   <main>
                     <h1>Email TrainFrame support to request deletion</h1>
-                    <p>This web form does not automatically delete account data or submit a support ticket. To request manual deletion, email <a href="mailto:%s?subject=%s">%s</a>.</p>
+                    <p>This web form does not automatically delete account data or submit a support ticket. To request manual deletion, email <a href="%s">%s</a>.</p>
                     <p>Include your TrainFrame contact or Google sign-in email, for example <strong>%s</strong>, and say that you are requesting TrainFrame account/data deletion. You may add optional context.</p>
                     <p>If the email button does not open, copy and paste this address into your email app: <strong>%s</strong>.</p>
                     <p>This does not delete your Google account. Do not send passwords, tokens, support bundles, or secrets.</p>
@@ -163,8 +168,7 @@ public class AccountDeletionWebController {
                 </body>
                 </html>
                 """.formatted(
-                escapedSupportEmail,
-                mailtoSubject(),
+                escapeHtmlAttribute(supportMailtoHref),
                 escapedSupportEmail,
                 escapedEmail,
                 escapedSupportEmail);
@@ -189,8 +193,9 @@ public class AccountDeletionWebController {
                 .body(body);
     }
 
-    private String supportEmail() {
-        return StringUtils.hasText(supportEmail) ? supportEmail.trim() : "support@example.invalid";
+    private String safeSupportEmail() {
+        String configured = StringUtils.hasText(supportEmail) ? supportEmail.trim() : "";
+        return isValidEmail(configured) ? configured : "support@example.invalid";
     }
 
     private String trim(String value) {
@@ -198,8 +203,85 @@ public class AccountDeletionWebController {
     }
 
     private boolean isValidEmail(String email) {
-        return email.length() <= 254
-                && email.matches("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$");
+        if (!StringUtils.hasText(email) || email.length() > MAX_EMAIL_LENGTH || hasUnsafeEmailChar(email)) {
+            return false;
+        }
+
+        int at = email.indexOf('@');
+        if (at <= 0 || at != email.lastIndexOf('@') || at > MAX_EMAIL_LOCAL_LENGTH) {
+            return false;
+        }
+
+        String local = email.substring(0, at);
+        String domain = email.substring(at + 1);
+        if (local.startsWith(".") || local.endsWith(".") || local.contains("..")) {
+            return false;
+        }
+        if (domain.length() < 3 || domain.startsWith(".") || domain.endsWith(".") || !domain.contains(".")) {
+            return false;
+        }
+
+        int labelStart = 0;
+        while (labelStart < domain.length()) {
+            int dot = domain.indexOf('.', labelStart);
+            int labelEnd = dot >= 0 ? dot : domain.length();
+            if (!isValidDomainLabel(domain, labelStart, labelEnd)) {
+                return false;
+            }
+            if (dot < 0) {
+                break;
+            }
+            labelStart = dot + 1;
+        }
+
+        for (int i = 0; i < local.length(); i++) {
+            char c = local.charAt(i);
+            if (!isAllowedLocalEmailChar(c)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean isValidDomainLabel(String domain, int startInclusive, int endExclusive) {
+        int length = endExclusive - startInclusive;
+        if (length <= 0 || length > MAX_EMAIL_LABEL_LENGTH
+                || domain.charAt(startInclusive) == '-' || domain.charAt(endExclusive - 1) == '-') {
+            return false;
+        }
+        for (int i = startInclusive; i < endExclusive; i++) {
+            char c = domain.charAt(i);
+            if (!isAsciiLetterOrDigit(c) && c != '-') {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean hasUnsafeEmailChar(String value) {
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if (c <= 0x20 || c >= 0x7f || c == '<' || c == '>' || c == '"' || c == '\''
+                    || c == '&' || c == ':' || c == '/' || c == '\\') {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isAllowedLocalEmailChar(char c) {
+        return isAsciiLetterOrDigit(c)
+                || c == '.'
+                || c == '_'
+                || c == '%'
+                || c == '+'
+                || c == '-';
+    }
+
+    private boolean isAsciiLetterOrDigit(char c) {
+        return (c >= 'a' && c <= 'z')
+                || (c >= 'A' && c <= 'Z')
+                || (c >= '0' && c <= '9');
     }
 
     private String emailDomain(String email) {
@@ -217,6 +299,15 @@ public class AccountDeletionWebController {
                 .replace(">", "&gt;")
                 .replace("\"", "&quot;")
                 .replace("'", "&#39;");
+    }
+
+    private String escapeHtmlAttribute(String value) {
+        return escapeHtml(value);
+    }
+
+    private String mailtoHref(String email) {
+        return "mailto:" + URLEncoder.encode(email, StandardCharsets.UTF_8)
+                + "?subject=" + mailtoSubject();
     }
 
     private String mailtoSubject() {
