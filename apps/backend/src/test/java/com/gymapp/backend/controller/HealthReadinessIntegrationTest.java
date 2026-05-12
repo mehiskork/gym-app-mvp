@@ -123,6 +123,34 @@ class HealthReadinessIntegrationTest {
     }
 
     @Test
+    void readyFailsWhenAccountIdentityTableIsMissing() throws Exception {
+        jdbcTemplate.execute("DROP TABLE account_identity");
+        try {
+            mockMvc.perform(get("/ready"))
+                    .andExpect(status().isServiceUnavailable())
+                    .andExpect(jsonPath("$.status").value("not_ready"))
+                    .andExpect(jsonPath("$.checks.database").value(true))
+                    .andExpect(jsonPath("$.checks.requiredTables").value(false))
+                    .andExpect(jsonPath("$.missingTables[0]").value("account_identity"));
+        } finally {
+            jdbcTemplate.execute(
+                    "CREATE TABLE account_identity ("
+                            + "firebase_subject_id TEXT PRIMARY KEY,"
+                            + "active_account_owner_id TEXT NOT NULL,"
+                            + "generation INTEGER NOT NULL,"
+                            + "auth_time_cutoff TIMESTAMPTZ NULL,"
+                            + "created_at TIMESTAMPTZ NOT NULL DEFAULT now(),"
+                            + "updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),"
+                            + "CONSTRAINT account_identity_generation_positive CHECK (generation > 0),"
+                            + "CONSTRAINT account_identity_active_owner_not_blank "
+                            + "CHECK (length(trim(active_account_owner_id)) > 0))");
+            jdbcTemplate.execute(
+                    "CREATE INDEX idx_account_identity_active_owner "
+                            + "ON account_identity (active_account_owner_id)");
+        }
+    }
+
+    @Test
     void readyFailsWhenFlywayHistoryContainsFailedMigration() throws Exception {
         jdbcTemplate.update(
                 """
