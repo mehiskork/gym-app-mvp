@@ -245,6 +245,8 @@ class ClaimFlowIntegrationTest {
                                 .content("{\"code\":\"INVALID12\"}"))
                                 .andExpect(status().isBadRequest())
                                 .andExpect(jsonPath("$.code").value("CLAIM_INVALID"));
+
+                assertThat(accountIdentityCount(userId)).isZero();
         }
 
         @Test
@@ -275,6 +277,45 @@ class ClaimFlowIntegrationTest {
                                 String.class,
                                 claimId);
                 assertThat(status).isEqualTo("EXPIRED");
+                assertThat(accountIdentityCount(userId)).isZero();
+        }
+
+        @Test
+        void consumedClaimDoesNotCreateAccountIdentity() throws Exception {
+                String linkedUserId = accountOwnerId("firebase-user-linked-" + UUID.randomUUID());
+                String otherUserId = accountOwnerId("firebase-user-other-" + UUID.randomUUID());
+                String guestUserId = UUID.randomUUID().toString();
+                String deviceId = "device-" + UUID.randomUUID();
+                String rawCode = "4J8K2M7N";
+                String rawToken = "token-" + UUID.randomUUID();
+                UUID claimId = UUID.randomUUID();
+                Instant now = Instant.now();
+
+                insertDevice(deviceId, guestUserId);
+                insertToken(rawToken, deviceId, now.plusSeconds(3600));
+                insertClaim(claimId, rawCode, guestUserId, deviceId, now, now.plusSeconds(600));
+                jdbcTemplate.update(
+                                """
+                                                UPDATE claim
+                                                SET status = 'CLAIMED',
+                                                    claimed_at = ?,
+                                                    claimed_by_user_id = ?
+                                                WHERE claim_id = ?
+                                                """,
+                                OffsetDateTime.ofInstant(now, ZoneOffset.UTC),
+                                linkedUserId,
+                                claimId);
+                insertIdentityLink(guestUserId, linkedUserId, now);
+
+                mockMvc.perform(post("/claim/confirm")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .header("Authorization", "Bearer " + firebaseTokenForOwner(otherUserId))
+                                .header("X-Device-Authorization", "Bearer " + rawToken)
+                                .content("{\"code\":\"" + rawCode + "\"}"))
+                                .andExpect(status().isConflict())
+                                .andExpect(jsonPath("$.code").value("CLAIM_CONFLICT"));
+
+                assertThat(accountIdentityCount(otherUserId)).isZero();
         }
 
         @Test
@@ -757,6 +798,13 @@ class ClaimFlowIntegrationTest {
                                                 VALUES (?, now(), 'test')
                                                 """,
                                 accountOwnerId);
+        }
+
+        private long accountIdentityCount(String firebaseSubjectId) {
+                return jdbcTemplate.queryForObject(
+                                "SELECT COUNT(*) FROM account_identity WHERE firebase_subject_id = ?",
+                                Long.class,
+                                firebaseSubjectId);
         }
 
         private String accountOwnerId(String uid) {

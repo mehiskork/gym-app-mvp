@@ -18,6 +18,7 @@ import {
   signOutFromGoogle,
 } from './firebaseGoogleAuthClient';
 import { resolveLocalAccountState } from './localAccountState';
+import { handleRemoteAccountDeletedCleanup } from './remoteAccountDeletion';
 import { logEvent } from '../utils/logger';
 
 type ClaimStartResponse = {
@@ -140,6 +141,7 @@ export async function reconnectGoogleAccount(): Promise<GoogleAccountSignInResul
     const { firebaseSession } = await signInWithGoogleForFirebase();
     const accountSession = buildFirebaseAccountSession(firebaseSession);
     const me = await getMeWithAccessToken(accountSession.accessToken);
+    const activeOwnerId = me.activeAccountOwnerId ?? me.externalAccountId;
     const currentClaimedUserId = getClaimedUserId();
 
     if (!currentClaimedUserId) {
@@ -147,7 +149,7 @@ export async function reconnectGoogleAccount(): Promise<GoogleAccountSignInResul
         'This device is linked but is missing its account owner. Reset this device before signing in.',
       );
     }
-    if (currentClaimedUserId !== me.externalAccountId) {
+    if (currentClaimedUserId !== activeOwnerId) {
       throw new Error(
         'Different account detected. Sign out and reset local data before switching accounts.',
       );
@@ -156,16 +158,20 @@ export async function reconnectGoogleAccount(): Promise<GoogleAccountSignInResul
     await accountSessionStore.set(accountSession);
     sessionStored = true;
     setClaimed(true);
-    setClaimedUserId(me.externalAccountId);
+    setClaimedUserId(activeOwnerId);
 
     await syncAfterAccountAuth();
 
     return {
-      userId: me.externalAccountId,
+      userId: activeOwnerId,
       email: accountSession.email,
       displayName: accountSession.displayName,
     };
   } catch (error) {
+    if (isAccountDeletedApiError(error)) {
+      await handleRemoteAccountDeletedCleanup();
+      throw new Error('Google account sign-in failed.');
+    }
     if (!sessionStored) {
       await signOutFromGoogle().catch(() => undefined);
     }

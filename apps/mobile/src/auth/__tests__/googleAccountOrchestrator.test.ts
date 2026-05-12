@@ -13,6 +13,7 @@ import { syncNow } from '../../sync/syncWorker';
 import { accountSessionStore } from '../accountSessionStore';
 import { deviceCredentialStore } from '../deviceCredentialStore';
 import { signInWithGoogleForFirebase, signOutFromGoogle } from '../firebaseGoogleAuthClient';
+import { handleRemoteAccountDeletedCleanup } from '../remoteAccountDeletion';
 
 jest.mock('../../api/client', () => ({
   api: {
@@ -70,6 +71,10 @@ jest.mock('../firebaseGoogleAuthClient', () => ({
   signOutFromGoogle: jest.fn(),
 }));
 
+jest.mock('../remoteAccountDeletion', () => ({
+  handleRemoteAccountDeletedCleanup: jest.fn(() => Promise.resolve()),
+}));
+
 jest.mock('../../utils/logger', () => ({
   logEvent: jest.fn(),
 }));
@@ -81,6 +86,7 @@ describe('createGoogleAccountFromGuest', () => {
     (listPendingOutboxOps as jest.Mock).mockReturnValue([]);
     (isLinkedAccountState as jest.Mock).mockReturnValue(false);
     (accountSessionStore.getUsable as jest.Mock).mockResolvedValue(null);
+    (handleRemoteAccountDeletedCleanup as jest.Mock).mockResolvedValue(undefined);
     (deviceCredentialStore.getDeviceToken as jest.Mock).mockResolvedValue('device-token-123');
     (signInWithGoogleForFirebase as jest.Mock).mockResolvedValue({
       googleIdToken: 'google-id-token',
@@ -339,6 +345,25 @@ describe('reconnectGoogleAccount', () => {
     expect(syncNow).toHaveBeenCalledWith({ force: true });
   });
 
+  it('uses active account owner from /me when reconnecting a recreated account', async () => {
+    (getClaimedUserId as jest.Mock).mockReturnValue('account|new-generation');
+    (getMeWithAccessToken as jest.Mock).mockResolvedValue({
+      principalType: 'account',
+      subject: 'firebase-uid',
+      externalAccountId: 'https://securetoken.google.com/gym-app-mvp-1d7f0|firebase-uid',
+      activeAccountOwnerId: 'account|new-generation',
+    });
+
+    await expect(reconnectGoogleAccount()).resolves.toEqual({
+      userId: 'account|new-generation',
+      email: 'user@example.test',
+      displayName: 'Test User',
+    });
+
+    expect(setClaimedUserId).toHaveBeenCalledWith('account|new-generation');
+    expect(accountSessionStore.set).toHaveBeenCalledTimes(1);
+  });
+
   it('does not reconnect from true guest state', async () => {
     (isLinkedAccountState as jest.Mock).mockReturnValue(false);
 
@@ -375,5 +400,24 @@ describe('reconnectGoogleAccount', () => {
     expect(accountSessionStore.set).not.toHaveBeenCalled();
     expect(signOutFromGoogle).toHaveBeenCalledTimes(1);
     expect(syncNow).not.toHaveBeenCalled();
+  });
+
+  it('runs remote deletion cleanup when reconnect /me returns ACCOUNT_DELETED', async () => {
+    (getMeWithAccessToken as jest.Mock).mockRejectedValue(
+      new ApiError('TrainFrame account was deleted', {
+        status: 410,
+        code: 'ACCOUNT_DELETED',
+        requestId: 'req-1',
+      }),
+    );
+
+    await expect(reconnectGoogleAccount()).rejects.toThrow('Google account sign-in failed.');
+
+    expect(handleRemoteAccountDeletedCleanup).toHaveBeenCalledTimes(1);
+    expect(accountSessionStore.set).not.toHaveBeenCalled();
+    expect(setClaimed).not.toHaveBeenCalled();
+    expect(setClaimedUserId).not.toHaveBeenCalled();
+    expect(syncNow).not.toHaveBeenCalled();
+    expect(signOutFromGoogle).not.toHaveBeenCalled();
   });
 });

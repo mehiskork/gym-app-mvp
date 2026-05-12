@@ -77,11 +77,6 @@ public class ClaimService {
         Instant now = Instant.now();
         Instant createdAfter = now.minus(CLAIM_LOOKBACK);
 
-        AccountIdentityRepository.AccountIdentityRecord activeIdentity = accountIdentityService
-                .resolveOrCreateForClaim(accountPrincipal);
-        String userId = activeIdentity.activeAccountOwnerId();
-        accountDeletionRepository.lockAccountOwnerForTransaction(userId);
-
         List<ClaimRepository.ClaimRecord> candidates = claimRepository.findClaimCandidatesForGuestDevice(
                 ClaimType.CODE,
                 guestUserId,
@@ -100,20 +95,30 @@ public class ClaimService {
             throw new BadRequestException("CLAIM_INVALID", "Invalid claim code");
         }
 
-        if (match.status() == ClaimStatus.CLAIMED) {
-            String linkedUserId = resolveLinkedUserId(match);
-            if (linkedUserId != null && !linkedUserId.equals(userId)) {
-                throw new ConflictCodeException("CLAIM_CONFLICT", "Guest user already claimed by another user");
-            }
-            migrateGuestSyncOwnershipIfNeeded(match.guestUserId(), linkedUserId, now);
-            return new ClaimConfirmResponse(match.guestUserId(), linkedUserId, ClaimStatus.CLAIMED.name(),
-                    activeIdentity.generation() > 1);
-        }
-
         if (now.isAfter(match.expiresAt())) {
             claimRepository.markExpired(match.claimId());
             throw new BadRequestException("CLAIM_EXPIRED", "Claim code expired");
         }
+
+        if (match.status() == ClaimStatus.CLAIMED) {
+            String linkedUserId = resolveLinkedUserId(match);
+            Optional<AccountIdentityRepository.AccountIdentityRecord> existingIdentity = accountIdentityService
+                    .findExistingIdentity(accountPrincipal);
+            String expectedUserId = existingIdentity
+                    .map(AccountIdentityRepository.AccountIdentityRecord::activeAccountOwnerId)
+                    .orElse(accountPrincipal.getExternalAccountId());
+            if (linkedUserId != null && !linkedUserId.equals(expectedUserId)) {
+                throw new ConflictCodeException("CLAIM_CONFLICT", "Guest user already claimed by another user");
+            }
+            migrateGuestSyncOwnershipIfNeeded(match.guestUserId(), linkedUserId, now);
+            return new ClaimConfirmResponse(match.guestUserId(), linkedUserId, ClaimStatus.CLAIMED.name(),
+                    existingIdentity.map(AccountIdentityRepository.AccountIdentityRecord::generation).orElse(1) > 1);
+        }
+
+        AccountIdentityRepository.AccountIdentityRecord activeIdentity = accountIdentityService
+                .resolveOrCreateForClaim(accountPrincipal);
+        String userId = activeIdentity.activeAccountOwnerId();
+        accountDeletionRepository.lockAccountOwnerForTransaction(userId);
 
         IdentityLinkRepository.UpsertResult upsertResult = identityLinkRepository.upsertLink(match.guestUserId(),
                 userId, now);

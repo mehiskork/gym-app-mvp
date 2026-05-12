@@ -5,7 +5,7 @@ import static org.mockito.Mockito.when;
 
 import com.gymapp.backend.config.AccountPrincipal;
 import com.gymapp.backend.repository.AccountDeletionRepository;
-import com.gymapp.backend.security.OwnerScope;
+import com.gymapp.backend.service.AccountIdentityService.AccountDeletionResolution;
 import com.gymapp.backend.security.PrincipalOwnerResolver;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -37,8 +37,8 @@ class AccountDeletionServiceTest {
                 .build();
         List<String> linkedGuestScopes = List.of("guest-1");
 
-        when(accountIdentityService.resolveActivePrincipal(principal)).thenReturn(principal);
-        when(principalOwnerResolver.resolve(principal)).thenReturn(OwnerScope.account("issuer|subject"));
+        when(accountIdentityService.resolveForAccountDeletion(principal))
+                .thenReturn(new AccountDeletionResolution("issuer|subject", "issuer|subject", false));
         when(accountDeletionRepository.findLinkedGuestScopes("issuer|subject")).thenReturn(linkedGuestScopes);
         when(accountDeletionRepository.deleteAccountData("issuer|subject", linkedGuestScopes))
                 .thenReturn(new AccountDeletionRepository.AccountDeletionResult(

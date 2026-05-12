@@ -8,10 +8,15 @@ import static org.mockito.Mockito.when;
 import com.gymapp.backend.config.AccountPrincipal;
 import com.gymapp.backend.config.ClaimProperties;
 import com.gymapp.backend.controller.AccountDeletedException;
+import com.gymapp.backend.model.ClaimStatus;
+import com.gymapp.backend.model.ClaimType;
 import com.gymapp.backend.repository.AccountDeletionRepository;
 import com.gymapp.backend.repository.ClaimRepository;
 import com.gymapp.backend.repository.IdentityLinkRepository;
 import com.gymapp.backend.repository.SyncRepository;
+import java.time.Instant;
+import java.util.List;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InOrder;
@@ -43,7 +48,7 @@ class ClaimServiceTombstoneTest {
     private ClaimCodeGenerator claimCodeGenerator;
 
     @Test
-    void confirmClaimLocksAndRejectsTombstonedAccountBeforeMutatingGuestData() {
+    void confirmClaimValidatesClaimThenRejectsTombstonedAccountBeforeMutatingGuestData() {
         ClaimService service = new ClaimService(
                 claimRepository,
                 identityLinkRepository,
@@ -59,6 +64,23 @@ class ClaimServiceTombstoneTest {
                 .issuer("issuer")
                 .subject("subject")
                 .build();
+        ClaimRepository.ClaimRecord claim = new ClaimRepository.ClaimRecord(
+                UUID.randomUUID(),
+                ClaimType.CODE,
+                "hash",
+                "guest-1",
+                "device-1",
+                ClaimStatus.PENDING,
+                Instant.now(),
+                Instant.now().plusSeconds(600),
+                null,
+                null);
+        when(claimRepository.findClaimCandidatesForGuestDevice(
+                org.mockito.ArgumentMatchers.eq(ClaimType.CODE),
+                org.mockito.ArgumentMatchers.eq("guest-1"),
+                org.mockito.ArgumentMatchers.eq("device-1"),
+                org.mockito.ArgumentMatchers.any(Instant.class))).thenReturn(List.of(claim));
+        when(passwordEncoder.matches("ABCDEFGH", "hash")).thenReturn(true);
         when(accountIdentityService.resolveOrCreateForClaim(principal)).thenThrow(new AccountDeletedException());
 
         assertThatThrownBy(() -> service.confirmClaim("ABCDEFGH", principal, "guest-1", "device-1"))
@@ -66,6 +88,6 @@ class ClaimServiceTombstoneTest {
 
         InOrder inOrder = inOrder(accountIdentityService);
         inOrder.verify(accountIdentityService).resolveOrCreateForClaim(principal);
-        verifyNoInteractions(claimRepository, identityLinkRepository, syncRepository, accountDeletionRepository);
+        verifyNoInteractions(identityLinkRepository, syncRepository, accountDeletionRepository);
     }
 }

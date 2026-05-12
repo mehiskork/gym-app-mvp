@@ -6,6 +6,7 @@ import { getUsableAccountSessionWithFreshToken } from '../auth/firebaseGoogleAut
 export type MeResponse = {
   principalType: string;
   externalAccountId: string;
+  activeAccountOwnerId?: string;
   subject: string;
   issuer?: string;
 };

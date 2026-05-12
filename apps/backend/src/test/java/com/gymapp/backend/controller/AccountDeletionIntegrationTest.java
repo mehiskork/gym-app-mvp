@@ -160,11 +160,15 @@ class AccountDeletionIntegrationTest {
         assertThat(rowCount("op_ledger", accountOwnerId)).isZero();
         assertThat(claimCountForAccount(accountOwnerId)).isZero();
         assertThat(activeTombstoneCount(accountOwnerId)).isEqualTo(1L);
+        Instant deletedAt = activeTombstoneDeletedAt(accountOwnerId);
+        assertThat(activeIdentityAuthTimeCutoff(accountOwnerId)).isEqualTo(deletedAt);
 
         mockMvc.perform(delete("/me")
                 .header("Authorization", "Bearer " + firebaseTokenForOwner(accountOwnerId)))
                 .andExpect(status().isNoContent());
         assertThat(activeTombstoneCount(accountOwnerId)).isEqualTo(1L);
+        assertThat(activeTombstoneDeletedAt(accountOwnerId)).isEqualTo(deletedAt);
+        assertThat(activeIdentityAuthTimeCutoff(accountOwnerId)).isEqualTo(deletedAt);
     }
 
     @Test
@@ -378,6 +382,13 @@ class AccountDeletionIntegrationTest {
         assertThat(rowCount("entity_state", deletedOwnerId)).isZero();
         assertThat(rowCount("op_ledger", recreatedOwnerId)).isZero();
 
+        mockMvc.perform(delete("/me")
+                .header("Authorization", "Bearer " + staleAccountToken))
+                .andExpect(status().isNoContent());
+        assertThat(activeIdentityOwner(deletedOwnerId)).isEqualTo(recreatedOwnerId);
+        assertThat(activeTombstoneCount(recreatedOwnerId)).isZero();
+        assertThat(rowCount("entity_state", recreatedOwnerId)).isZero();
+
         String freshEntityId = "program-recreated-" + UUID.randomUUID();
         mockMvc.perform(post("/sync")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -393,6 +404,9 @@ class AccountDeletionIntegrationTest {
                 .header("Authorization", "Bearer " + freshAccountToken))
                 .andExpect(status().isNoContent());
         assertThat(activeTombstoneCount(recreatedOwnerId)).isEqualTo(1L);
+        assertThat(activeTombstoneCount(deletedOwnerId)).isEqualTo(1L);
+        Instant generationTwoDeletedAt = activeTombstoneDeletedAt(recreatedOwnerId);
+        assertThat(activeIdentityAuthTimeCutoff(deletedOwnerId)).isEqualTo(generationTwoDeletedAt);
         assertThat(totalSyncRows(recreatedOwnerId)).isZero();
 
         String afterDeleteEntityId = "program-after-redelete-" + UUID.randomUUID();
@@ -404,6 +418,37 @@ class AccountDeletionIntegrationTest {
                 .andExpect(status().isGone())
                 .andExpect(jsonPath("$.code").value("ACCOUNT_DELETED"));
         assertThat(totalSyncRows(recreatedOwnerId)).isZero();
+
+        waitUntilAfter(generationTwoDeletedAt);
+        String deviceIdGen3 = "device-recreate-gen3-" + UUID.randomUUID();
+        String guestUserIdGen3 = "guest-recreate-gen3-" + UUID.randomUUID();
+        String rawTokenGen3 = "token-recreate-gen3-" + UUID.randomUUID();
+        insertDevice(deviceIdGen3, guestUserIdGen3, "secret");
+        insertToken(rawTokenGen3, deviceIdGen3, Instant.now().plusSeconds(3600));
+        MvcResult startGen3Result = mockMvc.perform(post("/claim/start")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", "Bearer " + rawTokenGen3))
+                .andExpect(status().isOk())
+                .andReturn();
+        String claimCodeGen3 = objectMapper.readTree(startGen3Result.getResponse().getContentAsString())
+                .path("code")
+                .asString();
+        String gen3Token = firebaseToken(uid, Instant.now().plusSeconds(3600), Instant.now());
+
+        MvcResult confirmGen3Result = mockMvc.perform(post("/claim/confirm")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", "Bearer " + gen3Token)
+                .header("X-Device-Authorization", "Bearer " + rawTokenGen3)
+                .content("{\"code\":\"" + claimCodeGen3 + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.recreated").value(true))
+                .andReturn();
+        String generationThreeOwnerId = objectMapper.readTree(confirmGen3Result.getResponse().getContentAsString())
+                .path("userId")
+                .asString();
+        assertThat(generationThreeOwnerId).isNotEqualTo(deletedOwnerId);
+        assertThat(generationThreeOwnerId).isNotEqualTo(recreatedOwnerId);
+        assertThat(activeIdentityOwner(deletedOwnerId)).isEqualTo(generationThreeOwnerId);
     }
 
     @Test
@@ -510,42 +555,85 @@ class AccountDeletionIntegrationTest {
     }
 
     @Test
-    void clearedTombstoneAllowsSameAccountMeAndSyncAgain() throws Exception {
-        String accountOwnerId = accountOwnerId("delete-cleared-" + UUID.randomUUID());
+    void clearedTombstoneDoesNotAllowStaleTokenButFreshRecreateCanSync() throws Exception {
+        String uid = "delete-cleared-" + UUID.randomUUID();
+        String accountOwnerId = accountOwnerId(uid);
+        Instant oldAuthTime = Instant.now().minusSeconds(3600);
+        String staleToken = firebaseToken(uid, Instant.now().plusSeconds(3600), oldAuthTime);
+        seedSyncRows(accountOwnerId, null, "cleared-old-generation");
+
         mockMvc.perform(delete("/me")
-                .header("Authorization", "Bearer " + firebaseTokenForOwner(accountOwnerId)))
+                .header("Authorization", "Bearer " + staleToken))
                 .andExpect(status().isNoContent());
+        Instant deletedAt = activeTombstoneDeletedAt(accountOwnerId);
+        waitUntilAfter(deletedAt);
         clearTombstone(accountOwnerId);
 
         mockMvc.perform(get("/me")
-                .header("Authorization", "Bearer " + firebaseTokenForOwner(accountOwnerId)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.externalAccountId").value(accountOwnerId));
+                .header("Authorization", "Bearer " + staleToken))
+                .andExpect(status().isGone())
+                .andExpect(jsonPath("$.code").value("ACCOUNT_DELETED"));
 
-        String entityId = "program-cleared-" + UUID.randomUUID();
+        String staleEntityId = "program-cleared-stale-" + UUID.randomUUID();
         mockMvc.perform(post("/sync")
                 .contentType(MediaType.APPLICATION_JSON)
-                .header("Authorization", "Bearer " + firebaseTokenForOwner(accountOwnerId))
-                .content("""
-                        {
-                          "cursor":"0",
-                          "ops":[{
-                            "opId":"op-cleared-%s",
-                            "entityType":"program",
-                            "entityId":"%s",
-                            "opType":"upsert",
-                            "payload":{
-                              "id":"%s",
-                              "name":"Cleared Program",
-                              "updated_at":"2026-05-08T00:00:00Z"
-                            }
-                          }]
-                        }
-                        """.formatted(UUID.randomUUID(), entityId, entityId)))
+                .header("Authorization", "Bearer " + staleToken)
+                .content(syncUpsertBody("op-cleared-stale-" + UUID.randomUUID(), staleEntityId,
+                        "Cleared Stale Program")))
+                .andExpect(status().isGone())
+                .andExpect(jsonPath("$.code").value("ACCOUNT_DELETED"));
+        assertThat(totalSyncRows(accountOwnerId)).isZero();
+
+        String deviceId = "device-cleared-recreate-" + UUID.randomUUID();
+        String guestUserId = "guest-cleared-recreate-" + UUID.randomUUID();
+        String rawToken = "token-cleared-recreate-" + UUID.randomUUID();
+        insertDevice(deviceId, guestUserId, "secret");
+        insertToken(rawToken, deviceId, Instant.now().plusSeconds(3600));
+
+        MvcResult startResult = mockMvc.perform(post("/claim/start")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", "Bearer " + rawToken))
+                .andExpect(status().isOk())
+                .andReturn();
+        String claimCode = objectMapper.readTree(startResult.getResponse().getContentAsString()).path("code")
+                .asString();
+
+        String freshToken = firebaseToken(uid, Instant.now().plusSeconds(3600), Instant.now());
+        MvcResult confirmResult = mockMvc.perform(post("/claim/confirm")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", "Bearer " + freshToken)
+                .header("X-Device-Authorization", "Bearer " + rawToken)
+                .content("{\"code\":\"" + claimCode + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CLAIMED"))
+                .andExpect(jsonPath("$.recreated").value(true))
+                .andReturn();
+        String recreatedOwnerId = objectMapper.readTree(confirmResult.getResponse().getContentAsString())
+                .path("userId")
+                .asString();
+
+        assertThat(recreatedOwnerId).isNotEqualTo(accountOwnerId);
+        assertThat(activeIdentityOwner(accountOwnerId)).isEqualTo(recreatedOwnerId);
+        assertThat(totalSyncRows(accountOwnerId)).isZero();
+        assertThat(totalSyncRows(recreatedOwnerId)).isZero();
+
+        mockMvc.perform(get("/me")
+                .header("Authorization", "Bearer " + freshToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.externalAccountId").value(accountOwnerId))
+                .andExpect(jsonPath("$.activeAccountOwnerId").value(recreatedOwnerId));
+
+        String freshEntityId = "program-cleared-recreated-" + UUID.randomUUID();
+        mockMvc.perform(post("/sync")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", "Bearer " + freshToken)
+                .content(syncUpsertBody("op-cleared-recreated-" + UUID.randomUUID(), freshEntityId,
+                        "Cleared Recreated Program")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.acks[0].status").value("applied"));
 
-        assertThat(rowCount("entity_state", accountOwnerId)).isEqualTo(1L);
+        assertThat(rowCount("entity_state", recreatedOwnerId)).isEqualTo(1L);
+        assertThat(rowCount("entity_state", accountOwnerId)).isZero();
     }
 
     @Test
@@ -762,6 +850,17 @@ class AccountDeletionIntegrationTest {
                         WHERE firebase_subject_id = ?
                         """,
                 String.class,
+                firebaseSubjectId);
+    }
+
+    private Instant activeIdentityAuthTimeCutoff(String firebaseSubjectId) {
+        return jdbcTemplate.queryForObject(
+                """
+                        SELECT auth_time_cutoff
+                        FROM account_identity
+                        WHERE firebase_subject_id = ?
+                        """,
+                (rs, rowNum) -> rs.getTimestamp("auth_time_cutoff").toInstant(),
                 firebaseSubjectId);
     }
 

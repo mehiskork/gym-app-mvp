@@ -3,6 +3,7 @@ package com.gymapp.backend.service;
 import com.gymapp.backend.config.AccountPrincipal;
 import com.gymapp.backend.controller.AccountDeletedException;
 import com.gymapp.backend.repository.AccountDeletionRepository;
+import com.gymapp.backend.service.AccountIdentityService.AccountDeletionResolution;
 import com.gymapp.backend.security.OwnerScope;
 import com.gymapp.backend.security.PrincipalOwnerResolver;
 import java.util.List;
@@ -29,21 +30,31 @@ public class AccountDeletionService {
      */
     @Transactional
     public void deleteAccount(Object principal) {
-        AccountPrincipal accountPrincipal = principal instanceof AccountPrincipal rawAccountPrincipal
-                ? accountIdentityService.resolveActivePrincipal(rawAccountPrincipal)
-                : null;
-        Object resolvedPrincipal = accountPrincipal == null ? principal : accountPrincipal;
-        OwnerScope ownerScope = principalOwnerResolver.resolve(resolvedPrincipal);
-        if (!"account".equals(ownerScope.getType())) {
-            throw new IllegalArgumentException("Account principal required for account deletion");
+        if (!(principal instanceof AccountPrincipal accountPrincipal)) {
+            OwnerScope ownerScope = principalOwnerResolver.resolve(principal);
+            if (!"account".equals(ownerScope.getType())) {
+                throw new IllegalArgumentException("Account principal required for account deletion");
+            }
+            deleteActiveOwner(null, ownerScope.getOwnerId());
+            return;
         }
-        String accountOwnerId = ownerScope.getOwnerId();
 
+        AccountDeletionResolution deletionResolution = accountIdentityService.resolveForAccountDeletion(accountPrincipal);
+        if (deletionResolution.alreadyDeleted()) {
+            log.info("account deletion already completed");
+            return;
+        }
+        deleteActiveOwner(accountPrincipal, deletionResolution.activeAccountOwnerId());
+    }
+
+    private void deleteActiveOwner(AccountPrincipal accountPrincipal, String accountOwnerId) {
         accountDeletionRepository.lockAccountOwnerForTransaction(accountOwnerId);
         List<String> linkedGuestScopes = accountDeletionRepository.findLinkedGuestScopes(accountOwnerId);
         accountDeletionRepository.markAccountDeleted(accountOwnerId);
-        accountIdentityService.recordActiveAccountDeleted(accountPrincipal, accountOwnerId,
-                accountDeletionRepository.findActiveTombstoneDeletedAt(accountOwnerId).orElse(null));
+        if (accountPrincipal != null) {
+            accountIdentityService.recordActiveAccountDeleted(accountPrincipal, accountOwnerId,
+                    accountDeletionRepository.findActiveTombstoneDeletedAt(accountOwnerId).orElse(null));
+        }
         AccountDeletionRepository.AccountDeletionResult result = accountDeletionRepository
                 .deleteAccountData(accountOwnerId, linkedGuestScopes);
 
