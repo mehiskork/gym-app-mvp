@@ -32,6 +32,7 @@ jest.mock('../../auth/accountSessionStore', () => ({
 
 jest.mock('../../db/outboxRepo', () => ({
   claimOutboxOps: jest.fn(),
+  markOutboxOpRejected: jest.fn(),
   markOutboxOpsAcked: jest.fn(),
   markOutboxOpsFailed: jest.fn(),
   repairStaleInFlightOps: jest.fn(),

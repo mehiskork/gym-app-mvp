@@ -1,5 +1,10 @@
 import { syncNow } from '../syncWorker';
-import { claimOutboxOps, markOutboxOpsFailed, repairStaleInFlightOps } from '../../db/outboxRepo';
+import {
+  claimOutboxOps,
+  markOutboxOpRejected,
+  markOutboxOpsFailed,
+  repairStaleInFlightOps,
+} from '../../db/outboxRepo';
 import { finishSyncRun } from '../../db/syncRunRepo';
 import { deviceCredentialStore } from '../../auth/deviceCredentialStore';
 import { accountSessionStore } from '../../auth/accountSessionStore';
@@ -83,6 +88,7 @@ jest.mock('../syncScheduler', () => ({
 
 jest.mock('../../db/outboxRepo', () => ({
   claimOutboxOps: jest.fn(),
+  markOutboxOpRejected: jest.fn(),
   markOutboxOpsAcked: jest.fn(),
   markOutboxOpsFailed: jest.fn(),
   repairStaleInFlightOps: jest.fn(),
@@ -151,6 +157,7 @@ describe('syncNow 401 self-heal', () => {
     expect(deviceCredentialStore.setDeviceToken).toHaveBeenCalledWith(null);
     await expect(deviceCredentialStore.getDeviceToken()).resolves.toBeNull();
     expect(markOutboxOpsFailed).not.toHaveBeenCalled();
+    expect(markOutboxOpRejected).not.toHaveBeenCalled();
     expect(repairStaleInFlightOps).toHaveBeenCalledTimes(1);
     expect(finishSyncRun).toHaveBeenCalledWith(
       'run-1',
@@ -176,6 +183,7 @@ describe('syncNow 401 self-heal', () => {
     expect(accountSessionStore.invalidate).toHaveBeenCalledWith('sync_401');
     expect(deviceCredentialStore.setDeviceToken).not.toHaveBeenCalled();
     expect(markOutboxOpsFailed).not.toHaveBeenCalled();
+    expect(markOutboxOpRejected).not.toHaveBeenCalled();
     expect(finishSyncRun).toHaveBeenCalledWith(
       'run-1',
       expect.objectContaining({

@@ -12,8 +12,11 @@ export const OUTBOX_STATUS = {
   IN_FLIGHT: 'in_flight',
   FAILED: 'failed',
   ACKED: 'acked',
+  DEAD: 'dead',
 } as const;
 
 export type OutboxStatus = (typeof OUTBOX_STATUS)[keyof typeof OUTBOX_STATUS];
+
+export const MAX_OUTBOX_ATTEMPT_COUNT = 10;
 
 export const DEFAULT_REST_SECONDS = 90;

@@ -457,6 +457,7 @@ export function getSyncDebugInfo(): SyncDebugInfo {
     [OUTBOX_STATUS.FAILED]: 0,
     [OUTBOX_STATUS.IN_FLIGHT]: 0,
     [OUTBOX_STATUS.ACKED]: 0,
+    [OUTBOX_STATUS.DEAD]: 0,
   };
   for (const row of statusRows) {
     outboxStatusCounts[row.status] = row.c;

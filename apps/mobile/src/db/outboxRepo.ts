@@ -2,7 +2,7 @@ import { exec, query } from './db';
 import { inTransaction } from './tx';
 import { newId } from '../utils/ids';
 import { getEffectiveUserId, getOrCreateDeviceId } from './appMetaRepo';
-import { OUTBOX_STATUS, type OutboxStatus } from './constants';
+import { MAX_OUTBOX_ATTEMPT_COUNT, OUTBOX_STATUS, type OutboxStatus } from './constants';
 import { scheduleSyncSoon } from '../sync/syncScheduler';
 
 export type OutboxOp = {
@@ -150,6 +150,58 @@ export function markOutboxOpsFailed(
     const nextAttemptAt = computeNextAttemptAt(op.attempt_count + 1);
     markOutboxOpFailed(op.op_id, error, nextAttemptAt);
   }
+}
+
+export function markOutboxOpRejected(
+  opId: string,
+  reason: string,
+  computeNextAttemptAt: (attemptCount: number) => string,
+): void {
+  const row = query<{ status: OutboxStatus; attempt_count: number }>(
+    `
+    SELECT status, attempt_count
+    FROM outbox_op
+    WHERE op_id = ?
+    LIMIT 1;
+  `,
+    [opId],
+  )[0];
+
+  if (!row || row.status === OUTBOX_STATUS.DEAD) return;
+
+  const nextAttemptCount = row.attempt_count + 1;
+  if (nextAttemptCount >= MAX_OUTBOX_ATTEMPT_COUNT) {
+    exec(
+      `
+      UPDATE outbox_op
+      SET
+        status = '${OUTBOX_STATUS.DEAD}',
+        attempt_count = ?,
+        last_error = ?,
+        last_attempt_at = datetime('now'),
+        next_attempt_at = NULL,
+        updated_at = datetime('now')
+      WHERE op_id = ?;
+    `,
+      [nextAttemptCount, reason, opId],
+    );
+    return;
+  }
+
+  exec(
+    `
+    UPDATE outbox_op
+    SET
+      status = '${OUTBOX_STATUS.FAILED}',
+      attempt_count = ?,
+      last_error = ?,
+      last_attempt_at = datetime('now'),
+      next_attempt_at = ?,
+      updated_at = datetime('now')
+    WHERE op_id = ?;
+  `,
+    [nextAttemptCount, reason, computeNextAttemptAt(nextAttemptCount), opId],
+  );
 }
 
 export function repairStaleInFlightOps(maxAgeSeconds: number): number {

@@ -2,6 +2,7 @@ import { syncNow } from '../syncWorker';
 import {
   claimOutboxOps,
   markOutboxOpFailed,
+  markOutboxOpRejected,
   markOutboxOpsAcked,
   markOutboxOpsFailed,
 } from '../../db/outboxRepo';
@@ -66,6 +67,7 @@ jest.mock('../../auth/firebaseGoogleAuthClient', () => ({
 jest.mock('../../db/outboxRepo', () => ({
   claimOutboxOps: jest.fn(),
   markOutboxOpFailed: jest.fn(),
+  markOutboxOpRejected: jest.fn(),
   markOutboxOpsAcked: jest.fn(),
   markOutboxOpsFailed: jest.fn(),
   repairStaleInFlightOps: jest.fn(),
@@ -113,6 +115,7 @@ describe('syncWorker protocol invariants', () => {
     (applyDeltas as jest.Mock).mockReturnValue({ applied: 0, skipped: 0, total: 0 });
     (markOutboxOpsAcked as jest.Mock).mockImplementation(() => undefined);
     (markOutboxOpFailed as jest.Mock).mockImplementation(() => undefined);
+    (markOutboxOpRejected as jest.Mock).mockImplementation(() => undefined);
     (markOutboxOpsFailed as jest.Mock).mockImplementation(() => undefined);
     (rebuildPrEventsFromWorkoutHistory as jest.Mock).mockImplementation(() => 0);
   });
@@ -174,11 +177,12 @@ describe('syncWorker protocol invariants', () => {
 
     expect(markOutboxOpsAcked).toHaveBeenCalledWith(['op-1', 'op-2']);
     expect(markOutboxOpFailed).not.toHaveBeenCalled();
+    expect(markOutboxOpRejected).not.toHaveBeenCalled();
     expect(markOutboxOpsFailed).not.toHaveBeenCalled();
     expect(updateSyncState).toHaveBeenCalledWith(expect.objectContaining({ cursor: '1' }));
   });
 
-  it('does not ack rejected ops and stores the server reason as a failed op', async () => {
+  it('does not ack rejected ops and sends them through rejected-op handling', async () => {
     global.fetch = jest.fn().mockResolvedValueOnce({
       ok: true,
       status: 200,
@@ -193,12 +197,59 @@ describe('syncWorker protocol invariants', () => {
     await syncNow();
 
     expect(markOutboxOpsAcked).toHaveBeenCalledWith([]);
-    expect(markOutboxOpFailed).toHaveBeenCalledWith(
+    expect(markOutboxOpFailed).not.toHaveBeenCalled();
+    expect(markOutboxOpRejected).toHaveBeenCalledWith(
       'op-1',
       'sync op rejected: bad payload',
-      expect.any(String),
+      expect.any(Function),
     );
     expect(updateSyncState).toHaveBeenCalledWith(expect.objectContaining({ cursor: '2' }));
+  });
+
+  it('keeps backend rejected ack below max on the rejected-op path', async () => {
+    (claimOutboxOps as jest.Mock).mockReturnValue([{ ...baseOp, attempt_count: 8 }]);
+    global.fetch = jest.fn().mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        acks: [{ opId: 'op-1', status: 'rejected', reason: 'immutable field' }],
+        deltas: [],
+        cursor: '2',
+        hasMore: false,
+      }),
+    }) as unknown as typeof fetch;
+
+    await syncNow();
+
+    expect(markOutboxOpRejected).toHaveBeenCalledWith(
+      'op-1',
+      'sync op rejected: immutable field',
+      expect.any(Function),
+    );
+    expect(markOutboxOpsFailed).not.toHaveBeenCalled();
+  });
+
+  it('routes backend rejected ack at max through the only dead-letter-eligible path', async () => {
+    (claimOutboxOps as jest.Mock).mockReturnValue([{ ...baseOp, attempt_count: 9 }]);
+    global.fetch = jest.fn().mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        acks: [{ opId: 'op-1', status: 'rejected', reason: 'bad payload' }],
+        deltas: [],
+        cursor: '2',
+        hasMore: false,
+      }),
+    }) as unknown as typeof fetch;
+
+    await syncNow();
+
+    expect(markOutboxOpRejected).toHaveBeenCalledWith(
+      'op-1',
+      'sync op rejected: bad payload',
+      expect.any(Function),
+    );
+    expect(markOutboxOpsFailed).not.toHaveBeenCalled();
   });
 
   it('does not ack missing acks and classifies the sent op as failed before cursor advance', async () => {
@@ -216,6 +267,7 @@ describe('syncWorker protocol invariants', () => {
       'sync response missing opId ack',
       expect.any(Function),
     );
+    expect(markOutboxOpRejected).not.toHaveBeenCalled();
     expect(updateSyncState).toHaveBeenCalledWith(expect.objectContaining({ cursor: '3' }));
   });
 
@@ -240,6 +292,63 @@ describe('syncWorker protocol invariants', () => {
       'sync response returned unknown ack status: mystery',
       expect.any(Function),
     );
+    expect(markOutboxOpRejected).not.toHaveBeenCalled();
+  });
+
+  it.each([400, 429, 500])(
+    'keeps whole-request HTTP %i failures retryable instead of dead-lettering',
+    async (statusCode) => {
+      global.fetch = jest.fn().mockResolvedValueOnce({
+        ok: false,
+        status: statusCode,
+        json: async () => ({ code: 'SYNC_FAILED' }),
+      }) as unknown as typeof fetch;
+
+      await syncNow();
+
+      expect(markOutboxOpsFailed).toHaveBeenCalledWith(
+        [baseOp],
+        `sync failed: ${statusCode}`,
+        expect.any(Function),
+      );
+      expect(markOutboxOpRejected).not.toHaveBeenCalled();
+      expect(updateSyncState).not.toHaveBeenCalledWith(expect.objectContaining({ cursor: '4' }));
+    },
+  );
+
+  it.each(['Network request failed', 'request timeout'])(
+    'keeps %s retryable instead of dead-lettering',
+    async (message) => {
+      global.fetch = jest.fn().mockRejectedValueOnce(new Error(message)) as unknown as typeof fetch;
+
+      await syncNow();
+
+      expect(markOutboxOpsFailed).toHaveBeenCalledWith([baseOp], message, expect.any(Function));
+      expect(markOutboxOpRejected).not.toHaveBeenCalled();
+    },
+  );
+
+  it('syncs a later valid op when dead ops have already been excluded from the claimed batch', async () => {
+    const laterOp = { ...baseOp, id: 'row-2', op_id: 'op-2', entity_id: 'exercise-2' };
+    (claimOutboxOps as jest.Mock).mockReturnValue([laterOp]);
+    global.fetch = jest.fn().mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        acks: [{ opId: 'op-2', status: 'applied' }],
+        deltas: [],
+        cursor: '8',
+        hasMore: false,
+      }),
+    }) as unknown as typeof fetch;
+
+    await syncNow();
+
+    const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
+    expect(body.ops).toEqual([expect.objectContaining({ opId: 'op-2', entityId: 'exercise-2' })]);
+    expect(markOutboxOpsAcked).toHaveBeenCalledWith(['op-2']);
+    expect(markOutboxOpRejected).not.toHaveBeenCalled();
+    expect(updateSyncState).toHaveBeenCalledWith(expect.objectContaining({ cursor: '8' }));
   });
 
   it('does not advance cursor if delta apply fails', async () => {

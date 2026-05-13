@@ -11,7 +11,7 @@ import { getUsableAccountSessionWithFreshToken } from '../auth/firebaseGoogleAut
 import { resolveLocalAccountStateFromSession } from '../auth/localAccountState';
 import {
   claimOutboxOps,
-  markOutboxOpFailed,
+  markOutboxOpRejected,
   markOutboxOpsAcked,
   markOutboxOpsFailed,
   repairStaleInFlightOps,
@@ -403,10 +403,8 @@ async function runSyncPage(options: SyncNowOptions): Promise<boolean> {
       if (!options.pullOnly) {
         markOutboxOpsAcked(ackClassification.ackedIds);
         for (const { op, reason } of ackClassification.rejected) {
-          markOutboxOpFailed(
-            op.op_id,
-            `sync op rejected: ${reason}`,
-            nextAttemptAtFromNow(computeBackoffSeconds(op.attempt_count + 1)),
+          markOutboxOpRejected(op.op_id, `sync op rejected: ${reason}`, (attemptCount) =>
+            nextAttemptAtFromNow(computeBackoffSeconds(attemptCount)),
           );
         }
         if (ackClassification.missing.length > 0) {

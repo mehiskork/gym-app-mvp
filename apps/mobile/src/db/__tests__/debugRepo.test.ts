@@ -146,13 +146,14 @@ describe('debugRepo diagnostics and repair helpers', () => {
         throw new Error(`Malformed SQL in test: ${sql}`);
       }
       if (sql.includes('SELECT COUNT(*) AS c') && sql.includes('FROM outbox_op;'))
-        return [{ c: 4 }];
+        return [{ c: 5 }];
       if (sql.includes('SELECT status, COUNT(*) AS c') && sql.includes('FROM outbox_op')) {
         return [
           { status: 'pending', c: 1 },
           { status: 'failed', c: 1 },
           { status: 'in_flight', c: 1 },
           { status: 'acked', c: 1 },
+          { status: 'dead', c: 1 },
         ];
       }
       if (sql.includes('FROM outbox_op') && sql.includes("status IN ('pending', 'failed')"))
@@ -181,12 +182,13 @@ describe('debugRepo diagnostics and repair helpers', () => {
 
     const info = getSyncDebugInfo();
 
-    expect(info.outboxHistoryTotalCount).toBe(4);
+    expect(info.outboxHistoryTotalCount).toBe(5);
     expect(info.outboxStatusCounts).toEqual({
       pending: 1,
       failed: 1,
       in_flight: 1,
       acked: 1,
+      dead: 1,
     });
     expect(info.pendingOpsCount).toBe(3);
     expect(info.dueNowCount).toBe(2);
@@ -215,10 +217,26 @@ describe('debugRepo diagnostics and repair helpers', () => {
         ];
       }
       if (sql.includes('FROM app_meta') && params?.[0] === 'claimed_user_id') return [];
-      if (sql.includes('SELECT COUNT(*) AS c FROM outbox_op')) return [{ c: 0 }];
-      if (sql.includes('SELECT status, COUNT(*) AS c') && sql.includes('FROM outbox_op')) return [];
+      if (sql.includes('SELECT COUNT(*) AS c FROM outbox_op')) return [{ c: 1 }];
+      if (sql.includes('SELECT status, COUNT(*) AS c') && sql.includes('FROM outbox_op')) {
+        return [{ status: 'dead', c: 1 }];
+      }
       if (sql.includes('FROM outbox_op') && sql.includes('next_attempt_at')) return [{ c: 0 }];
-      if (sql.includes('FROM outbox_op') && sql.includes('LIMIT 50')) return [];
+      if (sql.includes('FROM outbox_op') && sql.includes('LIMIT 50')) {
+        return [
+          {
+            op_id: 'op-dead-1',
+            entity_type: 'exercise',
+            entity_id: 'exercise-1',
+            op_type: 'upsert',
+            status: 'dead',
+            attempt_count: 10,
+            last_error: 'sync op rejected: bad payload',
+            created_at: '2026-05-13T12:00:00.000Z',
+            updated_at: '2026-05-13T12:10:00.000Z',
+          },
+        ];
+      }
       if (sql.includes('FROM sync_state')) return [{ cursor: '42' }];
       if (sql.includes('FROM sync_run')) return [];
       if (
@@ -267,9 +285,24 @@ describe('debugRepo diagnostics and repair helpers', () => {
     expect(bundle.auth.accountSessionStatus).toBe('usable');
     expect(bundle.auth.syncAuthModeLastUsed).toBe('device_token');
     expect(bundle.auth.syncAuthModeNextPlanned).toBe('account_jwt');
+    expect(bundle.outbox.byStatus.dead).toBe(1);
+    expect(bundle.outbox.recentOps[0]).toEqual({
+      opId: 'op-dead-1',
+      entityType: 'exercise',
+      entityId: 'exercise-1',
+      opType: 'upsert',
+      status: 'dead',
+      attemptCount: 10,
+      lastError: 'sync op rejected: bad payload',
+      createdAt: '2026-05-13T12:00:00.000Z',
+      updatedAt: '2026-05-13T12:10:00.000Z',
+    });
     const json = JSON.stringify(bundle);
+    expect(json).not.toContain('payload_json');
     expect(json).not.toContain('"accessToken"');
     expect(json).not.toContain('"refreshToken"');
     expect(json).not.toContain('"deviceToken"');
+    expect(json).not.toContain('firebase');
+    expect(json).not.toContain('secret');
   });
 });
