@@ -1,12 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { CommonActions, useFocusEffect, useIsFocused } from '@react-navigation/native';
+import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { TAB_ROUTES } from '../navigation/routes';
 import type { RootStackParamList } from '../navigation/types';
 import {
   BottomSheetModal,
@@ -47,6 +46,7 @@ import { WorkoutSessionHeaderCard } from '../features/workoutSession/WorkoutSess
 import { useKeyboardAvoidance } from '../features/workoutSession/useKeyboardAvoidance';
 import { useSessionTick } from '../features/workoutSession/useSessionTick';
 import { useWorkoutKeepAwake } from '../features/workoutSession/useWorkoutKeepAwake';
+import { useWorkoutSessionNavGuard } from '../features/workoutSession/useWorkoutSessionNavGuard';
 import { useSnackbarUndo } from '../hooks/useSnackbarUndo';
 import { getSettings } from '../db/settingsRepo';
 import { maybeTriggerRestTimerHaptics } from '../utils/restTimer';
@@ -116,21 +116,10 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
   const { scrollViewRef, handleScroll, handleEditFocus, keyboardOpen, keyboardSpacer } =
     useKeyboardAvoidance({ bottomInset: insets.bottom });
   const restHapticsRef = useRef(false);
-  const isExitingToHomeRef = useRef(false);
   const [commentEditorExerciseId, setCommentEditorExerciseId] = useState<string | null>(null);
   const [commentDraft, setCommentDraft] = useState('');
   const [workoutNoteDraft, setWorkoutNoteDraft] = useState('');
-
-  const resetToHome = useCallback(() => {
-    if (isExitingToHomeRef.current) return;
-    isExitingToHomeRef.current = true;
-    navigation.dispatch(
-      CommonActions.reset({
-        index: 0,
-        routes: [{ name: 'MainTabs', params: { screen: TAB_ROUTES.Home } }],
-      }),
-    );
-  }, [navigation]);
+  const { resetToHome } = useWorkoutSessionNavGuard({ navigation });
   const load = useCallback(() => {
     const data = getWorkoutLoggerData(sessionId);
     if (!data) {
@@ -187,17 +176,6 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
     useCallback(() => {
       if (session?.title) navigation.setOptions({ title: session.title });
     }, [navigation, session?.title]),
-  );
-
-  useFocusEffect(
-    useCallback(() => {
-      const unsubscribe = navigation.addListener('beforeRemove', (e) => {
-        if (!['GO_BACK', 'POP', 'POP_TO_TOP'].includes(e.data.action.type)) return;
-        e.preventDefault();
-        resetToHome();
-      });
-      return unsubscribe;
-    }, [navigation, resetToHome]),
   );
 
   const totals = useMemo(() => {
