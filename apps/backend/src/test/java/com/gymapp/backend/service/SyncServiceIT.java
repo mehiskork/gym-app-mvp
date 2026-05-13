@@ -155,6 +155,72 @@ class SyncServiceIT {
     }
 
     @Test
+    void syncRejectsChildWhenExistingParentIsDeletedInSameRequestAndWritesNoSyncRows() {
+        syncRepository.upsertEntityState(guestUserId, "program", "program-delete-same-request", Map.of(
+                "id", "program-delete-same-request",
+                "updated_at", "2026-03-01T00:00:00Z"), Instant.now());
+
+        List<SyncOp> ops = List.of(
+                new SyncOp(
+                        "op-delete-parent-same-request",
+                        "program",
+                        "program-delete-same-request",
+                        "delete",
+                        Map.of(
+                                "id", "program-delete-same-request",
+                                "deleted_at", "2026-03-01T00:02:00Z",
+                                "updated_at", "2026-03-01T00:02:00Z"),
+                        null),
+                upsertOp("op-week-after-parent-delete", "program_week", "week-after-parent-delete", Map.of(
+                        "id", "week-after-parent-delete",
+                        "program_id", "program-delete-same-request",
+                        "updated_at", "2026-03-01T00:03:00Z")));
+
+        assertThatThrownBy(() -> syncService.sync(deviceId, guestUserId, "0", ops))
+                .isInstanceOf(ValidationException.class)
+                .satisfies(ex -> assertThat(((ValidationException) ex).getDetails())
+                        .containsEntry("field", "program_id")
+                        .containsEntry("reason", "required parent is missing or inactive"));
+
+        assertThat(countEntityStateRows(guestUserId, "program", "program-delete-same-request")).isEqualTo(1);
+        assertThat(countEntityStateRows(guestUserId, "program_week", "week-after-parent-delete")).isZero();
+        assertThat(countChangeLogRows(guestUserId, "program", "program-delete-same-request")).isZero();
+        assertThat(countChangeLogRows(guestUserId, "program_week", "week-after-parent-delete")).isZero();
+        assertThat(countOpLedgerRows(guestUserId, "op-delete-parent-same-request")).isZero();
+        assertThat(countOpLedgerRows(guestUserId, "op-week-after-parent-delete")).isZero();
+    }
+
+    @Test
+    void syncRejectsChildWhenExistingParentIsTombstonedInSameRequestAndWritesNoSyncRows() {
+        syncRepository.upsertEntityState(guestUserId, "program", "program-tombstone-same-request", Map.of(
+                "id", "program-tombstone-same-request",
+                "updated_at", "2026-03-01T00:00:00Z"), Instant.now());
+
+        List<SyncOp> ops = List.of(
+                upsertOp("op-tombstone-parent-same-request", "program", "program-tombstone-same-request", Map.of(
+                        "id", "program-tombstone-same-request",
+                        "deleted_at", "2026-03-01T00:02:00Z",
+                        "updated_at", "2026-03-01T00:02:00Z")),
+                upsertOp("op-week-after-parent-tombstone", "program_week", "week-after-parent-tombstone", Map.of(
+                        "id", "week-after-parent-tombstone",
+                        "program_id", "program-tombstone-same-request",
+                        "updated_at", "2026-03-01T00:03:00Z")));
+
+        assertThatThrownBy(() -> syncService.sync(deviceId, guestUserId, "0", ops))
+                .isInstanceOf(ValidationException.class)
+                .satisfies(ex -> assertThat(((ValidationException) ex).getDetails())
+                        .containsEntry("field", "program_id")
+                        .containsEntry("reason", "required parent is missing or inactive"));
+
+        assertThat(countEntityStateRows(guestUserId, "program", "program-tombstone-same-request")).isEqualTo(1);
+        assertThat(countEntityStateRows(guestUserId, "program_week", "week-after-parent-tombstone")).isZero();
+        assertThat(countChangeLogRows(guestUserId, "program", "program-tombstone-same-request")).isZero();
+        assertThat(countChangeLogRows(guestUserId, "program_week", "week-after-parent-tombstone")).isZero();
+        assertThat(countOpLedgerRows(guestUserId, "op-tombstone-parent-same-request")).isZero();
+        assertThat(countOpLedgerRows(guestUserId, "op-week-after-parent-tombstone")).isZero();
+    }
+
+    @Test
     void syncAcceptsChildWhenParentAppearsEarlierInSameRequestAndApplies() {
         SyncResponse response = syncService.sync(deviceId, guestUserId, "0", List.of(
                 upsertOp("op-program-parent-first", "program", "program-parent-first", Map.of(

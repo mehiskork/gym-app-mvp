@@ -120,6 +120,7 @@ public class SyncService {
                 Set<SyncRepository.EntityKey> foreignParentKeys = syncRepository.findForeignEntityKeys(ownerId,
                                 referencedParentKeys);
                 Set<SyncRepository.EntityKey> appliedActiveKeys = new HashSet<>();
+                Set<SyncRepository.EntityKey> plannedInactiveKeys = new HashSet<>();
                 Map<SyncRepository.EntityKey, SyncRepository.EntityStateRecord> plannedStateByKey = new HashMap<>();
 
                 candidates.stream()
@@ -134,6 +135,7 @@ public class SyncService {
                                                 existingParentPresence,
                                                 foreignParentKeys,
                                                 appliedActiveKeys,
+                                                plannedInactiveKeys,
                                                 plannedStateByKey)));
 
                 return plans;
@@ -146,6 +148,7 @@ public class SyncService {
                         Map<SyncRepository.EntityKey, SyncRepository.EntityPresence> existingParentPresence,
                         Set<SyncRepository.EntityKey> foreignParentKeys,
                         Set<SyncRepository.EntityKey> appliedActiveKeys,
+                        Set<SyncRepository.EntityKey> plannedInactiveKeys,
                         Map<SyncRepository.EntityKey, SyncRepository.EntityStateRecord> plannedStateByKey) {
                 SyncOp op = indexed.op();
                 String opType = op.opType().toLowerCase();
@@ -182,13 +185,16 @@ public class SyncService {
                                         resolution.payload(),
                                         existingParentPresence,
                                         foreignParentKeys,
-                                        appliedActiveKeys);
+                                        appliedActiveKeys,
+                                        plannedInactiveKeys);
                         plannedStateByKey.put(key, new SyncRepository.EntityStateRecord(resolution.payload(),
                                         receivedAt));
                         if (isActiveUpsert(opType, resolution.payload())) {
                                 appliedActiveKeys.add(key);
+                                plannedInactiveKeys.remove(key);
                         } else {
                                 appliedActiveKeys.remove(key);
+                                plannedInactiveKeys.add(key);
                         }
                 }
 
@@ -279,7 +285,8 @@ public class SyncService {
                         Map<String, Object> payload,
                         Map<SyncRepository.EntityKey, SyncRepository.EntityPresence> existingParentPresence,
                         Set<SyncRepository.EntityKey> foreignParentKeys,
-                        Set<SyncRepository.EntityKey> appliedActiveKeys) {
+                        Set<SyncRepository.EntityKey> appliedActiveKeys,
+                        Set<SyncRepository.EntityKey> plannedInactiveKeys) {
                 if (!isActiveUpsert(opType, payload)) {
                         return;
                 }
@@ -296,6 +303,9 @@ public class SyncService {
                         SyncRepository.EntityKey parentKey = new SyncRepository.EntityKey(reference.parentEntityType(),
                                         parentId);
                         if (foreignParentKeys.contains(parentKey)) {
+                                throw invalidParentReference(op, reference.field());
+                        }
+                        if (plannedInactiveKeys.contains(parentKey)) {
                                 throw invalidParentReference(op, reference.field());
                         }
                         if (appliedActiveKeys.contains(parentKey)) {
