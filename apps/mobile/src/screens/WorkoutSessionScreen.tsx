@@ -1,12 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  Dimensions,
-  Keyboard,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  View,
-} from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { CommonActions, useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -52,6 +45,7 @@ import { ExerciseCard } from '../features/workoutSession/ExerciseCard';
 import { SetRow } from '../features/workoutSession/SetRow';
 import { FinishWorkoutSheet } from '../features/workoutSession/FinishWorkoutSheet';
 import { WorkoutSessionHeaderCard } from '../features/workoutSession/WorkoutSessionHeaderCard';
+import { useKeyboardAvoidance } from '../features/workoutSession/useKeyboardAvoidance';
 import { useSessionTick } from '../features/workoutSession/useSessionTick';
 import { useSnackbarUndo } from '../hooks/useSnackbarUndo';
 import { getSettings } from '../db/settingsRepo';
@@ -120,12 +114,10 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
   const { colors } = useAppTheme();
   const [isFinishing, setIsFinishing] = useState(false);
   const insets = useSafeAreaInsets();
-  const scrollViewRef = useRef<ScrollView | null>(null);
-  const scrollOffsetYRef = useRef(0);
-  const activeRowMetricsRef = useRef<{ pageY: number; height: number } | null>(null);
+  const { scrollViewRef, handleScroll, handleEditFocus, keyboardOpen, keyboardSpacer } =
+    useKeyboardAvoidance({ bottomInset: insets.bottom });
   const restHapticsRef = useRef(false);
   const isExitingToHomeRef = useRef(false);
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [commentEditorExerciseId, setCommentEditorExerciseId] = useState<string | null>(null);
   const [commentDraft, setCommentDraft] = useState('');
   const [workoutNoteDraft, setWorkoutNoteDraft] = useState('');
@@ -185,23 +177,6 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
       restHapticsRef,
     );
   }, [remainingSeconds, settings.restTimerVibration, timerActive]);
-
-  useEffect(() => {
-    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
-    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
-
-    const showSub = Keyboard.addListener(showEvent, (event) => {
-      setKeyboardHeight(event.endCoordinates.height);
-    });
-    const hideSub = Keyboard.addListener(hideEvent, () => {
-      setKeyboardHeight(0);
-    });
-
-    return () => {
-      showSub.remove();
-      hideSub.remove();
-    };
-  }, []);
 
   useEffect(() => {
     if (isFocused && settings.keepScreenOn && session?.status === 'in_progress') {
@@ -294,31 +269,6 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
     ? baseScrollPaddingTop + REST_TIMER_HEIGHT + tokens.spacing.lg
     : baseScrollPaddingTop;
   const restTimerTop = tokens.spacing.xs - insets.top;
-  const keyboardOpen = keyboardHeight > 0;
-  const keyboardSpacer = keyboardOpen ? keyboardHeight + tokens.spacing.lg : 0;
-
-  const handleSetEditFocus = useCallback(
-    ({ pageY, height }: { pageY: number; height: number }) => {
-      activeRowMetricsRef.current = { pageY, height };
-      if (!keyboardOpen) return;
-      const viewportBottom =
-        (Platform.OS === 'ios' ? 0 : insets.bottom) + tokens.touchTargetMin + tokens.spacing.md;
-      const visibleBottom = pageY + height;
-      const keyboardTop = Dimensions.get('window').height - keyboardHeight - viewportBottom;
-      if (visibleBottom <= keyboardTop) return;
-      const neededOffset = visibleBottom - keyboardTop + tokens.spacing.sm;
-      scrollViewRef.current?.scrollTo({
-        y: Math.max(0, scrollOffsetYRef.current + neededOffset),
-        animated: true,
-      });
-    },
-    [insets.bottom, keyboardHeight, keyboardOpen],
-  );
-
-  useEffect(() => {
-    if (!keyboardOpen || !activeRowMetricsRef.current) return;
-    handleSetEditFocus(activeRowMetricsRef.current);
-  }, [handleSetEditFocus, keyboardOpen]);
   if (!session) {
     return (
       <Screen style={{ justifyContent: 'center' }}>
@@ -336,9 +286,7 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
       >
         <ScrollView
           ref={scrollViewRef}
-          onScroll={(event) => {
-            scrollOffsetYRef.current = event.nativeEvent.contentOffset.y;
-          }}
+          onScroll={handleScroll}
           scrollEventThrottle={16}
           contentContainerStyle={{
             paddingHorizontal: tokens.spacing.lg,
@@ -394,7 +342,7 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
                       profile={ex.cardio_profile}
                       summary={ex.cardio_summary}
                       editable={session.status === 'in_progress'}
-                      onEditFocus={handleSetEditFocus}
+                      onEditFocus={handleEditFocus}
                       onFieldEndEditing={(field, value) => {
                         updateWorkoutSessionExerciseCardioSummary(ex.id, {
                           [field]: parseCardioNumber(field, value),
@@ -442,7 +390,7 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
                           snackbarUndo.showUndo(set);
                           load();
                         }}
-                        onEditFocus={handleSetEditFocus}
+                        onEditFocus={handleEditFocus}
                       />
                     ))
                   )}

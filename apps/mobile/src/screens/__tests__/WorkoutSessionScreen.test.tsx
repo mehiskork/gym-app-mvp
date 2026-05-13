@@ -106,7 +106,7 @@ jest.mock('../../theme/theme', () => ({
 
 import React from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { CommonActions, useFocusEffect } from '@react-navigation/native';
 
 import { WorkoutSessionScreen } from '../WorkoutSessionScreen';
@@ -265,6 +265,15 @@ describe('WorkoutSessionScreen', () => {
     type SetRowProps = React.ComponentProps<typeof SetRow>;
     const setRows = findElementsByType(element, SetRow) as Array<React.ReactElement<SetRowProps>>;
     expect(setRows).toHaveLength(2);
+    expect(typeof setRows[0]?.props.onEditFocus).toBe('function');
+
+    const scrollViews = findElementsByType(element, ScrollView) as Array<
+      React.ReactElement<{ onScroll?: unknown; ref?: unknown }>
+    >;
+    expect(typeof scrollViews[0]?.props.onScroll).toBe('function');
+    expect(
+      scrollViews[0]?.props.ref ?? (scrollViews[0] as { ref?: unknown } | undefined)?.ref,
+    ).toBeDefined();
 
     setRows[0]?.props.onToggleComplete();
 
