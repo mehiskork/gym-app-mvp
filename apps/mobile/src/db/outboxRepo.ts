@@ -5,6 +5,12 @@ import { getEffectiveUserId, getOrCreateDeviceId } from './appMetaRepo';
 import { MAX_OUTBOX_ATTEMPT_COUNT, OUTBOX_STATUS, type OutboxStatus } from './constants';
 import { scheduleSyncSoon } from '../sync/syncScheduler';
 
+const REJECTABLE_OUTBOX_STATUSES = new Set<OutboxStatus>([
+  OUTBOX_STATUS.PENDING,
+  OUTBOX_STATUS.FAILED,
+  OUTBOX_STATUS.IN_FLIGHT,
+]);
+
 export type OutboxOp = {
   id: string;
   op_id: string;
@@ -167,7 +173,7 @@ export function markOutboxOpRejected(
     [opId],
   )[0];
 
-  if (!row || row.status === OUTBOX_STATUS.DEAD) return;
+  if (!row || !REJECTABLE_OUTBOX_STATUSES.has(row.status)) return;
 
   const nextAttemptCount = row.attempt_count + 1;
   if (nextAttemptCount >= MAX_OUTBOX_ATTEMPT_COUNT) {
