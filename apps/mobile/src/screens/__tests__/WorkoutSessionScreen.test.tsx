@@ -30,6 +30,9 @@ jest.mock('expo-keep-awake', () => ({
 jest.mock('react-native', () => {
   const React = require('react');
   return {
+    Keyboard: {
+      addListener: jest.fn(() => ({ remove: jest.fn() })),
+    },
     KeyboardAvoidingView: ({ children, ...props }: { children?: React.ReactNode }) =>
       React.createElement('KeyboardAvoidingView', props, children),
     Pressable: ({ children, ...props }: { children?: React.ReactNode }) =>
@@ -96,6 +99,10 @@ jest.mock('../../utils/restTimerNotifications', () => ({
   scheduleRestTimerNotification: jest.fn(),
 }));
 
+jest.mock('../../utils/restTimer', () => ({
+  maybeTriggerRestTimerHaptics: jest.fn(),
+}));
+
 jest.mock('../../theme/theme', () => ({
   useAppTheme: () => ({ colors: { primary: '#000' } }),
 }));
@@ -111,9 +118,19 @@ import { CardioSummaryEditor } from '../../features/workoutSession/CardioSummary
 import { ExerciseCard } from '../../features/workoutSession/ExerciseCard';
 import { SetRow } from '../../features/workoutSession/SetRow';
 import { Button, Card, IconButton, Text } from '../../ui';
-import { getWorkoutLoggerData, startRestTimer, updateWorkoutSet } from '../../db/workoutLoggerRepo';
+import {
+  clearRestTimer,
+  getWorkoutLoggerData,
+  startRestTimer,
+  updateWorkoutSet,
+} from '../../db/workoutLoggerRepo';
 import { getSettings } from '../../db/settingsRepo';
 import { tokens } from '../../theme/tokens';
+import {
+  cancelRestTimerNotification,
+  scheduleRestTimerNotification,
+} from '../../utils/restTimerNotifications';
+import { maybeTriggerRestTimerHaptics } from '../../utils/restTimer';
 
 type Nav = {
   navigate: jest.Mock;
@@ -161,13 +178,19 @@ const resolveStyle = (styleProp: unknown) => {
 
 describe('WorkoutSessionScreen', () => {
   const useStateMock = React.useState as jest.Mock;
+  const useEffectMock = React.useEffect as jest.Mock;
 
   beforeEach(() => {
     useStateMock.mockReset();
     useStateMock.mockImplementation((initial: unknown) => [initial, jest.fn()]);
+    useEffectMock.mockReset();
     (updateWorkoutSet as jest.Mock).mockReset();
+    (clearRestTimer as jest.Mock).mockReset();
     (getWorkoutLoggerData as jest.Mock).mockReset();
     (startRestTimer as jest.Mock).mockReset();
+    (cancelRestTimerNotification as jest.Mock).mockReset();
+    (scheduleRestTimerNotification as jest.Mock).mockReset();
+    (maybeTriggerRestTimerHaptics as jest.Mock).mockReset();
     (getSettings as jest.Mock).mockReturnValue({
       defaultRestSeconds: 120,
       autoStartRestTimer: true,
@@ -343,6 +366,300 @@ describe('WorkoutSessionScreen', () => {
     setRows[0]?.props.onToggleComplete();
 
     expect(startRestTimer).toHaveBeenCalledWith('session-1', 150, 'Bench Press');
+  });
+
+  it('does not auto-start rest timer when un-completing a set', () => {
+    const session = {
+      id: 'session-1',
+      title: 'Push Day',
+      status: 'in_progress',
+      started_at: '2024-01-01T00:00:00Z',
+      rest_timer_end_at: null,
+      rest_timer_seconds: null,
+      rest_timer_label: null,
+    };
+
+    const exercises = [
+      {
+        id: 'exercise-1',
+        exercise_id: 'bench-press',
+        exercise_name: 'Bench Press',
+        position: 1,
+        sets: [
+          {
+            id: 'set-1',
+            workout_session_exercise_id: 'exercise-1',
+            set_index: 1,
+            weight: 100,
+            reps: 5,
+            rpe: null,
+            rest_seconds: 60,
+            notes: null,
+            is_completed: 1,
+          },
+        ],
+      },
+    ];
+
+    useStateMock.mockImplementationOnce(() => [session, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [exercises, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [0, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [
+      {
+        defaultRestSeconds: 150,
+        autoStartRestTimer: true,
+        restTimerVibration: true,
+        keepScreenOn: true,
+        restTimerNotifications: false,
+      },
+      jest.fn(),
+    ]);
+    useStateMock.mockImplementationOnce(() => [false, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [false, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [{ visible: false, payload: null }, jest.fn()]);
+    (getWorkoutLoggerData as jest.Mock).mockReturnValue({ session, exercises });
+
+    const navigation: Nav = {
+      navigate: jest.fn(),
+      dispatch: jest.fn(),
+      setOptions: jest.fn(),
+      addListener: jest.fn(),
+    };
+    const element = WorkoutSessionScreen({
+      navigation,
+      route: { key: 'WorkoutSession', name: 'WorkoutSession', params: { sessionId: 'session-1' } },
+    } as never);
+
+    type SetRowProps = React.ComponentProps<typeof SetRow>;
+    const setRows = findElementsByType(element, SetRow) as Array<React.ReactElement<SetRowProps>>;
+    setRows[0]?.props.onToggleComplete();
+
+    expect(updateWorkoutSet).toHaveBeenCalledWith('set-1', { is_completed: 0 });
+    expect(startRestTimer).not.toHaveBeenCalled();
+  });
+
+  it('does not auto-start rest timer when the setting is disabled', () => {
+    const session = {
+      id: 'session-1',
+      title: 'Push Day',
+      status: 'in_progress',
+      started_at: '2024-01-01T00:00:00Z',
+      rest_timer_end_at: null,
+      rest_timer_seconds: null,
+      rest_timer_label: null,
+    };
+
+    const exercises = [
+      {
+        id: 'exercise-1',
+        exercise_id: 'bench-press',
+        exercise_name: 'Bench Press',
+        position: 1,
+        sets: [
+          {
+            id: 'set-1',
+            workout_session_exercise_id: 'exercise-1',
+            set_index: 1,
+            weight: 100,
+            reps: 5,
+            rpe: null,
+            rest_seconds: 60,
+            notes: null,
+            is_completed: 0,
+          },
+        ],
+      },
+    ];
+
+    useStateMock.mockImplementationOnce(() => [session, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [exercises, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [0, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [
+      {
+        defaultRestSeconds: 150,
+        autoStartRestTimer: false,
+        restTimerVibration: true,
+        keepScreenOn: true,
+        restTimerNotifications: true,
+      },
+      jest.fn(),
+    ]);
+    useStateMock.mockImplementationOnce(() => [false, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [false, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [{ visible: false, payload: null }, jest.fn()]);
+    (getWorkoutLoggerData as jest.Mock).mockReturnValue({ session, exercises });
+
+    const navigation: Nav = {
+      navigate: jest.fn(),
+      dispatch: jest.fn(),
+      setOptions: jest.fn(),
+      addListener: jest.fn(),
+    };
+    const element = WorkoutSessionScreen({
+      navigation,
+      route: { key: 'WorkoutSession', name: 'WorkoutSession', params: { sessionId: 'session-1' } },
+    } as never);
+
+    type SetRowProps = React.ComponentProps<typeof SetRow>;
+    const setRows = findElementsByType(element, SetRow) as Array<React.ReactElement<SetRowProps>>;
+    setRows[0]?.props.onToggleComplete();
+
+    expect(updateWorkoutSet).toHaveBeenCalledWith('set-1', { is_completed: 1 });
+    expect(startRestTimer).not.toHaveBeenCalled();
+    expect(scheduleRestTimerNotification).not.toHaveBeenCalled();
+  });
+
+  it('schedules rest timer notification only when enabled and preserves auto-start order', () => {
+    const session = {
+      id: 'session-1',
+      title: 'Push Day',
+      status: 'in_progress',
+      started_at: '2024-01-01T00:00:00Z',
+      rest_timer_end_at: null,
+      rest_timer_seconds: null,
+      rest_timer_label: null,
+    };
+
+    const exercises = [
+      {
+        id: 'exercise-1',
+        exercise_id: 'bench-press',
+        exercise_name: 'Bench Press',
+        position: 1,
+        sets: [
+          {
+            id: 'set-1',
+            workout_session_exercise_id: 'exercise-1',
+            set_index: 1,
+            weight: 100,
+            reps: 5,
+            rpe: null,
+            rest_seconds: 60,
+            notes: null,
+            is_completed: 0,
+          },
+        ],
+      },
+    ];
+
+    useStateMock.mockImplementationOnce(() => [session, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [exercises, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [0, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [
+      {
+        defaultRestSeconds: 150,
+        autoStartRestTimer: true,
+        restTimerVibration: false,
+        keepScreenOn: true,
+        restTimerNotifications: true,
+      },
+      jest.fn(),
+    ]);
+    useStateMock.mockImplementationOnce(() => [false, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [false, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [{ visible: false, payload: null }, jest.fn()]);
+    (getWorkoutLoggerData as jest.Mock).mockReturnValue({ session, exercises });
+
+    const navigation: Nav = {
+      navigate: jest.fn(),
+      dispatch: jest.fn(),
+      setOptions: jest.fn(),
+      addListener: jest.fn(),
+    };
+    const element = WorkoutSessionScreen({
+      navigation,
+      route: { key: 'WorkoutSession', name: 'WorkoutSession', params: { sessionId: 'session-1' } },
+    } as never);
+
+    type SetRowProps = React.ComponentProps<typeof SetRow>;
+    const setRows = findElementsByType(element, SetRow) as Array<React.ReactElement<SetRowProps>>;
+    (getWorkoutLoggerData as jest.Mock).mockClear();
+
+    setRows[0]?.props.onToggleComplete();
+
+    expect(updateWorkoutSet).toHaveBeenCalledWith('set-1', { is_completed: 1 });
+    expect(startRestTimer).toHaveBeenCalledWith('session-1', 150, 'Bench Press');
+    expect(scheduleRestTimerNotification).toHaveBeenCalledWith(150, false);
+    expect(getWorkoutLoggerData).toHaveBeenCalledWith('session-1');
+    expect((updateWorkoutSet as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
+      (startRestTimer as jest.Mock).mock.invocationCallOrder[0],
+    );
+    expect((startRestTimer as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
+      (scheduleRestTimerNotification as jest.Mock).mock.invocationCallOrder[0],
+    );
+    expect((scheduleRestTimerNotification as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
+      (getWorkoutLoggerData as jest.Mock).mock.invocationCallOrder[0],
+    );
+  });
+
+  it('does not schedule rest timer notification when notifications are disabled', () => {
+    const session = {
+      id: 'session-1',
+      title: 'Push Day',
+      status: 'in_progress',
+      started_at: '2024-01-01T00:00:00Z',
+      rest_timer_end_at: null,
+      rest_timer_seconds: null,
+      rest_timer_label: null,
+    };
+
+    const exercises = [
+      {
+        id: 'exercise-1',
+        exercise_id: 'bench-press',
+        exercise_name: 'Bench Press',
+        position: 1,
+        sets: [
+          {
+            id: 'set-1',
+            workout_session_exercise_id: 'exercise-1',
+            set_index: 1,
+            weight: 100,
+            reps: 5,
+            rpe: null,
+            rest_seconds: 60,
+            notes: null,
+            is_completed: 0,
+          },
+        ],
+      },
+    ];
+
+    useStateMock.mockImplementationOnce(() => [session, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [exercises, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [0, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [
+      {
+        defaultRestSeconds: 150,
+        autoStartRestTimer: true,
+        restTimerVibration: true,
+        keepScreenOn: true,
+        restTimerNotifications: false,
+      },
+      jest.fn(),
+    ]);
+    useStateMock.mockImplementationOnce(() => [false, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [false, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [{ visible: false, payload: null }, jest.fn()]);
+    (getWorkoutLoggerData as jest.Mock).mockReturnValue({ session, exercises });
+
+    const navigation: Nav = {
+      navigate: jest.fn(),
+      dispatch: jest.fn(),
+      setOptions: jest.fn(),
+      addListener: jest.fn(),
+    };
+    const element = WorkoutSessionScreen({
+      navigation,
+      route: { key: 'WorkoutSession', name: 'WorkoutSession', params: { sessionId: 'session-1' } },
+    } as never);
+
+    type SetRowProps = React.ComponentProps<typeof SetRow>;
+    const setRows = findElementsByType(element, SetRow) as Array<React.ReactElement<SetRowProps>>;
+    setRows[0]?.props.onToggleComplete();
+
+    expect(startRestTimer).toHaveBeenCalledWith('session-1', 150, 'Bench Press');
+    expect(scheduleRestTimerNotification).not.toHaveBeenCalled();
   });
 
   it('passes keyboard-safe focus handling to cardio inputs', () => {
@@ -724,6 +1041,184 @@ describe('WorkoutSessionScreen', () => {
       (button) => button.props.accessibilityLabel === 'Clear rest timer',
     );
     expect(clearRestTimerButton?.props.variant).toBe('danger');
+  });
+
+  it('clears the rest timer optimistically and preserves unrelated session fields', () => {
+    const session = {
+      id: 'session-4',
+      title: 'Conditioning',
+      status: 'in_progress',
+      started_at: '2024-01-04T00:00:00Z',
+      rest_timer_end_at: '2024-01-04T00:01:00Z',
+      rest_timer_seconds: 60,
+      rest_timer_label: 'Row',
+      workout_note: 'Keep elbows high',
+    };
+
+    const exercises: Array<unknown> = [];
+    const setSession = jest.fn();
+
+    useStateMock.mockImplementationOnce(() => [session, setSession]);
+    useStateMock.mockImplementationOnce(() => [exercises, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [0, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [
+      {
+        defaultRestSeconds: 120,
+        autoStartRestTimer: true,
+        restTimerVibration: true,
+        keepScreenOn: true,
+        restTimerNotifications: true,
+      },
+      jest.fn(),
+    ]);
+    useStateMock.mockImplementationOnce(() => [false, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [false, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [{ visible: false, payload: null }, jest.fn()]);
+    (getWorkoutLoggerData as jest.Mock).mockReturnValue({ session, exercises });
+
+    const navigation: Nav = {
+      navigate: jest.fn(),
+      dispatch: jest.fn(),
+      setOptions: jest.fn(),
+      addListener: jest.fn(),
+    };
+    const element = WorkoutSessionScreen({
+      navigation,
+      route: { key: 'WorkoutSession', name: 'WorkoutSession', params: { sessionId: 'session-4' } },
+    } as never);
+
+    const iconButtons = findElementsByType(element, IconButton) as Array<
+      React.ReactElement<{ accessibilityLabel?: string; onPress?: () => void }>
+    >;
+    const clearRestTimerButton = iconButtons.find(
+      (button) => button.props.accessibilityLabel === 'Clear rest timer',
+    );
+
+    clearRestTimerButton?.props.onPress?.();
+
+    expect(setSession).toHaveBeenCalledWith(expect.any(Function));
+    const optimisticUpdater = setSession.mock.calls.find(
+      ([value]) => typeof value === 'function',
+    )?.[0];
+    const optimisticSession = optimisticUpdater(session);
+    expect(optimisticSession).toEqual({
+      ...session,
+      rest_timer_end_at: null,
+      rest_timer_label: null,
+      rest_timer_seconds: null,
+    });
+    expect(optimisticSession.title).toBe(session.title);
+    expect(optimisticSession.status).toBe(session.status);
+    expect(optimisticSession.started_at).toBe(session.started_at);
+    expect(optimisticSession.workout_note).toBe(session.workout_note);
+    expect(clearRestTimer).toHaveBeenCalledWith('session-4');
+    expect(cancelRestTimerNotification).toHaveBeenCalledTimes(1);
+  });
+
+  it('passes completed rest timer state to haptics when vibration is enabled', () => {
+    const nowSpy = jest
+      .spyOn(Date, 'now')
+      .mockReturnValue(new Date('2024-01-04T00:01:00Z').getTime());
+    useEffectMock.mockImplementation((callback: () => void | (() => void)) => {
+      const cleanup = callback();
+      if (typeof cleanup === 'function') cleanup();
+    });
+    const session = {
+      id: 'session-4',
+      title: 'Conditioning',
+      status: 'in_progress',
+      started_at: '2024-01-04T00:00:00Z',
+      rest_timer_end_at: '2024-01-04T00:01:00Z',
+      rest_timer_seconds: 60,
+      rest_timer_label: 'Row',
+    };
+
+    const exercises: Array<unknown> = [];
+
+    useStateMock.mockImplementationOnce(() => [session, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [exercises, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [0, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [
+      {
+        defaultRestSeconds: 120,
+        autoStartRestTimer: true,
+        restTimerVibration: true,
+        keepScreenOn: true,
+        restTimerNotifications: false,
+      },
+      jest.fn(),
+    ]);
+    useStateMock.mockImplementationOnce(() => [false, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [false, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [{ visible: false, payload: null }, jest.fn()]);
+    (getWorkoutLoggerData as jest.Mock).mockReturnValue({ session, exercises });
+
+    const navigation: Nav = {
+      navigate: jest.fn(),
+      dispatch: jest.fn(),
+      setOptions: jest.fn(),
+      addListener: jest.fn(),
+    };
+    WorkoutSessionScreen({
+      navigation,
+      route: { key: 'WorkoutSession', name: 'WorkoutSession', params: { sessionId: 'session-4' } },
+    } as never);
+
+    expect(maybeTriggerRestTimerHaptics).toHaveBeenCalledWith(0, true, expect.any(Object));
+    nowSpy.mockRestore();
+  });
+
+  it('passes vibration disabled to haptics when the setting is off', () => {
+    const nowSpy = jest
+      .spyOn(Date, 'now')
+      .mockReturnValue(new Date('2024-01-04T00:01:00Z').getTime());
+    useEffectMock.mockImplementation((callback: () => void | (() => void)) => {
+      const cleanup = callback();
+      if (typeof cleanup === 'function') cleanup();
+    });
+    const session = {
+      id: 'session-4',
+      title: 'Conditioning',
+      status: 'in_progress',
+      started_at: '2024-01-04T00:00:00Z',
+      rest_timer_end_at: '2024-01-04T00:01:00Z',
+      rest_timer_seconds: 60,
+      rest_timer_label: 'Row',
+    };
+
+    const exercises: Array<unknown> = [];
+
+    useStateMock.mockImplementationOnce(() => [session, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [exercises, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [0, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [
+      {
+        defaultRestSeconds: 120,
+        autoStartRestTimer: true,
+        restTimerVibration: false,
+        keepScreenOn: true,
+        restTimerNotifications: false,
+      },
+      jest.fn(),
+    ]);
+    useStateMock.mockImplementationOnce(() => [false, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [false, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [{ visible: false, payload: null }, jest.fn()]);
+    (getWorkoutLoggerData as jest.Mock).mockReturnValue({ session, exercises });
+
+    const navigation: Nav = {
+      navigate: jest.fn(),
+      dispatch: jest.fn(),
+      setOptions: jest.fn(),
+      addListener: jest.fn(),
+    };
+    WorkoutSessionScreen({
+      navigation,
+      route: { key: 'WorkoutSession', name: 'WorkoutSession', params: { sessionId: 'session-4' } },
+    } as never);
+
+    expect(maybeTriggerRestTimerHaptics).toHaveBeenCalledWith(0, false, expect.any(Object));
+    nowSpy.mockRestore();
   });
 
   it('redirects back navigation to the Home tab', () => {

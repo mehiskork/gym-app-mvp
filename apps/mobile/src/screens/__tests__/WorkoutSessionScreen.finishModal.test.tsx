@@ -112,6 +112,7 @@ import { clearRestTimer, getWorkoutLoggerData } from '../../db/workoutLoggerRepo
 import { completeSession, updateWorkoutSessionNote } from '../../db/workoutSessionRepo';
 import { getSettings } from '../../db/settingsRepo';
 import { EXERCISE_TYPE } from '../../db/exerciseTypes';
+import { cancelRestTimerNotification } from '../../utils/restTimerNotifications';
 
 type Nav = {
   navigate: jest.Mock;
@@ -230,6 +231,7 @@ describe('WorkoutSessionScreen finish modal', () => {
     (completeSession as jest.Mock).mockReset();
     (updateWorkoutSessionNote as jest.Mock).mockReset();
     (clearRestTimer as jest.Mock).mockReset();
+    (cancelRestTimerNotification as jest.Mock).mockReset();
     (getSettings as jest.Mock).mockReturnValue({
       defaultRestSeconds: 120,
       autoStartRestTimer: true,
@@ -432,6 +434,7 @@ describe('WorkoutSessionScreen finish modal', () => {
     finishButton?.props.onPress?.({} as never);
     expect(completeSession).toHaveBeenCalledWith(session.id, '');
     expect(clearRestTimer).toHaveBeenCalledWith(session.id);
+    expect(cancelRestTimerNotification).toHaveBeenCalledTimes(1);
     expect(CommonActions.reset).toHaveBeenCalledWith({
       index: 0,
       routes: [{ name: 'MainTabs', params: { screen: TAB_ROUTES.Home } }],

@@ -33,4 +33,16 @@ describe('maybeTriggerRestTimerHaptics', () => {
     expect(impactAsync).not.toHaveBeenCalled();
     expect(notificationAsync).not.toHaveBeenCalled();
   });
+
+  it('resets after positive remaining time so a later completed timer can fire again', async () => {
+    const ref = { current: false };
+
+    await maybeTriggerRestTimerHaptics(0, true, ref);
+    await maybeTriggerRestTimerHaptics(10, true, ref);
+    await maybeTriggerRestTimerHaptics(0, true, ref);
+
+    expect(impactAsync).toHaveBeenCalledTimes(2);
+    expect(notificationAsync).toHaveBeenCalledTimes(2);
+    expect(ref.current).toBe(true);
+  });
 });
