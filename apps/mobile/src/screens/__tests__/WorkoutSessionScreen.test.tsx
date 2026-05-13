@@ -22,14 +22,10 @@ jest.mock('expo-haptics', () => ({
   selectionAsync: jest.fn(),
 }));
 
-jest.mock(
-  'expo-keep-awake',
-  () => ({
-    activateKeepAwake: jest.fn(),
-    deactivateKeepAwake: jest.fn(),
-  }),
-  { virtual: true },
-);
+jest.mock('expo-keep-awake', () => ({
+  activateKeepAwakeAsync: jest.fn(),
+  deactivateKeepAwake: jest.fn(),
+}));
 
 jest.mock('react-native', () => {
   const React = require('react');

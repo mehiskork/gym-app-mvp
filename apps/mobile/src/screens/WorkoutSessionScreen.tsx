@@ -4,7 +4,6 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { CommonActions, useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { TAB_ROUTES } from '../navigation/routes';
@@ -47,6 +46,7 @@ import { FinishWorkoutSheet } from '../features/workoutSession/FinishWorkoutShee
 import { WorkoutSessionHeaderCard } from '../features/workoutSession/WorkoutSessionHeaderCard';
 import { useKeyboardAvoidance } from '../features/workoutSession/useKeyboardAvoidance';
 import { useSessionTick } from '../features/workoutSession/useSessionTick';
+import { useWorkoutKeepAwake } from '../features/workoutSession/useWorkoutKeepAwake';
 import { useSnackbarUndo } from '../hooks/useSnackbarUndo';
 import { getSettings } from '../db/settingsRepo';
 import { maybeTriggerRestTimerHaptics } from '../utils/restTimer';
@@ -60,7 +60,6 @@ type Props = NativeStackScreenProps<RootStackParamList, 'WorkoutSession'>;
 const REST_TIMER_HEIGHT = tokens.touchTargetMin + tokens.spacing.xl;
 const CTA_HEIGHT = tokens.touchTargetMin + tokens.spacing.sm;
 const CTA_STACK_GAP = tokens.spacing.sm;
-const KEEP_AWAKE_TAG = 'workout-session';
 const MAX_EXERCISE_COMMENT_LENGTH = 200;
 const MAX_WORKOUT_NOTE_LENGTH = 200;
 
@@ -178,16 +177,11 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
     );
   }, [remainingSeconds, settings.restTimerVibration, timerActive]);
 
-  useEffect(() => {
-    if (isFocused && settings.keepScreenOn && session?.status === 'in_progress') {
-      void activateKeepAwakeAsync(KEEP_AWAKE_TAG);
-      return () => {
-        void deactivateKeepAwake(KEEP_AWAKE_TAG);
-      };
-    }
-    void deactivateKeepAwake(KEEP_AWAKE_TAG);
-    return undefined;
-  }, [isFocused, settings.keepScreenOn, session?.status]);
+  useWorkoutKeepAwake({
+    isFocused,
+    keepScreenOn: settings.keepScreenOn,
+    sessionStatus: session?.status,
+  });
 
   useFocusEffect(
     useCallback(() => {
