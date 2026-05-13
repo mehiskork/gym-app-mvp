@@ -47,12 +47,12 @@ import {
 } from '../db/workoutLoggerRepo';
 import { EXERCISE_TYPE, type CardioProfile, type CardioSummary } from '../db/exerciseTypes';
 import { formatRestCountdown, getRemainingSeconds } from '../utils/format';
-import { parseTimestampMs } from '../utils/timestamp';
 import { CardioSummaryEditor } from '../features/workoutSession/CardioSummaryEditor';
 import { ExerciseCard } from '../features/workoutSession/ExerciseCard';
 import { SetRow } from '../features/workoutSession/SetRow';
 import { FinishWorkoutSheet } from '../features/workoutSession/FinishWorkoutSheet';
 import { WorkoutSessionHeaderCard } from '../features/workoutSession/WorkoutSessionHeaderCard';
+import { useSessionTick } from '../features/workoutSession/useSessionTick';
 import { useSnackbarUndo } from '../hooks/useSnackbarUndo';
 import { getSettings } from '../db/settingsRepo';
 import { maybeTriggerRestTimerHaptics } from '../utils/restTimer';
@@ -113,14 +113,13 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
   const isFocused = useIsFocused();
   const [session, setSession] = useState<LoggerSession | null>(null);
   const [exercises, setExercises] = useState<LoggerExercise[]>([]);
-  const [tick, setTick] = useState(0);
+  const { tick, durationMinutes } = useSessionTick(session?.started_at);
   const [settings, setSettings] = useState(getSettings());
 
   const [finishOpen, setFinishOpen] = useState(false);
   const { colors } = useAppTheme();
   const [isFinishing, setIsFinishing] = useState(false);
   const insets = useSafeAreaInsets();
-  const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const scrollViewRef = useRef<ScrollView | null>(null);
   const scrollOffsetYRef = useRef(0);
   const activeRowMetricsRef = useRef<{ pageY: number; height: number } | null>(null);
@@ -174,16 +173,6 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
   );
 
   const timerActive = (session?.rest_timer_end_at ?? null) !== null;
-
-  useEffect(() => {
-    // lightweight timer tick for countdown UI (DB remains source of truth)
-    if (tickRef.current) clearInterval(tickRef.current);
-    tickRef.current = setInterval(() => setTick((t) => t + 1), 1000);
-    return () => {
-      if (tickRef.current) clearInterval(tickRef.current);
-      tickRef.current = null;
-    };
-  }, []);
 
   useEffect(() => {
     if (!timerActive) {
@@ -258,15 +247,6 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
     );
     return { totalSets, completedSets };
   }, [exercises]);
-
-  const durationMinutes = useMemo(() => {
-    if (!session?.started_at) return 0;
-    const startTime = parseTimestampMs(session.started_at);
-    if (startTime === null) return 0;
-    const endTime = Date.now();
-    const diffMs = Math.max(0, endTime - startTime);
-    return Math.round(diffMs / 60000);
-  }, [session?.started_at, tick]);
 
   const handleFinish = useCallback(() => {
     setIsFinishing(true);
