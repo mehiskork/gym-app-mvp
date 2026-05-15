@@ -72,7 +72,7 @@ import React from 'react';
 import { FlatList } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 
-import { Button, DestructiveConfirmDialog } from '../../ui';
+import { Button, DestructiveConfirmDialog, EmptyState } from '../../ui';
 import { WorkoutPlansScreen } from '../WorkoutPlansScreen';
 import { createWorkoutPlan, listWorkoutPlans } from '../../db/workoutPlanRepo';
 
@@ -125,8 +125,39 @@ describe('WorkoutPlansScreen', () => {
     (useNavigation as jest.Mock).mockReturnValue({ navigate: jest.fn() });
   });
 
-  it('renders Create Plan and Templates buttons', () => {
+  function emptyStateActionButtons(element: React.ReactNode) {
+    type EmptyStateProps = React.ComponentProps<typeof EmptyState>;
+    const emptyState = findElementByType<EmptyStateProps>(element, EmptyState);
+    return {
+      emptyState,
+      buttons: findElementsByType<React.ComponentProps<typeof Button>>(
+        emptyState?.props.action,
+        Button,
+      ),
+    };
+  }
+
+  it('renders centered empty state actions and hides the top action row when there are no plans', () => {
     useStateMock.mockImplementationOnce(() => [[], jest.fn()]);
+
+    const element = WorkoutPlansScreen();
+    const { emptyState, buttons } = emptyStateActionButtons(element);
+
+    expect(emptyState?.props.title).toBe('No workout plans yet');
+    expect(emptyState?.props.description).toBe(
+      'Create your first plan or browse templates to get started.',
+    );
+    expect(buttons.some((button) => button.props.title === 'Create a plan')).toBe(true);
+    expect(buttons.some((button) => button.props.title === 'Browse templates')).toBe(true);
+    expect(buttons.some((button) => button.props.title === '+ Create Plan')).toBe(false);
+    expect(buttons.some((button) => button.props.title === 'Templates')).toBe(false);
+  });
+
+  it('renders top Create Plan and Templates buttons when plans exist', () => {
+    useStateMock.mockImplementationOnce(() => [
+      [{ id: 'plan-1', name: 'Plan A', description: null, is_template: 0, sessionCount: 2 }],
+      jest.fn(),
+    ]);
 
     const element = WorkoutPlansScreen();
     type ButtonProps = React.ComponentProps<typeof Button>;
@@ -136,8 +167,11 @@ describe('WorkoutPlansScreen', () => {
     expect(buttons.some((button) => button.props.title === 'Templates')).toBe(true);
   });
 
-  it('renders Templates as primary with flash icon', () => {
-    useStateMock.mockImplementationOnce(() => [[], jest.fn()]);
+  it('renders Templates as primary with flash icon when plans exist', () => {
+    useStateMock.mockImplementationOnce(() => [
+      [{ id: 'plan-1', name: 'Plan A', description: null, is_template: 0, sessionCount: 2 }],
+      jest.fn(),
+    ]);
 
     const element = WorkoutPlansScreen();
     type ButtonProps = React.ComponentProps<typeof Button>;
@@ -158,10 +192,28 @@ describe('WorkoutPlansScreen', () => {
     expect(iconElement.props.name).toBe('flash-outline');
     expect(iconElement.props.size).toBe(16);
   });
-  it('navigates to templates when Templates button is pressed', () => {
+  it('navigates to templates when the empty-state Browse templates button is pressed', () => {
     const navigation: Nav = { navigate: jest.fn() };
     (useNavigation as jest.Mock).mockReturnValue(navigation);
     useStateMock.mockImplementationOnce(() => [[], jest.fn()]);
+
+    const element = WorkoutPlansScreen();
+    const { buttons } = emptyStateActionButtons(element);
+    const templatesButton = buttons.find((button) => button.props.title === 'Browse templates');
+    if (!templatesButton?.props.onPress) throw new Error('Expected Templates button onPress.');
+
+    templatesButton.props.onPress({} as never);
+
+    expect(navigation.navigate).toHaveBeenCalledWith('PrebuiltPlans');
+  });
+
+  it('navigates to templates when the top Templates button is pressed', () => {
+    const navigation: Nav = { navigate: jest.fn() };
+    (useNavigation as jest.Mock).mockReturnValue(navigation);
+    useStateMock.mockImplementationOnce(() => [
+      [{ id: 'plan-1', name: 'Plan A', description: null, is_template: 0, sessionCount: 2 }],
+      jest.fn(),
+    ]);
 
     const element = WorkoutPlansScreen();
     type ButtonProps = React.ComponentProps<typeof Button>;
@@ -261,9 +313,8 @@ describe('WorkoutPlansScreen', () => {
     (createWorkoutPlan as jest.Mock).mockReturnValue('new-plan-id');
 
     const element = WorkoutPlansScreen();
-    type ButtonProps = React.ComponentProps<typeof Button>;
-    const buttons = findElementsByType<ButtonProps>(element, Button);
-    const createButton = buttons.find((button) => button.props.title === '+ Create Plan');
+    const { buttons } = emptyStateActionButtons(element);
+    const createButton = buttons.find((button) => button.props.title === 'Create a plan');
     if (!createButton?.props.onPress) throw new Error('Expected Create Plan button onPress.');
 
     createButton.props.onPress({} as never);
@@ -280,9 +331,8 @@ describe('WorkoutPlansScreen', () => {
     (createWorkoutPlan as jest.Mock).mockReturnValue('new-plan-id');
 
     const element = WorkoutPlansScreen();
-    type ButtonProps = React.ComponentProps<typeof Button>;
-    const buttons = findElementsByType<ButtonProps>(element, Button);
-    const createButton = buttons.find((button) => button.props.title === '+ Create Plan');
+    const { buttons } = emptyStateActionButtons(element);
+    const createButton = buttons.find((button) => button.props.title === 'Create a plan');
     if (!createButton?.props.onPress) throw new Error('Expected Create Plan button onPress.');
 
     createButton.props.onPress({} as never);

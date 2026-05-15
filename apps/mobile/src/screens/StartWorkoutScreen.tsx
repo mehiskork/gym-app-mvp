@@ -5,7 +5,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { TAB_ROUTES } from '../navigation/routes';
 import type { RootStackParamList } from '../navigation/types';
-import { Screen, Card, EmptyState, Button, ListRow, IconChip } from '../ui';
+import { Screen, ListRow, IconChip } from '../ui';
 import { useAppTheme } from '../theme/theme';
 import { tokens } from '../theme/tokens';
 import {
@@ -23,12 +23,33 @@ function formatSessionCountSubtitle(sessionCount: number): string {
 }
 
 export function StartWorkoutScreen({ navigation }: Props) {
-  const [plans, setPlans] = useState<WorkoutPlanWithSessionCountRow[]>([]);
+  const [plans, setPlans] = useState<WorkoutPlanWithSessionCountRow[] | null>(null);
   const { colors } = useAppTheme();
 
   const load = useCallback(() => {
-    setPlans(listWorkoutPlansWithSessionCounts());
-  }, []);
+    const nextPlans = listWorkoutPlansWithSessionCounts();
+
+    if (nextPlans.length === 0) {
+      navigation.replace('MainTabs', { screen: TAB_ROUTES.WorkoutPlans });
+      return;
+    }
+
+    if (nextPlans.length === 1) {
+      const [plan] = nextPlans;
+      if (plan.sessionCount > 0) {
+        navigation.replace('WorkoutPlanDetail', {
+          workoutPlanId: plan.id,
+          mode: 'pickSessionToStart',
+        });
+        return;
+      }
+
+      navigation.replace('MainTabs', { screen: TAB_ROUTES.WorkoutPlans });
+      return;
+    }
+
+    setPlans(nextPlans);
+  }, [navigation]);
 
   useFocusEffect(
     useCallback(() => {
@@ -43,30 +64,7 @@ export function StartWorkoutScreen({ navigation }: Props) {
 
   return (
     <Screen scroll bottomInset="none" contentStyle={{}}>
-      {plans.length === 0 ? (
-        <Card>
-          <EmptyState
-            icon={<Ionicons name="barbell-outline" size={24} color={colors.primary} />}
-            title="No plans yet"
-            description="Create your first plan or browse templates to get started."
-            action={
-              <View style={{ gap: tokens.spacing.sm, alignSelf: 'stretch' }}>
-                <Button
-                  title="Create a plan"
-                  variant="secondary"
-                  onPress={() =>
-                    navigation.navigate('MainTabs', { screen: TAB_ROUTES.WorkoutPlans })
-                  }
-                />
-                <Button
-                  title="Browse templates"
-                  onPress={() => navigation.navigate('PrebuiltPlans')}
-                />
-              </View>
-            }
-          />
-        </Card>
-      ) : (
+      {plans ? (
         <FlatList
           data={plans}
           keyExtractor={(plan) => plan.id}
@@ -94,7 +92,7 @@ export function StartWorkoutScreen({ navigation }: Props) {
             />
           )}
         />
-      )}
+      ) : null}
     </Screen>
   );
 }

@@ -96,68 +96,80 @@ export function WorkoutPlansScreen() {
         gap: tokens.spacing.lg,
       }}
     >
-      <View style={{ flexDirection: 'row', gap: tokens.spacing.sm }}>
-        <View style={{ flex: 1 }}>
-          <Button title="+ Create Plan" onPress={onCreate} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Button
-            title="Templates"
-            variant="primary"
-            leftIcon={<Ionicons name="flash-outline" size={16} />}
-            onPress={() => navigation.navigate('PrebuiltPlans')}
+      {workoutPlans.length === 0 ? (
+        <Card>
+          <EmptyState
+            icon={<Ionicons name="barbell-outline" size={24} color={colors.primary} />}
+            title="No workout plans yet"
+            description="Create your first plan or browse templates to get started."
+            action={
+              <View style={{ gap: tokens.spacing.sm, alignSelf: 'stretch' }}>
+                <Button title="Create a plan" variant="secondary" onPress={onCreate} />
+                <Button
+                  title="Browse templates"
+                  onPress={() => navigation.navigate('PrebuiltPlans')}
+                />
+              </View>
+            }
           />
-        </View>
-      </View>
-      <View style={{ gap: tokens.spacing.sm }}>
-        <Text variant="label" color={tokens.colors.mutedText}>
-          MY PLANS
-        </Text>
-        <FlatList
-          data={workoutPlans}
-          keyExtractor={(p) => p.id}
-          scrollEnabled={false}
-          ItemSeparatorComponent={() => <View style={{ height: tokens.spacing.sm }} />}
-          ListEmptyComponent={
-            <Card>
-              <EmptyState
-                icon={<Ionicons name="barbell-outline" size={24} color={colors.primary} />}
-                title="No workout plans yet"
-                description="Create a plan or browse templates to get started."
+        </Card>
+      ) : (
+        <>
+          <View style={{ flexDirection: 'row', gap: tokens.spacing.sm }}>
+            <View style={{ flex: 1 }}>
+              <Button title="+ Create Plan" onPress={onCreate} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Button
+                title="Templates"
+                variant="primary"
+                leftIcon={<Ionicons name="flash-outline" size={16} />}
+                onPress={() => navigation.navigate('PrebuiltPlans')}
               />
-            </Card>
-          }
-          renderItem={({ item }) => {
-            const hasSessions = item.sessionCount > 0;
+            </View>
+          </View>
+          <View style={{ gap: tokens.spacing.sm }}>
+            <Text variant="label" color={tokens.colors.mutedText}>
+              MY PLANS
+            </Text>
+            <FlatList
+              data={workoutPlans}
+              keyExtractor={(p) => p.id}
+              scrollEnabled={false}
+              ItemSeparatorComponent={() => <View style={{ height: tokens.spacing.sm }} />}
+              renderItem={({ item }) => {
+                const hasSessions = item.sessionCount > 0;
 
-            return (
-              <ListRow
-                title={item.name}
-                subtitle={formatSessionCountSubtitle(item.sessionCount)}
-                showChevron={hasSessions}
-                left={
-                  <IconChip variant="primarySoft" size={40}>
-                    <Ionicons name="barbell-outline" size={18} color={colors.primary} />
-                  </IconChip>
-                }
-                onPress={
-                  hasSessions
-                    ? () => navigation.navigate('WorkoutPlanDetail', { workoutPlanId: item.id })
-                    : undefined
-                }
-                right={
-                  <IconButton
-                    onPress={() => confirmDelete(item)}
-                    accessibilityLabel="Delete workout plan"
-                    variant="danger"
-                    icon={<Ionicons name="trash-outline" size={20} />}
+                return (
+                  <ListRow
+                    title={item.name}
+                    subtitle={formatSessionCountSubtitle(item.sessionCount)}
+                    showChevron={hasSessions}
+                    left={
+                      <IconChip variant="primarySoft" size={40}>
+                        <Ionicons name="barbell-outline" size={18} color={colors.primary} />
+                      </IconChip>
+                    }
+                    onPress={
+                      hasSessions
+                        ? () => navigation.navigate('WorkoutPlanDetail', { workoutPlanId: item.id })
+                        : undefined
+                    }
+                    right={
+                      <IconButton
+                        onPress={() => confirmDelete(item)}
+                        accessibilityLabel="Delete workout plan"
+                        variant="danger"
+                        icon={<Ionicons name="trash-outline" size={20} />}
+                      />
+                    }
                   />
-                }
-              />
-            );
-          }}
-        />
-      </View>
+                );
+              }}
+            />
+          </View>
+        </>
+      )}
       <DestructiveConfirmDialog
         visible={deletePlanTarget !== null}
         title="Delete workout plan?"

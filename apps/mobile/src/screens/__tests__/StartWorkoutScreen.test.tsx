@@ -73,7 +73,6 @@ import React from 'react';
 import { FlatList } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 
-import { EmptyState } from '../../ui';
 import { StartWorkoutScreen } from '../StartWorkoutScreen';
 import { listWorkoutPlansWithSessionCounts } from '../../db/workoutPlanRepo';
 import { getInProgressSession } from '../../db/workoutSessionRepo';
@@ -117,27 +116,70 @@ describe('StartWorkoutScreen', () => {
     (useFocusEffect as jest.Mock).mockImplementation((callback: () => void) => callback());
   });
 
-  it('shows empty state when there are no plans', () => {
-    useStateMock.mockImplementationOnce(() => [[], jest.fn()]);
+  it('redirects to Workout Plans when there are no plans', () => {
+    useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+    (listWorkoutPlansWithSessionCounts as jest.Mock).mockReturnValue([]);
 
     const navigation: Nav = { navigate: jest.fn(), replace: jest.fn() };
-    const element = StartWorkoutScreen({
+    StartWorkoutScreen({
       navigation,
       route: { key: 'StartWorkout', name: 'StartWorkout' },
     } as never);
 
-    type EmptyStateProps = React.ComponentProps<typeof EmptyState>;
-    const emptyState = findElementByType<EmptyStateProps>(element, EmptyState);
-
-    expect(emptyState?.props.title).toBe('No plans yet');
+    expect(navigation.replace).toHaveBeenCalledWith('MainTabs', { screen: 'WorkoutPlans' });
   });
 
-  it('shows session-count subtitle and navigates for plans with sessions', () => {
+  it('redirects to the session picker when exactly one plan has sessions', () => {
     const plans = [
       { id: 'plan-1', name: 'Strength Plan', description: null, is_template: 0, sessionCount: 3 },
     ];
 
+    useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+    (listWorkoutPlansWithSessionCounts as jest.Mock).mockReturnValue(plans);
+
+    const navigation: Nav = { navigate: jest.fn(), replace: jest.fn() };
+    StartWorkoutScreen({
+      navigation,
+      route: { key: 'StartWorkout', name: 'StartWorkout' },
+    } as never);
+
+    expect(navigation.replace).toHaveBeenCalledWith('WorkoutPlanDetail', {
+      workoutPlanId: 'plan-1',
+      mode: 'pickSessionToStart',
+    });
+  });
+
+  it('redirects to Workout Plans when exactly one plan has no sessions', () => {
+    const plans = [
+      { id: 'plan-1', name: 'Empty Plan', description: null, is_template: 0, sessionCount: 0 },
+    ];
+
+    useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+    (listWorkoutPlansWithSessionCounts as jest.Mock).mockReturnValue(plans);
+
+    const navigation: Nav = { navigate: jest.fn(), replace: jest.fn() };
+    StartWorkoutScreen({
+      navigation,
+      route: { key: 'StartWorkout', name: 'StartWorkout' },
+    } as never);
+
+    expect(navigation.replace).toHaveBeenCalledWith('MainTabs', { screen: 'WorkoutPlans' });
+  });
+
+  it('shows session-count subtitles and navigates for multiple plans with sessions', () => {
+    const plans = [
+      { id: 'plan-1', name: 'Strength Plan', description: null, is_template: 0, sessionCount: 1 },
+      {
+        id: 'plan-2',
+        name: 'Hypertrophy Plan',
+        description: null,
+        is_template: 0,
+        sessionCount: 4,
+      },
+    ];
+
     useStateMock.mockImplementationOnce(() => [plans, jest.fn()]);
+    (listWorkoutPlansWithSessionCounts as jest.Mock).mockReturnValue(plans);
 
     const navigation: Nav = { navigate: jest.fn(), replace: jest.fn() };
     const element = StartWorkoutScreen({
@@ -167,30 +209,30 @@ describe('StartWorkoutScreen', () => {
     }
 
     const row = rowNode as React.ReactElement<{
-      title: string;
       subtitle: string;
-      onPress?: () => void;
       showChevron: boolean;
+      onPress?: () => void;
     }>;
 
-    expect(row.props.title).toBe('Strength Plan');
-    expect(row.props.subtitle).toBe('3 sessions');
+    expect(row.props.subtitle).toBe('1 session');
     expect(row.props.showChevron).toBe(true);
+    expect(navigation.replace).not.toHaveBeenCalledWith('WorkoutPlanDetail', expect.anything());
 
     row.props.onPress?.();
-
     expect(navigation.navigate).toHaveBeenCalledWith('WorkoutPlanDetail', {
       workoutPlanId: 'plan-1',
       mode: 'pickSessionToStart',
     });
   });
 
-  it('shows singular session subtitle for a 1-session plan', () => {
+  it('hides chevron and disables press for zero-session plans when multiple plans exist', () => {
     const plans = [
-      { id: 'plan-1', name: 'Strength Plan', description: null, is_template: 0, sessionCount: 1 },
+      { id: 'plan-1', name: 'Strength Plan', description: null, is_template: 0, sessionCount: 3 },
+      { id: 'plan-2', name: 'Empty Plan', description: null, is_template: 0, sessionCount: 0 },
     ];
 
     useStateMock.mockImplementationOnce(() => [plans, jest.fn()]);
+    (listWorkoutPlansWithSessionCounts as jest.Mock).mockReturnValue(plans);
 
     const navigation: Nav = { navigate: jest.fn(), replace: jest.fn() };
     const element = StartWorkoutScreen({
@@ -206,48 +248,8 @@ describe('StartWorkoutScreen', () => {
     }
 
     const rowNode = list.props.renderItem({
-      item: plans[0],
-      index: 0,
-      separators: {
-        highlight: jest.fn(),
-        unhighlight: jest.fn(),
-        updateProps: jest.fn(),
-      },
-    });
-
-    if (!React.isValidElement(rowNode)) {
-      throw new Error('Expected plan row to be a React element.');
-    }
-
-    const row = rowNode as React.ReactElement<{ subtitle: string; showChevron: boolean }>;
-
-    expect(row.props.subtitle).toBe('1 session');
-    expect(row.props.showChevron).toBe(true);
-  });
-
-  it('hides chevron and disables press for plans with zero sessions', () => {
-    const plans = [
-      { id: 'plan-1', name: 'Strength Plan', description: null, is_template: 0, sessionCount: 0 },
-    ];
-
-    useStateMock.mockImplementationOnce(() => [plans, jest.fn()]);
-
-    const navigation: Nav = { navigate: jest.fn(), replace: jest.fn() };
-    const element = StartWorkoutScreen({
-      navigation,
-      route: { key: 'StartWorkout', name: 'StartWorkout' },
-    } as never);
-
-    type FlatListProps = React.ComponentProps<typeof FlatList>;
-    const list = findElementByType<FlatListProps>(element, FlatList);
-
-    if (!list?.props.renderItem) {
-      throw new Error('Expected FlatList renderItem to be defined.');
-    }
-
-    const rowNode = list.props.renderItem({
-      item: plans[0],
-      index: 0,
+      item: plans[1],
+      index: 1,
       separators: {
         highlight: jest.fn(),
         unhighlight: jest.fn(),
@@ -271,8 +273,13 @@ describe('StartWorkoutScreen', () => {
   });
 
   it('loads plans on focus when no active session exists', () => {
-    useStateMock.mockImplementationOnce(() => [[], jest.fn()]);
-    (listWorkoutPlansWithSessionCounts as jest.Mock).mockReturnValue([]);
+    const plans = [
+      { id: 'plan-1', name: 'Plan A', description: null, is_template: 0, sessionCount: 1 },
+      { id: 'plan-2', name: 'Plan B', description: null, is_template: 0, sessionCount: 1 },
+    ];
+    const setPlans = jest.fn();
+    useStateMock.mockImplementationOnce(() => [null, setPlans]);
+    (listWorkoutPlansWithSessionCounts as jest.Mock).mockReturnValue(plans);
 
     const navigation: Nav = { navigate: jest.fn(), replace: jest.fn() };
 
@@ -283,6 +290,7 @@ describe('StartWorkoutScreen', () => {
 
     expect(listWorkoutPlansWithSessionCounts).toHaveBeenCalledTimes(1);
     expect(navigation.replace).not.toHaveBeenCalled();
+    expect(setPlans).toHaveBeenCalledWith(plans);
   });
 
   it('does not load plans on focus when an active session exists', () => {
