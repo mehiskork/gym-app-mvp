@@ -8,7 +8,7 @@ import { Text } from './Text';
 type EmptyStateProps = {
   icon: ReactNode;
   title: string;
-  description: string;
+  description?: string;
   action?: ReactNode;
 };
 
@@ -29,9 +29,11 @@ export function EmptyState({ icon, title, description, action }: EmptyStateProps
       </View>
       <View style={{ alignItems: 'center', gap: tokens.spacing.xs }}>
         <Text variant="subtitle">{title}</Text>
-        <Text variant="muted" style={{ textAlign: 'center' }}>
-          {description}
-        </Text>
+        {description ? (
+          <Text variant="muted" style={{ textAlign: 'center' }}>
+            {description}
+          </Text>
+        ) : null}
       </View>
       {action ? <View style={{ marginTop: tokens.spacing.sm }}>{action}</View> : null}
     </View>

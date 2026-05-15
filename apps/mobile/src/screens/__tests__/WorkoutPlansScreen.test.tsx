@@ -144,9 +144,7 @@ describe('WorkoutPlansScreen', () => {
     const { emptyState, buttons } = emptyStateActionButtons(element);
 
     expect(emptyState?.props.title).toBe('No workout plans yet');
-    expect(emptyState?.props.description).toBe(
-      'Create your first plan or browse templates to get started.',
-    );
+    expect(emptyState?.props.description).toBeUndefined();
     expect(buttons.some((button) => button.props.title === 'Create a plan')).toBe(true);
     expect(buttons.some((button) => button.props.title === 'Browse templates')).toBe(true);
     expect(buttons.some((button) => button.props.title === '+ Create Plan')).toBe(false);

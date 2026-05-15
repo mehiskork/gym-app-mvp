@@ -57,22 +57,15 @@ jest.mock('../../db/prebuiltPlansRepo', () => ({
   listPrebuiltPlans: jest.fn(),
 }));
 
-jest.mock('../../db/workoutSessionRepo', () => ({
-  getInProgressSession: jest.fn(),
-}));
-
 import React from 'react';
-import { FlatList } from 'react-native';
+import { FlatList, Pressable } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 
-import { Button, IconButton } from '../../ui';
 import { PrebuiltPlansScreen } from '../PrebuiltPlansScreen';
 import { importPrebuiltPlan, listPrebuiltPlans } from '../../db/prebuiltPlansRepo';
-import { getInProgressSession } from '../../db/workoutSessionRepo';
 
 type Nav = {
   navigate: jest.Mock;
-  replace: jest.Mock;
 };
 
 const findElementByType = <P,>(
@@ -94,6 +87,33 @@ const findElementByType = <P,>(
   return null;
 };
 
+const findElementsByType = <P,>(
+  node: React.ReactNode,
+  type: React.ElementType,
+  acc: Array<React.ReactElement<P>> = [],
+) => {
+  if (!node) return acc;
+  if (Array.isArray(node)) {
+    node.forEach((child) => findElementsByType<P>(child, type, acc));
+    return acc;
+  }
+  if (React.isValidElement<React.PropsWithChildren<P>>(node)) {
+    if (node.type === type) acc.push(node as React.ReactElement<P>);
+    return findElementsByType<P>(node.props.children, type, acc);
+  }
+  return acc;
+};
+
+function textContent(node: React.ReactNode): string {
+  if (!node) return '';
+  if (typeof node === 'string' || typeof node === 'number') return String(node);
+  if (Array.isArray(node)) return node.map(textContent).join(' ');
+  if (React.isValidElement(node)) {
+    return textContent((node.props as { children?: React.ReactNode }).children);
+  }
+  return '';
+}
+
 describe('PrebuiltPlansScreen', () => {
   const useStateMock = React.useState as jest.Mock;
 
@@ -105,31 +125,26 @@ describe('PrebuiltPlansScreen', () => {
     ]);
     (listPrebuiltPlans as jest.Mock).mockReset();
     (importPrebuiltPlan as jest.Mock).mockReset();
-    (getInProgressSession as jest.Mock).mockReset();
     (useFocusEffect as jest.Mock).mockReset();
     (useFocusEffect as jest.Mock).mockImplementation((callback: () => void) => callback());
     (useNavigation as jest.Mock).mockReset();
   });
 
-  it('does not navigate after import when there is an active session', () => {
-    const navigation: Nav = { navigate: jest.fn(), replace: jest.fn() };
-    (useNavigation as jest.Mock).mockReturnValue(navigation);
-    (listPrebuiltPlans as jest.Mock).mockReturnValue([
-      { id: 'tpl-1', name: 'PPL', description: null, dayCount: 3, existingPlanId: null },
-    ]);
-    (importPrebuiltPlan as jest.Mock).mockReturnValue('plan-123');
-    (getInProgressSession as jest.Mock).mockReturnValue({ id: 'session-777' });
-
-    const element = PrebuiltPlansScreen();
-
+  function renderFirstTemplateRow(element: React.ReactNode) {
     type FlatListProps = React.ComponentProps<typeof FlatList>;
     const list = findElementByType<FlatListProps>(element, FlatList);
     if (!list?.props.renderItem) {
       throw new Error('Expected FlatList renderItem to be defined.');
     }
 
-    const rowNode = list.props.renderItem({
-      item: { id: 'tpl-1', name: 'PPL', description: null, dayCount: 3, existingPlanId: null },
+    return list.props.renderItem({
+      item: {
+        id: 'tpl-1',
+        name: 'PPL',
+        description: 'Push pull legs',
+        dayCount: 3,
+        existingPlanId: null,
+      },
       index: 0,
       separators: {
         highlight: jest.fn(),
@@ -137,17 +152,36 @@ describe('PrebuiltPlansScreen', () => {
         updateProps: jest.fn(),
       },
     });
+  }
 
-    type ButtonProps = React.ComponentProps<typeof Button>;
-    const importButton = findElementByType<ButtonProps>(rowNode, Button);
-    importButton?.props.onPress?.({} as never);
+  it('renders templates without import intro or Add buttons', () => {
+    const navigation: Nav = { navigate: jest.fn() };
+    (useNavigation as jest.Mock).mockReturnValue(navigation);
+    (listPrebuiltPlans as jest.Mock).mockReturnValue([
+      {
+        id: 'tpl-1',
+        name: 'PPL',
+        description: 'Push pull legs',
+        dayCount: 3,
+        existingPlanId: null,
+      },
+    ]);
 
-    expect(importPrebuiltPlan).toHaveBeenCalledWith('tpl-1');
-    expect(navigation.replace).not.toHaveBeenCalled();
+    const element = PrebuiltPlansScreen();
+    const rowNode = renderFirstTemplateRow(element);
+    const text = textContent(rowNode);
+    const screenText = textContent(element);
+
+    expect(text).toContain('PPL');
+    expect(text).toContain('Push pull legs');
+    expect(text).toContain('3 sessions');
+    expect(screenText).not.toContain('Import a template to start editing and logging workouts.');
+    expect(text).not.toContain('Add to my plans');
+    expect(importPrebuiltPlan).not.toHaveBeenCalled();
   });
 
-  it('opens a read-only preview without importing from the info button', () => {
-    const navigation: Nav = { navigate: jest.fn(), replace: jest.fn() };
+  it('opens a read-only preview without importing from the template card', () => {
+    const navigation: Nav = { navigate: jest.fn() };
     (useNavigation as jest.Mock).mockReturnValue(navigation);
     (listPrebuiltPlans as jest.Mock).mockReturnValue([
       { id: 'tpl-1', name: 'PPL', description: null, dayCount: 3, existingPlanId: null },
@@ -155,27 +189,13 @@ describe('PrebuiltPlansScreen', () => {
 
     const element = PrebuiltPlansScreen();
 
-    type FlatListProps = React.ComponentProps<typeof FlatList>;
-    const list = findElementByType<FlatListProps>(element, FlatList);
-    if (!list?.props.renderItem) {
-      throw new Error('Expected FlatList renderItem to be defined.');
-    }
+    const rowNode = renderFirstTemplateRow(element);
 
-    const rowNode = list.props.renderItem({
-      item: { id: 'tpl-1', name: 'PPL', description: null, dayCount: 3, existingPlanId: null },
-      index: 0,
-      separators: {
-        highlight: jest.fn(),
-        unhighlight: jest.fn(),
-        updateProps: jest.fn(),
-      },
-    });
-
-    type IconButtonProps = React.ComponentProps<typeof IconButton>;
-    const previewButton = findElementByType<IconButtonProps>(rowNode, IconButton);
-    expect(previewButton?.props.accessibilityLabel).toBe('Preview PPL');
-
-    previewButton?.props.onPress?.();
+    const card = findElementsByType<React.ComponentProps<typeof Pressable>>(
+      rowNode,
+      Pressable,
+    ).find((pressable) => pressable.props.accessibilityLabel === 'Preview PPL');
+    card?.props.onPress?.({} as never);
 
     expect(navigation.navigate).toHaveBeenCalledWith('PrebuiltPlanPreview', {
       templateId: 'tpl-1',

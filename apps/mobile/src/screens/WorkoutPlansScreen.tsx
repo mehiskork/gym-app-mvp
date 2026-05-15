@@ -101,7 +101,6 @@ export function WorkoutPlansScreen() {
           <EmptyState
             icon={<Ionicons name="barbell-outline" size={24} color={colors.primary} />}
             title="No workout plans yet"
-            description="Create your first plan or browse templates to get started."
             action={
               <View style={{ gap: tokens.spacing.sm, alignSelf: 'stretch' }}>
                 <Button title="Create a plan" variant="secondary" onPress={onCreate} />

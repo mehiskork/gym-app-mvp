@@ -109,12 +109,12 @@ export function RootNavigator() {
         <Stack.Screen
           name="PrebuiltPlans"
           component={PrebuiltPlansScreen}
-          options={{ title: 'Prebuilt plans', headerShown: true }}
+          options={{ title: 'Templates', headerShown: true }}
         />
         <Stack.Screen
           name="PrebuiltPlanPreview"
           component={PrebuiltPlanPreviewScreen}
-          options={{ title: 'Plan preview', headerShown: true }}
+          options={{ title: 'Template preview', headerShown: true }}
         />
         <Stack.Screen name="DayDetail" component={DayDetailScreen} options={{ title: 'Day' }} />
         <Stack.Screen

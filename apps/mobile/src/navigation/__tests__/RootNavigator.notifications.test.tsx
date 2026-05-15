@@ -18,6 +18,7 @@ jest.mock('react', () => {
 const mockNavigate = jest.fn();
 let mockNavigationReady = false;
 let mockCapturedOnReady: (() => void) | undefined;
+const mockStackScreens: Array<{ name?: string; options?: { title?: string } }> = [];
 
 jest.mock('@react-navigation/native', () => {
   const React = require('react');
@@ -45,7 +46,10 @@ jest.mock('@react-navigation/native-stack', () => {
     createNativeStackNavigator: () => ({
       Navigator: ({ children, ...props }: { children?: React.ReactNode }) =>
         React.createElement('Navigator', props, children),
-      Screen: (props: unknown) => React.createElement('Screen', props),
+      Screen: (props: { name?: string; options?: { title?: string } }) => {
+        mockStackScreens.push(props);
+        return React.createElement('Screen', props);
+      },
     }),
   };
 });
@@ -167,10 +171,21 @@ function notificationResponse(
 }
 
 function renderRootNavigator() {
-  const element = RootNavigator();
-  if (React.isValidElement(element) && typeof element.type === 'function') {
-    (element.type as (props: any) => React.ReactNode)(element.props);
+  function expand(node: React.ReactNode): void {
+    if (!node || typeof node === 'string' || typeof node === 'number') return;
+    if (Array.isArray(node)) {
+      node.forEach(expand);
+      return;
+    }
+    if (!React.isValidElement(node)) return;
+    if (typeof node.type === 'function') {
+      expand((node.type as (props: any) => React.ReactNode)(node.props));
+      return;
+    }
+    expand((node.props as { children?: React.ReactNode }).children);
   }
+
+  expand(RootNavigator());
 }
 
 describe('RootNavigator unfinished workout notification handling', () => {
@@ -179,6 +194,7 @@ describe('RootNavigator unfinished workout notification handling', () => {
     mockCapturedOnReady = undefined;
     mockEffectCleanup = undefined;
     mockNavigationReady = false;
+    mockStackScreens.length = 0;
     mockNotificationListener = undefined;
     mockGetLastNotificationResponseAsync.mockResolvedValue(null);
     (query as jest.Mock).mockReturnValue([{ id: 'ws-1' }]);
@@ -256,5 +272,30 @@ describe('RootNavigator unfinished workout notification handling', () => {
 
     expect(query).not.toHaveBeenCalled();
     expect(mockNavigate).not.toHaveBeenCalled();
+  });
+
+  it('uses Templates copy for template stack titles', () => {
+    renderRootNavigator();
+
+    expect(mockStackScreens).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: 'PrebuiltPlans',
+          options: expect.objectContaining({ title: 'Templates' }),
+        }),
+        expect.objectContaining({
+          name: 'PrebuiltPlanPreview',
+          options: expect.objectContaining({ title: 'Template preview' }),
+        }),
+      ]),
+    );
+    expect(mockStackScreens).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: 'PrebuiltPlans',
+          options: expect.objectContaining({ title: 'Prebuilt plans' }),
+        }),
+      ]),
+    );
   });
 });
