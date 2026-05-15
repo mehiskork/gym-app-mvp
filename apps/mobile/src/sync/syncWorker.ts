@@ -138,6 +138,10 @@ const WORKOUT_HISTORY_ENTITY_TYPES = new Set([
   'workout_set',
 ]);
 
+function syncEntityKey(entityType: string, entityId: string): string {
+  return `${entityType}:${entityId}`;
+}
+
 async function resolveSyncAuthContext(): Promise<SyncAuthContext | null> {
   const accountSession = await getUsableAccountSessionWithFreshToken();
   const localAccountState = resolveLocalAccountStateFromSession(accountSession);
@@ -328,6 +332,11 @@ async function runSyncPage(options: SyncNowOptions): Promise<boolean> {
 
   repairStaleInFlightOps(OUTBOX_STALE_IN_FLIGHT_SECONDS);
   const ops = options.pullOnly ? [] : claimOutboxOps(SYNC_BATCH_LIMIT);
+  const protectedEntityKeys = new Set(
+    ops
+      .filter((op) => op.entity_type === 'workout_set')
+      .map((op) => syncEntityKey(op.entity_type, op.entity_id)),
+  );
   const cursor = syncState.cursor;
   const runId = createSyncRun({ cursorBefore: cursor });
   const opsSent = ops.length;
@@ -419,6 +428,7 @@ async function runSyncPage(options: SyncNowOptions): Promise<boolean> {
       deltaSummary = applyDeltas(data.deltas ?? [], {
         cursorBefore: cursor,
         responseCursor: cursorAfter,
+        protectedEntityKeys,
       });
       deltasApplied = deltaSummary.applied;
       if (shouldRebuildPrEvents) {

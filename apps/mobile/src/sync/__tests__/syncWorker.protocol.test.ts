@@ -415,4 +415,104 @@ describe('syncWorker protocol invariants', () => {
     expect(rebuildPrEventsFromWorkoutHistory).toHaveBeenCalledTimes(1);
     expect(updateSyncState).toHaveBeenCalledWith(expect.objectContaining({ cursor: '7' }));
   });
+
+  it('passes workout_set ops sent in the current sync request as protected delta keys', async () => {
+    const workoutSetOp = {
+      ...baseOp,
+      entity_type: 'workout_set',
+      entity_id: 'set-1',
+      payload_json: JSON.stringify({
+        id: 'set-1',
+        workout_session_exercise_id: 'wse-1',
+        set_index: 1,
+        is_completed: 1,
+        updated_at: '2026-05-01 12:00:00',
+      }),
+    };
+    (claimOutboxOps as jest.Mock).mockReturnValue([workoutSetOp]);
+    global.fetch = jest.fn().mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        acks: [{ opId: 'op-1', status: 'applied' }],
+        deltas: [
+          {
+            entityType: 'workout_set',
+            entityId: 'set-1',
+            opType: 'upsert',
+            payload: {
+              id: 'set-1',
+              workout_session_exercise_id: 'wse-1',
+              set_index: 1,
+              is_completed: 0,
+              updated_at: '2026-05-01 12:00:00',
+            },
+          },
+        ],
+        cursor: '9',
+        hasMore: false,
+      }),
+    }) as unknown as typeof fetch;
+
+    await syncNow();
+
+    expect(applyDeltas).toHaveBeenCalledWith(
+      expect.any(Array),
+      expect.objectContaining({
+        protectedEntityKeys: new Set(['workout_set:set-1']),
+      }),
+    );
+  });
+
+  it('keeps just-sent workout_set rows protected even though acks are written before deltas apply', async () => {
+    const workoutSetOp = {
+      ...baseOp,
+      entity_type: 'workout_set',
+      entity_id: 'set-just-sent',
+      payload_json: JSON.stringify({
+        id: 'set-just-sent',
+        workout_session_exercise_id: 'wse-1',
+        set_index: 1,
+        is_completed: 1,
+        updated_at: '2026-05-01 12:00:00',
+      }),
+    };
+    (claimOutboxOps as jest.Mock).mockReturnValue([workoutSetOp]);
+    (markOutboxOpsAcked as jest.Mock).mockImplementation(() => {
+      expect(applyDeltas).not.toHaveBeenCalled();
+    });
+    global.fetch = jest.fn().mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        acks: [{ opId: 'op-1', status: 'applied' }],
+        deltas: [
+          {
+            entityType: 'workout_set',
+            entityId: 'set-just-sent',
+            opType: 'upsert',
+            payload: {
+              id: 'set-just-sent',
+              workout_session_exercise_id: 'wse-1',
+              set_index: 1,
+              is_completed: 0,
+              updated_at: '2026-05-01 12:00:00',
+            },
+          },
+        ],
+        cursor: '10',
+        hasMore: false,
+      }),
+    }) as unknown as typeof fetch;
+
+    await syncNow();
+
+    expect(markOutboxOpsAcked).toHaveBeenCalledWith(['op-1']);
+    expect(applyDeltas).toHaveBeenCalledWith(
+      expect.any(Array),
+      expect.objectContaining({
+        protectedEntityKeys: new Set(['workout_set:set-just-sent']),
+      }),
+    );
+  });
 });

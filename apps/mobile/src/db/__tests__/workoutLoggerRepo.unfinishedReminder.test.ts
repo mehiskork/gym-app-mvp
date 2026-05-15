@@ -21,6 +21,7 @@ import {
   reconcileUnfinishedWorkoutReminder,
   scheduleUnfinishedWorkoutReminderForSession,
 } from '../../utils/unfinishedWorkoutReminderNotifications';
+import { enqueueOutboxOp } from '../outboxRepo';
 import { updateWorkoutSet } from '../workoutLoggerRepo';
 
 describe('workoutLoggerRepo unfinished workout reminders', () => {
@@ -65,6 +66,73 @@ describe('workoutLoggerRepo unfinished workout reminders', () => {
       'ws-1',
       '2026-05-09T11:00:00.000Z',
     );
+  });
+
+  it('weight update writes only weight and snapshots the current completed row', () => {
+    (query as jest.Mock)
+      .mockReturnValueOnce([
+        {
+          id: 'set-1',
+          workout_session_exercise_id: 'wse-1',
+          set_index: 1,
+          weight: 120,
+          reps: 5,
+          is_completed: 1,
+          updated_at: '2026-05-09 11:00:00',
+        },
+      ])
+      .mockReturnValueOnce([
+        {
+          is_completed: 1,
+          session_id: 'ws-1',
+          status: 'in_progress',
+        },
+      ]);
+
+    updateWorkoutSet('set-1', { weight: 120 });
+
+    const updateCall = (exec as jest.Mock).mock.calls.find(([sql]) =>
+      String(sql).includes('UPDATE workout_set'),
+    );
+    expect(updateCall?.[0]).toContain('SET weight = ?');
+    expect(updateCall?.[0]).not.toContain('is_completed = ?');
+    expect(updateCall?.[1]).toEqual([120, 'set-1']);
+    expect(enqueueOutboxOp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entityType: 'workout_set',
+        entityId: 'set-1',
+        opType: 'upsert',
+      }),
+    );
+    const payload = JSON.parse((enqueueOutboxOp as jest.Mock).mock.calls[0][0].payloadJson);
+    expect(payload).toMatchObject({ weight: 120, reps: 5, is_completed: 1 });
+  });
+
+  it('completion update snapshots is_completed=1', () => {
+    (query as jest.Mock)
+      .mockReturnValueOnce([
+        {
+          id: 'set-1',
+          workout_session_exercise_id: 'wse-1',
+          set_index: 1,
+          weight: 100,
+          reps: 5,
+          is_completed: 1,
+          updated_at: '2026-05-09 11:00:00',
+        },
+      ])
+      .mockReturnValueOnce([
+        {
+          is_completed: 1,
+          session_id: 'ws-1',
+          status: 'in_progress',
+        },
+      ]);
+
+    updateWorkoutSet('set-1', { is_completed: 1 });
+
+    const payload = JSON.parse((enqueueOutboxOp as jest.Mock).mock.calls[0][0].payloadJson);
+    expect(payload).toMatchObject({ id: 'set-1', is_completed: 1 });
   });
 
   it('unchecking a set reconciles based on remaining completed sets', () => {

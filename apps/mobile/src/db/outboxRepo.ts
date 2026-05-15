@@ -93,6 +93,21 @@ export function listPendingOutboxOps(limit: number): OutboxOp[] {
   );
 }
 
+export function hasActiveOutboxOpForEntity(entityType: string, entityId: string): boolean {
+  const row = query<{ n: number }>(
+    `
+    SELECT COUNT(*) AS n
+    FROM outbox_op
+    WHERE entity_type = ?
+      AND entity_id = ?
+      AND status IN ('${OUTBOX_STATUS.PENDING}', '${OUTBOX_STATUS.FAILED}', '${OUTBOX_STATUS.IN_FLIGHT}');
+  `,
+    [entityType, entityId],
+  )[0];
+
+  return (row?.n ?? 0) > 0;
+}
+
 export function claimOutboxOps(limit: number): OutboxOp[] {
   return inTransaction(() => {
     const ops = listPendingOutboxOps(limit);

@@ -1,5 +1,6 @@
 import type * as SQLite from 'expo-sqlite';
 import { exec, query } from '../db/db';
+import { hasActiveOutboxOpForEntity } from '../db/outboxRepo';
 import { logEvent } from '../utils/logger';
 import { parseTimestampMs } from '../utils/timestamp';
 
@@ -14,6 +15,7 @@ export type SyncDelta = {
 export type SyncApplyContext = {
   cursorBefore?: string | null;
   responseCursor?: string | null;
+  protectedEntityKeys?: Iterable<string>;
 };
 
 export type SyncApplyFailureDiagnostic = {
@@ -507,6 +509,16 @@ function isNewerTimestamp(localValue?: string | null, incomingValue?: string | n
   return localTime > incomingTime;
 }
 
+function isSameOrNewerTimestamp(
+  localValue?: string | null,
+  incomingValue?: string | null,
+): boolean {
+  const localTime = parseTimestampMs(localValue);
+  const incomingTime = parseTimestampMs(incomingValue);
+  if (localTime === null || incomingTime === null) return false;
+  return localTime >= incomingTime;
+}
+
 function shouldSkipDelta(
   config: TableConfig,
   localRow: { updated_at?: string; version?: number } | null,
@@ -529,6 +541,30 @@ function shouldSkipDelta(
   }
 
   return false;
+}
+
+function entityKey(entityType: string, entityId: string): string {
+  return `${entityType}:${entityId}`;
+}
+
+function shouldSkipWorkoutSetLocalWriteDelta(input: {
+  delta: SyncDelta;
+  payload: Record<string, unknown>;
+  localRow: { updated_at?: string; version?: number } | null;
+  protectedEntityKeys: Set<string>;
+}): boolean {
+  if (input.delta.entityType !== 'workout_set') return false;
+  if (input.delta.opType.toLowerCase() !== 'upsert') return false;
+
+  const id = String(input.payload.id ?? input.delta.entityId);
+  const key = entityKey(input.delta.entityType, id);
+  if (input.protectedEntityKeys.has(key)) return true;
+  if (hasActiveOutboxOpForEntity('workout_set', id)) return true;
+
+  // workout_set rows are non-versioned and use SQLite datetime('now') second precision.
+  // During rapid local completion + weight edits, equal timestamps should keep the
+  // local offline-first row instead of allowing a stale server snapshot to clear it.
+  return isSameOrNewerTimestamp(input.localRow?.updated_at, parseUpdatedAt(input.payload));
 }
 
 function upsertRow(config: TableConfig, payload: Record<string, unknown>) {
@@ -631,7 +667,7 @@ function shouldSkipInProgressConflict(delta: SyncDelta, payload: Record<string, 
   return true;
 }
 
-function applyDelta(delta: SyncDelta): DeltaOutcome {
+function applyDelta(delta: SyncDelta, protectedEntityKeys: Set<string>): DeltaOutcome {
   const config = tableConfigs[delta.entityType];
   if (!config) {
     logEvent('warn', 'sync', 'Skipped delta with unknown entity type', {
@@ -667,6 +703,15 @@ function applyDelta(delta: SyncDelta): DeltaOutcome {
 
   const localRow = fetchLocalRow(config, String(payload[config.primaryKey]));
 
+  if (shouldSkipWorkoutSetLocalWriteDelta({ delta, payload, localRow, protectedEntityKeys })) {
+    logEvent('warn', 'sync', 'Skipped workout_set delta due to protected local write', {
+      entityType: delta.entityType,
+      entityId: delta.entityId,
+      opType: delta.opType,
+    });
+    return 'skipped';
+  }
+
   if (shouldSkipDelta(config, localRow, payload)) {
     logEvent('warn', 'sync', 'Skipped delta due to newer local row', {
       entityType: delta.entityType,
@@ -694,6 +739,7 @@ export function applyDeltas(
 } {
   const total = deltas.length;
   if (total === 0) return { applied: 0, skipped: 0, total: 0 };
+  const protectedEntityKeys = new Set(context.protectedEntityKeys ?? []);
   const responseIndexByDelta = new Map<SyncDelta, number>();
   deltas.forEach((delta, index) => {
     responseIndexByDelta.set(delta, index);
@@ -716,7 +762,7 @@ export function applyDeltas(
 
     for (const delta of pending) {
       try {
-        const outcome = applyDelta(delta);
+        const outcome = applyDelta(delta, protectedEntityKeys);
         if (outcome === 'applied') {
           applied += 1;
         } else {

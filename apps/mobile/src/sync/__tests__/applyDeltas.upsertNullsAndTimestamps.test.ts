@@ -11,13 +11,20 @@ jest.mock('../../db/db', () => ({
   query: jest.fn(),
 }));
 
+jest.mock('../../db/outboxRepo', () => ({
+  hasActiveOutboxOpForEntity: jest.fn(() => false),
+}));
+
 jest.mock('../../utils/logger', () => ({
   logEvent: jest.fn(),
 }));
 
+import { hasActiveOutboxOpForEntity } from '../../db/outboxRepo';
+
 describe('applyDeltas null upsert + timestamp handling', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    (hasActiveOutboxOpForEntity as jest.Mock).mockReturnValue(false);
   });
 
   it('removes COALESCE and allows null overwrite', () => {
@@ -227,6 +234,186 @@ describe('applyDeltas null upsert + timestamp handling', () => {
           name: 'Remote Name',
           updated_at: '2026-05-01T12:00:00.000Z',
           version: 2,
+        },
+      },
+    ]);
+
+    expect(result).toEqual({ applied: 1, skipped: 0, total: 1 });
+    expect((exec as jest.Mock).mock.calls[0][0]).toContain('INSERT INTO exercise');
+  });
+
+  it('keeps local workout_set completion when incoming stale delta has the same timestamp', () => {
+    (query as jest.Mock).mockReturnValue([{ updated_at: '2026-05-01 12:00:00' }]);
+
+    const result = applyDeltas([
+      {
+        entityType: 'workout_set',
+        entityId: 'set-1',
+        opType: 'upsert',
+        payload: {
+          id: 'set-1',
+          workout_session_exercise_id: 'wse-1',
+          set_index: 1,
+          weight: 100,
+          reps: 5,
+          is_completed: 0,
+          updated_at: '2026-05-01 12:00:00',
+        },
+      },
+    ]);
+
+    expect(result).toEqual({ applied: 0, skipped: 1, total: 1 });
+    expect(exec).not.toHaveBeenCalled();
+  });
+
+  it('keeps local workout_set completion when local timestamp is newer', () => {
+    (query as jest.Mock).mockReturnValue([{ updated_at: '2026-05-01 12:00:01' }]);
+
+    const result = applyDeltas([
+      {
+        entityType: 'workout_set',
+        entityId: 'set-1',
+        opType: 'upsert',
+        payload: {
+          id: 'set-1',
+          workout_session_exercise_id: 'wse-1',
+          set_index: 1,
+          is_completed: 0,
+          updated_at: '2026-05-01 12:00:00',
+        },
+      },
+    ]);
+
+    expect(result).toEqual({ applied: 0, skipped: 1, total: 1 });
+    expect(exec).not.toHaveBeenCalled();
+  });
+
+  it('applies strictly newer workout_set upsert when there is no local write protection', () => {
+    (query as jest.Mock).mockReturnValue([{ updated_at: '2026-05-01 12:00:00' }]);
+
+    const result = applyDeltas([
+      {
+        entityType: 'workout_set',
+        entityId: 'set-1',
+        opType: 'upsert',
+        payload: {
+          id: 'set-1',
+          workout_session_exercise_id: 'wse-1',
+          set_index: 1,
+          weight: 102.5,
+          reps: 5,
+          is_completed: 1,
+          updated_at: '2026-05-01 12:00:01',
+        },
+      },
+    ]);
+
+    expect(result).toEqual({ applied: 1, skipped: 0, total: 1 });
+    expect((exec as jest.Mock).mock.calls[0][0]).toContain('INSERT INTO workout_set');
+  });
+
+  it('skips workout_set delta when the entity was sent in the current sync request', () => {
+    (query as jest.Mock).mockReturnValue([{ updated_at: '2026-05-01 12:00:00' }]);
+
+    const result = applyDeltas(
+      [
+        {
+          entityType: 'workout_set',
+          entityId: 'set-1',
+          opType: 'upsert',
+          payload: {
+            id: 'set-1',
+            workout_session_exercise_id: 'wse-1',
+            set_index: 1,
+            is_completed: 0,
+            updated_at: '2026-05-01 12:00:01',
+          },
+        },
+      ],
+      { protectedEntityKeys: new Set(['workout_set:set-1']) },
+    );
+
+    expect(result).toEqual({ applied: 0, skipped: 1, total: 1 });
+    expect(exec).not.toHaveBeenCalled();
+  });
+
+  it('skips workout_set delta when the entity has active local outbox work', () => {
+    (query as jest.Mock).mockReturnValue([{ updated_at: '2026-05-01 12:00:00' }]);
+    (hasActiveOutboxOpForEntity as jest.Mock).mockReturnValue(true);
+
+    const result = applyDeltas([
+      {
+        entityType: 'workout_set',
+        entityId: 'set-1',
+        opType: 'upsert',
+        payload: {
+          id: 'set-1',
+          workout_session_exercise_id: 'wse-1',
+          set_index: 1,
+          is_completed: 0,
+          updated_at: '2026-05-01 12:00:01',
+        },
+      },
+    ]);
+
+    expect(result).toEqual({ applied: 0, skipped: 1, total: 1 });
+    expect(hasActiveOutboxOpForEntity).toHaveBeenCalledWith('workout_set', 'set-1');
+    expect(exec).not.toHaveBeenCalled();
+  });
+
+  it('skips multiple stale workout_set deltas without clearing completed local sets', () => {
+    (query as jest.Mock).mockImplementation((sql: string, params?: unknown[]) => {
+      if (sql.includes('SELECT updated_at FROM workout_set')) {
+        return [
+          { updated_at: params?.[0] === 'set-1' ? '2026-05-01 12:00:00' : '2026-05-01 12:00:02' },
+        ];
+      }
+      return [];
+    });
+
+    const result = applyDeltas([
+      {
+        entityType: 'workout_set',
+        entityId: 'set-1',
+        opType: 'upsert',
+        payload: {
+          id: 'set-1',
+          workout_session_exercise_id: 'wse-1',
+          set_index: 1,
+          is_completed: 0,
+          updated_at: '2026-05-01 12:00:00',
+        },
+      },
+      {
+        entityType: 'workout_set',
+        entityId: 'set-2',
+        opType: 'upsert',
+        payload: {
+          id: 'set-2',
+          workout_session_exercise_id: 'wse-1',
+          set_index: 2,
+          is_completed: 0,
+          updated_at: '2026-05-01 12:00:01',
+        },
+      },
+    ]);
+
+    expect(result).toEqual({ applied: 0, skipped: 2, total: 2 });
+    expect(exec).not.toHaveBeenCalled();
+  });
+
+  it('keeps equal-timestamp upsert behavior unchanged for non-workout_set entities', () => {
+    (query as jest.Mock).mockReturnValue([{ updated_at: '2026-05-01 12:00:00' }]);
+
+    const result = applyDeltas([
+      {
+        entityType: 'exercise',
+        entityId: 'exercise-1',
+        opType: 'upsert',
+        payload: {
+          id: 'exercise-1',
+          name: 'Remote Equal Timestamp',
+          updated_at: '2026-05-01 12:00:00',
         },
       },
     ]);

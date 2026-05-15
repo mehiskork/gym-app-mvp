@@ -20,7 +20,12 @@ jest.mock('../../sync/syncScheduler', () => ({
   scheduleSyncSoon: jest.fn(),
 }));
 
-import { enqueueOutboxOp, listPendingOutboxOps, markOutboxOpRejected } from '../outboxRepo';
+import {
+  enqueueOutboxOp,
+  hasActiveOutboxOpForEntity,
+  listPendingOutboxOps,
+  markOutboxOpRejected,
+} from '../outboxRepo';
 import { exec, query } from '../db';
 import { scheduleSyncSoon } from '../../sync/syncScheduler';
 
@@ -109,5 +114,22 @@ describe('outboxRepo scheduled sync', () => {
       [50],
     );
     expect((query as jest.Mock).mock.calls[0][0]).not.toContain("'dead'");
+  });
+
+  it('detects active outbox work for an entity', () => {
+    (query as jest.Mock).mockReturnValueOnce([{ n: 1 }]);
+
+    expect(hasActiveOutboxOpForEntity('workout_set', 'set-1')).toBe(true);
+
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining("status IN ('pending', 'failed', 'in_flight')"),
+      ['workout_set', 'set-1'],
+    );
+  });
+
+  it('does not count inactive outbox work as active entity work', () => {
+    (query as jest.Mock).mockReturnValueOnce([{ n: 0 }]);
+
+    expect(hasActiveOutboxOpForEntity('workout_set', 'set-1')).toBe(false);
   });
 });
