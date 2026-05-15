@@ -268,6 +268,45 @@ export function listSessionExercises(sessionId: string): WorkoutSessionExerciseR
   );
 }
 
+export function createQuickWorkoutSession(): string {
+  const existing = query<{ id: string }>(
+    `
+  SELECT id
+  FROM workout_session
+  WHERE status = '${WORKOUT_SESSION_STATUS.IN_PROGRESS}' AND deleted_at IS NULL
+  ORDER BY started_at DESC
+  LIMIT 1;
+`,
+  )[0];
+
+  if (existing) {
+    throw new Error(`WORKOUT_IN_PROGRESS:${existing.id}`);
+  }
+
+  return inTransaction(() => {
+    const sessionId = newId('ws');
+
+    exec(
+      `
+      INSERT INTO workout_session (
+        id,
+        source_workout_plan_id,
+        source_program_day_id,
+        title,
+        status,
+        started_at,
+        workout_note
+       ) VALUES (?, NULL, NULL, ?, '${WORKOUT_SESSION_STATUS.IN_PROGRESS}', datetime('now'), NULL);
+    `,
+      [sessionId, 'Quick Workout'],
+    );
+
+    enqueueWorkoutSessionSnapshot(sessionId);
+
+    return sessionId;
+  });
+}
+
 export function createSessionFromPlanDay(input: { workoutPlanId: string; dayId: string }): string {
   const existing = query<{ id: string }>(
     `

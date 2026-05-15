@@ -76,6 +76,7 @@ jest.mock('../../features/today/TodayWeeklyStats', () => {
 });
 
 jest.mock('../../db/workoutSessionRepo', () => ({
+  createQuickWorkoutSession: jest.fn(() => 'quick-session-1'),
   getInProgressSession: jest.fn(() => null),
 }));
 
@@ -113,6 +114,7 @@ import React from 'react';
 
 import { createGoogleAccountFromGuest } from '../../auth/googleAccountOrchestrator';
 import { resetToGuestBootstrap } from '../../auth/identityTransition';
+import { createQuickWorkoutSession, getInProgressSession } from '../../db/workoutSessionRepo';
 import { TodayScreen } from '../TodayScreen';
 
 const useStateMock = React.useState as jest.Mock;
@@ -134,7 +136,10 @@ type RenderOptions = {
   recentSessions?: RecentSession[];
   accountDeletionRecoveryActive?: boolean;
   setAccountPromptError?: jest.Mock;
+  quickStartError?: string | null;
+  setQuickStartError?: jest.Mock;
   weeklyWorkouts?: number;
+  hasPlans?: boolean;
 };
 
 function renderTodayScreen({
@@ -145,19 +150,23 @@ function renderTodayScreen({
   recentSessions = [],
   accountDeletionRecoveryActive = false,
   setAccountPromptError = jest.fn(),
+  quickStartError = null,
+  setQuickStartError = jest.fn(),
   weeklyWorkouts = 0,
+  hasPlans = false,
 }: RenderOptions = {}) {
   useStateMock.mockReset();
   useStateMock
     .mockImplementationOnce(() => [inProgressId, jest.fn()])
     .mockImplementationOnce(() => [null, jest.fn()])
-    .mockImplementationOnce(() => [false, jest.fn()])
+    .mockImplementationOnce(() => [hasPlans, jest.fn()])
     .mockImplementationOnce(() => [weeklyWorkouts, jest.fn()])
     .mockImplementationOnce(() => [0, jest.fn()])
     .mockImplementationOnce(() => [recentSessions, jest.fn()])
     .mockImplementationOnce(() => [localAccountStatus, jest.fn()])
     .mockImplementationOnce(() => [accountSignInBusy, jest.fn()])
     .mockImplementationOnce(() => [accountPromptError, setAccountPromptError])
+    .mockImplementationOnce(() => [quickStartError, setQuickStartError])
     .mockImplementationOnce(() => [accountDeletionRecoveryActive, jest.fn()]);
 
   return TodayScreen();
@@ -206,6 +215,10 @@ function buttons(node: React.ReactNode) {
   return findElements(node, (element) => element.type === 'Button');
 }
 
+function todayPrimaryAction(node: React.ReactNode) {
+  return findElements(node, (element) => element.type === 'TodayPrimaryAction')[0] ?? null;
+}
+
 const recentSession: RecentSession = {
   id: 'session-1',
   title: 'Workout',
@@ -218,6 +231,85 @@ const recentSession: RecentSession = {
 describe('TodayScreen guest progress protection prompt', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    (createQuickWorkoutSession as jest.Mock).mockReturnValue('quick-session-1');
+    (getInProgressSession as jest.Mock).mockReturnValue(null);
+  });
+
+  it('starts a quick workout from no-plan Home and opens WorkoutSession', () => {
+    const tree = expandTree(renderTodayScreen());
+    const primaryAction = todayPrimaryAction(tree);
+
+    primaryAction?.props.onQuickStart();
+
+    expect(createQuickWorkoutSession).toHaveBeenCalledTimes(1);
+    expect(mockNavigate).toHaveBeenCalledWith('WorkoutSession', { sessionId: 'quick-session-1' });
+  });
+
+  it('resumes an active workout during quick start instead of creating another session', () => {
+    (getInProgressSession as jest.Mock).mockReturnValue({ id: 'active-session-1' });
+    const tree = expandTree(renderTodayScreen());
+    const primaryAction = todayPrimaryAction(tree);
+
+    primaryAction?.props.onQuickStart();
+
+    expect(createQuickWorkoutSession).not.toHaveBeenCalled();
+    expect(mockNavigate).toHaveBeenCalledWith('WorkoutSession', { sessionId: 'active-session-1' });
+  });
+
+  it('handles quick-start in-progress race by opening the existing workout', () => {
+    (createQuickWorkoutSession as jest.Mock).mockImplementation(() => {
+      throw new Error('WORKOUT_IN_PROGRESS:race-session-1');
+    });
+    const tree = expandTree(renderTodayScreen());
+    const primaryAction = todayPrimaryAction(tree);
+
+    primaryAction?.props.onQuickStart();
+
+    expect(mockNavigate).toHaveBeenCalledWith('WorkoutSession', { sessionId: 'race-session-1' });
+  });
+
+  it('shows quick-start feedback for unexpected session creation errors', () => {
+    const setQuickStartError = jest.fn();
+    (createQuickWorkoutSession as jest.Mock).mockImplementation(() => {
+      throw new Error('database unavailable');
+    });
+    const tree = expandTree(renderTodayScreen({ setQuickStartError }));
+    const primaryAction = todayPrimaryAction(tree);
+
+    primaryAction?.props.onQuickStart();
+
+    expect(setQuickStartError).toHaveBeenCalledWith("Couldn't start workout. Try again.");
+    expect(mockNavigate).not.toHaveBeenCalledWith(
+      'WorkoutSession',
+      expect.objectContaining({ sessionId: expect.any(String) }),
+    );
+
+    const feedbackTree = expandTree(
+      renderTodayScreen({ quickStartError: "Couldn't start workout. Try again." }),
+    );
+    const snackbars = findElements(feedbackTree, (element) => element.type === 'Snackbar');
+    expect(snackbars).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          props: expect.objectContaining({
+            message: "Couldn't start workout. Try again.",
+          }),
+        }),
+      ]),
+    );
+  });
+
+  it('keeps Home plan navigation callbacks unchanged', () => {
+    const tree = expandTree(renderTodayScreen({ hasPlans: true }));
+    const primaryAction = todayPrimaryAction(tree);
+
+    primaryAction?.props.onStart();
+    primaryAction?.props.onCreatePlan();
+    primaryAction?.props.onBrowsePlans();
+
+    expect(mockNavigate).toHaveBeenCalledWith('StartWorkout');
+    expect(mockNavigate).toHaveBeenCalledWith('MainTabs', { screen: 'WorkoutPlans' });
+    expect(mockNavigate).toHaveBeenCalledWith('PrebuiltPlans');
   });
 
   it('does not show the card for a guest with no meaningful local data', () => {

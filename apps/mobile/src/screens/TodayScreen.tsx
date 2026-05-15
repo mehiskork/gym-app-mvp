@@ -8,7 +8,7 @@ import { Button, Card, Screen, Snackbar, Text } from '../ui';
 import { tokens } from '../theme/tokens';
 import { TAB_ROUTES } from '../navigation/routes';
 import type { RootStackParamList } from '../navigation/types';
-import { getInProgressSession } from '../db/workoutSessionRepo';
+import { createQuickWorkoutSession, getInProgressSession } from '../db/workoutSessionRepo';
 import { listWorkoutPlans } from '../db/workoutPlanRepo';
 import { getThisWeekSummary } from '../db/weeklyRepo';
 import { listRecentSessionSummaries } from '../db/historyRepo';
@@ -35,6 +35,12 @@ function getFriendlyGuestSignInError(error: unknown): string {
   return "Couldn't finish Google sign-in. Check your connection and try again.";
 }
 
+function getInProgressSessionIdFromError(error: unknown): string | null {
+  if (!(error instanceof Error)) return null;
+  const match = /^WORKOUT_IN_PROGRESS:(.+)$/.exec(error.message);
+  return match?.[1] ?? null;
+}
+
 export function TodayScreen() {
   const navigation = useNavigation<Nav>();
   const [inProgressId, setInProgressId] = useState<string | null>(null);
@@ -48,6 +54,7 @@ export function TodayScreen() {
   );
   const [accountSignInBusy, setAccountSignInBusy] = useState(false);
   const [accountPromptError, setAccountPromptError] = useState<string | null>(null);
+  const [quickStartError, setQuickStartError] = useState<string | null>(null);
   const [accountDeletionRecoveryActive, setAccountDeletionRecoveryActive] = useState(false);
   const accountSignInInFlightRef = useRef(false);
 
@@ -105,6 +112,27 @@ export function TodayScreen() {
     })();
   }, [accountSignInBusy, refreshAccountPromptState]);
 
+  const handleQuickStart = useCallback(() => {
+    setQuickStartError(null);
+    const existingSession = getInProgressSession();
+    if (existingSession) {
+      navigation.navigate('WorkoutSession', { sessionId: existingSession.id });
+      return;
+    }
+
+    try {
+      const sessionId = createQuickWorkoutSession();
+      navigation.navigate('WorkoutSession', { sessionId });
+    } catch (error) {
+      const existingSessionId = getInProgressSessionIdFromError(error);
+      if (existingSessionId) {
+        navigation.navigate('WorkoutSession', { sessionId: existingSessionId });
+        return;
+      }
+      setQuickStartError("Couldn't start workout. Try again.");
+    }
+  }, [navigation]);
+
   const hasMeaningfulLocalData =
     Boolean(inProgressId) || weeklyWorkouts > 0 || recentSessions.length > 0;
   const showGuestProtectionCard =
@@ -132,6 +160,7 @@ export function TodayScreen() {
           }
           hasPlans={hasPlans}
           onStart={() => navigation.navigate('StartWorkout')}
+          onQuickStart={handleQuickStart}
           onBrowsePlans={() => navigation.navigate('PrebuiltPlans')}
           onCreatePlan={() => navigation.navigate('MainTabs', { screen: TAB_ROUTES.WorkoutPlans })}
         />
@@ -166,6 +195,9 @@ export function TodayScreen() {
         ) : null}
         {accountPromptError ? (
           <Snackbar visible message={accountPromptError} variant="error" minHeight={44} />
+        ) : null}
+        {quickStartError ? (
+          <Snackbar visible message={quickStartError} variant="error" minHeight={44} />
         ) : null}
       </View>
     </Screen>
