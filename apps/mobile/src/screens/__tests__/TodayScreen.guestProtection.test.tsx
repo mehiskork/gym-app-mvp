@@ -299,17 +299,22 @@ describe('TodayScreen guest progress protection prompt', () => {
     );
   });
 
-  it('keeps Home plan navigation callbacks unchanged', () => {
+  it('routes the planned workout action to Workout Plans when there are no plans', () => {
+    const tree = expandTree(renderTodayScreen({ hasPlans: false }));
+    const primaryAction = todayPrimaryAction(tree);
+
+    primaryAction?.props.onStart();
+
+    expect(mockNavigate).toHaveBeenCalledWith('MainTabs', { screen: 'WorkoutPlans' });
+  });
+
+  it('routes the planned workout action to StartWorkout when plans exist', () => {
     const tree = expandTree(renderTodayScreen({ hasPlans: true }));
     const primaryAction = todayPrimaryAction(tree);
 
     primaryAction?.props.onStart();
-    primaryAction?.props.onCreatePlan();
-    primaryAction?.props.onBrowsePlans();
 
     expect(mockNavigate).toHaveBeenCalledWith('StartWorkout');
-    expect(mockNavigate).toHaveBeenCalledWith('MainTabs', { screen: 'WorkoutPlans' });
-    expect(mockNavigate).toHaveBeenCalledWith('PrebuiltPlans');
   });
 
   it('does not show the card for a guest with no meaningful local data', () => {

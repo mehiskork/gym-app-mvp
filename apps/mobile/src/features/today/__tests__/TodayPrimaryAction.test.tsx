@@ -101,48 +101,64 @@ function pressables(node: React.ReactNode) {
 }
 
 describe('TodayPrimaryAction', () => {
-  it('renders quick start card and secondary plan actions when there are no plans', () => {
+  it('renders quick and planned workout actions when there are no plans', () => {
     const onQuickStart = jest.fn();
+    const onStart = jest.fn();
     const element = expandTree(
       TodayPrimaryAction({
         hasActiveWorkout: false,
         hasPlans: false,
         onQuickStart,
-        onCreatePlan: jest.fn(),
-        onBrowsePlans: jest.fn(),
-      }),
-    );
-
-    const text = textContent(element);
-    const actionButtons = buttons(element);
-
-    expect(text).toContain('Start Training');
-    expect(text).toContain('Add exercises as you go.');
-    expect(text).not.toContain('No plan yet');
-    expect(actionButtons.map((button) => button.props.title)).toEqual([
-      'Build a plan',
-      'Browse plans',
-    ]);
-
-    pressables(element)[0]?.props.onPress();
-    expect(onQuickStart).toHaveBeenCalledTimes(1);
-  });
-
-  it('keeps plan-based start card behavior unchanged when plans exist', () => {
-    const onStart = jest.fn();
-    const element = expandTree(
-      TodayPrimaryAction({
-        hasActiveWorkout: false,
-        hasPlans: true,
         onStart,
       }),
     );
 
     const text = textContent(element);
-    expect(text).toContain('Start Training');
-    expect(text).toContain("Pick today's plan and go.");
+    const actionPressables = pressables(element);
 
-    pressables(element)[0]?.props.onPress();
+    expect(text).toContain('Quick Workout');
+    expect(text).toContain('Add exercises as you go.');
+    expect(text).toContain('Planned Workout');
+    expect(text).toContain('Create or choose a plan first.');
+    expect(text).not.toContain('Build a plan');
+    expect(text).not.toContain('Browse plans');
+
+    actionPressables
+      .find((pressable) => pressable.props.accessibilityLabel === 'Quick workout')
+      ?.props.onPress();
+    actionPressables
+      .find((pressable) => pressable.props.accessibilityLabel === 'Planned workout')
+      ?.props.onPress();
+    expect(onQuickStart).toHaveBeenCalledTimes(1);
+    expect(onStart).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders quick and planned workout actions when plans exist', () => {
+    const onQuickStart = jest.fn();
+    const onStart = jest.fn();
+    const element = expandTree(
+      TodayPrimaryAction({
+        hasActiveWorkout: false,
+        hasPlans: true,
+        onQuickStart,
+        onStart,
+      }),
+    );
+
+    const text = textContent(element);
+    const actionPressables = pressables(element);
+
+    expect(text).toContain('Quick Workout');
+    expect(text).toContain('Planned Workout');
+    expect(text).toContain('Follow your next planned session.');
+
+    actionPressables
+      .find((pressable) => pressable.props.accessibilityLabel === 'Quick workout')
+      ?.props.onPress();
+    actionPressables
+      .find((pressable) => pressable.props.accessibilityLabel === 'Planned workout')
+      ?.props.onPress();
+    expect(onQuickStart).toHaveBeenCalledTimes(1);
     expect(onStart).toHaveBeenCalledTimes(1);
   });
 

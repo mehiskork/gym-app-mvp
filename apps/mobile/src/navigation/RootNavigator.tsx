@@ -16,6 +16,7 @@ import { SessionDetailScreen } from '../screens/SessionDetailScreen';
 import { ExerciseDetailScreen } from '../screens/ExerciseDetailScreen';
 import { DebugScreen } from '../screens/Debug/DebugScreen';
 import { PrebuiltPlansScreen } from '../screens/PrebuiltPlansScreen';
+import { PrebuiltPlanPreviewScreen } from '../screens/PrebuiltPlanPreviewScreen';
 import { ClaimStartScreen } from '../screens/ClaimStartScreen';
 import { tokens } from '../theme/tokens';
 import { handleUnfinishedWorkoutReminderNotificationResponse } from '../utils/unfinishedWorkoutReminderNotifications';
@@ -109,6 +110,11 @@ export function RootNavigator() {
           name="PrebuiltPlans"
           component={PrebuiltPlansScreen}
           options={{ title: 'Prebuilt plans', headerShown: true }}
+        />
+        <Stack.Screen
+          name="PrebuiltPlanPreview"
+          component={PrebuiltPlanPreviewScreen}
+          options={{ title: 'Plan preview', headerShown: true }}
         />
         <Stack.Screen name="DayDetail" component={DayDetailScreen} options={{ title: 'Day' }} />
         <Stack.Screen

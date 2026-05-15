@@ -3,6 +3,7 @@ import { inTransaction } from './tx';
 import { newId } from '../utils/ids';
 import { enqueueOutboxOp } from './outboxRepo';
 import prebuiltJson from './seed/prebuilt_plans.json';
+import curatedExercisesJson from './seed/curated_exercises.json';
 
 type PrebuiltPlanSet = {
   reps: number;
@@ -26,6 +27,11 @@ type PrebuiltPlanTemplate = {
   days: PrebuiltPlanDay[];
 };
 
+type CuratedExercise = {
+  id: string;
+  name: string;
+};
+
 export type PrebuiltPlanListItem = {
   id: string;
   name: string;
@@ -34,7 +40,27 @@ export type PrebuiltPlanListItem = {
   existingPlanId: string | null;
 };
 
+export type PrebuiltPlanPreview = {
+  templateId: string;
+  name: string;
+  description: string | null;
+  sessionCount: number;
+  existingPlanId: string | null;
+  sessions: Array<{
+    id: string;
+    name: string;
+    exercises: Array<{
+      id: string;
+      name: string;
+    }>;
+  }>;
+};
+
 const templates = prebuiltJson as PrebuiltPlanTemplate[];
+const curatedExercises = curatedExercisesJson as CuratedExercise[];
+const curatedExerciseNameById = new Map(
+  curatedExercises.map((exercise) => [exercise.id, exercise.name.trim()]),
+);
 
 function enqueueEntitySnapshot(
   entityType: 'program' | 'program_week' | 'program_day' | 'program_day_exercise' | 'planned_set',
@@ -93,6 +119,37 @@ function getTemplate(templateId: string): PrebuiltPlanTemplate {
   const template = templates.find((entry) => entry.id === templateId);
   if (!template) throw new Error(`Prebuilt plan not found: ${templateId}`);
   return template;
+}
+
+export function getPrebuiltPlanPreview(templateId: string): PrebuiltPlanPreview | null {
+  const template = templates.find((entry) => entry.id === templateId);
+  if (!template) return null;
+
+  const existing = query<{ id: string }>(
+    `
+    SELECT id
+    FROM program
+    WHERE name = ? AND description IS ? AND deleted_at IS NULL
+    LIMIT 1;
+  `,
+    [template.name, template.description ?? null],
+  )[0];
+
+  return {
+    templateId: template.id,
+    name: template.name,
+    description: template.description ?? null,
+    sessionCount: template.days.length,
+    existingPlanId: existing?.id ?? null,
+    sessions: template.days.map((day, dayIndex) => ({
+      id: `${template.id}:day:${dayIndex + 1}`,
+      name: day.name ?? `Session ${dayIndex + 1}`,
+      exercises: day.exercises.map((exercise) => ({
+        id: exercise.exercise_id,
+        name: curatedExerciseNameById.get(exercise.exercise_id) ?? 'Unknown exercise',
+      })),
+    })),
+  };
 }
 
 function assertExercisesExist(template: PrebuiltPlanTemplate) {

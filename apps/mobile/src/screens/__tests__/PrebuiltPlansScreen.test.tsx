@@ -3,11 +3,13 @@ jest.mock('react', () => {
   return {
     ...actual,
     useState: jest.fn(),
+    useCallback: (fn: () => unknown) => fn,
     useMemo: (fn: () => unknown) => fn(),
   };
 });
 
 jest.mock('@react-navigation/native', () => ({
+  useFocusEffect: jest.fn(),
   useNavigation: jest.fn(),
 }));
 
@@ -55,24 +57,21 @@ jest.mock('../../db/prebuiltPlansRepo', () => ({
   listPrebuiltPlans: jest.fn(),
 }));
 
-jest.mock('../../db/workoutPlanRepo', () => ({
-  listDaysForWorkoutPlan: jest.fn(),
-}));
-
 jest.mock('../../db/workoutSessionRepo', () => ({
   getInProgressSession: jest.fn(),
 }));
 
 import React from 'react';
 import { FlatList } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 
-import { Button } from '../../ui';
+import { Button, IconButton } from '../../ui';
 import { PrebuiltPlansScreen } from '../PrebuiltPlansScreen';
 import { importPrebuiltPlan, listPrebuiltPlans } from '../../db/prebuiltPlansRepo';
 import { getInProgressSession } from '../../db/workoutSessionRepo';
 
 type Nav = {
+  navigate: jest.Mock;
   replace: jest.Mock;
 };
 
@@ -100,15 +99,20 @@ describe('PrebuiltPlansScreen', () => {
 
   beforeEach(() => {
     useStateMock.mockReset();
-    useStateMock.mockImplementation((initial: unknown) => [initial, jest.fn()]);
+    useStateMock.mockImplementation((initial: unknown) => [
+      typeof initial === 'function' ? (initial as () => unknown)() : initial,
+      jest.fn(),
+    ]);
     (listPrebuiltPlans as jest.Mock).mockReset();
     (importPrebuiltPlan as jest.Mock).mockReset();
     (getInProgressSession as jest.Mock).mockReset();
+    (useFocusEffect as jest.Mock).mockReset();
+    (useFocusEffect as jest.Mock).mockImplementation((callback: () => void) => callback());
     (useNavigation as jest.Mock).mockReset();
   });
 
   it('does not navigate after import when there is an active session', () => {
-    const navigation: Nav = { replace: jest.fn() };
+    const navigation: Nav = { navigate: jest.fn(), replace: jest.fn() };
     (useNavigation as jest.Mock).mockReturnValue(navigation);
     (listPrebuiltPlans as jest.Mock).mockReturnValue([
       { id: 'tpl-1', name: 'PPL', description: null, dayCount: 3, existingPlanId: null },
@@ -140,5 +144,42 @@ describe('PrebuiltPlansScreen', () => {
 
     expect(importPrebuiltPlan).toHaveBeenCalledWith('tpl-1');
     expect(navigation.replace).not.toHaveBeenCalled();
+  });
+
+  it('opens a read-only preview without importing from the info button', () => {
+    const navigation: Nav = { navigate: jest.fn(), replace: jest.fn() };
+    (useNavigation as jest.Mock).mockReturnValue(navigation);
+    (listPrebuiltPlans as jest.Mock).mockReturnValue([
+      { id: 'tpl-1', name: 'PPL', description: null, dayCount: 3, existingPlanId: null },
+    ]);
+
+    const element = PrebuiltPlansScreen();
+
+    type FlatListProps = React.ComponentProps<typeof FlatList>;
+    const list = findElementByType<FlatListProps>(element, FlatList);
+    if (!list?.props.renderItem) {
+      throw new Error('Expected FlatList renderItem to be defined.');
+    }
+
+    const rowNode = list.props.renderItem({
+      item: { id: 'tpl-1', name: 'PPL', description: null, dayCount: 3, existingPlanId: null },
+      index: 0,
+      separators: {
+        highlight: jest.fn(),
+        unhighlight: jest.fn(),
+        updateProps: jest.fn(),
+      },
+    });
+
+    type IconButtonProps = React.ComponentProps<typeof IconButton>;
+    const previewButton = findElementByType<IconButtonProps>(rowNode, IconButton);
+    expect(previewButton?.props.accessibilityLabel).toBe('Preview PPL');
+
+    previewButton?.props.onPress?.();
+
+    expect(navigation.navigate).toHaveBeenCalledWith('PrebuiltPlanPreview', {
+      templateId: 'tpl-1',
+    });
+    expect(importPrebuiltPlan).not.toHaveBeenCalled();
   });
 });

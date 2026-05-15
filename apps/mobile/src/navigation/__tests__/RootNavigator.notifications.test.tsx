@@ -114,6 +114,10 @@ jest.mock('../../screens/PrebuiltPlansScreen', () => ({
   PrebuiltPlansScreen: () => 'PrebuiltPlansScreen',
 }));
 
+jest.mock('../../screens/PrebuiltPlanPreviewScreen', () => ({
+  PrebuiltPlanPreviewScreen: () => 'PrebuiltPlanPreviewScreen',
+}));
+
 jest.mock('../../screens/ClaimStartScreen', () => ({
   ClaimStartScreen: () => 'ClaimStartScreen',
 }));

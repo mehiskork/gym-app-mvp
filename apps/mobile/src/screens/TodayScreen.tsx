@@ -159,10 +159,12 @@ export function TodayScreen() {
               : undefined
           }
           hasPlans={hasPlans}
-          onStart={() => navigation.navigate('StartWorkout')}
+          onStart={() =>
+            hasPlans
+              ? navigation.navigate('StartWorkout')
+              : navigation.navigate('MainTabs', { screen: TAB_ROUTES.WorkoutPlans })
+          }
           onQuickStart={handleQuickStart}
-          onBrowsePlans={() => navigation.navigate('PrebuiltPlans')}
-          onCreatePlan={() => navigation.navigate('MainTabs', { screen: TAB_ROUTES.WorkoutPlans })}
         />
         <TodayWeeklyStats workouts={weeklyWorkouts} totalKg={weeklyVolume} />
         <TodayRecentActivity

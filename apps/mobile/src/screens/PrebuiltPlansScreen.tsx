@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { FlatList, View } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -8,7 +8,6 @@ import { Button, IconButton, Screen, Snackbar, Text } from '../ui';
 import { tokens } from '../theme/tokens';
 import type { RootStackParamList } from '../navigation/types';
 import { importPrebuiltPlan, listPrebuiltPlans } from '../db/prebuiltPlansRepo';
-import { listDaysForWorkoutPlan } from '../db/workoutPlanRepo';
 import { getInProgressSession } from '../db/workoutSessionRepo';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
@@ -22,6 +21,16 @@ export function PrebuiltPlansScreen() {
     null,
   );
   const isBusy = importingId !== null;
+
+  const loadTemplates = useCallback(() => {
+    setTemplates(listPrebuiltPlans());
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadTemplates();
+    }, [loadTemplates]),
+  );
 
   const handleImport = (templateId: string) => {
     try {
@@ -47,21 +56,8 @@ export function PrebuiltPlansScreen() {
     }
   };
 
-  const handlePreview = (templateId: string, existingPlanId: string | null) => {
-    try {
-      setImportingId(templateId);
-      const planId = existingPlanId ?? importPrebuiltPlan(templateId);
-      const days = listDaysForWorkoutPlan(planId);
-      if (days.length === 0) {
-        setFeedback({ message: 'No sessions found.', variant: 'info' });
-        return;
-      }
-      navigation.replace('DayDetail', { dayId: days[0].id });
-    } catch {
-      setFeedback({ message: "Couldn't load this screen. Try again.", variant: 'error' });
-    } finally {
-      setImportingId(null);
-    }
+  const handlePreview = (templateId: string) => {
+    navigation.navigate('PrebuiltPlanPreview', { templateId });
   };
 
   return (
@@ -114,9 +110,9 @@ export function PrebuiltPlansScreen() {
                 />
               </View>
               <IconButton
-                onPress={() => handlePreview(item.id, item.existingPlanId)}
+                onPress={() => handlePreview(item.id)}
                 disabled={isBusy}
-                accessibilityLabel="View plan sessions"
+                accessibilityLabel={`Preview ${item.name}`}
                 icon={<Ionicons name="information-circle-outline" size={20} />}
               />
             </View>

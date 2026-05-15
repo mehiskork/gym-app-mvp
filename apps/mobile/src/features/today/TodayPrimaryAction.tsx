@@ -13,8 +13,6 @@ type TodayPrimaryActionProps = {
   hasPlans: boolean;
   onStart?: () => void;
   onQuickStart?: () => void;
-  onBrowsePlans?: () => void;
-  onCreatePlan?: () => void;
 };
 
 export function TodayPrimaryAction({
@@ -24,19 +22,16 @@ export function TodayPrimaryAction({
   hasPlans,
   onStart,
   onQuickStart,
-  onBrowsePlans,
-  onCreatePlan,
 }: TodayPrimaryActionProps) {
   const { colors } = useAppTheme();
+  const highlightedCardStyle = {
+    borderColor: colors.primaryBorder.replace(/\d*\.?\d+\)$/, '0.28)'),
+    backgroundColor: colors.primarySoft,
+  };
+
   if (hasActiveWorkout) {
     return (
-      <Card
-        variant="tinted"
-        style={{
-          borderColor: colors.primaryBorder.replace(/\d*\.?\d+\)$/, '0.28)'),
-          backgroundColor: colors.primarySoft,
-        }}
-      >
+      <Card variant="tinted" style={highlightedCardStyle}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.md }}>
           <IconChip variant="primarySoft" size={56}>
             <Ionicons name="flame" size={26} color={colors.primary} />
@@ -51,76 +46,48 @@ export function TodayPrimaryAction({
     );
   }
 
-  if (hasPlans) {
-    return (
-      <Pressable
-        onPress={onStart}
-        accessibilityRole="button"
-        accessibilityLabel="Start workout"
-        style={({ pressed }) => [pressed ? { opacity: 0.94 } : null]}
-      >
-        <Card
-          variant="tinted"
-          style={{
-            borderColor: colors.primaryBorder.replace(/\d*\.?\d+\)$/, '0.28)'),
-            backgroundColor: colors.primarySoft,
-          }}
-        >
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.md }}>
-            <IconChip variant="primarySoft" size={56}>
-              <Ionicons name="barbell" size={26} color={colors.primary} />
-            </IconChip>
-            <View style={{ flex: 1, gap: tokens.spacing.xs }}>
-              <Text variant="subtitle">Start Training</Text>
-              <Text variant="muted">Pick today&apos;s plan and go.</Text>
-            </View>
-            <Ionicons name="play" size={18} color={colors.primary} />
-          </View>
-        </Card>
-      </Pressable>
-    );
-  }
   return (
     <View style={{ gap: tokens.spacing.sm }}>
       <Pressable
         onPress={onQuickStart}
         accessibilityRole="button"
-        accessibilityLabel="Start workout"
+        accessibilityLabel="Quick workout"
         style={({ pressed }) => [pressed ? { opacity: 0.94 } : null]}
       >
-        <Card
-          variant="tinted"
-          style={{
-            borderColor: colors.primaryBorder.replace(/\d*\.?\d+\)$/, '0.28)'),
-            backgroundColor: colors.primarySoft,
-          }}
-        >
+        <Card variant="tinted" style={highlightedCardStyle}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.md }}>
             <IconChip variant="primarySoft" size={56}>
               <Ionicons name="barbell" size={26} color={colors.primary} />
             </IconChip>
             <View style={{ flex: 1, gap: tokens.spacing.xs }}>
-              <Text variant="subtitle">Start Training</Text>
+              <Text variant="subtitle">Quick Workout</Text>
               <Text variant="muted">Add exercises as you go.</Text>
             </View>
             <Ionicons name="play" size={18} color={colors.primary} />
           </View>
         </Card>
       </Pressable>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm }}>
-        <Button
-          title="Build a plan"
-          variant="secondary"
-          onPress={onCreatePlan}
-          style={{ flex: 1, minWidth: 132 }}
-        />
-        <Button
-          title="Browse plans"
-          variant="secondary"
-          onPress={onBrowsePlans}
-          style={{ flex: 1, minWidth: 132 }}
-        />
-      </View>
+      <Pressable
+        onPress={onStart}
+        accessibilityRole="button"
+        accessibilityLabel="Planned workout"
+        style={({ pressed }) => [pressed ? { opacity: 0.94 } : null]}
+      >
+        <Card variant="tinted" style={highlightedCardStyle}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.md }}>
+            <IconChip variant="primarySoft" size={56}>
+              <Ionicons name="calendar-outline" size={26} color={colors.primary} />
+            </IconChip>
+            <View style={{ flex: 1, gap: tokens.spacing.xs }}>
+              <Text variant="subtitle">Planned Workout</Text>
+              <Text variant="muted">
+                {hasPlans ? 'Follow your next planned session.' : 'Create or choose a plan first.'}
+              </Text>
+            </View>
+            <Ionicons name="play" size={18} color={colors.primary} />
+          </View>
+        </Card>
+      </Pressable>
     </View>
   );
 }

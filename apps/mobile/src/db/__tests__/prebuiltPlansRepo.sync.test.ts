@@ -15,10 +15,10 @@ jest.mock('../outboxRepo', () => ({
   enqueueOutboxOp: jest.fn(),
 }));
 
-import { query } from '../db';
+import { exec, query } from '../db';
 import { newId } from '../../utils/ids';
 import { enqueueOutboxOp } from '../outboxRepo';
-import { importPrebuiltPlan } from '../prebuiltPlansRepo';
+import { getPrebuiltPlanPreview, importPrebuiltPlan } from '../prebuiltPlansRepo';
 
 describe('prebuiltPlansRepo outbound sync enqueue coverage', () => {
   beforeEach(() => {
@@ -136,5 +136,67 @@ describe('prebuiltPlansRepo outbound sync enqueue coverage', () => {
     expect(enqueueOutboxOp).toHaveBeenCalledWith(
       expect.objectContaining({ entityType: 'planned_set', entityId: 'pset-1', opType: 'upsert' }),
     );
+  });
+
+  it('returns a read-only preview with all sessions and exercise names', () => {
+    (exec as jest.Mock).mockClear();
+    (enqueueOutboxOp as jest.Mock).mockClear();
+    (query as jest.Mock).mockReturnValue([]);
+
+    const preview = getPrebuiltPlanPreview('prebuilt_v_taper_project_3_day');
+
+    expect(preview?.name).toBe('V-Taper Project');
+    expect(preview?.sessionCount).toBe(3);
+    expect(preview?.sessions.map((session) => session.name)).toEqual([
+      'Session 1 – Horizontal Strength',
+      'Session 2 – Vertical Strength',
+      'Session 3 – Upper Volume / Hypertrophy',
+    ]);
+    expect(preview?.sessions[0]?.exercises.map((exercise) => exercise.name)).toEqual([
+      'Barbell Bench Press',
+      'Barbell Bent-Over Row',
+      'Incline Dumbbell Press',
+      'Pull-Up',
+      'Lateral Raises',
+      'Face Pull',
+      'Triceps Pushdown',
+      'Dumbbell Bicep Curl',
+    ]);
+    expect(exec).not.toHaveBeenCalled();
+    expect(enqueueOutboxOp).not.toHaveBeenCalled();
+  });
+
+  it('returns null for an unknown preview template', () => {
+    (exec as jest.Mock).mockClear();
+    (enqueueOutboxOp as jest.Mock).mockClear();
+    (query as jest.Mock).mockReturnValue([]);
+
+    expect(getPrebuiltPlanPreview('missing-template')).toBeNull();
+    expect(exec).not.toHaveBeenCalled();
+    expect(enqueueOutboxOp).not.toHaveBeenCalled();
+  });
+
+  it('falls back to Unknown exercise when preview exercise names are unavailable', () => {
+    jest.resetModules();
+    jest.doMock('../db', () => ({
+      exec: jest.fn(),
+      query: jest.fn(() => []),
+    }));
+    jest.doMock('../tx', () => ({
+      inTransaction: (fn: () => unknown) => fn(),
+    }));
+    jest.doMock('../../utils/ids', () => ({
+      newId: jest.fn(),
+    }));
+    jest.doMock('../outboxRepo', () => ({
+      enqueueOutboxOp: jest.fn(),
+    }));
+    jest.doMock('../seed/curated_exercises.json', () => []);
+
+    const { getPrebuiltPlanPreview: getPreviewWithMissingNames } = require('../prebuiltPlansRepo');
+
+    const preview = getPreviewWithMissingNames('prebuilt_v_taper_project_3_day');
+
+    expect(preview.sessions[0].exercises[0].name).toBe('Unknown exercise');
   });
 });

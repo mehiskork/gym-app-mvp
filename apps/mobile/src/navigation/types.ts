@@ -21,6 +21,7 @@ export type RootStackParamList = {
 
   WorkoutPlanDetail: { workoutPlanId: string; mode?: 'edit' | 'pickSessionToStart' };
   PrebuiltPlans: undefined;
+  PrebuiltPlanPreview: { templateId: string };
   DayDetail: {
     dayId: string;
     refreshKey?: number;
