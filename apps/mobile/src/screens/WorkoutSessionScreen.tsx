@@ -3,7 +3,6 @@ import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { RootStackParamList } from '../navigation/types';
@@ -23,18 +22,12 @@ import { useAppTheme } from '../theme/theme';
 import { tokens } from '../theme/tokens';
 import { completeSession, updateWorkoutSessionNote } from '../db/workoutSessionRepo';
 import {
-  addWorkoutSet,
   clearRestTimer,
-  deleteWorkoutSet,
   getWorkoutLoggerData,
-  restoreWorkoutSet,
-  startRestTimer,
-  updateWorkoutSet,
   updateWorkoutSessionExerciseComment,
   updateWorkoutSessionExerciseCardioSummary,
   type LoggerExercise,
   type LoggerSession,
-  type LoggerSet,
 } from '../db/workoutLoggerRepo';
 import { EXERCISE_TYPE, type CardioProfile, type CardioSummary } from '../db/exerciseTypes';
 import { formatRestCountdown } from '../utils/format';
@@ -46,14 +39,11 @@ import { WorkoutSessionHeaderCard } from '../features/workoutSession/WorkoutSess
 import { useKeyboardAvoidance } from '../features/workoutSession/useKeyboardAvoidance';
 import { useRestTimer } from '../features/workoutSession/useRestTimer';
 import { useSessionTick } from '../features/workoutSession/useSessionTick';
+import { useWorkoutSetActions } from '../features/workoutSession/useWorkoutSetActions';
 import { useWorkoutKeepAwake } from '../features/workoutSession/useWorkoutKeepAwake';
 import { useWorkoutSessionNavGuard } from '../features/workoutSession/useWorkoutSessionNavGuard';
-import { useSnackbarUndo } from '../hooks/useSnackbarUndo';
 import { getSettings } from '../db/settingsRepo';
-import {
-  cancelRestTimerNotification,
-  scheduleRestTimerNotification,
-} from '../utils/restTimerNotifications';
+import { cancelRestTimerNotification } from '../utils/restTimerNotifications';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'WorkoutSession'>;
 
@@ -139,11 +129,15 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
     setWorkoutNoteDraft(data.session.workout_note ?? '');
   }, [resetToHome, sessionId]);
 
-  const snackbarUndo = useSnackbarUndo<LoggerSet>({
-    onUndo: (payload) => {
-      restoreWorkoutSet(payload);
-      load();
+  const setActions = useWorkoutSetActions({
+    sessionId,
+    restTimerSettings: {
+      autoStartRestTimer: settings.autoStartRestTimer,
+      defaultRestSeconds: settings.defaultRestSeconds,
+      restTimerNotifications: settings.restTimerNotifications,
+      restTimerVibration: settings.restTimerVibration,
     },
+    load,
   });
 
   useFocusEffect(
@@ -221,7 +215,7 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
   const footerHeight = CTA_HEIGHT + footerPaddingTop + footerPaddingBottom;
   const footerOverlapHeight = Math.max(footerHeight - insets.bottom, CTA_HEIGHT);
   const bottomStackHeight =
-    footerOverlapHeight + (snackbarUndo.visible ? CTA_HEIGHT + CTA_STACK_GAP : 0);
+    footerOverlapHeight + (setActions.snackbarUndo.visible ? CTA_HEIGHT + CTA_STACK_GAP : 0);
   const bottomStackOffset = -insets.bottom;
   const baseScrollPaddingTop = tokens.spacing.md;
   const scrollPaddingTop = timerActive
@@ -284,9 +278,7 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
                   showSetHeaders={ex.exercise_type === EXERCISE_TYPE.STRENGTH}
                   onAddSet={() => {
                     if (ex.exercise_type !== EXERCISE_TYPE.STRENGTH) return;
-                    addWorkoutSet(ex.id);
-                    void Haptics.selectionAsync();
-                    load();
+                    setActions.handleAddSet(ex);
                   }}
                   onSwap={() =>
                     navigation.navigate('ExercisePicker', {
@@ -314,41 +306,12 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
                       <SetRow
                         key={set.id}
                         set={set}
-                        onWeightEndEditing={(value) => {
-                          updateWorkoutSet(set.id, { weight: parseNumber(value) });
-                          load();
-                        }}
-                        onRepsEndEditing={(value) => {
-                          const n = parseNumber(value);
-                          updateWorkoutSet(set.id, {
-                            reps: n === null ? null : Math.max(0, Math.floor(n)),
-                          });
-                          load();
-                        }}
-                        onToggleComplete={() => {
-                          const done = set.is_completed === 1;
-                          updateWorkoutSet(set.id, { is_completed: done ? 0 : 1 });
-                          void Haptics.selectionAsync();
-                          if (!done && settings.autoStartRestTimer) {
-                            startRestTimer(
-                              sessionId,
-                              settings.defaultRestSeconds,
-                              ex.exercise_name,
-                            );
-                            if (settings.restTimerNotifications) {
-                              void scheduleRestTimerNotification(
-                                settings.defaultRestSeconds,
-                                settings.restTimerVibration,
-                              );
-                            }
-                          }
-                          load();
-                        }}
-                        onDelete={() => {
-                          deleteWorkoutSet(set.id);
-                          snackbarUndo.showUndo(set);
-                          load();
-                        }}
+                        onWeightEndEditing={(value) =>
+                          setActions.handleWeightEndEditing(set, value)
+                        }
+                        onRepsEndEditing={(value) => setActions.handleRepsEndEditing(set, value)}
+                        onToggleComplete={() => setActions.handleToggleComplete(ex, set)}
+                        onDelete={() => setActions.handleDeleteSet(set)}
                         onEditFocus={handleEditFocus}
                       />
                     ))
@@ -415,12 +378,12 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
           }}
         >
           <Snackbar
-            visible={snackbarUndo.visible}
+            visible={setActions.snackbarUndo.visible}
             message="Set deleted"
             actionLabel="UNDO"
-            onAction={snackbarUndo.onUndoAction}
+            onAction={setActions.snackbarUndo.onUndoAction}
             minHeight={CTA_HEIGHT}
-            style={{ marginBottom: snackbarUndo.visible ? CTA_STACK_GAP : 0 }}
+            style={{ marginBottom: setActions.snackbarUndo.visible ? CTA_STACK_GAP : 0 }}
           />
           <Button
             title="Add exercise"
