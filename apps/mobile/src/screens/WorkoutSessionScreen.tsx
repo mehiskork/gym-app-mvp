@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect, useIsFocused } from '@react-navigation/native';
@@ -37,19 +37,19 @@ import {
   type LoggerSet,
 } from '../db/workoutLoggerRepo';
 import { EXERCISE_TYPE, type CardioProfile, type CardioSummary } from '../db/exerciseTypes';
-import { formatRestCountdown, getRemainingSeconds } from '../utils/format';
+import { formatRestCountdown } from '../utils/format';
 import { CardioSummaryEditor } from '../features/workoutSession/CardioSummaryEditor';
 import { ExerciseCard } from '../features/workoutSession/ExerciseCard';
 import { SetRow } from '../features/workoutSession/SetRow';
 import { FinishWorkoutSheet } from '../features/workoutSession/FinishWorkoutSheet';
 import { WorkoutSessionHeaderCard } from '../features/workoutSession/WorkoutSessionHeaderCard';
 import { useKeyboardAvoidance } from '../features/workoutSession/useKeyboardAvoidance';
+import { useRestTimer } from '../features/workoutSession/useRestTimer';
 import { useSessionTick } from '../features/workoutSession/useSessionTick';
 import { useWorkoutKeepAwake } from '../features/workoutSession/useWorkoutKeepAwake';
 import { useWorkoutSessionNavGuard } from '../features/workoutSession/useWorkoutSessionNavGuard';
 import { useSnackbarUndo } from '../hooks/useSnackbarUndo';
 import { getSettings } from '../db/settingsRepo';
-import { maybeTriggerRestTimerHaptics } from '../utils/restTimer';
 import {
   cancelRestTimerNotification,
   scheduleRestTimerNotification,
@@ -115,11 +115,17 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
   const insets = useSafeAreaInsets();
   const { scrollViewRef, handleScroll, handleEditFocus, keyboardOpen, keyboardSpacer } =
     useKeyboardAvoidance({ bottomInset: insets.bottom });
-  const restHapticsRef = useRef(false);
   const [commentEditorExerciseId, setCommentEditorExerciseId] = useState<string | null>(null);
   const [commentDraft, setCommentDraft] = useState('');
   const [workoutNoteDraft, setWorkoutNoteDraft] = useState('');
   const { resetToHome } = useWorkoutSessionNavGuard({ navigation });
+  const { timerActive, remainingSeconds, clearRestTimerHandler } = useRestTimer({
+    session,
+    sessionId,
+    tick,
+    vibrationEnabled: settings.restTimerVibration,
+    setSession,
+  });
   const load = useCallback(() => {
     const data = getWorkoutLoggerData(sessionId);
     if (!data) {
@@ -146,25 +152,6 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
       setSettings(getSettings());
     }, [load]),
   );
-
-  const remainingSeconds = useMemo(
-    () => getRemainingSeconds(session?.rest_timer_end_at ?? null),
-    [session?.rest_timer_end_at, tick],
-  );
-
-  const timerActive = (session?.rest_timer_end_at ?? null) !== null;
-
-  useEffect(() => {
-    if (!timerActive) {
-      restHapticsRef.current = false;
-      return;
-    }
-    void maybeTriggerRestTimerHaptics(
-      remainingSeconds,
-      settings.restTimerVibration,
-      restHapticsRef,
-    );
-  }, [remainingSeconds, settings.restTimerVibration, timerActive]);
 
   useWorkoutKeepAwake({
     isFocused,
@@ -402,21 +389,7 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
               </Text>
             </View>
             <IconButton
-              onPress={() => {
-                setSession((prev) =>
-                  prev
-                    ? {
-                        ...prev,
-                        rest_timer_end_at: null,
-                        rest_timer_label: null,
-                        rest_timer_seconds: null,
-                      }
-                    : prev,
-                );
-
-                clearRestTimer(sessionId);
-                void cancelRestTimerNotification();
-              }}
+              onPress={clearRestTimerHandler}
               accessibilityLabel="Clear rest timer"
               variant="danger"
               icon={<Ionicons name="trash-outline" size={18} />}
