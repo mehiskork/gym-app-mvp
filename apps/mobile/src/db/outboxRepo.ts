@@ -93,6 +93,34 @@ export function listPendingOutboxOps(limit: number): OutboxOp[] {
   );
 }
 
+export function listNonAckedOutboxOps(limit: number): OutboxOp[] {
+  return query<OutboxOp>(
+    `
+    SELECT
+      id,
+      op_id,
+      device_id,
+      user_id,
+      entity_type,
+      entity_id,
+      op_type,
+      payload_json,
+      status,
+      attempt_count,
+      last_error,
+      next_attempt_at,
+      last_attempt_at,
+      created_at,
+      updated_at
+    FROM outbox_op
+    WHERE status <> '${OUTBOX_STATUS.ACKED}'
+    ORDER BY created_at ASC
+    LIMIT ?;
+  `,
+    [limit],
+  );
+}
+
 export function hasActiveOutboxOpForEntity(entityType: string, entityId: string): boolean {
   const row = query<{ n: number }>(
     `

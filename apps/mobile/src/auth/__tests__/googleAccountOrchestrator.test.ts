@@ -8,7 +8,7 @@ import {
   setClaimed,
   setClaimedUserId,
 } from '../../db/appMetaRepo';
-import { listPendingOutboxOps } from '../../db/outboxRepo';
+import { listNonAckedOutboxOps, repairStaleInFlightOps } from '../../db/outboxRepo';
 import { resetSyncCursor } from '../../db/syncStateRepo';
 import { syncNow } from '../../sync/syncWorker';
 import { accountSessionStore } from '../accountSessionStore';
@@ -36,7 +36,8 @@ jest.mock('../../db/appMetaRepo', () => ({
 }));
 
 jest.mock('../../db/outboxRepo', () => ({
-  listPendingOutboxOps: jest.fn(),
+  listNonAckedOutboxOps: jest.fn(),
+  repairStaleInFlightOps: jest.fn(),
 }));
 
 jest.mock('../../db/syncStateRepo', () => ({
@@ -85,10 +86,34 @@ jest.mock('../../utils/logger', () => ({
 }));
 
 describe('createGoogleAccountFromGuest', () => {
+  const unresolvedOutboxOp = (status: string) => ({
+    op_id: `op-${status}`,
+    status,
+  });
+
+  async function expectClaimBlockedByOutbox(status: string) {
+    (listNonAckedOutboxOps as jest.Mock).mockReturnValue([unresolvedOutboxOp(status)]);
+
+    await expect(createGoogleAccountFromGuest()).rejects.toThrow(
+      'Sync pending changes before creating an account.',
+    );
+
+    expect(syncNow).toHaveBeenCalledWith({ force: true });
+    expect(api.post).not.toHaveBeenCalled();
+    expect(signInWithGoogleForFirebase).not.toHaveBeenCalled();
+    expect(deviceCredentialStore.getDeviceToken).not.toHaveBeenCalled();
+    expect(accountSessionStore.set).not.toHaveBeenCalled();
+    expect(resetSyncCursor).not.toHaveBeenCalled();
+    expect(setClaimed).not.toHaveBeenCalled();
+    expect(setClaimedUserId).not.toHaveBeenCalled();
+    expect(signOutFromGoogle).not.toHaveBeenCalled();
+  }
+
   beforeEach(() => {
     jest.clearAllMocks();
     (syncNow as jest.Mock).mockResolvedValue(undefined);
-    (listPendingOutboxOps as jest.Mock).mockReturnValue([]);
+    (listNonAckedOutboxOps as jest.Mock).mockReturnValue([]);
+    (repairStaleInFlightOps as jest.Mock).mockReturnValue(0);
     (isLinkedAccountState as jest.Mock).mockReturnValue(false);
     (accountSessionStore.getUsable as jest.Mock).mockResolvedValue(null);
     (handleRemoteAccountDeletedCleanup as jest.Mock).mockResolvedValue(undefined);
@@ -127,6 +152,9 @@ describe('createGoogleAccountFromGuest', () => {
 
     expect(syncNow).toHaveBeenCalledWith({ force: true });
     expect(syncNow).toHaveBeenCalledTimes(2);
+    expect(repairStaleInFlightOps).toHaveBeenCalledWith(120);
+    expect(repairStaleInFlightOps).toHaveBeenCalledTimes(2);
+    expect(listNonAckedOutboxOps).toHaveBeenCalledWith(1);
     expect(api.post).toHaveBeenNthCalledWith(1, '/claim/start');
     expect(api.post).toHaveBeenNthCalledWith(
       2,
@@ -273,8 +301,41 @@ describe('createGoogleAccountFromGuest', () => {
     expect(signOutFromGoogle).toHaveBeenCalledTimes(1);
   });
 
-  it('stops before claim start when guest outbox cannot drain', async () => {
-    (listPendingOutboxOps as jest.Mock).mockReturnValue([{ op_id: 'op-1' }]);
+  it('uses the existing forced sync drain path for due pending guest work before allowing claim', async () => {
+    await expect(createGoogleAccountFromGuest()).resolves.toEqual(
+      expect.objectContaining({
+        userId: 'https://securetoken.google.com/gym-app-mvp-1d7f0|firebase-uid',
+      }),
+    );
+
+    expect((syncNow as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
+      (listNonAckedOutboxOps as jest.Mock).mock.invocationCallOrder[0],
+    );
+    expect(api.post).toHaveBeenCalledWith('/claim/start');
+  });
+
+  it('stops before claim start when due pending guest outbox cannot drain', async () => {
+    await expectClaimBlockedByOutbox('pending');
+  });
+
+  it('stops before claim start when delayed failed guest outbox remains', async () => {
+    await expectClaimBlockedByOutbox('failed');
+  });
+
+  it('stops before claim start when fresh in-flight guest outbox remains after stale repair', async () => {
+    await expectClaimBlockedByOutbox('in_flight');
+  });
+
+  it('stops before claim start when dead guest outbox remains', async () => {
+    await expectClaimBlockedByOutbox('dead');
+  });
+
+  it('stops before claim start when any other non-acked guest outbox status remains', async () => {
+    await expectClaimBlockedByOutbox('paused');
+  });
+
+  it('leaves guest local state intact when claim is blocked by unresolved outbox', async () => {
+    (listNonAckedOutboxOps as jest.Mock).mockReturnValue([unresolvedOutboxOp('dead')]);
 
     await expect(createGoogleAccountFromGuest()).rejects.toThrow(
       'Sync pending changes before creating an account.',
@@ -284,6 +345,8 @@ describe('createGoogleAccountFromGuest', () => {
     expect(signInWithGoogleForFirebase).not.toHaveBeenCalled();
     expect(accountSessionStore.set).not.toHaveBeenCalled();
     expect(resetSyncCursor).not.toHaveBeenCalled();
+    expect(setClaimed).not.toHaveBeenCalled();
+    expect(setClaimedUserId).not.toHaveBeenCalled();
   });
 
   it('stops before claim start when local state is already linked but account session is unavailable', async () => {

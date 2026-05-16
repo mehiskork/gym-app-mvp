@@ -23,6 +23,7 @@ jest.mock('../../sync/syncScheduler', () => ({
 import {
   enqueueOutboxOp,
   hasActiveOutboxOpForEntity,
+  listNonAckedOutboxOps,
   listPendingOutboxOps,
   markOutboxOpRejected,
 } from '../outboxRepo';
@@ -114,6 +115,15 @@ describe('outboxRepo scheduled sync', () => {
       [50],
     );
     expect((query as jest.Mock).mock.calls[0][0]).not.toContain("'dead'");
+  });
+
+  it('selects every non-acked outbox status for claim safety checks', () => {
+    (query as jest.Mock).mockReturnValueOnce([]);
+
+    listNonAckedOutboxOps(1);
+
+    expect(query).toHaveBeenCalledWith(expect.stringContaining("WHERE status <> 'acked'"), [1]);
+    expect((query as jest.Mock).mock.calls[0][0]).not.toContain('datetime(next_attempt_at)');
   });
 
   it('detects active outbox work for an entity', () => {

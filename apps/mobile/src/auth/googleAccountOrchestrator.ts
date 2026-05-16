@@ -8,8 +8,9 @@ import {
   setClaimed,
   setClaimedUserId,
 } from '../db/appMetaRepo';
-import { listPendingOutboxOps } from '../db/outboxRepo';
+import { listNonAckedOutboxOps, repairStaleInFlightOps } from '../db/outboxRepo';
 import { resetSyncCursor } from '../db/syncStateRepo';
+import { OUTBOX_STALE_IN_FLIGHT_SECONDS } from '../sync/constants';
 import { syncNow } from '../sync/syncWorker';
 import { accountSessionStore } from './accountSessionStore';
 import { deviceCredentialStore } from './deviceCredentialStore';
@@ -40,8 +41,10 @@ export type GoogleAccountSignInResult = {
 };
 
 async function assertGuestOutboxDrained(): Promise<void> {
+  repairStaleInFlightOps(OUTBOX_STALE_IN_FLIGHT_SECONDS);
   await syncNow({ force: true });
-  if (listPendingOutboxOps(1).length > 0) {
+  repairStaleInFlightOps(OUTBOX_STALE_IN_FLIGHT_SECONDS);
+  if (listNonAckedOutboxOps(1).length > 0) {
     throw new Error('Sync pending changes before creating an account.');
   }
 }
