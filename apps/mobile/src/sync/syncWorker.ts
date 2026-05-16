@@ -39,6 +39,7 @@ import {
   SYNC_BACKOFF_MAX_SECONDS,
   SYNC_BATCH_LIMIT,
 } from './constants';
+import { ACTIVE_WORKOUT_ENTITY_TYPES } from './activeWorkoutEntities';
 
 function nextAttemptAtFromNow(seconds: number): string {
   const ms = seconds * 1000;
@@ -334,7 +335,7 @@ async function runSyncPage(options: SyncNowOptions): Promise<boolean> {
   const ops = options.pullOnly ? [] : claimOutboxOps(SYNC_BATCH_LIMIT);
   const protectedEntityKeys = new Set(
     ops
-      .filter((op) => op.entity_type === 'workout_set')
+      .filter((op) => ACTIVE_WORKOUT_ENTITY_TYPES.has(op.entity_type))
       .map((op) => syncEntityKey(op.entity_type, op.entity_id)),
   );
   const cursor = syncState.cursor;

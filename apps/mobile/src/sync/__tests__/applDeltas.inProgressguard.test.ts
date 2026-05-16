@@ -7,6 +7,10 @@ jest.mock('../../db/db', () => ({
   query: jest.fn(),
 }));
 
+jest.mock('../../db/outboxRepo', () => ({
+  hasActiveOutboxOpForEntity: jest.fn(() => false),
+}));
+
 jest.mock('../../utils/logger', () => ({
   logEvent: jest.fn(),
 }));

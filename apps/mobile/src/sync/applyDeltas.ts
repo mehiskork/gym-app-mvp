@@ -3,6 +3,7 @@ import { exec, query } from '../db/db';
 import { hasActiveOutboxOpForEntity } from '../db/outboxRepo';
 import { logEvent } from '../utils/logger';
 import { parseTimestampMs } from '../utils/timestamp';
+import { ACTIVE_WORKOUT_ENTITY_TYPES } from './activeWorkoutEntities';
 
 export type SyncDelta = {
   entityType: string;
@@ -547,23 +548,39 @@ function entityKey(entityType: string, entityId: string): string {
   return `${entityType}:${entityId}`;
 }
 
-function shouldSkipWorkoutSetLocalWriteDelta(input: {
+function hasExplicitActiveWorkoutLocalWrite(input: {
+  entityType: string;
+  entityId: string;
+  protectedEntityKeys: Set<string>;
+}): boolean {
+  const key = entityKey(input.entityType, input.entityId);
+  if (input.protectedEntityKeys.has(key)) return true;
+  return hasActiveOutboxOpForEntity(input.entityType, input.entityId);
+}
+
+function shouldSkipActiveWorkoutLocalWriteDelta(input: {
   delta: SyncDelta;
   payload: Record<string, unknown>;
   localRow: { updated_at?: string; version?: number } | null;
   protectedEntityKeys: Set<string>;
 }): boolean {
-  if (input.delta.entityType !== 'workout_set') return false;
+  if (!ACTIVE_WORKOUT_ENTITY_TYPES.has(input.delta.entityType)) return false;
   if (input.delta.opType.toLowerCase() !== 'upsert') return false;
 
   const id = String(input.payload.id ?? input.delta.entityId);
-  const key = entityKey(input.delta.entityType, id);
-  if (input.protectedEntityKeys.has(key)) return true;
-  if (hasActiveOutboxOpForEntity('workout_set', id)) return true;
+  if (
+    hasExplicitActiveWorkoutLocalWrite({
+      entityType: input.delta.entityType,
+      entityId: id,
+      protectedEntityKeys: input.protectedEntityKeys,
+    })
+  ) {
+    return true;
+  }
 
-  // workout_set rows are non-versioned and use SQLite datetime('now') second precision.
-  // During rapid local completion + weight edits, equal timestamps should keep the
-  // local offline-first row instead of allowing a stale server snapshot to clear it.
+  // Active workout rows are non-versioned and commonly use SQLite datetime('now')
+  // second precision. Equal timestamps should keep the local offline-first row
+  // instead of allowing a stale server snapshot to clear recent workout edits.
   return isSameOrNewerTimestamp(input.localRow?.updated_at, parseUpdatedAt(input.payload));
 }
 
@@ -682,8 +699,26 @@ function applyDelta(delta: SyncDelta, protectedEntityKeys: Set<string>): DeltaOu
   const opType = delta.opType.toLowerCase();
   const incomingDeletedAt = getDeletedAt(payload);
   if (incomingDeletedAt) {
-    // Server tombstones are authoritative. Apply them before local-newer LWW checks
-    // so a stale local row cannot survive while the sync cursor advances.
+    const id = String(payload[config.primaryKey]);
+    if (
+      ACTIVE_WORKOUT_ENTITY_TYPES.has(delta.entityType) &&
+      hasExplicitActiveWorkoutLocalWrite({
+        entityType: delta.entityType,
+        entityId: id,
+        protectedEntityKeys,
+      })
+    ) {
+      // Active local workout writes must not be deleted by a stale or racing
+      // server tombstone while the local operation is pending or just sent.
+      // Non-workout entities keep the existing authoritative tombstone behavior.
+      logEvent('warn', 'sync', 'Skipped active workout tombstone due to protected local write', {
+        entityType: delta.entityType,
+        entityId: delta.entityId,
+        opType: delta.opType,
+      });
+      return 'skipped';
+    }
+
     applyDelete(config, payload);
     return 'applied';
   }
@@ -703,8 +738,8 @@ function applyDelta(delta: SyncDelta, protectedEntityKeys: Set<string>): DeltaOu
 
   const localRow = fetchLocalRow(config, String(payload[config.primaryKey]));
 
-  if (shouldSkipWorkoutSetLocalWriteDelta({ delta, payload, localRow, protectedEntityKeys })) {
-    logEvent('warn', 'sync', 'Skipped workout_set delta due to protected local write', {
+  if (shouldSkipActiveWorkoutLocalWriteDelta({ delta, payload, localRow, protectedEntityKeys })) {
+    logEvent('warn', 'sync', 'Skipped active workout delta due to protected local write', {
       entityType: delta.entityType,
       entityId: delta.entityId,
       opType: delta.opType,

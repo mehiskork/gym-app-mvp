@@ -266,6 +266,52 @@ describe('applyDeltas null upsert + timestamp handling', () => {
     expect(exec).not.toHaveBeenCalled();
   });
 
+  it('keeps local workout_session_exercise when incoming stale delta has the same timestamp', () => {
+    (query as jest.Mock).mockReturnValue([{ updated_at: '2026-05-01 12:00:00' }]);
+
+    const result = applyDeltas([
+      {
+        entityType: 'workout_session_exercise',
+        entityId: 'wse-1',
+        opType: 'upsert',
+        payload: {
+          id: 'wse-1',
+          workout_session_id: 'session-1',
+          exercise_id: 'exercise-1',
+          exercise_name: 'Bench Press',
+          position: 1,
+          notes: 'stale remote note',
+          updated_at: '2026-05-01 12:00:00',
+        },
+      },
+    ]);
+
+    expect(result).toEqual({ applied: 0, skipped: 1, total: 1 });
+    expect(exec).not.toHaveBeenCalled();
+  });
+
+  it('keeps local workout_session when incoming stale delta has the same timestamp', () => {
+    (query as jest.Mock).mockReturnValue([{ updated_at: '2026-05-01 12:00:00' }]);
+
+    const result = applyDeltas([
+      {
+        entityType: 'workout_session',
+        entityId: 'session-1',
+        opType: 'upsert',
+        payload: {
+          id: 'session-1',
+          title: 'Push Day',
+          status: 'completed',
+          workout_note: 'stale remote note',
+          updated_at: '2026-05-01 12:00:00',
+        },
+      },
+    ]);
+
+    expect(result).toEqual({ applied: 0, skipped: 1, total: 1 });
+    expect(exec).not.toHaveBeenCalled();
+  });
+
   it('keeps local workout_set completion when local timestamp is newer', () => {
     (query as jest.Mock).mockReturnValue([{ updated_at: '2026-05-01 12:00:01' }]);
 
@@ -310,6 +356,29 @@ describe('applyDeltas null upsert + timestamp handling', () => {
 
     expect(result).toEqual({ applied: 1, skipped: 0, total: 1 });
     expect((exec as jest.Mock).mock.calls[0][0]).toContain('INSERT INTO workout_set');
+  });
+
+  it('applies strictly newer workout_session_exercise upsert when there is no local write protection', () => {
+    (query as jest.Mock).mockReturnValue([{ updated_at: '2026-05-01 12:00:00' }]);
+
+    const result = applyDeltas([
+      {
+        entityType: 'workout_session_exercise',
+        entityId: 'wse-1',
+        opType: 'upsert',
+        payload: {
+          id: 'wse-1',
+          workout_session_id: 'session-1',
+          exercise_id: 'exercise-1',
+          position: 1,
+          notes: 'newer remote note',
+          updated_at: '2026-05-01 12:00:01',
+        },
+      },
+    ]);
+
+    expect(result).toEqual({ applied: 1, skipped: 0, total: 1 });
+    expect((exec as jest.Mock).mock.calls[0][0]).toContain('INSERT INTO workout_session_exercise');
   });
 
   it('skips workout_set delta when the entity was sent in the current sync request', () => {
@@ -359,6 +428,48 @@ describe('applyDeltas null upsert + timestamp handling', () => {
     expect(result).toEqual({ applied: 0, skipped: 1, total: 1 });
     expect(hasActiveOutboxOpForEntity).toHaveBeenCalledWith('workout_set', 'set-1');
     expect(exec).not.toHaveBeenCalled();
+  });
+
+  it('skips protected workout_set tombstone when the entity was sent in the current sync request', () => {
+    const result = applyDeltas(
+      [
+        {
+          entityType: 'workout_set',
+          entityId: 'set-1',
+          opType: 'delete',
+          payload: {
+            id: 'set-1',
+            workout_session_exercise_id: 'wse-1',
+            deleted_at: '2026-05-01 12:00:00',
+            updated_at: '2026-05-01 12:00:00',
+          },
+        },
+      ],
+      { protectedEntityKeys: new Set(['workout_set:set-1']) },
+    );
+
+    expect(result).toEqual({ applied: 0, skipped: 1, total: 1 });
+    expect(exec).not.toHaveBeenCalled();
+  });
+
+  it('applies active workout tombstone when there is no protected or active local write', () => {
+    const result = applyDeltas([
+      {
+        entityType: 'workout_session_exercise',
+        entityId: 'wse-1',
+        opType: 'delete',
+        payload: {
+          id: 'wse-1',
+          workout_session_id: 'session-1',
+          deleted_at: '2026-05-01 12:00:00',
+          updated_at: '2026-05-01 12:00:00',
+        },
+      },
+    ]);
+
+    expect(result).toEqual({ applied: 1, skipped: 0, total: 1 });
+    expect((exec as jest.Mock).mock.calls[0][0]).toContain('UPDATE workout_session_exercise');
+    expect((exec as jest.Mock).mock.calls[0][0]).toContain('SET deleted_at = COALESCE');
   });
 
   it('skips multiple stale workout_set deltas without clearing completed local sets', () => {

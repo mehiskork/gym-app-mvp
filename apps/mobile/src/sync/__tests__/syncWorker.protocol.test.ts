@@ -464,6 +464,94 @@ describe('syncWorker protocol invariants', () => {
     );
   });
 
+  it('passes workout_session_exercise ops sent in the current sync request as protected delta keys', async () => {
+    const workoutSessionExerciseOp = {
+      ...baseOp,
+      entity_type: 'workout_session_exercise',
+      entity_id: 'wse-1',
+      payload_json: JSON.stringify({
+        id: 'wse-1',
+        workout_session_id: 'session-1',
+        exercise_id: 'exercise-1',
+        position: 1,
+        updated_at: '2026-05-01 12:00:00',
+      }),
+    };
+    (claimOutboxOps as jest.Mock).mockReturnValue([workoutSessionExerciseOp]);
+    global.fetch = jest.fn().mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        acks: [{ opId: 'op-1', status: 'applied' }],
+        deltas: [
+          {
+            entityType: 'workout_session_exercise',
+            entityId: 'wse-1',
+            opType: 'upsert',
+            payload: {
+              id: 'wse-1',
+              workout_session_id: 'session-1',
+              exercise_id: 'exercise-1',
+              position: 1,
+              updated_at: '2026-05-01 12:00:00',
+            },
+          },
+        ],
+        cursor: '11',
+        hasMore: false,
+      }),
+    }) as unknown as typeof fetch;
+
+    await syncNow();
+
+    const applyContext = (applyDeltas as jest.Mock).mock.calls[0][1];
+    expect(Array.from(applyContext.protectedEntityKeys)).toEqual([
+      'workout_session_exercise:wse-1',
+    ]);
+  });
+
+  it('passes workout_session ops sent in the current sync request as protected delta keys', async () => {
+    const workoutSessionOp = {
+      ...baseOp,
+      entity_type: 'workout_session',
+      entity_id: 'session-1',
+      payload_json: JSON.stringify({
+        id: 'session-1',
+        title: 'Quick Workout',
+        status: 'in_progress',
+        updated_at: '2026-05-01 12:00:00',
+      }),
+    };
+    (claimOutboxOps as jest.Mock).mockReturnValue([workoutSessionOp]);
+    global.fetch = jest.fn().mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        acks: [{ opId: 'op-1', status: 'applied' }],
+        deltas: [
+          {
+            entityType: 'workout_session',
+            entityId: 'session-1',
+            opType: 'upsert',
+            payload: {
+              id: 'session-1',
+              title: 'Quick Workout',
+              status: 'in_progress',
+              updated_at: '2026-05-01 12:00:00',
+            },
+          },
+        ],
+        cursor: '12',
+        hasMore: false,
+      }),
+    }) as unknown as typeof fetch;
+
+    await syncNow();
+
+    const applyContext = (applyDeltas as jest.Mock).mock.calls[0][1];
+    expect(Array.from(applyContext.protectedEntityKeys)).toEqual(['workout_session:session-1']);
+  });
+
   it('keeps just-sent workout_set rows protected even though acks are written before deltas apply', async () => {
     const workoutSetOp = {
       ...baseOp,
