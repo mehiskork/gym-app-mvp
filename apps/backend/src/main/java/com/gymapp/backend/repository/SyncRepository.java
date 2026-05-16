@@ -69,7 +69,24 @@ public class SyncRepository {
                                 accountOwnerId,
                                 guestOwnerId);
 
-                jdbcTemplate.update(
+                int changeLogRowsMoved = jdbcTemplate.update(
+                                """
+                                                UPDATE change_log
+                                                SET guest_user_id = ?
+                                                WHERE guest_user_id = ?
+                                                  AND NOT EXISTS (
+                                                        SELECT 1
+                                                        FROM entity_state account_state
+                                                        WHERE account_state.guest_user_id = ?
+                                                          AND account_state.entity_type = change_log.entity_type
+                                                          AND account_state.entity_id = change_log.entity_id
+                                                  )
+                                                """,
+                                accountOwnerId,
+                                guestOwnerId,
+                                accountOwnerId);
+
+                int entityRowsMoved = jdbcTemplate.update(
                                 """
                                                 INSERT INTO entity_state (
                                                         guest_user_id,
@@ -89,33 +106,16 @@ public class SyncRepository {
                                                 FROM entity_state guest_state
                                                 WHERE guest_state.guest_user_id = ?
                                                 ON CONFLICT (guest_user_id, entity_type, entity_id)
-                                                DO UPDATE SET
-                                                        row_json = CASE
-                                                                        WHEN EXCLUDED.last_received_at >= entity_state.last_received_at
-                                                                                THEN EXCLUDED.row_json
-                                                                        ELSE entity_state.row_json
-                                                                END,
-                                                        updated_at = now(),
-                                                        last_received_at = GREATEST(entity_state.last_received_at,
-                                                                        EXCLUDED.last_received_at)
+                                                DO NOTHING
                                                 """,
                                 accountOwnerId,
                                 guestOwnerId);
 
-                int entityRowsMoved = jdbcTemplate.update(
+                jdbcTemplate.update(
                                 """
                                                 DELETE FROM entity_state
                                                 WHERE guest_user_id = ?
                                                 """,
-                                guestOwnerId);
-
-                int changeLogRowsMoved = jdbcTemplate.update(
-                                """
-                                                UPDATE change_log
-                                                SET guest_user_id = ?
-                                                WHERE guest_user_id = ?
-                                                """,
-                                accountOwnerId,
                                 guestOwnerId);
 
                 int opLedgerRowsMoved = jdbcTemplate.update(

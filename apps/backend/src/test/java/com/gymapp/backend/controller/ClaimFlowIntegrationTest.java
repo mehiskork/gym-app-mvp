@@ -541,7 +541,7 @@ class ClaimFlowIntegrationTest {
         }
 
         @Test
-        void confirmMigrationUsesLastReceivedAtWinnerForOverlappingEntityState() throws Exception {
+        void confirmMigrationPreservesExistingAccountEntityStateOnConflict() throws Exception {
                 String deviceId = "device-" + UUID.randomUUID();
                 String guestUserId = UUID.randomUUID().toString();
                 String rawToken = "token-" + UUID.randomUUID();
@@ -589,8 +589,130 @@ class ClaimFlowIntegrationTest {
                                                 """,
                                 Long.class,
                                 guestUserId);
-                assertThat(payloadJson).contains("program-guest");
+                Long rowsMoved = jdbcTemplate.queryForObject(
+                                """
+                                                SELECT entity_state_rows_moved
+                                                FROM guest_account_migration_audit
+                                                WHERE guest_user_id = ?
+                                                """,
+                                Long.class,
+                                guestUserId);
+                Long guestEntityRows = jdbcTemplate.queryForObject(
+                                """
+                                                SELECT COUNT(*)
+                                                FROM entity_state
+                                                WHERE guest_user_id = ? AND entity_type = 'program' AND entity_id = ?
+                                                """,
+                                Long.class,
+                                guestUserId,
+                                entityId);
+                assertThat(payloadJson).contains("program-account");
+                assertThat(payloadJson).doesNotContain("program-guest");
+                assertThat(guestEntityRows).isZero();
                 assertThat(conflictsResolved).isEqualTo(1L);
+                assertThat(rowsMoved).isZero();
+        }
+
+        @Test
+        void confirmMigrationPreservesConflictingAccountRowsAndMigratesNonConflictingGuestRows() throws Exception {
+                String deviceId = "device-" + UUID.randomUUID();
+                String guestUserId = UUID.randomUUID().toString();
+                String rawToken = "token-" + UUID.randomUUID();
+                String userId = accountOwnerId("firebase-user-" + UUID.randomUUID());
+                String conflictEntityId = "program-shared-" + UUID.randomUUID();
+                String guestOnlyEntityId = "program-guest-only-" + UUID.randomUUID();
+                insertDevice(deviceId, guestUserId);
+                insertToken(rawToken, deviceId, Instant.now().plusSeconds(3600));
+
+                insertEntityState(userId, conflictEntityId,
+                                "{\"id\":\"program-account\",\"updated_at\":\"2026-04-01T00:00:00Z\"}",
+                                Instant.parse("2026-04-01T00:00:00Z"));
+                insertChangeLog(userId, conflictEntityId,
+                                "{\"id\":\"program-account\",\"updated_at\":\"2026-04-01T00:00:00Z\"}");
+                insertEntityState(guestUserId, conflictEntityId,
+                                "{\"id\":\"program-guest-conflict\",\"updated_at\":\"2026-04-07T00:00:00Z\"}",
+                                Instant.parse("2026-04-07T00:00:00Z"));
+                insertChangeLog(guestUserId, conflictEntityId,
+                                "{\"id\":\"program-guest-conflict\",\"updated_at\":\"2026-04-07T00:00:00Z\"}");
+                insertEntityState(guestUserId, guestOnlyEntityId,
+                                "{\"id\":\"program-guest-only\",\"updated_at\":\"2026-04-07T00:00:00Z\"}",
+                                Instant.parse("2026-04-07T00:00:00Z"));
+                insertChangeLog(guestUserId, guestOnlyEntityId,
+                                "{\"id\":\"program-guest-only\",\"updated_at\":\"2026-04-07T00:00:00Z\"}");
+
+                String code = objectMapper.readTree(mockMvc.perform(post("/claim/start")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .header("Authorization", "Bearer " + rawToken))
+                                .andExpect(status().isOk())
+                                .andReturn()
+                                .getResponse()
+                                .getContentAsString()).get("code").asString();
+
+                mockMvc.perform(post("/claim/confirm")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .header("Authorization", "Bearer " + firebaseTokenForOwner(userId))
+                                .header("X-Device-Authorization", "Bearer " + rawToken)
+                                .content("{\"code\":\"" + code + "\"}"))
+                                .andExpect(status().isOk());
+
+                String conflictPayloadJson = jdbcTemplate.queryForObject(
+                                """
+                                                SELECT row_json::text
+                                                FROM entity_state
+                                                WHERE guest_user_id = ? AND entity_type = 'program' AND entity_id = ?
+                                                """,
+                                String.class,
+                                userId,
+                                conflictEntityId);
+                String guestOnlyPayloadJson = jdbcTemplate.queryForObject(
+                                """
+                                                SELECT row_json::text
+                                                FROM entity_state
+                                                WHERE guest_user_id = ? AND entity_type = 'program' AND entity_id = ?
+                                                """,
+                                String.class,
+                                userId,
+                                guestOnlyEntityId);
+                Long accountRows = jdbcTemplate.queryForObject(
+                                "SELECT COUNT(*) FROM entity_state WHERE guest_user_id = ?",
+                                Long.class,
+                                userId);
+                Long guestRows = jdbcTemplate.queryForObject(
+                                "SELECT COUNT(*) FROM entity_state WHERE guest_user_id = ?",
+                                Long.class,
+                                guestUserId);
+                Long conflictsResolved = jdbcTemplate.queryForObject(
+                                """
+                                                SELECT entity_conflicts_resolved
+                                                FROM guest_account_migration_audit
+                                                WHERE guest_user_id = ?
+                                                """,
+                                Long.class,
+                                guestUserId);
+                Long rowsMoved = jdbcTemplate.queryForObject(
+                                """
+                                                SELECT entity_state_rows_moved
+                                                FROM guest_account_migration_audit
+                                                WHERE guest_user_id = ?
+                                                """,
+                                Long.class,
+                                guestUserId);
+                java.util.List<String> accountSnapshotPayloads = syncService
+                                .sync(null, OwnerScope.account(userId), "0", java.util.List.of())
+                                .getDeltas()
+                                .stream()
+                                .map(delta -> delta.payload().get("id").toString())
+                                .toList();
+
+                assertThat(conflictPayloadJson).contains("program-account");
+                assertThat(conflictPayloadJson).doesNotContain("program-guest-conflict");
+                assertThat(guestOnlyPayloadJson).contains("program-guest-only");
+                assertThat(accountRows).isEqualTo(2L);
+                assertThat(guestRows).isZero();
+                assertThat(conflictsResolved).isEqualTo(1L);
+                assertThat(rowsMoved).isEqualTo(1L);
+                assertThat(accountSnapshotPayloads).contains("program-account", "program-guest-only");
+                assertThat(accountSnapshotPayloads).doesNotContain("program-guest-conflict");
         }
 
         @Test
@@ -785,6 +907,22 @@ class ClaimFlowIntegrationTest {
                                 entityId,
                                 rowJson,
                                 OffsetDateTime.ofInstant(lastReceivedAt, ZoneOffset.UTC));
+        }
+
+        private void insertChangeLog(String ownerId, String entityId, String rowJson) {
+                jdbcTemplate.update(
+                                """
+                                                INSERT INTO change_log (
+                                                        guest_user_id,
+                                                        entity_type,
+                                                        entity_id,
+                                                        op_type,
+                                                        row_json
+                                                ) VALUES (?, 'program', ?, 'upsert', ?::jsonb)
+                                                """,
+                                ownerId,
+                                entityId,
+                                rowJson);
         }
 
         private void markAccountDeleted(String accountOwnerId) {
