@@ -7,6 +7,7 @@ import {
   markOutboxOpsFailed,
 } from '../../db/outboxRepo';
 import { updateSyncState } from '../../db/syncStateRepo';
+import { deviceCredentialStore } from '../../auth/deviceCredentialStore';
 import { applyDeltas } from '../applyDeltas';
 import { rebuildPrEventsFromWorkoutHistory } from '../../db/prRepo';
 
@@ -327,6 +328,62 @@ describe('syncWorker protocol invariants', () => {
       expect(markOutboxOpRejected).not.toHaveBeenCalled();
     },
   );
+
+  it('registers a missing guest device token and drains the pending outbox in the same sync', async () => {
+    mockDeviceToken = null;
+    const fetchMock = jest
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ deviceToken: 'recovered-device-token', guestUserId: 'guest-1' }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          acks: [{ opId: 'op-1', status: 'applied' }],
+          deltas: [],
+          cursor: '13',
+          hasMore: false,
+        }),
+      });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    await syncNow();
+
+    expect(fetchMock.mock.calls[0][0]).toBe('https://example.test/device/register');
+    expect(fetchMock.mock.calls[1][0]).toBe('https://example.test/sync');
+    expect(fetchMock.mock.calls[1][1]).toEqual(
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer recovered-device-token' }),
+      }),
+    );
+    expect(deviceCredentialStore.setDeviceToken).toHaveBeenCalledWith('recovered-device-token');
+    expect(markOutboxOpsAcked).toHaveBeenCalledWith(['op-1']);
+    expect(updateSyncState).toHaveBeenCalledWith(expect.objectContaining({ cursor: '13' }));
+  });
+
+  it('keeps guest outbox pending when missing-token registration fails offline', async () => {
+    mockDeviceToken = null;
+    global.fetch = jest
+      .fn()
+      .mockRejectedValueOnce(new Error('Network request failed')) as unknown as typeof fetch;
+
+    await syncNow();
+
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(claimOutboxOps).not.toHaveBeenCalled();
+    expect(markOutboxOpsAcked).not.toHaveBeenCalled();
+    expect(markOutboxOpsFailed).not.toHaveBeenCalled();
+    expect(updateSyncState).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        last_error: 'registerDeviceIfNeeded: Network request failed',
+        backoff_until: expect.any(String),
+        consecutive_failures: 1,
+      }),
+    );
+  });
 
   it('syncs a later valid op when dead ops have already been excluded from the claimed batch', async () => {
     const laterOp = { ...baseOp, id: 'row-2', op_id: 'op-2', entity_id: 'exercise-2' };

@@ -90,6 +90,21 @@ describe('syncScheduler', () => {
     expect(syncNow).toHaveBeenCalledWith({ force: false });
   });
 
+  it('routes startup and foreground sync attempts through the worker recovery path', async () => {
+    jest.setSystemTime(new Date('2026-04-30T12:00:00.000Z'));
+
+    scheduleStartupSync('app_start');
+    await jest.advanceTimersByTimeAsync(3000);
+
+    jest.setSystemTime(new Date('2026-04-30T12:01:00.000Z'));
+    scheduleForegroundSync('app_foreground');
+    await jest.advanceTimersByTimeAsync(3000);
+
+    expect(syncNow).toHaveBeenCalledTimes(2);
+    expect(syncNow).toHaveBeenNthCalledWith(1, { force: false });
+    expect(syncNow).toHaveBeenNthCalledWith(2, { force: false });
+  });
+
   it('cancels pending scheduled sync before it starts', async () => {
     scheduleSyncSoon('outbox_write');
     cancelScheduledSync();

@@ -191,6 +191,36 @@ describe('createGoogleAccountFromGuest', () => {
     expect(getMeWithAccessToken).toHaveBeenCalledWith('firebase-id-token');
   });
 
+  it('can continue guest claim preflight after sync recovers a missing device token and drains outbox', async () => {
+    let tokenRecovered = false;
+    (syncNow as jest.Mock).mockImplementation(async () => {
+      tokenRecovered = true;
+    });
+    (deviceCredentialStore.getDeviceToken as jest.Mock).mockImplementation(async () =>
+      tokenRecovered ? 'recovered-device-token' : null,
+    );
+
+    await expect(createGoogleAccountFromGuest()).resolves.toEqual({
+      userId: 'https://securetoken.google.com/gym-app-mvp-1d7f0|firebase-uid',
+      email: 'user@example.test',
+      displayName: 'Test User',
+    });
+
+    expect(syncNow).toHaveBeenCalledWith({ force: true });
+    expect(listNonAckedOutboxOps).toHaveBeenCalledWith(1);
+    expect(api.post).toHaveBeenNthCalledWith(
+      2,
+      '/claim/confirm',
+      { code: 'CLAIM123' },
+      {
+        headers: {
+          Authorization: 'Bearer firebase-id-token',
+          'X-Device-Authorization': 'Bearer recovered-device-token',
+        },
+      },
+    );
+  });
+
   it('treats recreated claim response as normal signed-in state', async () => {
     (api.post as jest.Mock)
       .mockReset()

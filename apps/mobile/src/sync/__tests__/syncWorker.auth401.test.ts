@@ -217,6 +217,28 @@ describe('syncNow 401 self-heal', () => {
     );
   });
 
+  it('does not register or fall back to guest auth when account JWT is available and device token is missing', async () => {
+    mockToken = null;
+    mockLinkedAccountState = true;
+    mockAccountAccessToken = 'account-jwt-token';
+    global.fetch = jest.fn().mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ acks: [], deltas: [], cursor: '1', hasMore: false }),
+    }) as unknown as typeof fetch;
+
+    await syncNow();
+
+    expect(deviceCredentialStore.getOrCreateDeviceSecret).not.toHaveBeenCalled();
+    expect(deviceCredentialStore.setDeviceToken).not.toHaveBeenCalled();
+    expect((global.fetch as jest.Mock).mock.calls[0]?.[0]).toBe('https://example.test/sync');
+    expect((global.fetch as jest.Mock).mock.calls[0]?.[1]).toEqual(
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer account-jwt-token' }),
+      }),
+    );
+  });
+
   it('uses device token in guest mode when account session is present but invalidated', async () => {
     mockAccountAccessToken = 'account-jwt-token';
     mockAccountInvalidatedAt = '2026-04-07T00:00:00.000Z';

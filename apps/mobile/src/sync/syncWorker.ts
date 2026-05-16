@@ -64,11 +64,15 @@ function classifyErrorCode(err: unknown, httpStatus?: number | null): string {
   return 'unknown';
 }
 
-export async function registerDeviceIfNeeded(): Promise<void> {
+type RegisterDeviceResult =
+  | { status: 'registered_or_present' }
+  | { status: 'failed'; message: string; httpStatus?: number };
+
+export async function registerDeviceIfNeeded(): Promise<RegisterDeviceResult> {
   const baseUrl = getApiBaseUrl();
 
   const existingToken = await deviceCredentialStore.getDeviceToken();
-  if (existingToken) return;
+  if (existingToken) return { status: 'registered_or_present' };
 
   const deviceId = getOrCreateDeviceId();
   const deviceSecret = await deviceCredentialStore.getOrCreateDeviceSecret();
@@ -81,8 +85,9 @@ export async function registerDeviceIfNeeded(): Promise<void> {
     });
 
     if (!response.ok) {
-      updateSyncState({ last_error: `registerDeviceIfNeeded: ${response.status}` });
-      return;
+      const message = `registerDeviceIfNeeded: ${response.status}`;
+      updateSyncState({ last_error: message });
+      return { status: 'failed', message, httpStatus: response.status };
     }
 
     const data = (await response.json()) as {
@@ -96,9 +101,19 @@ export async function registerDeviceIfNeeded(): Promise<void> {
     if (data.guestUserId) {
       setGuestUserId(data.guestUserId);
     }
+
+    if (!data.deviceToken) {
+      const message = 'registerDeviceIfNeeded: response missing deviceToken';
+      updateSyncState({ last_error: message });
+      return { status: 'failed', message, httpStatus: response.status };
+    }
+
+    return { status: 'registered_or_present' };
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
-    updateSyncState({ last_error: `registerDeviceIfNeeded: ${message}` });
+    const errorMessage = `registerDeviceIfNeeded: ${message}`;
+    updateSyncState({ last_error: errorMessage });
+    return { status: 'failed', message: errorMessage };
   }
 }
 
@@ -306,7 +321,7 @@ async function runSyncPage(options: SyncNowOptions): Promise<boolean> {
   }
 
   if (!authContext) {
-    await registerDeviceIfNeeded();
+    const registerResult = await registerDeviceIfNeeded();
     authContext = await resolveSyncAuthContext();
     if (authContext?.status === 'blocked') {
       updateSyncState({
@@ -320,9 +335,19 @@ async function runSyncPage(options: SyncNowOptions): Promise<boolean> {
       return false;
     }
     if (!authContext) {
-      updateSyncState({ last_error: 'Device not registered (missing token).' });
+      const nextFailureCount = (syncState.consecutive_failures ?? 0) + 1;
+      const backoffSeconds = computeBackoffSeconds(nextFailureCount);
+      const nextAttempt = nextAttemptAtFromNow(backoffSeconds);
+      updateSyncState({
+        last_error:
+          registerResult.status === 'failed'
+            ? registerResult.message
+            : 'Device not registered (missing token).',
+        backoff_until: nextAttempt,
+        consecutive_failures: nextFailureCount,
+      });
       updateAuthDebugState({
-        syncAuthModeNextPlanned: null,
+        syncAuthModeNextPlanned: 'device_token',
       });
       return false;
     }
