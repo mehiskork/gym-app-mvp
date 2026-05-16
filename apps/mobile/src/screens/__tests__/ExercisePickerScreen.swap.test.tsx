@@ -120,7 +120,7 @@ describe('ExercisePickerScreen swap mode', () => {
     expect(swapWorkoutSessionExercise).not.toHaveBeenCalled();
   });
 
-  it('renders chips in one row without group labels and pins a primary bottom CTA', () => {
+  it('renders chips in one row without group labels and pins a secondary custom exercise CTA', () => {
     useStateMock.mockImplementationOnce(() => ['', jest.fn()]);
     useStateMock.mockImplementationOnce(() => [
       [{ id: 'ex-2', name: 'Incline Bench', is_custom: 1 }],
@@ -140,11 +140,20 @@ describe('ExercisePickerScreen swap mode', () => {
     } as never);
 
     const buttons = findByType(element, Button);
-    const primaryCta = buttons.find((b) => (b.props as { variant?: string }).variant === 'primary');
-    expect(primaryCta).toBeDefined();
+    const createCta = buttons.find(
+      (b) => (b.props as { title?: string }).title === 'Create a custom exercise',
+    );
+    expect(createCta).toBeDefined();
+    const createCtaProps = createCta?.props as {
+      variant?: string;
+      onPress?: (event: never) => void;
+    };
+    expect(createCtaProps.variant).toBe('secondary');
+    createCtaProps.onPress?.({} as never);
+    expect(navigation.navigate).toHaveBeenCalledWith('CreateExercise');
 
     const textContent = JSON.stringify(element);
-    expect(textContent).toContain('Create exercise');
+    expect(textContent).toContain('Create a custom exercise');
     expect(textContent).toContain('Strength');
     expect(textContent).toContain('Cardio');
     expect(textContent).toContain('Curated');

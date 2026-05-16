@@ -211,14 +211,11 @@ export function ExercisePickerScreen({ route, navigation }: Props) {
         }}
       >
         <Button
-          variant="primary"
+          title="Create a custom exercise"
+          variant="secondary"
           onPress={() => navigation.navigate('CreateExercise')}
           style={{ height: BOTTOM_CTA_HEIGHT }}
-        >
-          <Text variant="subtitle" weight="700" color={tokens.colors.onPrimary}>
-            Create exercise
-          </Text>
-        </Button>
+        />
       </View>
       <Snackbar
         visible={feedback !== null}
