@@ -55,9 +55,9 @@ describe('unfinished workout reminder app_meta helpers', () => {
     expect(getUnfinishedWorkoutReminderState()).toBeNull();
   });
 
-  it('defaults unfinished workout reminders to enabled and stores local preference', () => {
+  it('defaults unfinished workout reminders to disabled and stores local preference', () => {
     (query as jest.Mock).mockReturnValueOnce([]);
-    expect(getUnfinishedWorkoutRemindersEnabled()).toBe(true);
+    expect(getUnfinishedWorkoutRemindersEnabled()).toBe(false);
 
     (query as jest.Mock).mockReturnValueOnce([{ value: '0' }]);
     expect(getUnfinishedWorkoutRemindersEnabled()).toBe(false);

@@ -127,6 +127,7 @@ describe('unfinishedWorkoutReminderNotifications', () => {
 
     expect(Notifications.scheduleNotificationAsync).not.toHaveBeenCalled();
     expect(setUnfinishedWorkoutReminderState).toHaveBeenCalledWith(null);
+    expect(setUnfinishedWorkoutRemindersEnabled).toHaveBeenCalledWith(false);
 
     jest.clearAllMocks();
     (Notifications.getPermissionsAsync as jest.Mock).mockResolvedValueOnce({
@@ -137,6 +138,7 @@ describe('unfinishedWorkoutReminderNotifications', () => {
 
     expect(Notifications.scheduleNotificationAsync).not.toHaveBeenCalled();
     expect(setUnfinishedWorkoutReminderState).toHaveBeenCalledWith(null);
+    expect(setUnfinishedWorkoutRemindersEnabled).toHaveBeenCalledWith(false);
   });
 
   it('cancels previous notification before replacement', async () => {
@@ -375,6 +377,7 @@ describe('unfinishedWorkoutReminderNotifications', () => {
 
     expect(Notifications.scheduleNotificationAsync).not.toHaveBeenCalled();
     expect(setUnfinishedWorkoutReminderState).toHaveBeenCalledWith(null);
+    expect(setUnfinishedWorkoutRemindersEnabled).toHaveBeenCalledWith(false);
   });
 
   it('cancels stale reminder when reconciliation finds no qualifying workout', async () => {

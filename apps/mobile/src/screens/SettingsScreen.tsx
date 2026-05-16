@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Linking, Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import * as Notifications from 'expo-notifications';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
@@ -30,6 +29,7 @@ import { useAppTheme } from '../theme/theme';
 import {
   cancelRestTimerNotification,
   ensureRestTimerNotificationChannel,
+  hasNotificationPermission,
   requestRestTimerNotificationPermission,
 } from '../utils/restTimerNotifications';
 import {
@@ -133,6 +133,22 @@ export function SettingsScreen() {
     setAccountSession(state.accountSession);
   }, []);
 
+  const refreshUnfinishedReminderState = useCallback(async () => {
+    const enabled = getUnfinishedWorkoutRemindersPreference();
+    if (!enabled) {
+      setUnfinishedReminderEnabled(false);
+      return;
+    }
+
+    if (await hasNotificationPermission()) {
+      setUnfinishedReminderEnabled(true);
+      return;
+    }
+
+    await setUnfinishedWorkoutRemindersPreference(false);
+    setUnfinishedReminderEnabled(false);
+  }, []);
+
   useEffect(() => {
     let active = true;
     (async () => {
@@ -148,8 +164,8 @@ export function SettingsScreen() {
     useCallback(() => {
       void refreshAccountState();
       setSettings(getSettings());
-      setUnfinishedReminderEnabled(getUnfinishedWorkoutRemindersPreference());
-    }, [refreshAccountState]),
+      void refreshUnfinishedReminderState();
+    }, [refreshAccountState, refreshUnfinishedReminderState]),
   );
 
   const handleUnlocked = useCallback(() => {
@@ -216,18 +232,26 @@ export function SettingsScreen() {
 
   const handleUnfinishedRemindersToggle = useCallback(async (value: boolean) => {
     try {
-      setUnfinishedReminderEnabled(value);
       setUnfinishedReminderMessage(null);
-      await setUnfinishedWorkoutRemindersPreference(value);
 
-      if (value) {
-        const permissions = await Notifications.getPermissionsAsync();
-        if (permissions.status !== 'granted') {
-          setUnfinishedReminderMessage(
-            'Notifications need to be enabled to receive workout reminders.',
-          );
-        }
+      if (!value) {
+        setUnfinishedReminderEnabled(false);
+        await setUnfinishedWorkoutRemindersPreference(false);
+        return;
       }
+
+      const granted = await requestRestTimerNotificationPermission();
+      if (!granted) {
+        setUnfinishedReminderEnabled(false);
+        await setUnfinishedWorkoutRemindersPreference(false);
+        setUnfinishedReminderMessage(
+          'Notifications are blocked. Enable notifications to use reminders.',
+        );
+        return;
+      }
+
+      await setUnfinishedWorkoutRemindersPreference(true);
+      setUnfinishedReminderEnabled(true);
     } catch {
       setUnfinishedReminderEnabled(getUnfinishedWorkoutRemindersPreference());
       setUnfinishedReminderMessage('Could not update workout reminder settings. Try again later.');

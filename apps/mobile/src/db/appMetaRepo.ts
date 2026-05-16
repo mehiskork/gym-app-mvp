@@ -248,7 +248,7 @@ export function setUnfinishedWorkoutReminderState(
 }
 
 export function getUnfinishedWorkoutRemindersEnabled(): boolean {
-  return getMeta(UNFINISHED_WORKOUT_REMINDERS_ENABLED_KEY) !== '0';
+  return getMeta(UNFINISHED_WORKOUT_REMINDERS_ENABLED_KEY) === '1';
 }
 
 export function setUnfinishedWorkoutRemindersEnabled(enabled: boolean): void {

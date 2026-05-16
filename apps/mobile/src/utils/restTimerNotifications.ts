@@ -42,9 +42,13 @@ export async function ensureRestTimerNotificationChannel(vibrationEnabled: boole
   await channelSetupPromiseByMode[modeKey];
 }
 
-export async function requestRestTimerNotificationPermission(): Promise<boolean> {
+export async function hasNotificationPermission(): Promise<boolean> {
   const current = await Notifications.getPermissionsAsync();
-  if (current.status === 'granted') return true;
+  return current.status === 'granted';
+}
+
+export async function requestRestTimerNotificationPermission(): Promise<boolean> {
+  if (await hasNotificationPermission()) return true;
   const requested = await Notifications.requestPermissionsAsync();
   return requested.status === 'granted';
 }

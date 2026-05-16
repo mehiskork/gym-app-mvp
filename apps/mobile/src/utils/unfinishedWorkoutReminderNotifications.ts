@@ -180,6 +180,7 @@ async function scheduleReplacement(input: {
   if (permissions.status !== 'granted') {
     await cancelStoredNotification(existing);
     setUnfinishedWorkoutReminderState(null);
+    setUnfinishedWorkoutRemindersEnabled(false);
     return;
   }
 
