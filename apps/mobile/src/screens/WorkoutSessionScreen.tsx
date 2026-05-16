@@ -198,7 +198,6 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
   const handleAddExercise = useCallback(() => {
     navigation.navigate('ExercisePicker', {
       addToSessionId: sessionId,
-      returnTo: 'WorkoutSession',
     });
   }, [navigation, sessionId]);
 
@@ -299,7 +298,6 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
                     navigation.navigate('ExercisePicker', {
                       swapSessionExerciseId: ex.id,
                       swapSessionId: sessionId,
-                      returnTo: 'WorkoutSession',
                     })
                   }
                 >

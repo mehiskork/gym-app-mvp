@@ -42,13 +42,6 @@ jest.mock('@expo/vector-icons', () => {
   };
 });
 
-jest.mock('../../features/today/TodayHero', () => {
-  const React = require('react');
-  return {
-    TodayHero: (props: unknown) => React.createElement('TodayHero', props),
-  };
-});
-
 jest.mock('../../features/today/TodayPrimaryAction', () => {
   const React = require('react');
   return {

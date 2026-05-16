@@ -36,7 +36,6 @@ export type RootStackParamList = {
         swapSessionExerciseId?: string;
         swapSessionId?: string;
         addToSessionId?: string;
-        returnTo?: 'WorkoutSession';
       }
     | undefined;
 

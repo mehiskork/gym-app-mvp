@@ -475,7 +475,6 @@ describe('WorkoutSessionScreen', () => {
     expect(navigation.navigate).toHaveBeenCalledWith('ExercisePicker', {
       swapSessionExerciseId: 'exercise-2',
       swapSessionId: 'session-6',
-      returnTo: 'WorkoutSession',
     });
   });
 
@@ -555,13 +554,11 @@ describe('WorkoutSessionScreen', () => {
     inlineAddExerciseButton?.props.onPress?.({} as never);
     expect(navigation.navigate).toHaveBeenCalledWith('ExercisePicker', {
       addToSessionId: 'session-2',
-      returnTo: 'WorkoutSession',
     });
     navigation.navigate.mockClear();
     footerAddExerciseButton?.props.onPress?.({} as never);
     expect(navigation.navigate).toHaveBeenCalledWith('ExercisePicker', {
       addToSessionId: 'session-2',
-      returnTo: 'WorkoutSession',
     });
 
     expect(finishButton?.props.variant).toBe('primary');
@@ -633,7 +630,6 @@ describe('WorkoutSessionScreen', () => {
     addExerciseButtons[0]?.props.onPress?.({} as never);
     expect(navigation.navigate).toHaveBeenCalledWith('ExercisePicker', {
       addToSessionId: 'session-7',
-      returnTo: 'WorkoutSession',
     });
   });
 

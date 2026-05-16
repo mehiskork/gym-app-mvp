@@ -3,7 +3,6 @@ export { BottomSheetModal } from './BottomSheetModal';
 export { Button } from './Button';
 export { Card } from './Card';
 export { EmptyState } from './EmptyState';
-export { Header } from './Header';
 export { IconButton } from './IconButton';
 export { IconChip } from './IconChip';
 export { ListRow } from './ListRow';
