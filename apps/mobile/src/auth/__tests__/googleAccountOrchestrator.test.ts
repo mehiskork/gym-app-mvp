@@ -9,6 +9,7 @@ import {
   setClaimedUserId,
 } from '../../db/appMetaRepo';
 import { listPendingOutboxOps } from '../../db/outboxRepo';
+import { resetSyncCursor } from '../../db/syncStateRepo';
 import { syncNow } from '../../sync/syncWorker';
 import { accountSessionStore } from '../accountSessionStore';
 import { deviceCredentialStore } from '../deviceCredentialStore';
@@ -36,6 +37,10 @@ jest.mock('../../db/appMetaRepo', () => ({
 
 jest.mock('../../db/outboxRepo', () => ({
   listPendingOutboxOps: jest.fn(),
+}));
+
+jest.mock('../../db/syncStateRepo', () => ({
+  resetSyncCursor: jest.fn(),
 }));
 
 jest.mock('../../sync/syncWorker', () => ({
@@ -137,6 +142,13 @@ describe('createGoogleAccountFromGuest', () => {
     expect((api.post as jest.Mock).mock.invocationCallOrder[1]).toBeLessThan(
       (accountSessionStore.set as jest.Mock).mock.invocationCallOrder[0],
     );
+    expect((accountSessionStore.set as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
+      (resetSyncCursor as jest.Mock).mock.invocationCallOrder[0],
+    );
+    expect((resetSyncCursor as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
+      (syncNow as jest.Mock).mock.invocationCallOrder[1],
+    );
+    expect(resetSyncCursor).toHaveBeenCalledTimes(1);
     expect(accountSessionStore.set).toHaveBeenCalledWith(
       expect.objectContaining({
         accessToken: 'firebase-id-token',
@@ -192,6 +204,7 @@ describe('createGoogleAccountFromGuest', () => {
     expect(setClaimedUserId).toHaveBeenCalledWith(
       'https://securetoken.google.com/gym-app-mvp-1d7f0|firebase-uid',
     );
+    expect(resetSyncCursor).toHaveBeenCalledTimes(1);
     expect(signOutFromGoogle).not.toHaveBeenCalled();
   });
 
@@ -204,6 +217,7 @@ describe('createGoogleAccountFromGuest', () => {
     await expect(createGoogleAccountFromGuest()).rejects.toThrow('CLAIM_INVALID');
 
     expect(accountSessionStore.set).not.toHaveBeenCalled();
+    expect(resetSyncCursor).not.toHaveBeenCalled();
     expect(signOutFromGoogle).toHaveBeenCalledTimes(1);
   });
 
@@ -225,6 +239,7 @@ describe('createGoogleAccountFromGuest', () => {
     expect(accountSessionStore.invalidate).toHaveBeenCalledWith('claim_account_deleted_remote');
     expect(signOutFromGoogle).toHaveBeenCalledTimes(1);
     expect(accountSessionStore.set).not.toHaveBeenCalled();
+    expect(resetSyncCursor).not.toHaveBeenCalled();
     expect(setClaimed).not.toHaveBeenCalled();
     expect(setClaimedUserId).not.toHaveBeenCalled();
     expect(syncNow).toHaveBeenCalledTimes(2);
@@ -242,6 +257,7 @@ describe('createGoogleAccountFromGuest', () => {
     expect(api.post).toHaveBeenCalledTimes(1);
     expect(api.post).toHaveBeenCalledWith('/claim/start');
     expect(accountSessionStore.set).not.toHaveBeenCalled();
+    expect(resetSyncCursor).not.toHaveBeenCalled();
     expect(signOutFromGoogle).toHaveBeenCalledTimes(1);
   });
 
@@ -253,6 +269,7 @@ describe('createGoogleAccountFromGuest', () => {
     await expect(createGoogleAccountFromGuest()).rejects.toThrow('Firebase token exchange failed.');
 
     expect(accountSessionStore.set).not.toHaveBeenCalled();
+    expect(resetSyncCursor).not.toHaveBeenCalled();
     expect(signOutFromGoogle).toHaveBeenCalledTimes(1);
   });
 
@@ -266,6 +283,7 @@ describe('createGoogleAccountFromGuest', () => {
     expect(api.post).not.toHaveBeenCalled();
     expect(signInWithGoogleForFirebase).not.toHaveBeenCalled();
     expect(accountSessionStore.set).not.toHaveBeenCalled();
+    expect(resetSyncCursor).not.toHaveBeenCalled();
   });
 
   it('stops before claim start when local state is already linked but account session is unavailable', async () => {
@@ -288,6 +306,7 @@ describe('createGoogleAccountFromGuest', () => {
 
     expect(setClaimed).toHaveBeenCalledWith(true);
     expect(accountSessionStore.set).not.toHaveBeenCalled();
+    expect(resetSyncCursor).not.toHaveBeenCalled();
     expect(signOutFromGoogle).toHaveBeenCalledTimes(1);
     expect(getMeWithAccessToken).toHaveBeenCalledWith('firebase-id-token');
   });

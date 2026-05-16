@@ -9,6 +9,7 @@ import {
   setClaimedUserId,
 } from '../db/appMetaRepo';
 import { listPendingOutboxOps } from '../db/outboxRepo';
+import { resetSyncCursor } from '../db/syncStateRepo';
 import { syncNow } from '../sync/syncWorker';
 import { accountSessionStore } from './accountSessionStore';
 import { deviceCredentialStore } from './deviceCredentialStore';
@@ -94,6 +95,7 @@ export async function createGoogleAccountFromGuest(): Promise<GoogleAccountSignI
     await getMeWithAccessToken(accountSession.accessToken);
     await accountSessionStore.set(accountSession);
     sessionStored = true;
+    resetSyncCursor();
 
     result = {
       userId: claimConfirm.userId,

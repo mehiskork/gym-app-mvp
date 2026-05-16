@@ -70,3 +70,14 @@ export function updateSyncState(patch: Partial<Omit<SyncState, 'id'>>) {
     values,
   );
 }
+
+export function resetSyncCursor() {
+  updateSyncState({
+    cursor: '0',
+    last_sync_at: null,
+    last_error: null,
+    backoff_until: null,
+    consecutive_failures: 0,
+    last_delta_count: 0,
+  });
+}

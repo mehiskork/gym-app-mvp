@@ -1,5 +1,5 @@
 import { exec, query } from '../db';
-import { getSyncState, normalizeCursor, updateSyncState } from '../syncStateRepo';
+import { getSyncState, normalizeCursor, resetSyncCursor, updateSyncState } from '../syncStateRepo';
 
 jest.mock('../db', () => ({
   exec: jest.fn(),
@@ -43,6 +43,19 @@ describe('syncStateRepo cursor handling', () => {
 
     expect(exec).toHaveBeenCalledWith(expect.stringContaining('UPDATE sync_state'), [
       'snapshot:abc',
+    ]);
+  });
+
+  it('resets cursor and sync bookkeeping for a fresh restore', () => {
+    resetSyncCursor();
+
+    expect(exec).toHaveBeenCalledWith(expect.stringContaining('UPDATE sync_state'), [
+      '0',
+      null,
+      null,
+      null,
+      0,
+      0,
     ]);
   });
 });
