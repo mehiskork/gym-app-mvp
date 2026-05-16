@@ -28,6 +28,46 @@ describe('dayExerciseRepo outbound sync enqueue coverage', () => {
     (enqueueOutboxOp as jest.Mock).mockReset();
   });
 
+  function mockDeleteDayWithRemainingDays(
+    remainingDays: Array<{ id: string; name: string | null }>,
+    snapshots: Record<string, Record<string, unknown>>,
+  ) {
+    (query as jest.Mock).mockImplementation((sql: string, params?: unknown[]) => {
+      if (sql.includes('SELECT program_week_id') && params?.[0] === 'day-1') {
+        return [{ program_week_id: 'week-1' }];
+      }
+      if (
+        sql.includes('FROM program_day_exercise') &&
+        sql.includes('program_day_id = ?') &&
+        sql.includes('deleted_at IS NULL') &&
+        params?.[0] === 'day-1'
+      ) {
+        return [];
+      }
+      if (sql.includes('FROM program_day') && sql.includes('deleted_at IS NOT NULL')) {
+        return [];
+      }
+      if (sql.includes('COALESCE(MIN(day_index), 0) AS min_idx')) {
+        return [{ min_idx: 1 }];
+      }
+      if (
+        sql.includes('SELECT id, name') &&
+        sql.includes('FROM program_day') &&
+        sql.includes('ORDER BY day_index ASC')
+      ) {
+        return remainingDays;
+      }
+      if (sql.includes('SELECT *') && sql.includes('FROM program_day')) {
+        const dayId = String(params?.[0] ?? '');
+        if (dayId === 'day-1') {
+          return [{ id: 'day-1', deleted_at: '2026-04-16 00:00:00', day_index: 0 }];
+        }
+        return snapshots[dayId] ? [snapshots[dayId]] : [];
+      }
+      return [];
+    });
+  }
+
   it('enqueues program_day upsert snapshot when renaming a day', () => {
     (query as jest.Mock).mockImplementation((sql: string, params?: unknown[]) => {
       if (sql.includes('SELECT *') && sql.includes('FROM program_day') && params?.[0] === 'day-1') {
@@ -329,5 +369,73 @@ describe('dayExerciseRepo outbound sync enqueue coverage', () => {
       8,
       expect.objectContaining({ entityType: 'program_day', entityId: 'day-3', opType: 'upsert' }),
     );
+  });
+
+  it('renames generated Session names after deleteDay compaction and upserts the sibling snapshot', () => {
+    mockDeleteDayWithRemainingDays([{ id: 'day-2', name: 'Session 2' }], {
+      'day-2': { id: 'day-2', name: 'Session 1', deleted_at: null, day_index: 1 },
+    });
+
+    deleteDay('day-1');
+
+    expect(exec).toHaveBeenCalledWith(expect.stringContaining('SET day_index = ?, name = ?'), [
+      1,
+      'Session 1',
+      'day-2',
+    ]);
+
+    const upsert = (enqueueOutboxOp as jest.Mock).mock.calls.find(
+      ([entry]) => entry.entityType === 'program_day' && entry.entityId === 'day-2',
+    )?.[0];
+    expect(upsert).toEqual(expect.objectContaining({ opType: 'upsert' }));
+    expect(JSON.parse(upsert.payloadJson).name).toBe('Session 1');
+  });
+
+  it('renames legacy Day names to the current Session naming convention after compaction', () => {
+    mockDeleteDayWithRemainingDays([{ id: 'day-2', name: 'Day 2' }], {
+      'day-2': { id: 'day-2', name: 'Session 1', deleted_at: null, day_index: 1 },
+    });
+
+    deleteDay('day-1');
+
+    expect(exec).toHaveBeenCalledWith(expect.stringContaining('SET day_index = ?, name = ?'), [
+      1,
+      'Session 1',
+      'day-2',
+    ]);
+  });
+
+  it('preserves custom day names after deleteDay compaction', () => {
+    mockDeleteDayWithRemainingDays(
+      [
+        { id: 'day-2', name: 'Push' },
+        { id: 'day-3', name: 'Leg Day' },
+      ],
+      {
+        'day-2': { id: 'day-2', name: 'Push', deleted_at: null, day_index: 1 },
+        'day-3': { id: 'day-3', name: 'Leg Day', deleted_at: null, day_index: 2 },
+      },
+    );
+
+    deleteDay('day-1');
+
+    expect(exec).toHaveBeenCalledWith(
+      "UPDATE program_day SET day_index = ?, updated_at = datetime('now') WHERE id = ?",
+      [1, 'day-2'],
+    );
+    expect(exec).toHaveBeenCalledWith(
+      "UPDATE program_day SET day_index = ?, updated_at = datetime('now') WHERE id = ?",
+      [2, 'day-3'],
+    );
+    expect(exec).not.toHaveBeenCalledWith(expect.stringContaining('SET day_index = ?, name = ?'), [
+      expect.any(Number),
+      'Session 1',
+      'day-2',
+    ]);
+
+    const pushUpsert = (enqueueOutboxOp as jest.Mock).mock.calls.find(
+      ([entry]) => entry.entityType === 'program_day' && entry.entityId === 'day-2',
+    )?.[0];
+    expect(JSON.parse(pushUpsert.payloadJson).name).toBe('Push');
   });
 });

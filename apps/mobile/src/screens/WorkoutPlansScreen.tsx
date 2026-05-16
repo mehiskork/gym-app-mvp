@@ -137,22 +137,18 @@ export function WorkoutPlansScreen() {
               scrollEnabled={false}
               ItemSeparatorComponent={() => <View style={{ height: tokens.spacing.sm }} />}
               renderItem={({ item }) => {
-                const hasSessions = item.sessionCount > 0;
-
                 return (
                   <ListRow
                     title={item.name}
                     subtitle={formatSessionCountSubtitle(item.sessionCount)}
-                    showChevron={hasSessions}
+                    showChevron
                     left={
                       <IconChip variant="primarySoft" size={40}>
                         <Ionicons name="barbell-outline" size={18} color={colors.primary} />
                       </IconChip>
                     }
-                    onPress={
-                      hasSessions
-                        ? () => navigation.navigate('WorkoutPlanDetail', { workoutPlanId: item.id })
-                        : undefined
+                    onPress={() =>
+                      navigation.navigate('WorkoutPlanDetail', { workoutPlanId: item.id })
                     }
                     right={
                       <IconButton

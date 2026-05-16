@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -13,6 +13,7 @@ import {
   ListRow,
   IconChip,
   Button,
+  IconButton,
   Input,
   DestructiveConfirmDialog,
   Snackbar,
@@ -32,6 +33,7 @@ import {
   type WorkoutPlanRow,
   updateWorkoutPlanName,
 } from '../db/workoutPlanRepo';
+import { deleteDay } from '../db/dayExerciseRepo';
 import {
   createSessionFromPlanDay,
   getInProgressSession,
@@ -40,6 +42,10 @@ import {
 } from '../db/workoutSessionRepo';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'WorkoutPlanDetail'>;
+
+function getSessionTitle(day: WorkoutPlanDayRow): string {
+  return day.name ?? `Session ${day.day_index}`;
+}
 
 export function WorkoutPlanDetailScreen({ route, navigation }: Props) {
   const { workoutPlanId } = route.params;
@@ -50,6 +56,7 @@ export function WorkoutPlanDetailScreen({ route, navigation }: Props) {
   const [planName, setPlanName] = useState('');
   const [pickerNotice, setPickerNotice] = useState<string | null>(null);
   const [deletePlanVisible, setDeletePlanVisible] = useState(false);
+  const [deleteSessionTarget, setDeleteSessionTarget] = useState<WorkoutPlanDayRow | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const { colors } = useAppTheme();
   const load = useCallback(() => {
@@ -102,6 +109,19 @@ export function WorkoutPlanDetailScreen({ route, navigation }: Props) {
     setDeletePlanVisible(false);
     navigation.goBack();
   }, [navigation, workoutPlanId]);
+
+  const handleDeleteSession = useCallback(() => {
+    if (!deleteSessionTarget) return;
+
+    try {
+      deleteDay(deleteSessionTarget.id);
+      setDeleteSessionTarget(null);
+      load();
+    } catch {
+      setDeleteSessionTarget(null);
+      setFeedback("Couldn't complete that action. Try again.");
+    }
+  }, [deleteSessionTarget, load]);
 
   const sessionCountLabel = `${days.length} session${days.length === 1 ? '' : 's'}`;
   const isPickerMode = mode === 'pickSessionToStart';
@@ -173,36 +193,91 @@ export function WorkoutPlanDetailScreen({ route, navigation }: Props) {
               <Text variant={isPickerMode ? 'title' : 'label'} color={tokens.colors.mutedText}>
                 {isPickerMode ? 'Pick a session' : 'Sessions'}
               </Text>
-              {days.map((day) => (
-                <ListRow
-                  key={day.id}
-                  title={day.name ?? `Session ${day.day_index}`}
-                  subtitle={
-                    isPickerMode
-                      ? formatLastCompletedLabel(lastCompletedByDayId[day.id] ?? null)
-                      : 'Tap to edit'
-                  }
-                  left={
-                    <IconChip variant="primarySoft" size={40}>
-                      <Ionicons name="calendar-outline" size={18} color={colors.primary} />
-                    </IconChip>
-                  }
-                  right={
-                    isPickerMode && recommendedDayId === day.id ? (
-                      <Text variant="label" color={tokens.colors.mutedText}>
-                        Recommended
-                      </Text>
-                    ) : undefined
-                  }
-                  style={
-                    isPickerMode && recommendedDayId === day.id
-                      ? { borderColor: colors.primary, backgroundColor: tokens.colors.surface2 }
-                      : undefined
-                  }
-                  showChevron
-                  onPress={() => handleDayPress(day.id)}
-                />
-              ))}
+              {days.map((day) => {
+                const title = getSessionTitle(day);
+
+                if (isPickerMode) {
+                  return (
+                    <ListRow
+                      key={day.id}
+                      title={title}
+                      subtitle={formatLastCompletedLabel(lastCompletedByDayId[day.id] ?? null)}
+                      left={
+                        <IconChip variant="primarySoft" size={40}>
+                          <Ionicons name="calendar-outline" size={18} color={colors.primary} />
+                        </IconChip>
+                      }
+                      right={
+                        recommendedDayId === day.id ? (
+                          <Text variant="label" color={tokens.colors.mutedText}>
+                            Recommended
+                          </Text>
+                        ) : undefined
+                      }
+                      style={
+                        recommendedDayId === day.id
+                          ? { borderColor: colors.primary, backgroundColor: tokens.colors.surface2 }
+                          : undefined
+                      }
+                      showChevron
+                      onPress={() => handleDayPress(day.id)}
+                    />
+                  );
+                }
+
+                return (
+                  <View
+                    key={day.id}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: tokens.spacing.sm,
+                      borderRadius: tokens.radius.md,
+                      borderWidth: 1,
+                      borderColor: tokens.colors.border,
+                      backgroundColor: tokens.colors.surface,
+                      padding: tokens.spacing.md,
+                    }}
+                  >
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={title}
+                      onPress={() => handleDayPress(day.id)}
+                      style={({ pressed }) => [
+                        {
+                          flex: 1,
+                          minHeight: tokens.touchTargetMin,
+                          justifyContent: 'center',
+                        },
+                        pressed ? { opacity: 0.85 } : null,
+                      ]}
+                    >
+                      <View
+                        style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          gap: tokens.spacing.md,
+                        }}
+                      >
+                        <IconChip variant="primarySoft" size={40}>
+                          <Ionicons name="calendar-outline" size={18} color={colors.primary} />
+                        </IconChip>
+                        <View style={{ flex: 1, gap: tokens.spacing.xs }}>
+                          <Text variant="subtitle">{title}</Text>
+                          <Text variant="muted">Tap to edit</Text>
+                        </View>
+                      </View>
+                    </Pressable>
+                    <IconButton
+                      onPress={() => setDeleteSessionTarget(day)}
+                      accessibilityLabel={`Delete ${title}`}
+                      variant="danger"
+                      icon={<Ionicons name="trash-outline" size={20} />}
+                    />
+                    <Ionicons name="chevron-forward" size={18} color={tokens.colors.mutedText} />
+                  </View>
+                );
+              })}
             </View>
           ) : (
             <Card>
@@ -238,6 +313,19 @@ export function WorkoutPlanDetailScreen({ route, navigation }: Props) {
           />
         </Card>
       )}
+      <DestructiveConfirmDialog
+        visible={deleteSessionTarget !== null}
+        title="Delete session?"
+        body={
+          deleteSessionTarget
+            ? `“${getSessionTitle(deleteSessionTarget)}” will be removed from this plan. Workout history is not deleted.`
+            : ''
+        }
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        onClose={() => setDeleteSessionTarget(null)}
+        onConfirm={handleDeleteSession}
+      />
       <DestructiveConfirmDialog
         visible={deletePlanVisible}
         title="Delete workout plan?"

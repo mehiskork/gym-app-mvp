@@ -62,6 +62,10 @@ jest.mock('../../db/workoutPlanRepo', () => ({
   updateWorkoutPlanName: jest.fn(),
 }));
 
+jest.mock('../../db/dayExerciseRepo', () => ({
+  deleteDay: jest.fn(),
+}));
+
 jest.mock('../../db/workoutSessionRepo', () => ({
   createSessionFromPlanDay: jest.fn(),
   getInProgressSession: jest.fn(),
@@ -70,9 +74,10 @@ jest.mock('../../db/workoutSessionRepo', () => ({
 }));
 
 import React from 'react';
+import { Pressable } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 
-import { Button, DestructiveConfirmDialog, EmptyState, Input, ListRow } from '../../ui';
+import { Button, DestructiveConfirmDialog, EmptyState, IconButton, Input, ListRow } from '../../ui';
 import { WorkoutPlanDetailScreen } from '../WorkoutPlanDetailScreen';
 import {
   createSessionFromPlanDay,
@@ -80,7 +85,12 @@ import {
   getLastCompletedAtByPlanDay,
   getMostRecentCompletedDayIdForPlan,
 } from '../../db/workoutSessionRepo';
-import { updateWorkoutPlanName } from '../../db/workoutPlanRepo';
+import { deleteDay } from '../../db/dayExerciseRepo';
+import {
+  getWorkoutPlanById,
+  listDaysForWorkoutPlan,
+  updateWorkoutPlanName,
+} from '../../db/workoutPlanRepo';
 
 type Nav = {
   navigate: jest.Mock;
@@ -125,6 +135,11 @@ describe('WorkoutPlanDetailScreen', () => {
     (getMostRecentCompletedDayIdForPlan as jest.Mock).mockReset();
     (getMostRecentCompletedDayIdForPlan as jest.Mock).mockReturnValue(null);
     (updateWorkoutPlanName as jest.Mock).mockReset();
+    (getWorkoutPlanById as jest.Mock).mockReset();
+    (getWorkoutPlanById as jest.Mock).mockReturnValue(plan);
+    (listDaysForWorkoutPlan as jest.Mock).mockReset();
+    (listDaysForWorkoutPlan as jest.Mock).mockReturnValue([]);
+    (deleteDay as jest.Mock).mockReset();
 
     (useFocusEffect as jest.Mock).mockReset();
     (useFocusEffect as jest.Mock).mockImplementation((callback: () => void) => callback());
@@ -135,6 +150,8 @@ describe('WorkoutPlanDetailScreen', () => {
     mode?: 'edit' | 'pickSessionToStart';
     planNameState?: string;
     lastCompletedByDayId?: Record<string, string>;
+    deleteSessionTarget?: Day | null;
+    deleteSessionSetter?: jest.Mock;
     navigation?: Nav;
   }) {
     const {
@@ -142,6 +159,8 @@ describe('WorkoutPlanDetailScreen', () => {
       mode = 'edit',
       planNameState = plan.name,
       lastCompletedByDayId = {},
+      deleteSessionTarget,
+      deleteSessionSetter = jest.fn(),
       navigation = { navigate: jest.fn(), goBack: jest.fn(), replace: jest.fn() },
     } = input;
 
@@ -149,6 +168,11 @@ describe('WorkoutPlanDetailScreen', () => {
     useStateMock.mockImplementationOnce(() => [days, jest.fn()]);
     useStateMock.mockImplementationOnce(() => [lastCompletedByDayId, jest.fn()]);
     useStateMock.mockImplementationOnce(() => [planNameState, jest.fn()]);
+    if (deleteSessionTarget !== undefined) {
+      useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+      useStateMock.mockImplementationOnce(() => [false, jest.fn()]);
+      useStateMock.mockImplementationOnce(() => [deleteSessionTarget, deleteSessionSetter]);
+    }
 
     const element = WorkoutPlanDetailScreen({
       navigation,
@@ -169,10 +193,9 @@ describe('WorkoutPlanDetailScreen', () => {
     const inputs = findElementsByType<InputProps>(element, Input);
     expect(inputs[0]?.props.label).toBe('Plan name');
 
-    type ListRowProps = React.ComponentProps<typeof ListRow>;
-    const rows = findElementsByType<ListRowProps>(element, ListRow);
-    expect(rows[0]?.props.title).toBe('Session 1');
-    expect(rows[0]?.props.subtitle).toBe('Tap to edit');
+    const serialized = JSON.stringify(element);
+    expect(serialized).toContain('Session 1');
+    expect(serialized).toContain('Tap to edit');
   });
 
   it('persists plan name edits from the inline input on blur', () => {
@@ -194,11 +217,118 @@ describe('WorkoutPlanDetailScreen', () => {
       days: [{ id: 'day-1', name: 'Session 1', day_index: 1 }],
     });
 
-    type ListRowProps = React.ComponentProps<typeof ListRow>;
-    const rows = findElementsByType<ListRowProps>(element, ListRow);
-    rows[0]?.props.onPress?.({} as never);
+    type PressableProps = React.ComponentProps<typeof Pressable>;
+    const rows = findElementsByType<PressableProps>(element, Pressable);
+    const sessionRow = rows.find((row) => row.props.accessibilityLabel === 'Session 1');
+    sessionRow?.props.onPress?.({} as never);
 
     expect(navigation.navigate).toHaveBeenCalledWith('DayDetail', { dayId: 'day-1', mode: 'edit' });
+  });
+
+  it('shows delete icons in edit mode session rows', () => {
+    const { element } = renderScreen({
+      days: [{ id: 'day-1', name: 'Session 1', day_index: 1 }],
+    });
+
+    type IconButtonProps = React.ComponentProps<typeof IconButton>;
+    const iconButtons = findElementsByType<IconButtonProps>(element, IconButton);
+
+    expect(
+      iconButtons.some((button) => button.props.accessibilityLabel === 'Delete Session 1'),
+    ).toBe(true);
+  });
+
+  it('does not show delete icons in pickSessionToStart mode', () => {
+    const { element } = renderScreen({
+      days: [{ id: 'day-1', name: 'Session 1', day_index: 1 }],
+      mode: 'pickSessionToStart',
+    });
+
+    type IconButtonProps = React.ComponentProps<typeof IconButton>;
+    const iconButtons = findElementsByType<IconButtonProps>(element, IconButton);
+
+    expect(
+      iconButtons.some((button) => button.props.accessibilityLabel === 'Delete Session 1'),
+    ).toBe(false);
+  });
+
+  it('pressing the session delete icon opens confirmation and does not navigate', () => {
+    const setDeleteSessionTarget = jest.fn();
+    const { element, navigation } = renderScreen({
+      days: [{ id: 'day-1', name: 'Session 1', day_index: 1 }],
+      deleteSessionTarget: null,
+      deleteSessionSetter: setDeleteSessionTarget,
+    });
+
+    type IconButtonProps = React.ComponentProps<typeof IconButton>;
+    const iconButtons = findElementsByType<IconButtonProps>(element, IconButton);
+    const deleteButton = iconButtons.find(
+      (button) => button.props.accessibilityLabel === 'Delete Session 1',
+    );
+    if (!deleteButton?.props.onPress) throw new Error('Expected session delete onPress.');
+
+    deleteButton.props.onPress();
+
+    expect(setDeleteSessionTarget).toHaveBeenCalledWith({
+      id: 'day-1',
+      name: 'Session 1',
+      day_index: 1,
+    });
+    expect(navigation.navigate).not.toHaveBeenCalled();
+  });
+
+  it('shows session delete confirmation copy', () => {
+    const { element } = renderScreen({
+      days: [{ id: 'day-1', name: 'Session 1', day_index: 1 }],
+      deleteSessionTarget: { id: 'day-1', name: 'Session 1', day_index: 1 },
+    });
+
+    type ConfirmProps = React.ComponentProps<typeof DestructiveConfirmDialog>;
+    const dialogs = findElementsByType<ConfirmProps>(element, DestructiveConfirmDialog);
+    const dialog = dialogs.find((entry) => entry.props.title === 'Delete session?');
+
+    expect(dialog?.props.visible).toBe(true);
+    expect(dialog?.props.body).toBe(
+      '“Session 1” will be removed from this plan. Workout history is not deleted.',
+    );
+  });
+
+  it('cancelling session delete keeps the session', () => {
+    const setDeleteSessionTarget = jest.fn();
+    const { element } = renderScreen({
+      days: [{ id: 'day-1', name: 'Session 1', day_index: 1 }],
+      deleteSessionTarget: { id: 'day-1', name: 'Session 1', day_index: 1 },
+      deleteSessionSetter: setDeleteSessionTarget,
+    });
+
+    type ConfirmProps = React.ComponentProps<typeof DestructiveConfirmDialog>;
+    const dialogs = findElementsByType<ConfirmProps>(element, DestructiveConfirmDialog);
+    const dialog = dialogs.find((entry) => entry.props.title === 'Delete session?');
+    dialog?.props.onClose();
+
+    expect(deleteDay).not.toHaveBeenCalled();
+    expect(setDeleteSessionTarget).toHaveBeenCalledWith(null);
+  });
+
+  it('confirming session delete calls deleteDay and reloads without leaving detail', () => {
+    const setDeleteSessionTarget = jest.fn();
+    const navigation: Nav = { navigate: jest.fn(), goBack: jest.fn(), replace: jest.fn() };
+    const { element } = renderScreen({
+      days: [{ id: 'day-1', name: 'Session 1', day_index: 1 }],
+      deleteSessionTarget: { id: 'day-1', name: 'Session 1', day_index: 1 },
+      deleteSessionSetter: setDeleteSessionTarget,
+      navigation,
+    });
+
+    type ConfirmProps = React.ComponentProps<typeof DestructiveConfirmDialog>;
+    const dialogs = findElementsByType<ConfirmProps>(element, DestructiveConfirmDialog);
+    const dialog = dialogs.find((entry) => entry.props.title === 'Delete session?');
+    dialog?.props.onConfirm();
+
+    expect(deleteDay).toHaveBeenCalledWith('day-1');
+    expect(setDeleteSessionTarget).toHaveBeenCalledWith(null);
+    expect(listDaysForWorkoutPlan).toHaveBeenCalledTimes(2);
+    expect(navigation.goBack).not.toHaveBeenCalled();
   });
 
   it('shows session empty state when there are no sessions', () => {
@@ -343,8 +473,9 @@ describe('WorkoutPlanDetailScreen', () => {
 
     type ConfirmProps = React.ComponentProps<typeof DestructiveConfirmDialog>;
     const dialogs = findElementsByType<ConfirmProps>(element, DestructiveConfirmDialog);
+    const dialog = dialogs.find((entry) => entry.props.title === 'Delete workout plan?');
 
-    expect(dialogs[0]?.props.body).toBe(
+    expect(dialog?.props.body).toBe(
       'This deletes the plan from TrainFrame and syncs the deletion across your devices. Workout history is not deleted.',
     );
   });

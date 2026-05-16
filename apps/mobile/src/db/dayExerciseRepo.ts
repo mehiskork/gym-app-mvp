@@ -116,6 +116,11 @@ function normalizeDeletedDayIndices(programWeekId: string) {
   }
 }
 
+function isGeneratedSessionName(name: string | null | undefined): boolean {
+  if (name == null) return true;
+  return /^(Day|Session)\s-?\d+$/i.test(name.trim());
+}
+
 function normalizeDeletedExercisePositions(dayId: string) {
   // Put deleted exercises into a far-negative "graveyard" so they never collide with temp -1..-N.
   const deleted = query<{ id: string }>(
@@ -444,9 +449,9 @@ export function deleteDay(dayId: string) {
       [minIdx - 1, dayId],
     );
 
-    const remaining = query<{ id: string }>(
+    const remaining = query<{ id: string; name: string | null }>(
       `
-      SELECT id
+      SELECT id, name
       FROM program_day
       WHERE program_week_id = ? AND deleted_at IS NULL
       ORDER BY day_index ASC;
@@ -459,10 +464,18 @@ export function deleteDay(dayId: string) {
     }
 
     for (let i = 0; i < remaining.length; i += 1) {
-      exec("UPDATE program_day SET day_index = ?, updated_at = datetime('now') WHERE id = ?", [
-        i + 1,
-        remaining[i].id,
-      ]);
+      const nextIndex = i + 1;
+      if (isGeneratedSessionName(remaining[i].name)) {
+        exec(
+          "UPDATE program_day SET day_index = ?, name = ?, updated_at = datetime('now') WHERE id = ?",
+          [nextIndex, `Session ${nextIndex}`, remaining[i].id],
+        );
+      } else {
+        exec("UPDATE program_day SET day_index = ?, updated_at = datetime('now') WHERE id = ?", [
+          nextIndex,
+          remaining[i].id,
+        ]);
+      }
     }
     for (const dayExerciseId of dayExerciseIds) {
       const plannedSetIds = plannedSetIdsByDayExercise.get(dayExerciseId) ?? [];

@@ -258,13 +258,15 @@ describe('WorkoutPlansScreen', () => {
     });
   });
 
-  it('shows session count subtitles and disables zero-session plan navigation', () => {
+  it('shows session count subtitles and opens zero-session plans', () => {
     const plans = [
       { id: 'plan-1', name: 'Plan A', description: null, is_template: 0, sessionCount: 1 },
       { id: 'plan-2', name: 'Plan B', description: null, is_template: 0, sessionCount: 4 },
       { id: 'plan-3', name: 'Plan C', description: null, is_template: 0, sessionCount: 0 },
     ];
 
+    const navigation: Nav = { navigate: jest.fn() };
+    (useNavigation as jest.Mock).mockReturnValue(navigation);
     useStateMock.mockImplementationOnce(() => [plans, jest.fn()]);
 
     const element = WorkoutPlansScreen();
@@ -295,8 +297,12 @@ describe('WorkoutPlansScreen', () => {
     expect(makeRow(0).props.subtitle).toBe('1 session');
     expect(makeRow(1).props.subtitle).toBe('4 sessions');
     expect(makeRow(2).props.subtitle).toBe('No sessions yet');
-    expect(makeRow(2).props.showChevron).toBe(false);
-    expect(makeRow(2).props.onPress).toBeUndefined();
+    expect(makeRow(2).props.showChevron).toBe(true);
+    makeRow(2).props.onPress?.();
+
+    expect(navigation.navigate).toHaveBeenCalledWith('WorkoutPlanDetail', {
+      workoutPlanId: 'plan-3',
+    });
   });
 
   it('creates next numbered plan and navigates to detail', () => {
