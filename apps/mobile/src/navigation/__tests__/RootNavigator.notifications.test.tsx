@@ -298,4 +298,25 @@ describe('RootNavigator unfinished workout notification handling', () => {
       ]),
     );
   });
+
+  it('uses Session copy for the DayDetail route title', () => {
+    renderRootNavigator();
+
+    expect(mockStackScreens).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: 'DayDetail',
+          options: expect.objectContaining({ title: 'Session' }),
+        }),
+      ]),
+    );
+    expect(mockStackScreens).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: 'DayDetail',
+          options: expect.objectContaining({ title: 'Day' }),
+        }),
+      ]),
+    );
+  });
 });

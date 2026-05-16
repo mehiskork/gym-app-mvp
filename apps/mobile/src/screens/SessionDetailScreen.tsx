@@ -194,7 +194,7 @@ export function SessionDetailScreen({ route, navigation }: Props) {
                     <Text variant="muted">Set {s.set_index}</Text>
                     <Text>
                       {(s.weight ?? 0).toString()} × {(s.reps ?? 0).toString()}
-                      {s.is_completed === 1 ? '' : ' (edit)'}
+                      {s.is_completed === 1 ? '' : ' (incomplete)'}
                     </Text>
                   </View>
                 ))
