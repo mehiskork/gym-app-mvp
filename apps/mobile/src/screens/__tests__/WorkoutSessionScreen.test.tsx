@@ -117,7 +117,7 @@ import { TAB_ROUTES } from '../../navigation/routes';
 import { CardioSummaryEditor } from '../../features/workoutSession/CardioSummaryEditor';
 import { ExerciseCard } from '../../features/workoutSession/ExerciseCard';
 import { SetRow } from '../../features/workoutSession/SetRow';
-import { Button, Card, IconButton, Text } from '../../ui';
+import { Button, Card, EmptyState, IconButton, Text } from '../../ui';
 import { clearRestTimer, getWorkoutLoggerData, updateWorkoutSet } from '../../db/workoutLoggerRepo';
 import { getSettings } from '../../db/settingsRepo';
 import { tokens } from '../../theme/tokens';
@@ -479,7 +479,7 @@ describe('WorkoutSessionScreen', () => {
     });
   });
 
-  it('renders add exercise next to finish workout in the footer and opens the finish sheet', () => {
+  it('renders inline empty-state add exercise and footer add exercise next to finish workout', () => {
     const session = {
       id: 'session-2',
       title: 'Leg Day',
@@ -524,8 +524,18 @@ describe('WorkoutSessionScreen', () => {
 
     type ButtonProps = React.ComponentProps<typeof Button>;
     const buttons = findElementsByType(element, Button) as Array<React.ReactElement<ButtonProps>>;
-    const addExerciseButton = buttons.find((button) => button.props.title === 'Add exercise');
+    const footerAddExerciseButton = buttons.find((button) => button.props.title === 'Add exercise');
     const finishButton = buttons.find((button) => button.props.title === 'Finish workout');
+    type EmptyStateProps = React.ComponentProps<typeof EmptyState>;
+    const emptyStates = findElementsByType(element, EmptyState) as Array<
+      React.ReactElement<EmptyStateProps>
+    >;
+    const inlineButtons = findElementsByType(emptyStates[0]?.props.action, Button) as Array<
+      React.ReactElement<ButtonProps>
+    >;
+    const inlineAddExerciseButton = inlineButtons.find(
+      (button) => button.props.title === 'Add exercise',
+    );
     const views = findElementsByType(element, View) as Array<
       React.ReactElement<{ style?: StyleProp<ViewStyle> }>
     >;
@@ -534,12 +544,21 @@ describe('WorkoutSessionScreen', () => {
       return style?.position === 'absolute' && style?.borderTopWidth === 1;
     });
 
-    expect(addExerciseButton?.props.variant).toBe('secondary');
+    expect(emptyStates[0]?.props.title).toBe('No exercises yet');
+    expect(emptyStates[0]?.props.description).toBe('Add exercises to start logging your sets.');
+    expect(inlineAddExerciseButton?.props.variant).toBe('secondary');
+    expect(footerAddExerciseButton?.props.variant).toBe('secondary');
     expect(footerView).toBeDefined();
     expect(
       (StyleSheet.flatten(footerView?.props.style) as ViewStyle | undefined)?.flexDirection,
     ).toBe('row');
-    addExerciseButton?.props.onPress?.({} as never);
+    inlineAddExerciseButton?.props.onPress?.({} as never);
+    expect(navigation.navigate).toHaveBeenCalledWith('ExercisePicker', {
+      addToSessionId: 'session-2',
+      returnTo: 'WorkoutSession',
+    });
+    navigation.navigate.mockClear();
+    footerAddExerciseButton?.props.onPress?.({} as never);
     expect(navigation.navigate).toHaveBeenCalledWith('ExercisePicker', {
       addToSessionId: 'session-2',
       returnTo: 'WorkoutSession',
@@ -549,6 +568,73 @@ describe('WorkoutSessionScreen', () => {
     finishButton?.props.onPress?.({} as never);
 
     expect(setFinishOpen).toHaveBeenCalledWith(true);
+  });
+
+  it('does not render the inline empty-state action when exercises exist', () => {
+    const session = {
+      id: 'session-7',
+      title: 'Push Day',
+      status: 'in_progress',
+      started_at: '2024-01-07T00:00:00Z',
+      rest_timer_end_at: null,
+      rest_timer_seconds: null,
+      rest_timer_label: null,
+    };
+
+    const exercises = [
+      {
+        id: 'exercise-1',
+        exercise_id: 'bench-press',
+        exercise_name: 'Bench Press',
+        position: 1,
+        sets: [],
+      },
+    ];
+
+    useStateMock.mockImplementationOnce(() => [session, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [exercises, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [0, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [
+      {
+        defaultRestSeconds: 120,
+        autoStartRestTimer: true,
+        restTimerVibration: true,
+        keepScreenOn: true,
+        restTimerNotifications: false,
+      },
+      jest.fn(),
+    ]);
+    useStateMock.mockImplementationOnce(() => [false, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [false, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [{ visible: false, payload: null }, jest.fn()]);
+    (getWorkoutLoggerData as jest.Mock).mockReturnValue({ session, exercises });
+
+    const navigation: Nav = {
+      navigate: jest.fn(),
+      dispatch: jest.fn(),
+      setOptions: jest.fn(),
+      addListener: jest.fn(),
+    };
+    const element = WorkoutSessionScreen({
+      navigation,
+      route: { key: 'WorkoutSession', name: 'WorkoutSession', params: { sessionId: 'session-7' } },
+    } as never);
+
+    type EmptyStateProps = React.ComponentProps<typeof EmptyState>;
+    const emptyStates = findElementsByType(element, EmptyState) as Array<
+      React.ReactElement<EmptyStateProps>
+    >;
+    type ButtonProps = React.ComponentProps<typeof Button>;
+    const buttons = findElementsByType(element, Button) as Array<React.ReactElement<ButtonProps>>;
+    const addExerciseButtons = buttons.filter((button) => button.props.title === 'Add exercise');
+
+    expect(emptyStates).toHaveLength(0);
+    expect(addExerciseButtons).toHaveLength(1);
+    addExerciseButtons[0]?.props.onPress?.({} as never);
+    expect(navigation.navigate).toHaveBeenCalledWith('ExercisePicker', {
+      addToSessionId: 'session-7',
+      returnTo: 'WorkoutSession',
+    });
   });
 
   it('does not render the overall sets counter in the header', () => {

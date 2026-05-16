@@ -195,6 +195,13 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
     setFinishOpen(false);
   }, [isFinishing]);
 
+  const handleAddExercise = useCallback(() => {
+    navigation.navigate('ExercisePicker', {
+      addToSessionId: sessionId,
+      returnTo: 'WorkoutSession',
+    });
+  }, [navigation, sessionId]);
+
   const handleWorkoutNoteChange = useCallback(
     (value: string) => {
       const normalized = value.slice(0, MAX_WORKOUT_NOTE_LENGTH);
@@ -257,6 +264,14 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
                 icon={<Ionicons name="barbell-outline" size={24} color={colors.primary} />}
                 title="No exercises yet"
                 description="Add exercises to start logging your sets."
+                action={
+                  <Button
+                    title="Add exercise"
+                    variant="secondary"
+                    disabled={session.status !== 'in_progress'}
+                    onPress={handleAddExercise}
+                  />
+                }
               />
             </Card>
           ) : (
@@ -389,12 +404,7 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
             title="Add exercise"
             variant="secondary"
             disabled={session.status !== 'in_progress'}
-            onPress={() =>
-              navigation.navigate('ExercisePicker', {
-                addToSessionId: sessionId,
-                returnTo: 'WorkoutSession',
-              })
-            }
+            onPress={handleAddExercise}
             style={{ height: CTA_HEIGHT, flex: 1 }}
           />
           <View style={{ width: tokens.spacing.sm }} />
