@@ -349,6 +349,14 @@ function pressables(node: React.ReactNode) {
   return findElements(node, (element) => element.type === 'Pressable');
 }
 
+function latestAlertButtons() {
+  const alertCalls = (Alert.alert as jest.Mock).mock.calls;
+  const latestCall = alertCalls[alertCalls.length - 1];
+  return latestCall?.[2] as
+    | Array<{ text: string; style?: string; onPress?: () => void }>
+    | undefined;
+}
+
 describe('SettingsScreen account interactions', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -709,6 +717,98 @@ describe('SettingsScreen account interactions', () => {
     );
   });
 
+  it('shows signed-in Switch account and opens destructive native confirmation', () => {
+    const tree = expandTree(
+      renderSettingsScreen({
+        accountState: 'linked_with_usable_account',
+        accountSession: { accessToken: 'token', email: 'user@example.test' },
+      }),
+    );
+    const switchButton = buttons(tree).find((button) => button.props.title === 'Switch account');
+
+    expect(switchButton).toBeDefined();
+
+    switchButton?.props.onPress();
+
+    expect(Alert.alert).toHaveBeenCalledWith(
+      'Switch account on this device?',
+      'Switching accounts clears local synced data first. Continue to a safe guest state before signing in again?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        expect.objectContaining({
+          text: 'Continue',
+          style: 'destructive',
+          onPress: expect.any(Function),
+        }),
+      ],
+    );
+    expect(resetToGuestBootstrap).not.toHaveBeenCalled();
+    expect(signOutFromGoogle).not.toHaveBeenCalled();
+    expect(createGoogleAccountFromGuest).not.toHaveBeenCalled();
+  });
+
+  it('canceling Switch account confirmation does not clear data or start Google sign-in', () => {
+    const tree = expandTree(
+      renderSettingsScreen({
+        accountState: 'linked_with_usable_account',
+        accountSession: { accessToken: 'token', email: 'user@example.test' },
+      }),
+    );
+    const switchButton = buttons(tree).find((button) => button.props.title === 'Switch account');
+
+    switchButton?.props.onPress();
+    latestAlertButtons()
+      ?.find((button) => button.text === 'Cancel')
+      ?.onPress?.();
+
+    expect(resetToGuestBootstrap).not.toHaveBeenCalled();
+    expect(signOutFromGoogle).not.toHaveBeenCalled();
+    expect(createGoogleAccountFromGuest).not.toHaveBeenCalled();
+    expect(reconnectGoogleAccount).not.toHaveBeenCalled();
+  });
+
+  it('confirming Switch account uses the destructive sign-out and local reset path', async () => {
+    const setAccountBusy = jest.fn();
+    useStateMock.mockReset();
+    useStateMock.mockImplementation((initial: unknown) => [initial, jest.fn()]);
+    useStateMock
+      .mockImplementationOnce(() => [false, jest.fn()])
+      .mockImplementationOnce(() => ['linked_with_usable_account', jest.fn()])
+      .mockImplementationOnce(() => [
+        { accessToken: 'token', email: 'user@example.test' },
+        jest.fn(),
+      ])
+      .mockImplementationOnce(() => [false, setAccountBusy])
+      .mockImplementationOnce(() => [null, jest.fn()])
+      .mockImplementationOnce(() => [false, jest.fn()])
+      .mockImplementationOnce(() => ['review', jest.fn()])
+      .mockImplementationOnce(() => ['', jest.fn()])
+      .mockImplementationOnce(() => [false, jest.fn()])
+      .mockImplementationOnce(() => [null, jest.fn()])
+      .mockImplementationOnce((initial: unknown) => [initial, jest.fn()])
+      .mockImplementationOnce(() => [false, jest.fn()])
+      .mockImplementationOnce(() => [null, jest.fn()]);
+
+    const tree = expandTree(SettingsScreen());
+    const switchButton = buttons(tree).find((button) => button.props.title === 'Switch account');
+
+    switchButton?.props.onPress();
+    latestAlertButtons()
+      ?.find((button) => button.text === 'Continue')
+      ?.onPress?.();
+    for (let i = 0; i < 5; i += 1) {
+      await Promise.resolve();
+    }
+
+    expect(signOutFromGoogle).toHaveBeenCalledTimes(1);
+    expect(resetToGuestBootstrap).toHaveBeenCalledTimes(1);
+    expect(resolveLocalAccountState).toHaveBeenCalled();
+    expect(setAccountBusy).toHaveBeenCalledWith(true);
+    expect(setAccountBusy).toHaveBeenLastCalledWith(false);
+    expect(createGoogleAccountFromGuest).not.toHaveBeenCalled();
+    expect(reconnectGoogleAccount).not.toHaveBeenCalled();
+  });
+
   it('canceling sign-out confirmation leaves local account data intact', () => {
     const setLogoutConfirmOpen = jest.fn();
     const tree = expandTree(renderLogoutConfirmState(setLogoutConfirmOpen));
@@ -789,6 +889,8 @@ describe('SettingsScreen account interactions', () => {
 
     expect(createGoogleAccountFromGuest).toHaveBeenCalledTimes(1);
     expect(resetToGuestBootstrap).not.toHaveBeenCalled();
+    expect(signOutFromGoogle).not.toHaveBeenCalled();
+    expect(reconnectGoogleAccount).not.toHaveBeenCalled();
   });
 
   it('does not show Delete account for guest mode', () => {
