@@ -306,9 +306,9 @@ From `apps/backend`:
 GitHub Actions runs `.github/workflows/ci-fast.yml` on pull requests and pushes:
 
 - mobile `npm ci`, lint, typecheck, and Jest with `TMPDIR=/tmp`
-- backend `./mvnw test`
+- backend `./mvnw test` with Java 25
 
-Backend integration tests live in `.github/workflows/backend-integration.yml`. That workflow runs `./mvnw verify` on `main` pushes and can be started manually with `workflow_dispatch`; it requires Docker/Testcontainers support.
+Backend integration tests live in `.github/workflows/backend-integration.yml`. That workflow runs `./mvnw verify` with Java 25 on backend-relevant pull requests, on `main` pushes, and when started manually with `workflow_dispatch`; it requires Docker/Testcontainers support.
 
 ---
 

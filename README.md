@@ -85,9 +85,9 @@ This repository has Firebase-backed Google account auth: account identity is can
 GitHub Actions fast gates run on pull requests and pushes:
 
 - mobile lint, typecheck, and Jest from `apps/mobile`
-- backend unit tests from `apps/backend`
+- backend unit tests from `apps/backend` with Java 25
 
-Backend integration tests run separately with Docker/Testcontainers on `main` pushes or manually. Local equivalents are documented in `docs/local-development.md`.
+Backend integration tests run separately with Java 25 and Docker/Testcontainers. They run `./mvnw verify` on backend-relevant pull requests, on `main` pushes, or manually. Local equivalents are documented in `docs/local-development.md`.
 
 ---
 
