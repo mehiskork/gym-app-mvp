@@ -22,6 +22,7 @@ jest.mock('../../utils/ids', () => ({
 import { exec, query } from '../db';
 import { newId } from '../../utils/ids';
 import { createSessionFromPlanDay } from '../workoutSessionRepo';
+import { DEFAULT_REST_SECONDS } from '../constants';
 
 type Scenario = {
   exercises: Array<{
@@ -339,6 +340,35 @@ describe('createSessionFromPlanDay prefill', () => {
     expect(setInserts[0][1]).toEqual(['set-1', 'wse-1', 1, 0, 5, 150]);
     expect(setInserts[2][1]).toEqual(['set-3', 'wse-1', 3, 0, 5, 150]);
   });
+
+  it('falls back to default rest when planned rest is null', () => {
+    setupScenario({
+      exercises: [
+        {
+          dayExerciseId: 'pde-bench',
+          exerciseId: 'bench',
+          exerciseName: 'Bench',
+          position: 1,
+          plannedSets: [{ set_index: 1, target_reps_min: 8, rest_seconds: null }],
+          historicalSets: [],
+        },
+      ],
+    });
+
+    (newId as jest.Mock)
+      .mockReturnValueOnce('ws-1')
+      .mockReturnValueOnce('wse-1')
+      .mockReturnValueOnce('set-1');
+
+    createSessionFromPlanDay({ workoutPlanId: 'plan-1', dayId: 'day-1' });
+
+    const setInserts = (exec as jest.Mock).mock.calls.filter((call) =>
+      String(call[0]).includes('INSERT INTO workout_set'),
+    );
+
+    expect(setInserts[0][1]).toEqual(['set-1', 'wse-1', 1, 0, 8, DEFAULT_REST_SECONDS]);
+  });
+
   it('uses per-set plan default reps when history is missing (not set row index)', () => {
     setupScenario({
       exercises: [

@@ -1,9 +1,9 @@
-# Gym App MVP
+# TrainFrame
 
 An offline-first workout tracker with:
 
-- a React Native / Expo mobile app (`apps/mobile`)
-- a Spring Boot 4.0.5 backend (`apps/backend`)
+- an Expo React Native / TypeScript mobile app with SQLite as the runtime source of truth (`apps/mobile`)
+- a Spring Boot 4.0.5 / Java / PostgreSQL / Flyway backend (`apps/backend`)
 
 This repository has Firebase-backed Google account auth: account identity is canonical after login, guest/device identity is bootstrap-only, `/me` is account-JWT-only, `/sync` supports account JWT and true-guest device-token transport, and `/claim/confirm` derives account ownership from the verified Firebase principal.
 
@@ -14,13 +14,17 @@ This repository has Firebase-backed Google account auth: account identity is can
 ### Mobile (`apps/mobile`)
 
 - offline-first SQLite local data model
-- plan creation/editing and session generation
+- user-facing Plan -> Session -> Exercises hierarchy
+- plan creation/editing, including zero-session plans and session deletion
+- Quick Workout for ad-hoc sessions and Planned Workout routing for plan-based sessions
 - in-session logging (sets/reps/weight/rest timer/notes)
 - session-only exercise swap behavior
 - plan-slot-based next-session prefill
+- Templates browse/preview/import flow
 - history and PR event UX
 - Firebase Google Sign-In plus guest-to-account migration
 - account/session lifecycle hardening (secure storage + reset flows)
+- unfinished workout reminders gated by both TrainFrame setting and OS notification permission
 - hidden debug/support surfaces for sync and diagnostics
 
 ### Backend (`apps/backend`)
@@ -28,8 +32,10 @@ This repository has Firebase-backed Google account auth: account identity is can
 - `POST /device/register` for bootstrap guest/device registration
 - `POST /sync` with owner-scoped auth, op dedupe, acks, deltas, cursor paging
 - `GET /me` account principal identity endpoint (JWT resource server)
+- `DELETE /me` account-JWT-only account deletion
 - claim flow endpoints (`/claim/start`, `/claim/confirm`) for guest-to-account migration
 - ownership enforcement, request IDs, rate limiting, and Flyway migrations
+- `/health` liveness and `/ready` DB/Flyway/schema readiness checks
 
 ---
 
@@ -39,8 +45,11 @@ This repository has Firebase-backed Google account auth: account identity is can
 - **Guest/device identity:** bootstrap and pre-login transport context.
 - **`/sync`:** accepts either account JWT or device bearer token; ownership is resolved server-side from principal, never client payload.
 - **`/me`:** account JWT only.
+- **`DELETE /me`:** account JWT only.
 - **`/claim/start`:** device-token only.
 - **`/claim/confirm`:** Firebase account JWT only; target account owner is derived server-side from the verified account principal.
+- **Guest -> Google merge:** signed-out guest data is intentionally merged into whichever Google account the user chooses. A direct Account A -> Account B switch on the same local install remains destructive/reset-based.
+- **No client-selected ownership:** backend sync, claim, and deletion paths derive ownership from the authenticated principal, not client-sent owner/user ids.
 
 ---
 
@@ -52,6 +61,7 @@ This repository has Firebase-backed Google account auth: account identity is can
 - Firebase mobile client config is tracked intentionally for the current private/dev phase; see `docs/firebase-client-config.md` for the restrictions and public-release policy.
 - Local-first behavior is unchanged: local writes commit first; sync reconciles eventual server state.
 - Mobile SQLite migrations have been squashed into a reset-only private-beta baseline. Existing internal/dev installs from before the squash must uninstall, clear app storage, or use destructive reset before testing this baseline.
+- Backend Flyway migrations are currently `V1__baseline_private_beta.sql`, `V2__account_deletion_tombstone.sql`, and `V3__account_identity_incarnation.sql`. Spring Boot 4 uses the explicit `spring-boot-starter-flyway` dependency in this repo.
 - The checked-in mobile preview config targets the Railway shared dev/QA backend by default (`https://gym-app-mvp-production.up.railway.app`). This URL is not private and must not be treated as a security boundary. It is not the final production environment. Production builds must set `EXPO_PUBLIC_APP_ENV=production` and a real production `EXPO_PUBLIC_API_BASE_URL`; the app rejects the shared dev/QA URL in production mode.
 - Android release build profiles are documented in `docs/android-release.md`; the app displays as `TrainFrame`, the Expo slug intentionally remains `mobile`, and the Android package is `com.mehka.gymappmvp`.
 - PR events are local-derived cache data. Workout history is synced; PR rows are recomputed locally and are not synced inbound or outbound.

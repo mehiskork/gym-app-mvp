@@ -11,20 +11,16 @@
             "exercise_id": "ex_bench_press_barbell",
             "sets": [
               {
-                "reps": 6,
-                "rest_seconds": 150
+                "reps": 6
               },
               {
-                "reps": 6,
-                "rest_seconds": 150
+                "reps": 6
               },
               {
-                "reps": 6,
-                "rest_seconds": 150
+                "reps": 6
               },
               {
-                "reps": 6,
-                "rest_seconds": 150
+                "reps": 6
               }
             ]
           },
@@ -32,20 +28,16 @@
             "exercise_id": "ex_bent_over_row_barbell",
             "sets": [
               {
-                "reps": 6,
-                "rest_seconds": 150
+                "reps": 6
               },
               {
-                "reps": 6,
-                "rest_seconds": 150
+                "reps": 6
               },
               {
-                "reps": 6,
-                "rest_seconds": 150
+                "reps": 6
               },
               {
-                "reps": 6,
-                "rest_seconds": 150
+                "reps": 6
               }
             ]
           },
@@ -53,16 +45,13 @@
             "exercise_id": "ex_incline_db_press",
             "sets": [
               {
-                "reps": 10,
-                "rest_seconds": 120
+                "reps": 10
               },
               {
-                "reps": 10,
-                "rest_seconds": 120
+                "reps": 10
               },
               {
-                "reps": 10,
-                "rest_seconds": 120
+                "reps": 10
               }
             ]
           },
@@ -70,16 +59,13 @@
             "exercise_id": "ex_pullup",
             "sets": [
               {
-                "reps": 8,
-                "rest_seconds": 120
+                "reps": 8
               },
               {
-                "reps": 8,
-                "rest_seconds": 120
+                "reps": 8
               },
               {
-                "reps": 8,
-                "rest_seconds": 120
+                "reps": 8
               }
             ]
           },
@@ -87,16 +73,13 @@
             "exercise_id": "ex_lateral_raises",
             "sets": [
               {
-                "reps": 15,
-                "rest_seconds": 60
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 60
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 60
+                "reps": 15
               }
             ]
           },
@@ -104,16 +87,13 @@
             "exercise_id": "ex_face_pull",
             "sets": [
               {
-                "reps": 15,
-                "rest_seconds": 60
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 60
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 60
+                "reps": 15
               }
             ]
           },
@@ -121,16 +101,13 @@
             "exercise_id": "ex_triceps_pushdown",
             "sets": [
               {
-                "reps": 12,
-                "rest_seconds": 60
+                "reps": 12
               },
               {
-                "reps": 12,
-                "rest_seconds": 60
+                "reps": 12
               },
               {
-                "reps": 12,
-                "rest_seconds": 60
+                "reps": 12
               }
             ]
           },
@@ -138,16 +115,13 @@
             "exercise_id": "ex_bicep_curl_dumbbell",
             "sets": [
               {
-                "reps": 12,
-                "rest_seconds": 60
+                "reps": 12
               },
               {
-                "reps": 12,
-                "rest_seconds": 60
+                "reps": 12
               },
               {
-                "reps": 12,
-                "rest_seconds": 60
+                "reps": 12
               }
             ]
           }
@@ -160,20 +134,16 @@
             "exercise_id": "ex_overhead_press_barbell",
             "sets": [
               {
-                "reps": 6,
-                "rest_seconds": 150
+                "reps": 6
               },
               {
-                "reps": 6,
-                "rest_seconds": 150
+                "reps": 6
               },
               {
-                "reps": 6,
-                "rest_seconds": 150
+                "reps": 6
               },
               {
-                "reps": 6,
-                "rest_seconds": 150
+                "reps": 6
               }
             ]
           },
@@ -181,20 +151,16 @@
             "exercise_id": "ex_lat_pulldown",
             "sets": [
               {
-                "reps": 6,
-                "rest_seconds": 150
+                "reps": 6
               },
               {
-                "reps": 6,
-                "rest_seconds": 150
+                "reps": 6
               },
               {
-                "reps": 6,
-                "rest_seconds": 150
+                "reps": 6
               },
               {
-                "reps": 6,
-                "rest_seconds": 150
+                "reps": 6
               }
             ]
           },
@@ -202,16 +168,13 @@
             "exercise_id": "ex_close_grip_bench_press_barbell",
             "sets": [
               {
-                "reps": 8,
-                "rest_seconds": 120
+                "reps": 8
               },
               {
-                "reps": 8,
-                "rest_seconds": 120
+                "reps": 8
               },
               {
-                "reps": 8,
-                "rest_seconds": 120
+                "reps": 8
               }
             ]
           },
@@ -219,16 +182,13 @@
             "exercise_id": "ex_seated_cable_row",
             "sets": [
               {
-                "reps": 10,
-                "rest_seconds": 90
+                "reps": 10
               },
               {
-                "reps": 10,
-                "rest_seconds": 90
+                "reps": 10
               },
               {
-                "reps": 10,
-                "rest_seconds": 90
+                "reps": 10
               }
             ]
           },
@@ -236,16 +196,13 @@
             "exercise_id": "ex_lateral_raises",
             "sets": [
               {
-                "reps": 15,
-                "rest_seconds": 60
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 60
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 60
+                "reps": 15
               }
             ]
           },
@@ -253,16 +210,13 @@
             "exercise_id": "ex_rear_delt_raise",
             "sets": [
               {
-                "reps": 15,
-                "rest_seconds": 60
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 60
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 60
+                "reps": 15
               }
             ]
           },
@@ -270,16 +224,13 @@
             "exercise_id": "ex_hammer_curl_dumbbell",
             "sets": [
               {
-                "reps": 12,
-                "rest_seconds": 60
+                "reps": 12
               },
               {
-                "reps": 12,
-                "rest_seconds": 60
+                "reps": 12
               },
               {
-                "reps": 12,
-                "rest_seconds": 60
+                "reps": 12
               }
             ]
           },
@@ -287,16 +238,13 @@
             "exercise_id": "ex_overhead_db_tricep_extension",
             "sets": [
               {
-                "reps": 12,
-                "rest_seconds": 60
+                "reps": 12
               },
               {
-                "reps": 12,
-                "rest_seconds": 60
+                "reps": 12
               },
               {
-                "reps": 12,
-                "rest_seconds": 60
+                "reps": 12
               }
             ]
           }
@@ -309,16 +257,13 @@
             "exercise_id": "ex_incline_bench_press_barbell",
             "sets": [
               {
-                "reps": 8,
-                "rest_seconds": 120
+                "reps": 8
               },
               {
-                "reps": 8,
-                "rest_seconds": 120
+                "reps": 8
               },
               {
-                "reps": 8,
-                "rest_seconds": 120
+                "reps": 8
               }
             ]
           },
@@ -326,16 +271,13 @@
             "exercise_id": "ex_chest_supported_row",
             "sets": [
               {
-                "reps": 10,
-                "rest_seconds": 120
+                "reps": 10
               },
               {
-                "reps": 10,
-                "rest_seconds": 120
+                "reps": 10
               },
               {
-                "reps": 10,
-                "rest_seconds": 120
+                "reps": 10
               }
             ]
           },
@@ -343,16 +285,13 @@
             "exercise_id": "ex_cable_chest_fly",
             "sets": [
               {
-                "reps": 15,
-                "rest_seconds": 60
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 60
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 60
+                "reps": 15
               }
             ]
           },
@@ -360,16 +299,13 @@
             "exercise_id": "ex_lat_pulldown",
             "sets": [
               {
-                "reps": 12,
-                "rest_seconds": 90
+                "reps": 12
               },
               {
-                "reps": 12,
-                "rest_seconds": 90
+                "reps": 12
               },
               {
-                "reps": 12,
-                "rest_seconds": 90
+                "reps": 12
               }
             ]
           },
@@ -377,20 +313,16 @@
             "exercise_id": "ex_lateral_raises",
             "sets": [
               {
-                "reps": 15,
-                "rest_seconds": 60
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 60
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 60
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 60
+                "reps": 15
               }
             ]
           },
@@ -398,16 +330,13 @@
             "exercise_id": "ex_face_pull",
             "sets": [
               {
-                "reps": 15,
-                "rest_seconds": 60
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 60
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 60
+                "reps": 15
               }
             ]
           },
@@ -415,16 +344,13 @@
             "exercise_id": "ex_triceps_pushdown",
             "sets": [
               {
-                "reps": 12,
-                "rest_seconds": 60
+                "reps": 12
               },
               {
-                "reps": 12,
-                "rest_seconds": 60
+                "reps": 12
               },
               {
-                "reps": 12,
-                "rest_seconds": 60
+                "reps": 12
               }
             ]
           },
@@ -432,16 +358,13 @@
             "exercise_id": "ex_preacher_curl",
             "sets": [
               {
-                "reps": 12,
-                "rest_seconds": 60
+                "reps": 12
               },
               {
-                "reps": 12,
-                "rest_seconds": 60
+                "reps": 12
               },
               {
-                "reps": 12,
-                "rest_seconds": 60
+                "reps": 12
               }
             ]
           }
@@ -461,16 +384,13 @@
             "exercise_id": "ex_squat_back_barbell",
             "sets": [
               {
-                "reps": 8,
-                "rest_seconds": 120
+                "reps": 8
               },
               {
-                "reps": 8,
-                "rest_seconds": 120
+                "reps": 8
               },
               {
-                "reps": 8,
-                "rest_seconds": 120
+                "reps": 8
               }
             ]
           },
@@ -478,16 +398,13 @@
             "exercise_id": "ex_bench_press_barbell",
             "sets": [
               {
-                "reps": 8,
-                "rest_seconds": 120
+                "reps": 8
               },
               {
-                "reps": 8,
-                "rest_seconds": 120
+                "reps": 8
               },
               {
-                "reps": 8,
-                "rest_seconds": 120
+                "reps": 8
               }
             ]
           },
@@ -495,16 +412,13 @@
             "exercise_id": "ex_bent_over_row_barbell",
             "sets": [
               {
-                "reps": 10,
-                "rest_seconds": 90
+                "reps": 10
               },
               {
-                "reps": 10,
-                "rest_seconds": 90
+                "reps": 10
               },
               {
-                "reps": 10,
-                "rest_seconds": 90
+                "reps": 10
               }
             ]
           },
@@ -512,16 +426,13 @@
             "exercise_id": "ex_plank",
             "sets": [
               {
-                "reps": 30,
-                "rest_seconds": 60
+                "reps": 30
               },
               {
-                "reps": 30,
-                "rest_seconds": 60
+                "reps": 30
               },
               {
-                "reps": 30,
-                "rest_seconds": 60
+                "reps": 30
               }
             ]
           }
@@ -534,16 +445,13 @@
             "exercise_id": "ex_deadlift_conventional",
             "sets": [
               {
-                "reps": 5,
-                "rest_seconds": 150
+                "reps": 5
               },
               {
-                "reps": 5,
-                "rest_seconds": 150
+                "reps": 5
               },
               {
-                "reps": 5,
-                "rest_seconds": 150
+                "reps": 5
               }
             ]
           },
@@ -551,16 +459,13 @@
             "exercise_id": "ex_overhead_press_barbell",
             "sets": [
               {
-                "reps": 8,
-                "rest_seconds": 120
+                "reps": 8
               },
               {
-                "reps": 8,
-                "rest_seconds": 120
+                "reps": 8
               },
               {
-                "reps": 8,
-                "rest_seconds": 120
+                "reps": 8
               }
             ]
           },
@@ -568,16 +473,13 @@
             "exercise_id": "ex_lat_pulldown",
             "sets": [
               {
-                "reps": 10,
-                "rest_seconds": 90
+                "reps": 10
               },
               {
-                "reps": 10,
-                "rest_seconds": 90
+                "reps": 10
               },
               {
-                "reps": 10,
-                "rest_seconds": 90
+                "reps": 10
               }
             ]
           },
@@ -585,16 +487,13 @@
             "exercise_id": "ex_lunge_dumbbell",
             "sets": [
               {
-                "reps": 10,
-                "rest_seconds": 90
+                "reps": 10
               },
               {
-                "reps": 10,
-                "rest_seconds": 90
+                "reps": 10
               },
               {
-                "reps": 10,
-                "rest_seconds": 90
+                "reps": 10
               }
             ]
           }
@@ -607,16 +506,13 @@
             "exercise_id": "ex_leg_press",
             "sets": [
               {
-                "reps": 10,
-                "rest_seconds": 120
+                "reps": 10
               },
               {
-                "reps": 10,
-                "rest_seconds": 120
+                "reps": 10
               },
               {
-                "reps": 10,
-                "rest_seconds": 120
+                "reps": 10
               }
             ]
           },
@@ -624,16 +520,13 @@
             "exercise_id": "ex_incline_db_press",
             "sets": [
               {
-                "reps": 10,
-                "rest_seconds": 120
+                "reps": 10
               },
               {
-                "reps": 10,
-                "rest_seconds": 120
+                "reps": 10
               },
               {
-                "reps": 10,
-                "rest_seconds": 120
+                "reps": 10
               }
             ]
           },
@@ -641,16 +534,13 @@
             "exercise_id": "ex_seated_cable_row",
             "sets": [
               {
-                "reps": 10,
-                "rest_seconds": 90
+                "reps": 10
               },
               {
-                "reps": 10,
-                "rest_seconds": 90
+                "reps": 10
               },
               {
-                "reps": 10,
-                "rest_seconds": 90
+                "reps": 10
               }
             ]
           },
@@ -658,16 +548,13 @@
             "exercise_id": "ex_bicep_curl_dumbbell",
             "sets": [
               {
-                "reps": 12,
-                "rest_seconds": 60
+                "reps": 12
               },
               {
-                "reps": 12,
-                "rest_seconds": 60
+                "reps": 12
               },
               {
-                "reps": 12,
-                "rest_seconds": 60
+                "reps": 12
               }
             ]
           }
@@ -687,16 +574,13 @@
             "exercise_id": "ex_hip_abduction_machine",
             "sets": [
               {
-                "reps": 30,
-                "rest_seconds": 60
+                "reps": 30
               },
               {
-                "reps": 30,
-                "rest_seconds": 60
+                "reps": 30
               },
               {
-                "reps": 30,
-                "rest_seconds": 60
+                "reps": 30
               }
             ]
           },
@@ -704,16 +588,13 @@
             "exercise_id": "ex_pendulum_squat",
             "sets": [
               {
-                "reps": 15,
-                "rest_seconds": 90
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 90
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 90
+                "reps": 15
               }
             ]
           },
@@ -721,16 +602,13 @@
             "exercise_id": "ex_reverse_hack_squat",
             "sets": [
               {
-                "reps": 15,
-                "rest_seconds": 60
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 60
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 60
+                "reps": 15
               }
             ]
           },
@@ -738,16 +616,13 @@
             "exercise_id": "ex_stationary_lunge",
             "sets": [
               {
-                "reps": 10,
-                "rest_seconds": 60
+                "reps": 10
               },
               {
-                "reps": 10,
-                "rest_seconds": 60
+                "reps": 10
               },
               {
-                "reps": 10,
-                "rest_seconds": 60
+                "reps": 10
               }
             ]
           },
@@ -755,16 +630,13 @@
             "exercise_id": "ex_leg_extension",
             "sets": [
               {
-                "reps": 15,
-                "rest_seconds": 60
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 60
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 60
+                "reps": 15
               }
             ]
           },
@@ -772,16 +644,13 @@
             "exercise_id": "ex_cable_kickback_straight_leg",
             "sets": [
               {
-                "reps": 15,
-                "rest_seconds": 60
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 60
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 60
+                "reps": 15
               }
             ]
           }
@@ -794,16 +663,13 @@
             "exercise_id": "ex_lateral_raises",
             "sets": [
               {
-                "reps": 20,
-                "rest_seconds": 60
+                "reps": 20
               },
               {
-                "reps": 20,
-                "rest_seconds": 60
+                "reps": 20
               },
               {
-                "reps": 20,
-                "rest_seconds": 60
+                "reps": 20
               }
             ]
           },
@@ -811,16 +677,13 @@
             "exercise_id": "ex_shoulder_press_machine",
             "sets": [
               {
-                "reps": 15,
-                "rest_seconds": 90
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 90
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 90
+                "reps": 15
               }
             ]
           },
@@ -828,16 +691,13 @@
             "exercise_id": "ex_face_pull",
             "sets": [
               {
-                "reps": 15,
-                "rest_seconds": 60
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 60
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 60
+                "reps": 15
               }
             ]
           },
@@ -845,16 +705,13 @@
             "exercise_id": "ex_front_raise_dumbbell",
             "sets": [
               {
-                "reps": 15,
-                "rest_seconds": 60
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 60
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 60
+                "reps": 15
               }
             ]
           },
@@ -862,16 +719,13 @@
             "exercise_id": "ex_chest_fly_machine",
             "sets": [
               {
-                "reps": 15,
-                "rest_seconds": 60
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 60
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 60
+                "reps": 15
               }
             ]
           },
@@ -879,20 +733,16 @@
             "exercise_id": "ex_triceps_pushdown",
             "sets": [
               {
-                "reps": 15,
-                "rest_seconds": 45
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 45
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 45
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 45
+                "reps": 15
               }
             ]
           },
@@ -900,20 +750,16 @@
             "exercise_id": "ex_biceps_curls",
             "sets": [
               {
-                "reps": 15,
-                "rest_seconds": 45
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 45
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 45
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 45
+                "reps": 15
               }
             ]
           },
@@ -921,16 +767,13 @@
             "exercise_id": "ex_plank",
             "sets": [
               {
-                "reps": 30,
-                "rest_seconds": 30
+                "reps": 30
               },
               {
-                "reps": 30,
-                "rest_seconds": 30
+                "reps": 30
               },
               {
-                "reps": 30,
-                "rest_seconds": 30
+                "reps": 30
               }
             ]
           },
@@ -938,16 +781,13 @@
             "exercise_id": "ex_crunches",
             "sets": [
               {
-                "reps": 30,
-                "rest_seconds": 30
+                "reps": 30
               },
               {
-                "reps": 30,
-                "rest_seconds": 30
+                "reps": 30
               },
               {
-                "reps": 30,
-                "rest_seconds": 30
+                "reps": 30
               }
             ]
           }
@@ -960,20 +800,16 @@
             "exercise_id": "ex_single_leg_hip_thrust",
             "sets": [
               {
-                "reps": 15,
-                "rest_seconds": 60
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 60
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 60
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 60
+                "reps": 15
               }
             ]
           },
@@ -981,16 +817,13 @@
             "exercise_id": "ex_bb_rdl",
             "sets": [
               {
-                "reps": 15,
-                "rest_seconds": 120
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 120
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 120
+                "reps": 15
               }
             ]
           },
@@ -998,20 +831,16 @@
             "exercise_id": "ex_leg_curl_lying",
             "sets": [
               {
-                "reps": 15,
-                "rest_seconds": 90
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 90
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 90
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 90
+                "reps": 15
               }
             ]
           },
@@ -1019,16 +848,13 @@
             "exercise_id": "ex_leg_press",
             "sets": [
               {
-                "reps": 15,
-                "rest_seconds": 90
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 90
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 90
+                "reps": 15
               }
             ]
           },
@@ -1036,20 +862,16 @@
             "exercise_id": "ex_hip_adduction_machine",
             "sets": [
               {
-                "reps": 20,
-                "rest_seconds": 40
+                "reps": 20
               },
               {
-                "reps": 20,
-                "rest_seconds": 40
+                "reps": 20
               },
               {
-                "reps": 20,
-                "rest_seconds": 40
+                "reps": 20
               },
               {
-                "reps": 20,
-                "rest_seconds": 40
+                "reps": 20
               }
             ]
           }
@@ -1062,20 +884,16 @@
             "exercise_id": "ex_hip_thrust_barbell",
             "sets": [
               {
-                "reps": 20,
-                "rest_seconds": 90
+                "reps": 20
               },
               {
-                "reps": 15,
-                "rest_seconds": 90
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 120
+                "reps": 15
               },
               {
-                "reps": 9,
-                "rest_seconds": 150
+                "reps": 9
               }
             ]
           },
@@ -1083,16 +901,13 @@
             "exercise_id": "ex_cable_side_kick",
             "sets": [
               {
-                "reps": 20,
-                "rest_seconds": 60
+                "reps": 20
               },
               {
-                "reps": 20,
-                "rest_seconds": 60
+                "reps": 20
               },
               {
-                "reps": 20,
-                "rest_seconds": 60
+                "reps": 20
               }
             ]
           },
@@ -1100,20 +915,16 @@
             "exercise_id": "ex_lat_pulldown_wide_grip",
             "sets": [
               {
-                "reps": 15,
-                "rest_seconds": 90
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 90
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 90
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 90
+                "reps": 15
               }
             ]
           },
@@ -1121,16 +932,13 @@
             "exercise_id": "ex_close_grip_lat_pulldown",
             "sets": [
               {
-                "reps": 15,
-                "rest_seconds": 90
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 90
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 90
+                "reps": 15
               }
             ]
           },
@@ -1138,16 +946,13 @@
             "exercise_id": "ex_seated_cable_row",
             "sets": [
               {
-                "reps": 15,
-                "rest_seconds": 90
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 90
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 90
+                "reps": 15
               }
             ]
           }
@@ -1550,20 +1355,16 @@
             "exercise_id": "ex_bench_press_barbell",
             "sets": [
               {
-                "reps": 6,
-                "rest_seconds": 150
+                "reps": 6
               },
               {
-                "reps": 6,
-                "rest_seconds": 150
+                "reps": 6
               },
               {
-                "reps": 6,
-                "rest_seconds": 150
+                "reps": 6
               },
               {
-                "reps": 6,
-                "rest_seconds": 150
+                "reps": 6
               }
             ]
           },
@@ -1571,20 +1372,16 @@
             "exercise_id": "ex_bent_over_row_barbell",
             "sets": [
               {
-                "reps": 8,
-                "rest_seconds": 120
+                "reps": 8
               },
               {
-                "reps": 8,
-                "rest_seconds": 120
+                "reps": 8
               },
               {
-                "reps": 8,
-                "rest_seconds": 120
+                "reps": 8
               },
               {
-                "reps": 8,
-                "rest_seconds": 120
+                "reps": 8
               }
             ]
           },
@@ -1592,16 +1389,13 @@
             "exercise_id": "ex_overhead_press_barbell",
             "sets": [
               {
-                "reps": 8,
-                "rest_seconds": 120
+                "reps": 8
               },
               {
-                "reps": 8,
-                "rest_seconds": 120
+                "reps": 8
               },
               {
-                "reps": 8,
-                "rest_seconds": 120
+                "reps": 8
               }
             ]
           },
@@ -1609,16 +1403,13 @@
             "exercise_id": "ex_cable_tricep_pushdown",
             "sets": [
               {
-                "reps": 12,
-                "rest_seconds": 60
+                "reps": 12
               },
               {
-                "reps": 12,
-                "rest_seconds": 60
+                "reps": 12
               },
               {
-                "reps": 12,
-                "rest_seconds": 60
+                "reps": 12
               }
             ]
           },
@@ -1626,16 +1417,13 @@
             "exercise_id": "ex_bicep_curl_dumbbell",
             "sets": [
               {
-                "reps": 12,
-                "rest_seconds": 60
+                "reps": 12
               },
               {
-                "reps": 12,
-                "rest_seconds": 60
+                "reps": 12
               },
               {
-                "reps": 12,
-                "rest_seconds": 60
+                "reps": 12
               }
             ]
           }
@@ -1648,20 +1436,16 @@
             "exercise_id": "ex_squat_back_barbell",
             "sets": [
               {
-                "reps": 6,
-                "rest_seconds": 150
+                "reps": 6
               },
               {
-                "reps": 6,
-                "rest_seconds": 150
+                "reps": 6
               },
               {
-                "reps": 6,
-                "rest_seconds": 150
+                "reps": 6
               },
               {
-                "reps": 6,
-                "rest_seconds": 150
+                "reps": 6
               }
             ]
           },
@@ -1669,16 +1453,13 @@
             "exercise_id": "ex_romanian_deadlift_dumbbell",
             "sets": [
               {
-                "reps": 8,
-                "rest_seconds": 120
+                "reps": 8
               },
               {
-                "reps": 8,
-                "rest_seconds": 120
+                "reps": 8
               },
               {
-                "reps": 8,
-                "rest_seconds": 120
+                "reps": 8
               }
             ]
           },
@@ -1686,16 +1467,13 @@
             "exercise_id": "ex_leg_press",
             "sets": [
               {
-                "reps": 10,
-                "rest_seconds": 120
+                "reps": 10
               },
               {
-                "reps": 10,
-                "rest_seconds": 120
+                "reps": 10
               },
               {
-                "reps": 10,
-                "rest_seconds": 120
+                "reps": 10
               }
             ]
           },
@@ -1703,16 +1481,13 @@
             "exercise_id": "ex_leg_curl",
             "sets": [
               {
-                "reps": 12,
-                "rest_seconds": 90
+                "reps": 12
               },
               {
-                "reps": 12,
-                "rest_seconds": 90
+                "reps": 12
               },
               {
-                "reps": 12,
-                "rest_seconds": 90
+                "reps": 12
               }
             ]
           },
@@ -1720,16 +1495,13 @@
             "exercise_id": "ex_calf_raise_standing",
             "sets": [
               {
-                "reps": 15,
-                "rest_seconds": 60
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 60
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 60
+                "reps": 15
               }
             ]
           }
@@ -1742,16 +1514,13 @@
             "exercise_id": "ex_incline_db_press",
             "sets": [
               {
-                "reps": 10,
-                "rest_seconds": 120
+                "reps": 10
               },
               {
-                "reps": 10,
-                "rest_seconds": 120
+                "reps": 10
               },
               {
-                "reps": 10,
-                "rest_seconds": 120
+                "reps": 10
               }
             ]
           },
@@ -1759,16 +1528,13 @@
             "exercise_id": "ex_lat_pulldown",
             "sets": [
               {
-                "reps": 10,
-                "rest_seconds": 90
+                "reps": 10
               },
               {
-                "reps": 10,
-                "rest_seconds": 90
+                "reps": 10
               },
               {
-                "reps": 10,
-                "rest_seconds": 90
+                "reps": 10
               }
             ]
           },
@@ -1776,16 +1542,13 @@
             "exercise_id": "ex_shoulder_press_machine",
             "sets": [
               {
-                "reps": 10,
-                "rest_seconds": 90
+                "reps": 10
               },
               {
-                "reps": 10,
-                "rest_seconds": 90
+                "reps": 10
               },
               {
-                "reps": 10,
-                "rest_seconds": 90
+                "reps": 10
               }
             ]
           },
@@ -1793,16 +1556,13 @@
             "exercise_id": "ex_lateral_raises",
             "sets": [
               {
-                "reps": 15,
-                "rest_seconds": 60
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 60
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 60
+                "reps": 15
               }
             ]
           },
@@ -1810,16 +1570,13 @@
             "exercise_id": "ex_hammer_curl_dumbbell",
             "sets": [
               {
-                "reps": 12,
-                "rest_seconds": 60
+                "reps": 12
               },
               {
-                "reps": 12,
-                "rest_seconds": 60
+                "reps": 12
               },
               {
-                "reps": 12,
-                "rest_seconds": 60
+                "reps": 12
               }
             ]
           }
@@ -1832,16 +1589,13 @@
             "exercise_id": "ex_front_squat_barbell",
             "sets": [
               {
-                "reps": 8,
-                "rest_seconds": 120
+                "reps": 8
               },
               {
-                "reps": 8,
-                "rest_seconds": 120
+                "reps": 8
               },
               {
-                "reps": 8,
-                "rest_seconds": 120
+                "reps": 8
               }
             ]
           },
@@ -1849,16 +1603,13 @@
             "exercise_id": "ex_trap_bar_deadlift",
             "sets": [
               {
-                "reps": 6,
-                "rest_seconds": 150
+                "reps": 6
               },
               {
-                "reps": 6,
-                "rest_seconds": 150
+                "reps": 6
               },
               {
-                "reps": 6,
-                "rest_seconds": 150
+                "reps": 6
               }
             ]
           },
@@ -1866,16 +1617,13 @@
             "exercise_id": "ex_split_squat_bulgarian",
             "sets": [
               {
-                "reps": 10,
-                "rest_seconds": 90
+                "reps": 10
               },
               {
-                "reps": 10,
-                "rest_seconds": 90
+                "reps": 10
               },
               {
-                "reps": 10,
-                "rest_seconds": 90
+                "reps": 10
               }
             ]
           },
@@ -1883,16 +1631,13 @@
             "exercise_id": "ex_leg_curl_lying",
             "sets": [
               {
-                "reps": 12,
-                "rest_seconds": 90
+                "reps": 12
               },
               {
-                "reps": 12,
-                "rest_seconds": 90
+                "reps": 12
               },
               {
-                "reps": 12,
-                "rest_seconds": 90
+                "reps": 12
               }
             ]
           },
@@ -1900,16 +1645,13 @@
             "exercise_id": "ex_calf_raise_seated",
             "sets": [
               {
-                "reps": 15,
-                "rest_seconds": 60
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 60
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 60
+                "reps": 15
               }
             ]
           }
@@ -1929,20 +1671,16 @@
             "exercise_id": "ex_bench_press_barbell",
             "sets": [
               {
-                "reps": 6,
-                "rest_seconds": 150
+                "reps": 6
               },
               {
-                "reps": 6,
-                "rest_seconds": 150
+                "reps": 6
               },
               {
-                "reps": 6,
-                "rest_seconds": 150
+                "reps": 6
               },
               {
-                "reps": 6,
-                "rest_seconds": 150
+                "reps": 6
               }
             ]
           },
@@ -1950,16 +1688,13 @@
             "exercise_id": "ex_military_press",
             "sets": [
               {
-                "reps": 8,
-                "rest_seconds": 120
+                "reps": 8
               },
               {
-                "reps": 8,
-                "rest_seconds": 120
+                "reps": 8
               },
               {
-                "reps": 8,
-                "rest_seconds": 120
+                "reps": 8
               }
             ]
           },
@@ -1967,16 +1702,13 @@
             "exercise_id": "ex_incline_db_press",
             "sets": [
               {
-                "reps": 10,
-                "rest_seconds": 120
+                "reps": 10
               },
               {
-                "reps": 10,
-                "rest_seconds": 120
+                "reps": 10
               },
               {
-                "reps": 10,
-                "rest_seconds": 120
+                "reps": 10
               }
             ]
           },
@@ -1984,16 +1716,13 @@
             "exercise_id": "ex_lateral_raises",
             "sets": [
               {
-                "reps": 15,
-                "rest_seconds": 60
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 60
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 60
+                "reps": 15
               }
             ]
           },
@@ -2001,16 +1730,13 @@
             "exercise_id": "ex_pec_deck",
             "sets": [
               {
-                "reps": 10,
-                "rest_seconds": 60
+                "reps": 10
               },
               {
-                "reps": 10,
-                "rest_seconds": 60
+                "reps": 10
               },
               {
-                "reps": 10,
-                "rest_seconds": 60
+                "reps": 10
               }
             ]
           },
@@ -2018,16 +1744,13 @@
             "exercise_id": "ex_cable_tricep_pushdown",
             "sets": [
               {
-                "reps": 12,
-                "rest_seconds": 60
+                "reps": 12
               },
               {
-                "reps": 12,
-                "rest_seconds": 60
+                "reps": 12
               },
               {
-                "reps": 12,
-                "rest_seconds": 60
+                "reps": 12
               }
             ]
           },
@@ -2035,16 +1758,13 @@
             "exercise_id": "ex_forearm_machine",
             "sets": [
               {
-                "reps": 12,
-                "rest_seconds": 60
+                "reps": 12
               },
               {
-                "reps": 12,
-                "rest_seconds": 60
+                "reps": 12
               },
               {
-                "reps": 12,
-                "rest_seconds": 60
+                "reps": 12
               }
             ]
           }
@@ -2057,16 +1777,13 @@
             "exercise_id": "ex_bb_rdl",
             "sets": [
               {
-                "reps": 8,
-                "rest_seconds": 120
+                "reps": 8
               },
               {
-                "reps": 8,
-                "rest_seconds": 120
+                "reps": 8
               },
               {
-                "reps": 8,
-                "rest_seconds": 120
+                "reps": 8
               }
             ]
           },
@@ -2074,16 +1791,13 @@
             "exercise_id": "ex_pullup",
             "sets": [
               {
-                "reps": 8,
-                "rest_seconds": 120
+                "reps": 8
               },
               {
-                "reps": 8,
-                "rest_seconds": 120
+                "reps": 8
               },
               {
-                "reps": 8,
-                "rest_seconds": 120
+                "reps": 8
               }
             ]
           },
@@ -2091,16 +1805,13 @@
             "exercise_id": "ex_close_grip_cable_row",
             "sets": [
               {
-                "reps": 10,
-                "rest_seconds": 90
+                "reps": 10
               },
               {
-                "reps": 10,
-                "rest_seconds": 90
+                "reps": 10
               },
               {
-                "reps": 10,
-                "rest_seconds": 90
+                "reps": 10
               }
             ]
           },
@@ -2108,16 +1819,13 @@
             "exercise_id": "ex_face_pull",
             "sets": [
               {
-                "reps": 15,
-                "rest_seconds": 60
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 60
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 60
+                "reps": 15
               }
             ]
           },
@@ -2125,16 +1833,13 @@
             "exercise_id": "ex_seated_db_curl",
             "sets": [
               {
-                "reps": 12,
-                "rest_seconds": 60
+                "reps": 12
               },
               {
-                "reps": 12,
-                "rest_seconds": 60
+                "reps": 12
               },
               {
-                "reps": 12,
-                "rest_seconds": 60
+                "reps": 12
               }
             ]
           },
@@ -2142,16 +1847,13 @@
             "exercise_id": "ex_hammer_curl_dumbbell",
             "sets": [
               {
-                "reps": 12,
-                "rest_seconds": 60
+                "reps": 12
               },
               {
-                "reps": 12,
-                "rest_seconds": 60
+                "reps": 12
               },
               {
-                "reps": 12,
-                "rest_seconds": 60
+                "reps": 12
               }
             ]
           }
@@ -2164,20 +1866,16 @@
             "exercise_id": "ex_squat_back_barbell",
             "sets": [
               {
-                "reps": 6,
-                "rest_seconds": 150
+                "reps": 6
               },
               {
-                "reps": 6,
-                "rest_seconds": 150
+                "reps": 6
               },
               {
-                "reps": 6,
-                "rest_seconds": 150
+                "reps": 6
               },
               {
-                "reps": 6,
-                "rest_seconds": 150
+                "reps": 6
               }
             ]
           },
@@ -2185,16 +1883,13 @@
             "exercise_id": "ex_split_squat_bulgarian",
             "sets": [
               {
-                "reps": 10,
-                "rest_seconds": 90
+                "reps": 10
               },
               {
-                "reps": 10,
-                "rest_seconds": 90
+                "reps": 10
               },
               {
-                "reps": 10,
-                "rest_seconds": 90
+                "reps": 10
               }
             ]
           },
@@ -2202,16 +1897,13 @@
             "exercise_id": "ex_leg_press",
             "sets": [
               {
-                "reps": 10,
-                "rest_seconds": 120
+                "reps": 10
               },
               {
-                "reps": 10,
-                "rest_seconds": 120
+                "reps": 10
               },
               {
-                "reps": 10,
-                "rest_seconds": 120
+                "reps": 10
               }
             ]
           },
@@ -2219,16 +1911,13 @@
             "exercise_id": "ex_walking_lunge",
             "sets": [
               {
-                "reps": 10,
-                "rest_seconds": 90
+                "reps": 10
               },
               {
-                "reps": 10,
-                "rest_seconds": 90
+                "reps": 10
               },
               {
-                "reps": 10,
-                "rest_seconds": 90
+                "reps": 10
               }
             ]
           },
@@ -2236,16 +1925,13 @@
             "exercise_id": "ex_leg_curl",
             "sets": [
               {
-                "reps": 12,
-                "rest_seconds": 90
+                "reps": 12
               },
               {
-                "reps": 12,
-                "rest_seconds": 90
+                "reps": 12
               },
               {
-                "reps": 12,
-                "rest_seconds": 90
+                "reps": 12
               }
             ]
           },
@@ -2253,16 +1939,13 @@
             "exercise_id": "ex_leg_extension",
             "sets": [
               {
-                "reps": 12,
-                "rest_seconds": 90
+                "reps": 12
               },
               {
-                "reps": 12,
-                "rest_seconds": 90
+                "reps": 12
               },
               {
-                "reps": 12,
-                "rest_seconds": 90
+                "reps": 12
               }
             ]
           },
@@ -2270,16 +1953,13 @@
             "exercise_id": "ex_calf_raise_standing",
             "sets": [
               {
-                "reps": 15,
-                "rest_seconds": 60
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 60
+                "reps": 15
               },
               {
-                "reps": 15,
-                "rest_seconds": 60
+                "reps": 15
               }
             ]
           }

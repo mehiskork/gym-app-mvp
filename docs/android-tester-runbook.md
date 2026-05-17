@@ -56,14 +56,27 @@ Before building:
 ### Guest mode
 
 - Create a plan.
-- Add a session/day.
+- Add a session.
 - Add an exercise.
 - Add planned sets.
+- Delete a session from a plan and confirm the plan remains usable.
+- Open a zero-session plan and confirm the empty state shows Add session.
 - Create a custom exercise.
-- Start a workout.
+- Start a Quick Workout.
+- Start a Planned Workout.
 - Complete the workout.
 - Verify history appears.
 - Verify PR/history behavior if easily visible.
+- In the exercise picker, confirm the bottom-pinned CTA says `Create a custom exercise`, uses secondary styling, and opens Create Exercise.
+
+### Templates
+
+- Open Templates.
+- Confirm the list is browse/preview-only.
+- Open a Template preview.
+- Confirm preview is read-only and shows sessions/exercises.
+- Import from preview.
+- Reopen the same Template preview and confirm duplicate import is disabled or shown as already added.
 
 ### Sync
 
@@ -76,17 +89,42 @@ Before building:
 ### Guest -> Google account
 
 - Continue/sign in with Google.
-- Confirm claim/migration succeeds.
+- Confirm claim/migration succeeds after guest outbox is acked.
 - Confirm data remains visible after sign-in.
+- Confirm local guest data is added/merged into the selected Google account.
+- Confirm existing cloud data for that Google account is preserved.
 - Confirm account sync mode becomes `account_jwt` where Debug exposes it.
 - Confirm there is no fallback to device token after a linked account session.
+- Confirm sync cursor resets before first account sync after successful claim where Debug/support output exposes it.
 
 ### Reconnect
 
 - Clear/reinstall or reset local data if needed.
 - Sign in with the same Google account.
 - Confirm synced data restores.
-- Confirm a wrong Google account is rejected or requires destructive reset.
+- Confirm direct Account A -> Account B switch requires destructive reset and does not keep multi-account local storage.
+- Confirm missing guest device-token recovery by clearing guest credentials where safe, triggering sync, and verifying device registration recovers without restarting the app.
+
+### Notifications
+
+- On a fresh install, confirm unfinished workout reminders are not presented as active before OS notification permission is granted.
+- Turn unfinished reminders on and confirm the app requests notification permission.
+- Deny or revoke permission and confirm unfinished reminders stay off/blocked and scheduling skips safely.
+- Grant notification permission and confirm rest timer notifications can be scheduled from an active workout.
+
+### Online sync edits
+
+- Start an active workout while online.
+- Edit sets, session exercises, and session state.
+- Confirm `workout_set`, `workout_session_exercise`, and `workout_session` edits sync without stale remote deltas overwriting the active local workout.
+
+### Account deletion/recreation
+
+- Delete a signed-in TrainFrame account from Settings.
+- Recreate/sign in again with the same Google account after fresh auth.
+- Confirm deleted account data does not restore.
+- Confirm stale old sessions/tokens cannot write into the recreated account owner.
+- Confirm `/account-deletion` is reachable for users who cannot access the app.
 
 ### Support
 
@@ -121,7 +159,7 @@ Do not hardcode fragile full JSON assertions in manual runbooks.
 - Reset local data clears this device only.
 - Account switch on the same device requires destructive local reset.
 - Delete plan syncs deletion across devices but does not delete workout history.
-- Future Delete account will delete synced TrainFrame account data after backend implementation.
+- Delete account deletes synced TrainFrame account data through account-JWT-only `DELETE /me`.
 - Deleting a TrainFrame account does not delete the user's Google account.
 
 ## Support Bundle Privacy
@@ -160,8 +198,5 @@ Keep preview/internal testing separate from production Play rollout.
 This runbook does not implement:
 
 - privacy policy
-- account deletion
-- web deletion request page
 - Firebase console changes
 - backend behavior changes
-

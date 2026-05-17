@@ -2,7 +2,7 @@
 
 - **Status:** Accepted (target model for PR 7+)
 - **Date:** 2026-03-31
-- **Owner:** Gym App MVP maintainers
+- **Owner:** TrainFrame maintainers
 - **Decision type:** Architecture / identity and sync ownership
 
 ---
@@ -17,6 +17,7 @@ Current implemented state aligns with this decision:
 - guest/device identity is bootstrap-only
 - `/sync` supports account JWT and device-token transport
 - guest-to-account migration and logout/reset safety policy exist
+- account deletion/recreation with same Google identity is supported through account identity incarnations
 
 ---
 
@@ -30,7 +31,7 @@ Current system behavior is intentionally local-first:
 - Outbox is the transport intent layer.
 - Backend is the cross-device conflict arbiter via `/sync`.
 
-This decision does **not** implement full auth. It defines the ownership model that auth, migration, and sync-scope work must follow.
+This decision was written before full auth rollout. Auth, migration, and sync-scope work now follow this model.
 
 ---
 
@@ -40,7 +41,7 @@ This decision does **not** implement full auth. It defines the ownership model t
 
 - Device bearer auth resolves a `DevicePrincipal` containing `deviceId` and `guestUserId`.
 - `SyncController` passes principal-derived guest identity into `SyncService`.
-- Sync persistence/query surfaces are guest-scoped today (`entity_state`, `change_log`, `op_ledger` keyed by `guest_user_id`).
+- Sync persistence/query surfaces still use legacy column names such as `guest_user_id`, but those columns carry the server-resolved owner id for guest or account scope.
 - Ownership enforcement is already server-side and principal-derived.
 
 ### Guest/device bootstrap today
@@ -134,6 +135,8 @@ Recommended staged direction:
 
 Guest-to-account migration must be retry-safe and must not duplicate, orphan, or cross-assign ownership.
 
+Current product behavior intentionally merges signed-out local guest data into whichever Google account the user chooses. Direct signed-in Account A -> Account B switch remains destructive/reset-based.
+
 ## 8) Invariants / non-negotiables
 
 Future work must preserve:
@@ -224,13 +227,19 @@ No `/sync` protocol changes are part of PR 9, and no account-scoped `/sync` beha
 
 ---
 
-## Open questions for PR 7+
+## Historical open questions
 
-1. Exact backend schema evolution shape: additive owner-scope columns/abstraction vs broader renaming.
-2. Exact one-time migration mechanics, rollback posture, and operational telemetry.
-3. Whether guest-to-account migration should always auto-merge or require explicit confirmation in edge cases.
-4. Long-term policy for optional multi-account support on one device after MVP.
-5. Exact observability needed to detect migration failures and ownership mismatches.
+Resolved for current behavior:
+
+1. Backend kept legacy storage column names and routes ownership through server-resolved owner scope.
+2. Guest-to-account migration is automatic/additive when signing in from signed-out guest mode.
+3. Existing account rows win on guest-claim conflicts.
+4. Same-device direct account switching remains destructive/reset-based.
+5. No multi-account local storage exists.
+
+Remaining long-term product question:
+
+- Whether optional multi-account local storage is ever worth adding after MVP.
 
 ### PR 10 implementation note (safe foundation)
 
@@ -262,8 +271,7 @@ Migration behavior:
 
 Deterministic conflict rule (no merge engine):
 
-- If both guest and account already have the same `entity_state` identity (`entity_type`, `entity_id`), winner is the row with newer `last_received_at`.
-- Ties keep the incoming guest row (`>=` comparison).
+- If both guest and account already have the same `entity_state` identity (`entity_type`, `entity_id`), existing account rows win on conflict.
 - Conflict occurrences are counted in `guest_account_migration_audit.entity_conflicts_resolved`.
 
 Non-goals retained in PR 12:
@@ -285,3 +293,12 @@ Non-goals retained in PR 13:
 - No multi-account local storage namespaces.
 - No backend ownership/sync protocol changes.
 - Guest-only users remain on existing guest sync behavior.
+
+### Account deletion/recreation implementation note
+
+Same-Google account deletion/recreation is supported with `account_identity` incarnations:
+
+- Firebase subject id remains the login identity.
+- Active TrainFrame account owner id can advance to a new generated owner after deletion.
+- `auth_time_cutoff` blocks stale old Firebase sessions/tokens from writing into the recreated owner.
+- Deleted account rows stay deleted and must not restore into the recreated owner.

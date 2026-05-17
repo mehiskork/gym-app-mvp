@@ -1,6 +1,6 @@
 # Architecture
 
-This document describes the **current implementation architecture** of the Gym App MVP.
+This document describes the **current implementation architecture** of TrainFrame.
 
 It focuses on system shape, data flow, layering, and technical boundaries. It does **not** try to fully document setup, product rules, or the full sync wire protocol.
 
@@ -28,6 +28,8 @@ The repo contains two main apps:
 
 - **`apps/mobile`** — Expo + React Native app written in TypeScript
 - **`apps/backend`** — Spring Boot 4.0.5 service backed by PostgreSQL and Flyway
+
+User-facing product terminology is **Plan -> Session -> Exercises**. Legacy/internal names such as `program_day`, `DayDetail`, and `dayId` still exist in code and schema and should be called out as internal when docs reference them.
 
 At runtime, the system looks like this:
 
@@ -159,8 +161,10 @@ Unfinished workout reminders are local scheduled notifications. They do not use 
 push notifications, or sync payloads. The app stores only local reminder metadata and the local
 enable/disable preference in `app_meta`, reconciles scheduled notification IDs at startup, and
 falls back to Home if a notification tap points at a workout that is no longer in progress.
-Reminders require OS notification permission. Android may drop scheduled notifications across
-device reboot depending on OS behavior, so startup reconciliation is the source of repair.
+They are active only when the TrainFrame reminder setting is enabled and OS notification
+permission is granted. If permission is denied or revoked, the setting is turned off/blocked and
+scheduling skips safely. Android may drop scheduled notifications across device reboot depending
+on OS behavior, so startup reconciliation is the source of repair.
 
 The database is opened through Expo SQLite in `src/db/db.ts`, with migrations applied at startup via `src/db/migrate.ts`.
 
@@ -225,12 +229,14 @@ The main entry point is `createSessionFromPlanDay()` in `apps/mobile/src/db/work
 At a high level it does this:
 
 1. checks whether another session is already in progress
-2. snapshots plan-day metadata into a new `workout_session`
+2. snapshots internal `program_day` metadata into a new `workout_session`
 3. materializes `workout_session_exercise` rows from planned exercises
 4. seeds `workout_set` rows for each session exercise
 5. enqueues outbox snapshots for the created rows
 
 The important architectural point is that **session generation is snapshot-based**. A session is created from plan data at that moment, then stored as its own local session records.
+
+Quick Workout creates an ad-hoc session. Planned Workout routes through plan/session state before generating a planned session. The active workout/session guard wins over both entry points.
 
 ### Next-session prefill
 
@@ -473,9 +479,11 @@ At a high level it does this:
 - generates and stores pending claim codes
 - validates confirmation attempts
 - derives the target account owner from the authenticated Firebase principal
-- links guest identity to user identity
+- links guest identity to user identity and additively migrates guest sync rows into the selected account scope
 - prevents conflicting claims
 - marks claims as claimed or expired as appropriate
+
+The mobile client starts claim only after guest outbox rows are acked, then resets the sync cursor before the first account sync after successful claim. Existing account cloud rows win on claim conflicts.
 
 The exact user-facing claim rules belong in product documentation rather than architecture documentation.
 

@@ -119,6 +119,11 @@ describe('prebuiltPlansRepo outbound sync enqueue coverage', () => {
 
     importPrebuiltPlan('prebuilt_v_taper_project_3_day');
 
+    const plannedSetInserts = (exec as jest.Mock).mock.calls.filter((call) =>
+      String(call[0]).includes('INSERT INTO planned_set'),
+    );
+    expect(plannedSetInserts[0]?.[1]).toEqual(['pset-1', 'pde-1', 1, 6, 6, null]);
+
     expect(enqueueOutboxOp).toHaveBeenCalled();
     expect(enqueueOutboxOp).toHaveBeenCalledWith(
       expect.objectContaining({ entityType: 'program', entityId: 'program-1', opType: 'upsert' }),

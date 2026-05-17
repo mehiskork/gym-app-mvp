@@ -103,9 +103,16 @@ Before inviting Android testers:
 - Preview EAS build is installed on a real Android device.
 - Google Sign-In works.
 - Guest -> Google migration works.
+- Guest -> selected Google account migration preserves existing account cloud data and additively merges local guest data.
+- Direct signed-in Account A -> Account B switch requires destructive reset.
 - Reconnect with the same Google account works.
-- Wrong Google account is rejected.
 - Account sync uses `account_jwt`.
+- Missing guest device-token recovery works without app restart.
+- Quick Workout and Planned Workout work.
+- Templates preview/import works and duplicate imports are disabled.
+- Plan session deletion and zero-session plan empty state work.
+- Unfinished reminder permission behavior matches the setting + OS permission gate.
+- Active workout online edits sync safely.
 - Support bundle does not contain raw auth tokens.
 - Railway `/ready` is green.
 

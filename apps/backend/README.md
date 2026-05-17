@@ -1,6 +1,6 @@
-# Gym App Backend
+# TrainFrame Backend
 
-Spring Boot 4.0.5 backend for Gym App MVP sync, ownership/auth boundaries, and claim migration seams.
+Spring Boot 4.0.5 / Java / PostgreSQL / Flyway backend for TrainFrame sync, ownership/auth boundaries, account deletion, and guest-to-account claim migration.
 
 ## Requirements
 
@@ -23,6 +23,14 @@ Health check:
 curl http://localhost:8080/health
 ```
 
+Readiness check:
+
+```bash
+curl http://localhost:8080/ready
+```
+
+`/health` is simple liveness. `/ready` verifies database connectivity, Flyway state, and required core tables.
+
 ## Current endpoint auth boundaries
 
 - `POST /device/register` -> public bootstrap endpoint
@@ -30,6 +38,7 @@ curl http://localhost:8080/health
 - `POST /claim/start` -> **device bearer token only**
 - `POST /claim/confirm` -> **account JWT only**
 - `GET /me` -> **account JWT only**
+- `DELETE /me` -> **account JWT only**
 
 Ownership scope is always resolved from authenticated principal on the server.
 
@@ -38,6 +47,16 @@ Ownership scope is always resolved from authenticated principal on the server.
 `/claim/confirm` requires a verified Firebase account JWT. The backend derives the target account owner from `AccountPrincipal.externalAccountId` (`issuer|subject`) and does not accept client-sent account/user ids.
 
 `/claim/start` remains device/guest-authenticated. The mobile app now orchestrates guest-to-Google migration by draining guest sync, starting a claim with the device token, completing Google Sign-In, confirming the claim with the Firebase ID token, and only then storing the account session.
+
+Guest claim migration is additive: existing account rows win on conflict. The client preflights by requiring all local guest outbox rows to be acked before claim starts, then resets the sync cursor before the first account sync after a successful claim.
+
+Signed-out guest data belongs to the device. When the user signs in with Google from guest mode, that local guest data is intentionally merged into whichever Google account the user chooses. A direct signed-in Account A -> Account B switch on one local install is still destructive/reset-based and there is no multi-account local storage.
+
+## Account deletion
+
+`DELETE /me` is account-JWT-only. The backend derives the active account owner from the authenticated Firebase principal and never trusts client-sent owner/user ids.
+
+Account deletion and recreation with the same Google account is supported through account identity incarnations. Old deleted account rows must not restore into the recreated account, and stale old account tokens/sessions are blocked by the auth-time cutoff/active-owner checks instead of writing into the recreated owner.
 
 ## JWT config for account endpoints
 
@@ -63,6 +82,14 @@ Mobile Google Sign-In is implemented. Firebase is authentication-only; app data 
 Prod-like profiles (`prod`, `production`, `staging`) fail startup unless datasource settings, `APP_AUTH_FIREBASE_PROJECT_ID`, and `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI` are configured. Railway should set `SPRING_PROFILES_ACTIVE=prod`; otherwise those production safety checks are not active. `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI` is supported as an explicit decoder override, but issuer discovery is sufficient for backend startup.
 
 `GET /ready` checks database connectivity, required tables, and Flyway state. It reports not-ready if `flyway_schema_history` contains any failed migration row.
+
+Current backend migrations:
+
+- `V1__baseline_private_beta.sql`
+- `V2__account_deletion_tombstone.sql`
+- `V3__account_identity_incarnation.sql`
+
+Spring Boot 4 uses the explicit `spring-boot-starter-flyway` dependency in this repo along with Flyway core and PostgreSQL support.
 
 ## Tests
 

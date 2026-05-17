@@ -22,8 +22,8 @@ Use this checklist before changing GitHub visibility or sharing repository histo
 
 ## Route exposure
 
-- Public backend routes are `/health`, `/ready`, `/privacy`, and `/account-deletion`.
-- Protected routes such as `/me`, `/sync`, `/device/register`, `/claim/start`, and `/claim/confirm` must stay protected according to the auth model documented in `docs/sync-protocol.md`.
+- Public backend routes are `/health`, `/ready`, `/privacy`, `/account-deletion`, and `/account-deletion/request`.
+- Protected routes such as `/me`, `DELETE /me`, `/sync`, `/claim/start`, and `/claim/confirm` must stay protected according to the auth model documented in `docs/sync-protocol.md`. `/device/register` is a public bootstrap endpoint, not an owner-selection mechanism.
 
 ## Final checks
 

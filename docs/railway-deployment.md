@@ -24,6 +24,8 @@ The backend requires Java 25. If Railway builds the checked-in backend Dockerfil
 
 Firebase is used for authentication only. Synced backend data is stored in PostgreSQL through the Spring Boot `/sync` API; mobile SQLite remains the runtime source of truth. Do not use Firebase as the app database.
 
+Spring Boot 4 uses the explicit `spring-boot-starter-flyway` dependency in this repo along with Flyway core and PostgreSQL support. Keep that dependency when changing backend build files; otherwise Flyway auto-configuration/readiness can silently break.
+
 Mobile Google Sign-In is implemented. A valid account request to `GET /me` returns `200` only with a real Firebase ID token from the mobile sign-in flow or a controlled test token setup.
 
 > **Do not use this datasource form for the Spring Boot backend:**
@@ -71,6 +73,7 @@ After each deploy, confirm:
   - `identity_link`
   - `guest_account_migration_audit`
   - `account_deletion_tombstone`
+  - `account_identity`
 
 If any readiness check fails, `/ready` returns non-200 with a safe structured response and without secrets. `/ready` is only a meaningful production-safety signal when Railway is also running a prod-like profile with the required environment variables above.
 

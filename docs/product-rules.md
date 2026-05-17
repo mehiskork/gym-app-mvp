@@ -14,6 +14,15 @@ See also:
 
 ## Workouts and sessions
 
+### Home has Quick Workout and Planned Workout actions
+
+When there is no active session, Home shows:
+
+- Quick Workout: starts an ad-hoc workout.
+- Planned Workout: routes based on plan state.
+
+If a workout is already active, the active session guard wins and the user resumes that session instead.
+
 ### Only one in-progress session can exist
 
 A user must never have two active workout sessions at the same time.
@@ -25,6 +34,36 @@ During an active workout session, back-navigation must return the user to Home w
 ### Completed sessions are not editable
 
 Completed workout sessions are final from the user perspective.
+
+### Plans can have zero sessions
+
+Plans with zero sessions remain openable and editable. A zero-session plan shows an empty state with Add session.
+
+### Sessions can be deleted from plans
+
+Deleting a session from a plan is allowed through the plan editing flow and must use the normal destructive confirmation pattern.
+
+### User-facing hierarchy is Plan -> Session -> Exercises
+
+Use Session in user-facing docs and copy. Legacy/internal names such as `program_day`, `DayDetail`, and `dayId` may remain in code, schema, and tests.
+
+---
+
+## Templates
+
+### Templates are preview-first
+
+User-facing terminology is Templates. Avoid old Prebuilt terminology in user-facing docs except when referring to legacy internal route/file names such as `PrebuiltPlans`.
+
+The Templates list is browse/preview-only. Import happens from Template preview.
+
+### Template preview is read-only
+
+Template preview shows sessions and exercises. It does not edit the template.
+
+### Duplicate imports are disabled
+
+Already imported templates should be shown as already added and should not import again.
 
 ---
 
@@ -66,6 +105,31 @@ Swapped-in exercises must not become prefill history for the original planned sl
 ### No “Alternative for X” labeling
 
 The UI should not add “Alternative for X” labels for swapped exercises.
+
+---
+
+## Exercise picker
+
+### Custom exercise CTA
+
+The bottom-pinned exercise picker CTA says “Create a custom exercise”, uses secondary styling, and navigates to `CreateExercise`.
+
+---
+
+## Notifications and reminders
+
+### Unfinished workout reminders require app setting and OS permission
+
+Unfinished workout reminders are active only when both conditions are true:
+
+- the TrainFrame unfinished reminder setting is enabled
+- OS notification permission is granted
+
+Fresh installs must not present unfinished reminders as simply active before notification permission exists. Turning unfinished reminders on requests notification permission. If permission is denied or later revoked, reminders stay off/blocked and scheduling skips safely.
+
+### Rest timer notifications require permission
+
+Rest timer notifications are local scheduled notifications. They schedule only when OS notification permission is granted; without permission, scheduling returns safely.
 
 ---
 
@@ -163,17 +227,31 @@ Primary color can style accents (buttons/chips/active tab/CTA accents), while se
 
 ## Account logout, reset, and account switching
 
+### Guest data belongs to the device until sign-in
+
+Signed-out guest data belongs to the device. When the user signs in with Google from signed-out guest mode, local guest data is intentionally added/merged into whichever Google account the user chooses.
+
+Existing account cloud data must be preserved during guest claim. Guest claim migration is additive and existing account rows win on conflict.
+
 ### Logout is destructive for local synced identity state
 
 Logout clears sensitive auth/session material, clears local synced user-scoped SQLite state, and returns device to guest/bootstrap-ready mode.
 
 ### Switching accounts requires explicit reset
 
-Switching from one linked account to another on one device requires explicit destructive reset first.
+Direct signed-in Account A -> Account B switching on one device requires explicit destructive reset first.
 
 ### Same-user re-link is non-destructive while already linked
 
 If already linked to the same user identity, do not silently trigger destructive reset.
+
+### Device-token sync is guest-only
+
+Device-token sync is only for true guest mode. Account sync uses Firebase/account JWT. Backend ownership is derived from the authenticated principal and must not trust client-sent owner/user ids.
+
+### Account deletion and recreation
+
+Account deletion/recreation with the same Google account is supported. Deleted account data must not restore into the recreated account, and stale old account sessions/tokens must not be able to write into the recreated owner.
 
 ---
 

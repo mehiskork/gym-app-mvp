@@ -1,6 +1,6 @@
 # Conflict Resolution & Immutability
 
-This backend resolves conflicts deterministically on the server. Mobile clients apply deltas idempotently and treat the server as the source of truth.
+This backend resolves conflicts deterministically on the server. Mobile clients apply deltas idempotently and treat the server as the cross-device conflict arbiter; SQLite remains the mobile runtime source of truth.
 
 ## Resolution rules (server-resolved)
 

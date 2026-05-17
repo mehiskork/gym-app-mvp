@@ -355,6 +355,8 @@ Backend error responses for auth failures also include low-cardinality `details.
 
 If `/sync` returns `401` while using an **account JWT**, the app records an account-session auth failure, does not clear device credentials, and blocks later linked-state sync until reauth or destructive reset.
 
+Missing guest device-token recovery can also happen from the missing-token path: in true guest mode, sync can register fresh device credentials and continue without restarting the app.
+
 ---
 
 ## Outbox lifecycle in detail
@@ -377,9 +379,8 @@ This includes:
 
 - `applied`
 - `noop`
-- `rejected`
 
-All three are terminal from the outbox retry perspective.
+Rejected ops are not marked `acked`; they are marked failed with the server reason so Debug/support output can surface the rejected state.
 
 ### `failed`
 
@@ -699,5 +700,8 @@ See:
 ## Production intent vs dev seams
 
 - `/sync` dual auth transport (device token + account JWT) is production-intended.
+- Device-token sync is only for true guest mode. Account sync uses Firebase/account JWT.
 - `/claim/start` is device/guest-authenticated.
 - `/claim/confirm` is account-authenticated with Firebase JWT and derives account ownership from the verified account principal.
+- Guest claim requires local guest outbox rows to be acked before claim starts. After successful claim, the mobile sync cursor resets before the first account sync.
+- Guest claim migration is additive; existing account rows win on conflict.
