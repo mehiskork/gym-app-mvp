@@ -141,6 +141,23 @@ describe('unfinishedWorkoutReminderNotifications', () => {
     expect(setUnfinishedWorkoutRemindersEnabled).toHaveBeenCalledWith(false);
   });
 
+  it('skips safely and clears an existing reminder when notification permission was revoked', async () => {
+    (getUnfinishedWorkoutReminderState as jest.Mock).mockReturnValue({
+      notificationId: 'notification-1',
+      sessionId: 'ws-1',
+      dueAt: '2026-05-09T12:00:00.000Z',
+      lastLoggedSetAt: '2026-05-09T11:00:00.000Z',
+    });
+    (Notifications.getPermissionsAsync as jest.Mock).mockResolvedValueOnce({ status: 'denied' });
+
+    await scheduleUnfinishedWorkoutReminderForSession('ws-2', '2026-05-09T11:05:00.000Z');
+
+    expect(Notifications.cancelScheduledNotificationAsync).toHaveBeenCalledWith('notification-1');
+    expect(Notifications.scheduleNotificationAsync).not.toHaveBeenCalled();
+    expect(setUnfinishedWorkoutReminderState).toHaveBeenCalledWith(null);
+    expect(setUnfinishedWorkoutRemindersEnabled).toHaveBeenCalledWith(false);
+  });
+
   it('cancels previous notification before replacement', async () => {
     (getUnfinishedWorkoutReminderState as jest.Mock).mockReturnValue({
       notificationId: 'old-notification',

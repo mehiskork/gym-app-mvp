@@ -53,6 +53,24 @@ describe('restTimerNotifications', () => {
     expect(granted).toBe(true);
   });
 
+  it('does not schedule a rest notification when permission remains denied or undetermined', async () => {
+    (Notifications.getPermissionsAsync as jest.Mock).mockResolvedValueOnce({ status: 'denied' });
+
+    await scheduleRestTimerNotification(60, true);
+
+    expect(Notifications.scheduleNotificationAsync).not.toHaveBeenCalled();
+    expect(Notifications.setNotificationChannelAsync).not.toHaveBeenCalled();
+
+    (Notifications.getPermissionsAsync as jest.Mock).mockResolvedValueOnce({
+      status: 'undetermined',
+    });
+
+    await scheduleRestTimerNotification(60, true);
+
+    expect(Notifications.scheduleNotificationAsync).not.toHaveBeenCalled();
+    expect(Notifications.setNotificationChannelAsync).not.toHaveBeenCalled();
+  });
+
   it('schedules a rest notification with the channel id and trigger seconds', async () => {
     (Notifications.getPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'granted' });
     (Notifications.scheduleNotificationAsync as jest.Mock).mockResolvedValue('notification-1');

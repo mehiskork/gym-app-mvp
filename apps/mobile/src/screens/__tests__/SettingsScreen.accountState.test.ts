@@ -526,6 +526,7 @@ describe('SettingsScreen account interactions', () => {
   });
 
   it('toggling unfinished workout reminders on requests permission and enables when granted', async () => {
+    const setUnfinishedReminderEnabled = jest.fn();
     useStateMock.mockReset();
     useStateMock.mockImplementation((initial: unknown) => [initial, jest.fn()]);
     useStateMock
@@ -542,7 +543,7 @@ describe('SettingsScreen account interactions', () => {
       .mockImplementationOnce((initial: unknown) => [initial, jest.fn()])
       .mockImplementationOnce(() => [false, jest.fn()])
       .mockImplementationOnce(() => [null, jest.fn()])
-      .mockImplementationOnce(() => [false, jest.fn()]);
+      .mockImplementationOnce(() => [false, setUnfinishedReminderEnabled]);
 
     const tree = expandTree(SettingsScreen());
     const reminderToggle = toggleRows(tree).find(
@@ -550,9 +551,12 @@ describe('SettingsScreen account interactions', () => {
     );
 
     await reminderToggle?.props.onValueChange(true);
+    await Promise.resolve();
+    await Promise.resolve();
 
     expect(requestRestTimerNotificationPermission).toHaveBeenCalledTimes(1);
     expect(setUnfinishedWorkoutRemindersPreference).toHaveBeenCalledWith(true);
+    expect(setUnfinishedReminderEnabled).toHaveBeenCalledWith(true);
   });
 
   it('shows friendly unfinished reminder feedback when notification permission is denied', async () => {
@@ -604,6 +608,41 @@ describe('SettingsScreen account interactions', () => {
     );
 
     expect(reminderToggle?.props.value).toBe(false);
+  });
+
+  it('clears unfinished reminders on focus when permission was revoked', async () => {
+    (getUnfinishedWorkoutRemindersPreference as jest.Mock).mockReturnValue(true);
+    (hasNotificationPermission as jest.Mock).mockResolvedValue(false);
+    const setUnfinishedReminderEnabled = jest.fn();
+    (useFocusEffect as jest.Mock).mockImplementation((callback: () => void) => {
+      callback();
+    });
+    useStateMock.mockReset();
+    useStateMock.mockImplementation((initial: unknown) => [initial, jest.fn()]);
+    useStateMock
+      .mockImplementationOnce(() => [false, jest.fn()])
+      .mockImplementationOnce(() => ['guest', jest.fn()])
+      .mockImplementationOnce(() => [null, jest.fn()])
+      .mockImplementationOnce(() => [false, jest.fn()])
+      .mockImplementationOnce(() => [null, jest.fn()])
+      .mockImplementationOnce(() => [false, jest.fn()])
+      .mockImplementationOnce(() => ['review', jest.fn()])
+      .mockImplementationOnce(() => ['', jest.fn()])
+      .mockImplementationOnce(() => [false, jest.fn()])
+      .mockImplementationOnce(() => [null, jest.fn()])
+      .mockImplementationOnce((initial: unknown) => [initial, jest.fn()])
+      .mockImplementationOnce(() => [false, jest.fn()])
+      .mockImplementationOnce(() => [null, jest.fn()])
+      .mockImplementationOnce(() => [true, setUnfinishedReminderEnabled])
+      .mockImplementationOnce(() => [null, jest.fn()]);
+
+    SettingsScreen();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(hasNotificationPermission).toHaveBeenCalledTimes(1);
+    expect(setUnfinishedWorkoutRemindersPreference).toHaveBeenCalledWith(false);
+    expect(setUnfinishedReminderEnabled).toHaveBeenCalledWith(false);
   });
 
   it('shows friendly unfinished reminder feedback if preference update fails', async () => {
