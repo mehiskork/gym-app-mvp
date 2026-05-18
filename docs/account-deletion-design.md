@@ -132,10 +132,10 @@ The public page uses the configured support email and a `mailto:` link as the ac
 The support destination is configured with:
 
 ```text
-TRAINFRAME_SUPPORT_EMAIL
+TRAINFRAME_SUPPORT_EMAIL=trainframe1@gmail.com
 ```
 
-Production-like profiles must configure a real support address. The placeholder `support@example.invalid` is rejected in production-like mode.
+Production-like profiles must configure a real support address. Missing, blank, placeholder, or `.invalid` values are rejected in production-like mode.
 
 ## Open Decisions
 

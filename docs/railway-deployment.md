@@ -16,11 +16,15 @@ SPRING_DATASOURCE_PASSWORD=${{Postgres.PGPASSWORD}}
 APP_AUTH_FIREBASE_PROJECT_ID=gym-app-mvp-1d7f0
 SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI=https://securetoken.google.com/gym-app-mvp-1d7f0
 SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI=https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com
+
+TRAINFRAME_SUPPORT_EMAIL=trainframe1@gmail.com
 ```
 
 The backend requires Java 25. If Railway builds the checked-in backend Dockerfile, no `NIXPACKS_JDK_VERSION` variable is needed because the Dockerfile pins Java 25 build and runtime images. If Railway uses Nixpacks/Railpack instead of the Dockerfile, verify Java 25 support in that builder and set the Java 25 runtime/build configuration before deploying.
 
 `SPRING_PROFILES_ACTIVE` must be `prod` so production safety checks are enforced. Prod-like profiles are `prod`, `production`, and `staging`; Railway should use `prod` for the current shared dev/QA backend service.
+
+`TRAINFRAME_SUPPORT_EMAIL` must be a real support address for prod-like Railway deployments. Missing, blank, `support@example.invalid`, or `.invalid` placeholder values are rejected by startup validation.
 
 Firebase is used for authentication only. Synced backend data is stored in PostgreSQL through the Spring Boot `/sync` API; mobile SQLite remains the runtime source of truth. Do not use Firebase as the app database.
 

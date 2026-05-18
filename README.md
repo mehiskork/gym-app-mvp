@@ -59,6 +59,7 @@ This repository has Firebase-backed Google account auth: account identity is can
 - Debug/support surfaces remain intentionally available for rollout support and incident triage.
 - Firebase is auth-only; app data remains SQLite mobile source of truth synced through Spring Boot/PostgreSQL.
 - Firebase mobile client config is tracked intentionally for the current private/dev phase; see `docs/firebase-client-config.md` for the restrictions and public-release policy.
+- Prod-like Railway deployments must configure `TRAINFRAME_SUPPORT_EMAIL` to a real support address; placeholder or missing values are rejected by startup validation.
 - Local-first behavior is unchanged: local writes commit first; sync reconciles eventual server state.
 - Mobile SQLite migrations have been squashed into a reset-only private-beta baseline. Existing internal/dev installs from before the squash must uninstall, clear app storage, or use destructive reset before testing this baseline.
 - Backend Flyway migrations are currently `V1__baseline_private_beta.sql`, `V2__account_deletion_tombstone.sql`, and `V3__account_identity_incarnation.sql`. Spring Boot 4 uses the explicit `spring-boot-starter-flyway` dependency in this repo.
