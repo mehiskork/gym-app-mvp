@@ -195,6 +195,8 @@ describe('debugRepo diagnostics and repair helpers', () => {
   });
 
   it('includes auth snapshot in support bundle without secrets', () => {
+    const jwtToken =
+      'eyJhbGciOiJSUzI1NiIsImtpZCI6ImtpZDEifQ.eyJzdWIiOiJmaXJlYmFzZS11aWQiLCJhdWQiOiJneW0tYXBwIn0.c2lnbmF0dXJlLXZhbHVlLTEyMzQ1Njc4OTA';
     (query as jest.Mock).mockImplementation((sql: string, params?: unknown[]) => {
       if (sql.includes('FROM app_meta') && params?.[0] === 'device_id') return [{ value: 'dev-1' }];
       if (sql.includes('FROM app_meta') && params?.[0] === 'guest_user_id')
@@ -231,7 +233,7 @@ describe('debugRepo diagnostics and repair helpers', () => {
             op_type: 'upsert',
             status: 'dead',
             attempt_count: 10,
-            last_error: 'sync op rejected: bad payload',
+            last_error: `sync op rejected with Bearer ${jwtToken}`,
             created_at: '2026-05-13T12:00:00.000Z',
             updated_at: '2026-05-13T12:10:00.000Z',
           },
@@ -247,7 +249,7 @@ describe('debugRepo diagnostics and repair helpers', () => {
           {
             value: JSON.stringify({
               capturedAt: '2026-04-28T12:00:00.000Z',
-              errorMessage: 'UNIQUE constraint failed',
+              errorMessage: `UNIQUE constraint failed after token ${jwtToken}`,
               cursorBefore: '0',
               responseCursor: '590',
               deltaIndex: 0,
@@ -293,7 +295,7 @@ describe('debugRepo diagnostics and repair helpers', () => {
       opType: 'upsert',
       status: 'dead',
       attemptCount: 10,
-      lastError: 'sync op rejected: bad payload',
+      lastError: 'sync op rejected with Bearer [REDACTED_TOKEN]',
       createdAt: '2026-05-13T12:00:00.000Z',
       updatedAt: '2026-05-13T12:10:00.000Z',
     });
@@ -302,6 +304,8 @@ describe('debugRepo diagnostics and repair helpers', () => {
     expect(json).not.toContain('"accessToken"');
     expect(json).not.toContain('"refreshToken"');
     expect(json).not.toContain('"deviceToken"');
+    expect(json).not.toContain(jwtToken);
+    expect(json).toContain('[REDACTED_TOKEN]');
     expect(json).not.toContain('firebase');
     expect(json).not.toContain('secret');
   });

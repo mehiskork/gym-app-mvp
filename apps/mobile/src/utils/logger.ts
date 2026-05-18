@@ -3,9 +3,15 @@ import { exec } from '../db/db';
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 const REDACTED = '[REDACTED]';
+const REDACTED_TOKEN = '[REDACTED_TOKEN]';
 const MAX_STRING_LENGTH = 1000;
 const MAX_ARRAY_LENGTH = 50;
 const MAX_OBJECT_KEYS = 100;
+const JWT_LIKE_PATTERN =
+  /(^|[^A-Za-z0-9_-])([A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,})(?=$|[^A-Za-z0-9_-])/g;
+const BEARER_TOKEN_PATTERN = /\b(Bearer)\s+([A-Za-z0-9._~+/=-]{16,})/gi;
+const GOOGLE_API_KEY_PATTERN = /\bAIza[0-9A-Za-z_-]{35}\b/g;
+const LONG_OPAQUE_TOKEN_PATTERN = /\b[A-Za-z0-9+/=]{48,}\b/g;
 const SENSITIVE_KEYS = new Set([
   'authorization',
   'accesstoken',
@@ -25,15 +31,27 @@ export function sanitizeLogContext(value: unknown): unknown {
   return sanitizeValue(value, 0);
 }
 
+export function sanitizeLogString(value: string): string {
+  const redacted = value
+    .replace(BEARER_TOKEN_PATTERN, `$1 ${REDACTED_TOKEN}`)
+    .replace(JWT_LIKE_PATTERN, (_match, prefix: string) => `${prefix}${REDACTED_TOKEN}`)
+    .replace(GOOGLE_API_KEY_PATTERN, REDACTED_TOKEN)
+    .replace(LONG_OPAQUE_TOKEN_PATTERN, (match) =>
+      /[A-Za-z]/.test(match) && /\d/.test(match) ? REDACTED_TOKEN : match,
+    );
+
+  return redacted.length > MAX_STRING_LENGTH
+    ? `${redacted.slice(0, MAX_STRING_LENGTH)}...[truncated]`
+    : redacted;
+}
+
 function sanitizeValue(value: unknown, depth: number): unknown {
   if (value == null || typeof value === 'number' || typeof value === 'boolean') {
     return value;
   }
 
   if (typeof value === 'string') {
-    return value.length > MAX_STRING_LENGTH
-      ? `${value.slice(0, MAX_STRING_LENGTH)}...[truncated]`
-      : value;
+    return sanitizeLogString(value);
   }
 
   if (depth >= 8) {
@@ -78,13 +96,14 @@ export function logEvent(
 ) {
   try {
     const at = Date.now();
+    const safeMessage = sanitizeLogString(message);
     const contextJson = context ? JSON.stringify(sanitizeLogContext(context)) : null;
 
     exec(`INSERT INTO app_log (at, level, tag, message, context_json) VALUES (?, ?, ?, ?, ?)`, [
       at,
       level,
       tag,
-      message,
+      safeMessage,
       contextJson,
     ]);
   } catch {

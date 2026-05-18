@@ -330,7 +330,7 @@ export function DebugScreen() {
 
   const exportSupportBundle = useCallback(async () => {
     const bundle = getSupportBundle();
-    const json = JSON.stringify(bundle, null, 2);
+    const json = JSON.stringify(sanitizeLogContext(bundle), null, 2);
 
     const timestamp = new Date();
     const pad = (value: number) => value.toString().padStart(2, '0');

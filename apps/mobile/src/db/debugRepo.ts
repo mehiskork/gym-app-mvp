@@ -19,6 +19,7 @@ import {
   readLatestSyncApplyFailureDiagnostic,
   type SyncApplyFailureDiagnostic,
 } from '../sync/applyDeltas';
+import { sanitizeLogContext } from '../utils/logger';
 
 export type TableCounts = Record<string, number>;
 
@@ -535,7 +536,7 @@ export function getSupportBundle(): SupportBundle {
     outboxStatusCounts[row.status] = row.c;
   }
 
-  return {
+  const bundle: SupportBundle = {
     exportedAt: new Date().toISOString(),
     app: {
       applicationId: Application.applicationId ?? null,
@@ -570,4 +571,6 @@ export function getSupportBundle(): SupportBundle {
     tableCounts: getTableCounts(),
     latestSyncApplyFailure: readLatestSyncApplyFailureDiagnostic(),
   };
+
+  return sanitizeLogContext(bundle) as SupportBundle;
 }

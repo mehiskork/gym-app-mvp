@@ -5,6 +5,11 @@ jest.mock('../../db/db', () => ({
 import { exec } from '../../db/db';
 import { logEvent, sanitizeLogContext } from '../logger';
 
+const JWT_TOKEN =
+  'eyJhbGciOiJSUzI1NiIsImtpZCI6ImtpZDEifQ.eyJzdWIiOiJmaXJlYmFzZS11aWQiLCJhdWQiOiJneW0tYXBwIn0.c2lnbmF0dXJlLXZhbHVlLTEyMzQ1Njc4OTA';
+const API_KEY = 'AIzaSyD1234567890abcdefghijklmnopqrstuv';
+const OPAQUE_TOKEN = 'abcDEF1234567890abcDEF1234567890abcDEF1234567890';
+
 describe('logger sanitization', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -53,6 +58,77 @@ describe('logger sanitization', () => {
           message: 'safe',
         },
       ],
+    });
+  });
+
+  it('redacts JWT-like string values under harmless keys', () => {
+    const sanitized = sanitizeLogContext({
+      note: JWT_TOKEN,
+      entityId: 'workout_set_550e8400-e29b-41d4-a716-446655440000',
+    });
+    const json = JSON.stringify(sanitized);
+
+    expect(json).toContain('[REDACTED_TOKEN]');
+    expect(json).not.toContain(JWT_TOKEN);
+    expect(json).toContain('workout_set_550e8400-e29b-41d4-a716-446655440000');
+  });
+
+  it('redacts JWT-like tokens embedded in log messages', () => {
+    logEvent('warn', 'sync', `sync failed with credential ${JWT_TOKEN}`, {
+      entityType: 'program_day_exercise',
+    });
+
+    const params = (exec as jest.Mock).mock.calls[0][1] as unknown[];
+    expect(params[3]).toBe('sync failed with credential [REDACTED_TOKEN]');
+    expect(params[3]).not.toContain(JWT_TOKEN);
+  });
+
+  it('redacts bearer tokens embedded in string values', () => {
+    const sanitized = sanitizeLogContext({
+      detail: `request failed Authorization: Bearer ${JWT_TOKEN}`,
+    });
+    const json = JSON.stringify(sanitized);
+
+    expect(json).toContain('Bearer [REDACTED_TOKEN]');
+    expect(json).not.toContain(JWT_TOKEN);
+  });
+
+  it('redacts token-shaped values inside nested arrays and objects', () => {
+    const sanitized = sanitizeLogContext({
+      attempts: [
+        {
+          label: 'retry',
+          rawResponse: {
+            message: `api key ${API_KEY}`,
+            fallback: OPAQUE_TOKEN,
+          },
+        },
+      ],
+    });
+    const json = JSON.stringify(sanitized);
+
+    expect(json).toContain('[REDACTED_TOKEN]');
+    expect(json).not.toContain(API_KEY);
+    expect(json).not.toContain(OPAQUE_TOKEN);
+  });
+
+  it('preserves normal diagnostic values', () => {
+    const sanitized = sanitizeLogContext({
+      exerciseName: 'Barbell Back Squat',
+      entityType: 'workout_set',
+      entityId: 'workout_set_550e8400-e29b-41d4-a716-446655440000',
+      routeName: 'WorkoutSession',
+      capturedAt: '2026-05-18T12:34:56.000Z',
+      shortValue: 'day-1',
+    });
+
+    expect(sanitized).toEqual({
+      exerciseName: 'Barbell Back Squat',
+      entityType: 'workout_set',
+      entityId: 'workout_set_550e8400-e29b-41d4-a716-446655440000',
+      routeName: 'WorkoutSession',
+      capturedAt: '2026-05-18T12:34:56.000Z',
+      shortValue: 'day-1',
     });
   });
 
