@@ -6,6 +6,7 @@ import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.OffsetDateTime;
@@ -34,6 +35,13 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @AutoConfigureMockMvc
 @Testcontainers
 class AccountDeletionWebResourceIntegrationTest {
+    private static final String PUBLIC_WEB_CSP = String.join("; ",
+            "default-src 'none'",
+            "style-src 'self' 'unsafe-inline'",
+            "form-action 'self'",
+            "base-uri 'none'",
+            "frame-ancestors 'none'");
+
     @SuppressWarnings("resource")
     @Container
     static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:15")
@@ -75,6 +83,10 @@ class AccountDeletionWebResourceIntegrationTest {
         mockMvc.perform(get("/account-deletion"))
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_HTML))
+                .andExpect(header().string("Content-Security-Policy", PUBLIC_WEB_CSP))
+                .andExpect(header().string("Referrer-Policy", "no-referrer"))
+                .andExpect(header().string("X-Content-Type-Options", "nosniff"))
+                .andExpect(header().string("X-Frame-Options", "DENY"))
                 .andExpect(content().string(containsString("TrainFrame account deletion request")))
                 .andExpect(content().string(containsString("Settings -&gt; Delete account")))
                 .andExpect(content().string(containsString("no longer have the app installed")))
@@ -117,6 +129,10 @@ class AccountDeletionWebResourceIntegrationTest {
                 }))
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_HTML))
+                .andExpect(header().string("Content-Security-Policy", PUBLIC_WEB_CSP))
+                .andExpect(header().string("Referrer-Policy", "no-referrer"))
+                .andExpect(header().string("X-Content-Type-Options", "nosniff"))
+                .andExpect(header().string("X-Frame-Options", "DENY"))
                 .andExpect(content().string(containsString("Email TrainFrame support to request deletion")))
                 .andExpect(content().string(containsString("does not automatically delete account data")))
                 .andExpect(content().string(containsString("mailto:support%40trainframe.example")))
@@ -220,9 +236,13 @@ class AccountDeletionWebResourceIntegrationTest {
     @Test
     void healthAndReadyRemainPublic() throws Exception {
         mockMvc.perform(get("/health"))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_PLAIN))
+                .andExpect(header().string("Content-Security-Policy", PUBLIC_WEB_CSP));
         mockMvc.perform(get("/ready"))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(header().string("Content-Security-Policy", PUBLIC_WEB_CSP));
     }
 
     private void seedSyncRows(String ownerId) {

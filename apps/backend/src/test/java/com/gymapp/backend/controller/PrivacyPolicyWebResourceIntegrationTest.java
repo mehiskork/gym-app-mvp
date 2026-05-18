@@ -4,6 +4,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import javax.sql.DataSource;
@@ -27,6 +28,13 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @AutoConfigureMockMvc
 @Testcontainers
 class PrivacyPolicyWebResourceIntegrationTest {
+    private static final String PUBLIC_WEB_CSP = String.join("; ",
+            "default-src 'none'",
+            "style-src 'self' 'unsafe-inline'",
+            "form-action 'self'",
+            "base-uri 'none'",
+            "frame-ancestors 'none'");
+
     @SuppressWarnings("resource")
     @Container
     static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:15")
@@ -62,6 +70,10 @@ class PrivacyPolicyWebResourceIntegrationTest {
         mockMvc.perform(get("/privacy"))
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_HTML))
+                .andExpect(header().string("Content-Security-Policy", PUBLIC_WEB_CSP))
+                .andExpect(header().string("Referrer-Policy", "no-referrer"))
+                .andExpect(header().string("X-Content-Type-Options", "nosniff"))
+                .andExpect(header().string("X-Frame-Options", "DENY"))
                 .andExpect(content().string(containsString("TrainFrame privacy policy")))
                 .andExpect(content().string(containsString("Effective date")))
                 .andExpect(content().string(containsString("privacy@trainframe.example")))
