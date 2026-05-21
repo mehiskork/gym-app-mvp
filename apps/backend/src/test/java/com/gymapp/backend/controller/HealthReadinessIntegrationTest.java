@@ -1,5 +1,6 @@
 package com.gymapp.backend.controller;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -12,6 +13,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -54,12 +56,14 @@ class HealthReadinessIntegrationTest {
     void readyFailsWhenRequiredTableIsMissing() throws Exception {
         jdbcTemplate.execute("DROP TABLE change_log");
         try {
-            mockMvc.perform(get("/ready"))
+            MvcResult result = mockMvc.perform(get("/ready"))
                     .andExpect(status().isServiceUnavailable())
                     .andExpect(jsonPath("$.status").value("not_ready"))
                     .andExpect(jsonPath("$.checks.database").value(true))
                     .andExpect(jsonPath("$.checks.requiredTables").value(false))
-                    .andExpect(jsonPath("$.missingTables[0]").value("change_log"));
+                    .andReturn();
+
+            assertPublicReadinessFailureDoesNotExposeSchema(result, "change_log");
         } finally {
             jdbcTemplate.execute(
                     "CREATE TABLE change_log ("
@@ -79,12 +83,14 @@ class HealthReadinessIntegrationTest {
     void readyFailsWhenRequiredAccountTableIsMissing() throws Exception {
         jdbcTemplate.execute("DROP TABLE identity_link");
         try {
-            mockMvc.perform(get("/ready"))
+            MvcResult result = mockMvc.perform(get("/ready"))
                     .andExpect(status().isServiceUnavailable())
                     .andExpect(jsonPath("$.status").value("not_ready"))
                     .andExpect(jsonPath("$.checks.database").value(true))
                     .andExpect(jsonPath("$.checks.requiredTables").value(false))
-                    .andExpect(jsonPath("$.missingTables[0]").value("identity_link"));
+                    .andReturn();
+
+            assertPublicReadinessFailureDoesNotExposeSchema(result, "identity_link");
         } finally {
             jdbcTemplate.execute(
                     "CREATE TABLE identity_link ("
@@ -101,12 +107,14 @@ class HealthReadinessIntegrationTest {
     void readyFailsWhenAccountDeletionTombstoneTableIsMissing() throws Exception {
         jdbcTemplate.execute("DROP TABLE account_deletion_tombstone");
         try {
-            mockMvc.perform(get("/ready"))
+            MvcResult result = mockMvc.perform(get("/ready"))
                     .andExpect(status().isServiceUnavailable())
                     .andExpect(jsonPath("$.status").value("not_ready"))
                     .andExpect(jsonPath("$.checks.database").value(true))
                     .andExpect(jsonPath("$.checks.requiredTables").value(false))
-                    .andExpect(jsonPath("$.missingTables[0]").value("account_deletion_tombstone"));
+                    .andReturn();
+
+            assertPublicReadinessFailureDoesNotExposeSchema(result, "account_deletion_tombstone");
         } finally {
             jdbcTemplate.execute(
                     "CREATE TABLE account_deletion_tombstone ("
@@ -126,12 +134,14 @@ class HealthReadinessIntegrationTest {
     void readyFailsWhenAccountIdentityTableIsMissing() throws Exception {
         jdbcTemplate.execute("DROP TABLE account_identity");
         try {
-            mockMvc.perform(get("/ready"))
+            MvcResult result = mockMvc.perform(get("/ready"))
                     .andExpect(status().isServiceUnavailable())
                     .andExpect(jsonPath("$.status").value("not_ready"))
                     .andExpect(jsonPath("$.checks.database").value(true))
                     .andExpect(jsonPath("$.checks.requiredTables").value(false))
-                    .andExpect(jsonPath("$.missingTables[0]").value("account_identity"));
+                    .andReturn();
+
+            assertPublicReadinessFailureDoesNotExposeSchema(result, "account_identity");
         } finally {
             jdbcTemplate.execute(
                     "CREATE TABLE account_identity ("
@@ -186,5 +196,18 @@ class HealthReadinessIntegrationTest {
                 .doesNotContain(postgres.getJdbcUrl())
                 .doesNotContain(postgres.getUsername())
                 .doesNotContain(postgres.getPassword());
+    }
+
+    private void assertPublicReadinessFailureDoesNotExposeSchema(MvcResult result, String missingTable)
+            throws Exception {
+        String response = result.getResponse().getContentAsString();
+
+        assertThat(response)
+                .doesNotContain("missingTables")
+                .doesNotContain(missingTable)
+                .doesNotContain("flyway_schema_history")
+                .doesNotContain("device_token")
+                .doesNotContain("entity_state")
+                .doesNotContain("op_ledger");
     }
 }
