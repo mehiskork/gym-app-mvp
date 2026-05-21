@@ -3,6 +3,7 @@ package com.gymapp.backend.controller;
 import com.gymapp.backend.model.ErrorResponse;
 import jakarta.validation.ConstraintViolationException;
 import java.util.Map;
+import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -12,6 +13,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @RestControllerAdvice
+@Slf4j
 // Error code taxonomy:
 // - AUTH_UNAUTHORIZED / AUTH_TOKEN_EXPIRED: authentication failures (401)
 // - AUTH_FORBIDDEN / SYNC_FORBIDDEN: authorization failures (403)
@@ -38,7 +40,8 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ErrorResponse> handleIllegalArgument(IllegalArgumentException ex) {
-        return buildResponse(HttpStatus.BAD_REQUEST, "BAD_REQUEST", ex.getMessage(), null);
+        log.warn("Rejected request due to invalid argument: {}", ex.getMessage());
+        return buildResponse(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "Bad request", null);
     }
 
     @ExceptionHandler(ForbiddenException.class)
