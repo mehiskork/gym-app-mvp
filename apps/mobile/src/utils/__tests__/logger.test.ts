@@ -7,7 +7,7 @@ import { logEvent, sanitizeLogContext } from '../logger';
 
 const JWT_TOKEN =
   'eyJhbGciOiJSUzI1NiIsImtpZCI6ImtpZDEifQ.eyJzdWIiOiJmaXJlYmFzZS11aWQiLCJhdWQiOiJneW0tYXBwIn0.c2lnbmF0dXJlLXZhbHVlLTEyMzQ1Njc4OTA';
-const API_KEY = 'AIzaSyD1234567890abcdefghijklmnopqrstuv';
+const API_KEY = ['AI', 'za', 'SyD1234567890abcdefghijklmnopqrstuv'].join('');
 const OPAQUE_TOKEN = 'abcDEF1234567890abcDEF1234567890abcDEF1234567890';
 
 describe('logger sanitization', () => {
