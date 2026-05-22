@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Card, Text } from '../../ui';
 import { tokens } from '../../theme/tokens';
 import {
+  SET_ACTIONS_GAP,
   SET_ACTIONS_WIDTH,
   SET_INPUT_GAP,
   SET_NUMBER_COLUMN_WIDTH,
@@ -96,7 +97,6 @@ export function ExerciseCard({
             style={{
               flexDirection: 'row',
               alignItems: 'center',
-              paddingHorizontal: tokens.spacing.sm,
             }}
           >
             <View
@@ -110,25 +110,27 @@ export function ExerciseCard({
             >
               <View style={{ width: SET_NUMBER_COLUMN_WIDTH, flexShrink: 0 }} />
               <View style={{ flex: 1, flexDirection: 'row', gap: SET_INPUT_GAP, minWidth: 0 }}>
-                <View style={{ flex: 1, minWidth: 0 }}>
+                <View style={{ flex: 1, minWidth: 0, alignItems: 'center' }}>
                   <Text
                     variant="label"
                     color={tokens.colors.mutedText}
                     numberOfLines={1}
                     style={{
                       fontSize: tokens.typography.caption.fontSize,
+                      textAlign: 'center',
                     }}
                   >
                     WEIGHT
                   </Text>
                 </View>
-                <View style={{ flex: 1, minWidth: 0 }}>
+                <View style={{ flex: 1, minWidth: 0, alignItems: 'center' }}>
                   <Text
                     variant="label"
                     color={tokens.colors.mutedText}
                     numberOfLines={1}
                     style={{
                       fontSize: tokens.typography.caption.fontSize,
+                      textAlign: 'center',
                     }}
                   >
                     REPS
@@ -136,7 +138,18 @@ export function ExerciseCard({
                 </View>
               </View>
             </View>
-            <View style={{ width: SET_ACTIONS_WIDTH, marginLeft: SET_ROW_GAP, flexShrink: 0 }} />
+            <View
+              style={{
+                width: SET_ACTIONS_WIDTH,
+                marginLeft: SET_ROW_GAP,
+                flexDirection: 'row',
+                gap: SET_ACTIONS_GAP,
+                flexShrink: 0,
+              }}
+            >
+              <View style={{ width: tokens.touchTargetMin }} />
+              <View style={{ width: tokens.touchTargetMin }} />
+            </View>
           </View>
         ) : null}
         {children}

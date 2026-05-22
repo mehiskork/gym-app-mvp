@@ -176,7 +176,6 @@ const styles = StyleSheet.create({
   completedRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: tokens.spacing.xs,
     paddingVertical: tokens.spacing.sm,
     paddingHorizontal: 0,
     borderRadius: tokens.radius.md,
