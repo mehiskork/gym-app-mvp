@@ -5,6 +5,12 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { Card, Text } from '../../ui';
 import { tokens } from '../../theme/tokens';
+import {
+  SET_ACTIONS_WIDTH,
+  SET_INPUT_GAP,
+  SET_NUMBER_COLUMN_WIDTH,
+  SET_ROW_GAP,
+} from './setRowLayout';
 
 type ExerciseCardProps = {
   name: string;
@@ -90,34 +96,25 @@ export function ExerciseCard({
             style={{
               flexDirection: 'row',
               alignItems: 'center',
-              gap: tokens.spacing.xs,
               paddingHorizontal: tokens.spacing.sm,
             }}
           >
             <View
               style={{
-                flex: 1.0,
+                flex: 1,
                 flexDirection: 'row',
                 alignItems: 'center',
-                gap: tokens.spacing.sm,
+                gap: SET_INPUT_GAP,
+                minWidth: 0,
               }}
             >
-              <View style={{ width: 24 }}>
-                <Text
-                  variant="label"
-                  color={tokens.colors.mutedText}
-                  style={{
-                    fontSize: tokens.typography.caption.fontSize,
-                  }}
-                >
-                  SET
-                </Text>
-              </View>
-              <View style={{ flex: 1, flexDirection: 'row', gap: tokens.spacing.sm }}>
-                <View style={{ flex: 1.2 }}>
+              <View style={{ width: SET_NUMBER_COLUMN_WIDTH, flexShrink: 0 }} />
+              <View style={{ flex: 1, flexDirection: 'row', gap: SET_INPUT_GAP, minWidth: 0 }}>
+                <View style={{ flex: 1, minWidth: 0 }}>
                   <Text
                     variant="label"
                     color={tokens.colors.mutedText}
+                    numberOfLines={1}
                     style={{
                       fontSize: tokens.typography.caption.fontSize,
                     }}
@@ -125,10 +122,11 @@ export function ExerciseCard({
                     WEIGHT
                   </Text>
                 </View>
-                <View style={{ flex: 0.7 }}>
+                <View style={{ flex: 1, minWidth: 0 }}>
                   <Text
                     variant="label"
                     color={tokens.colors.mutedText}
+                    numberOfLines={1}
                     style={{
                       fontSize: tokens.typography.caption.fontSize,
                     }}
@@ -138,7 +136,7 @@ export function ExerciseCard({
                 </View>
               </View>
             </View>
-            <View style={{ width: tokens.touchTargetMin * 2 + tokens.spacing.xs }} />
+            <View style={{ width: SET_ACTIONS_WIDTH, marginLeft: SET_ROW_GAP, flexShrink: 0 }} />
           </View>
         ) : null}
         {children}

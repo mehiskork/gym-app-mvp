@@ -5,6 +5,13 @@ import type { LoggerSet } from '../../db/workoutLoggerRepo';
 import { IconButton, Text } from '../../ui';
 import { tokens } from '../../theme/tokens';
 import { formatOptionalNumber } from '../../utils/format';
+import {
+  SET_ACTIONS_GAP,
+  SET_ACTIONS_WIDTH,
+  SET_INPUT_GAP,
+  SET_NUMBER_COLUMN_WIDTH,
+  SET_ROW_GAP,
+} from './setRowLayout';
 
 type SetRowProps = {
   set: LoggerSet;
@@ -24,40 +31,13 @@ export function SetRow({
   onDelete,
   onEditFocus,
 }: SetRowProps) {
-  const [rowWidth, setRowWidth] = React.useState(0);
   const rowRef = React.useRef<View | null>(null);
   const completed = set.is_completed === 1;
   const rowStyle = completed ? styles.completedRow : styles.row;
   const inputStyle = completed ? styles.completedInput : styles.input;
   const checkStyle = completed ? styles.checkCompleted : styles.check;
   const buttonSize = tokens.touchTargetMin;
-  const rightActionsGap = tokens.spacing.xs;
-  const rightActionsWidth = buttonSize * 2 + rightActionsGap;
-  const rowHorizontalPadding = 0;
-  const setColWidth = 18;
-  const setInputGap = 0;
-  const inputGap = tokens.spacing.xs;
-  const rowGap = tokens.spacing.xs;
-  const minInputWidth = 88;
-  const maxInputWidth = 132;
-
-  const available =
-    rowWidth > 0
-      ? rowWidth - rowHorizontalPadding * 2 - setColWidth - rightActionsWidth - setInputGap - rowGap
-      : 0;
-  const baseInputWidth = available > 0 ? Math.floor((available - inputGap) / 2) : maxInputWidth;
-  const inputWidth = Math.max(minInputWidth, Math.min(baseInputWidth, maxInputWidth));
   const inputPadding = tokens.spacing.md;
-
-  const handleRowLayout = React.useCallback(
-    (event: { nativeEvent: { layout: { width: number } } }) => {
-      const { width } = event.nativeEvent.layout;
-      if (width !== rowWidth) {
-        setRowWidth(width);
-      }
-    },
-    [rowWidth],
-  );
 
   const handleEditFocus = React.useCallback(() => {
     if (!onEditFocus || !rowRef.current) return;
@@ -67,20 +47,22 @@ export function SetRow({
   }, [onEditFocus]);
 
   return (
-    <View ref={rowRef} style={rowStyle} onLayout={handleRowLayout}>
-      <View style={[styles.leftCluster, { gap: setInputGap }]}>
-        <View style={[styles.setLabel, { width: setColWidth }]}>
+    <View ref={rowRef} style={rowStyle}>
+      <View style={[styles.leftCluster, { gap: SET_INPUT_GAP }]}>
+        <View style={[styles.setLabel, { width: SET_NUMBER_COLUMN_WIDTH }]}>
           <Text
             testID="set-number"
             variant="body"
             color={tokens.colors.mutedText}
+            numberOfLines={1}
+            ellipsizeMode="clip"
             style={styles.setNumberText}
           >
             {set.set_index}
           </Text>
         </View>
-        <View style={[styles.inputs, { gap: inputGap }]}>
-          <View style={[styles.inputWrapper, { width: inputWidth }]}>
+        <View style={[styles.inputs, { gap: SET_INPUT_GAP }]}>
+          <View style={styles.inputWrapper}>
             <TextInput
               testID="weight-input"
               defaultValue={formatOptionalNumber(set.weight, 2)}
@@ -89,13 +71,13 @@ export function SetRow({
               keyboardType="decimal-pad"
               placeholder="0"
               placeholderTextColor={tokens.colors.textSecondary}
-              style={[inputStyle, { width: inputWidth, paddingHorizontal: inputPadding }]}
+              style={[inputStyle, { paddingHorizontal: inputPadding }]}
               onEndEditing={(e) => onWeightEndEditing(e.nativeEvent.text)}
               onFocus={handleEditFocus}
             />
           </View>
 
-          <View style={[styles.inputWrapper, styles.repsInputWrapper, { width: inputWidth }]}>
+          <View style={styles.inputWrapper}>
             <TextInput
               testID="reps-input"
               defaultValue={set.reps === null ? '' : String(set.reps)}
@@ -104,7 +86,7 @@ export function SetRow({
               keyboardType="number-pad"
               placeholder="0"
               placeholderTextColor={tokens.colors.textSecondary}
-              style={[inputStyle, { width: inputWidth, paddingHorizontal: inputPadding }]}
+              style={[inputStyle, { paddingHorizontal: inputPadding }]}
               onEndEditing={(e) => onRepsEndEditing(e.nativeEvent.text)}
               onFocus={handleEditFocus}
             />
@@ -115,7 +97,7 @@ export function SetRow({
       <View
         style={[
           styles.rightCluster,
-          { width: rightActionsWidth, gap: rightActionsGap, marginLeft: rowGap },
+          { width: SET_ACTIONS_WIDTH, gap: SET_ACTIONS_GAP, marginLeft: SET_ROW_GAP },
         ]}
       >
         <Pressable
@@ -155,24 +137,26 @@ const styles = StyleSheet.create({
   setLabel: {
     width: 32,
     alignItems: 'center',
+    flexShrink: 0,
   },
   setNumberText: {
     fontSize: tokens.typography.subtitle.fontSize + 2,
     fontWeight: tokens.typography.subtitle.fontWeight,
     lineHeight: tokens.typography.subtitle.fontSize + 6,
     textAlign: 'center',
+    includeFontPadding: false,
   },
   inputs: {
     flex: 1,
     flexDirection: 'row',
     flexShrink: 1,
+    minWidth: 0,
   },
   inputWrapper: {
+    flex: 1,
+    minWidth: 0,
     overflow: 'hidden',
     borderRadius: tokens.radius.md,
-  },
-  repsInputWrapper: {
-    marginRight: tokens.spacing.xs,
   },
   rightCluster: {
     flexDirection: 'row',
@@ -201,6 +185,7 @@ const styles = StyleSheet.create({
     backgroundColor: tokens.colors.successSurface,
   },
   input: {
+    width: '100%',
     minHeight: tokens.touchTargetMin,
     fontSize: tokens.typography.subtitle.fontSize + 2,
     fontWeight: tokens.typography.subtitle.fontWeight,
@@ -216,6 +201,7 @@ const styles = StyleSheet.create({
     textAlignVertical: 'center',
   },
   completedInput: {
+    width: '100%',
     minHeight: tokens.touchTargetMin,
     fontSize: tokens.typography.subtitle.fontSize + 2,
     fontWeight: tokens.typography.subtitle.fontWeight,

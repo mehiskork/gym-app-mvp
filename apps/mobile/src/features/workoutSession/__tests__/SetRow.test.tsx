@@ -43,10 +43,10 @@ jest.mock('react-native-safe-area-context', () => {
 });
 
 import React from 'react';
-import { StyleSheet, TextInput, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { SetRow } from '../SetRow';
-import { tokens } from '../../../theme/tokens';
+import { SET_ACTIONS_WIDTH, SET_NUMBER_COLUMN_WIDTH } from '../setRowLayout';
 
 const findElementsByType = <P,>(
   node: React.ReactNode,
@@ -98,17 +98,7 @@ const createSet = () => ({
 });
 
 describe('SetRow layout sizing', () => {
-  it('uses equal widths for weight and reps and a fixed right actions width', () => {
-    const useStateMock = React.useState as jest.Mock;
-    let rowWidthState = 0;
-
-    useStateMock.mockImplementation(() => [
-      rowWidthState,
-      (value: number) => {
-        rowWidthState = value;
-      },
-    ]);
-
+  it('uses a compact set column, equal flex inputs, and a fixed right actions width', () => {
     const element = SetRow({
       set: createSet(),
       onWeightEndEditing: jest.fn(),
@@ -118,39 +108,28 @@ describe('SetRow layout sizing', () => {
     });
 
     const views = findElementsByType(element, View) as Array<
-      React.ReactElement<{ style?: unknown; onLayout?: (event: unknown) => void }>
-    >;
-    const rowView = views.find((view) => typeof view.props.onLayout === 'function');
-    expect(rowView).toBeDefined();
-
-    rowView?.props.onLayout?.({ nativeEvent: { layout: { width: 360 } } });
-
-    const updatedElement = SetRow({
-      set: createSet(),
-      onWeightEndEditing: jest.fn(),
-      onRepsEndEditing: jest.fn(),
-      onToggleComplete: jest.fn(),
-      onDelete: jest.fn(),
-    });
-
-    const inputs = findElementsByType(updatedElement, TextInput) as Array<
       React.ReactElement<{ style?: unknown }>
     >;
-    const weightStyle = StyleSheet.flatten(inputs[0]?.props.style) as { width?: number };
-    const repsStyle = StyleSheet.flatten(inputs[1]?.props.style) as { width?: number };
 
-    expect(weightStyle?.width).toBeDefined();
-    expect(weightStyle?.width).toBe(repsStyle?.width);
-
-    const expectedRightActionsWidth = tokens.touchTargetMin * 2 + tokens.spacing.xs;
-    const updatedViews = findElementsByType(updatedElement, View) as Array<
-      React.ReactElement<{ style?: unknown }>
-    >;
-    const rightActionsView = updatedViews.find((view) => {
+    const setColumnView = views.find((view) => {
       const style = StyleSheet.flatten(view.props.style) as { width?: number };
-      return style?.width === expectedRightActionsWidth;
+      return style?.width === SET_NUMBER_COLUMN_WIDTH;
+    });
+    const inputWrappers = views.filter((view) => {
+      const style = StyleSheet.flatten(view.props.style) as {
+        flex?: number;
+        minWidth?: number;
+        overflow?: string;
+      };
+      return style?.flex === 1 && style?.minWidth === 0 && style?.overflow === 'hidden';
+    });
+    const rightActionsView = views.find((view) => {
+      const style = StyleSheet.flatten(view.props.style) as { width?: number };
+      return style?.width === SET_ACTIONS_WIDTH;
     });
 
+    expect(setColumnView).toBeDefined();
+    expect(inputWrappers).toHaveLength(2);
     expect(rightActionsView).toBeDefined();
   });
   it('matches set number typography with numeric inputs and centers values', () => {
