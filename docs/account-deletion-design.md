@@ -125,7 +125,7 @@ TrainFrame exposes a public deletion request resource:
 - `GET /account-deletion`
 - `POST /account-deletion/request`
 
-The page explains the in-app deletion path, the manual web request path, and that deleting TrainFrame account data does not delete the user's Google account. It instructs users not to send passwords, JWTs, Firebase tokens, device tokens, support bundles, keystores, private keys, or other secrets.
+The page explains the in-app deletion path, the manual web request path, and that deleting TrainFrame account data does not delete the user's Google account. It instructs users that the web form does not automatically delete data, manual requests are processed within 30 days, and passwords, JWTs, Firebase tokens, device tokens, keystores, private keys, and other secrets must not be sent. Support bundles are not needed for deletion requests.
 
 The public page uses the configured support email and a `mailto:` link as the actual manual request path. It tells users what to include and to copy/paste the support email if `mailto:` does not open. The legacy public POST endpoint accepts the same minimal form fields but does not delete account data directly and does not claim an in-browser request was received; it returns email instructions instead. Email alone is not sufficient authentication for automatic deletion.
 

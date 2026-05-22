@@ -171,6 +171,7 @@ public class SecurityConfig {
                         .requestMatchers("/health").permitAll()
                         .requestMatchers("/ready").permitAll()
                         .requestMatchers("/privacy").permitAll()
+                        .requestMatchers("/terms").permitAll()
                         .requestMatchers("/account-deletion").permitAll()
                         .requestMatchers("/account-deletion/request").permitAll()
                         .requestMatchers("/device/register").permitAll()

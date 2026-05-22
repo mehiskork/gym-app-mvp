@@ -130,4 +130,4 @@ Before Play production submission:
 - Use the public `/privacy` URL in the Play Console privacy policy field.
 - Confirm the privacy policy references the same `/account-deletion` deletion path.
 - Define the manual support processing expectation for web deletion requests before launch.
-- Confirm the public web form does not request passwords, tokens, support bundles, keystores, or other secrets.
+- Confirm the public web form does not request passwords, tokens, keystores, or other secrets. Support bundles are not needed for deletion requests.

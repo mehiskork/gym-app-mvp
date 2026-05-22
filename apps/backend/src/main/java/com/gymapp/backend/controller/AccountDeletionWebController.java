@@ -92,14 +92,14 @@ public class AccountDeletionWebController {
                 <body>
                   <main>
                     <h1>TrainFrame account deletion request</h1>
-                    <p>TrainFrame users who can open the app can delete their account in <strong>Settings -&gt; Delete account</strong>. This page is for users who no longer have the app installed or cannot access the in-app deletion flow.</p>
+                    <p>TrainFrame users who can open the app can delete their account in <strong>Settings -&gt; Delete account</strong>. In-app deletion is the fastest option for signed-in users. This page is for users who no longer have the app installed or cannot access the in-app deletion flow.</p>
 
                     <div class="note">
                       Deleting your TrainFrame account deletes TrainFrame account data. It does <strong>not</strong> delete your Google account.
                     </div>
 
                     <div class="warning">
-                      Do not send passwords, Google passwords, JWTs, Firebase tokens, device tokens, support bundles, keystores, private keys, or other secrets.
+                      This web form does not automatically delete data. It only shows email instructions for a manual request. After account deletion, TrainFrame may keep limited deletion and security records so old sessions cannot restore deleted data and so the same Google account can create a fresh TrainFrame account later. Manual deletion requests are processed within 30 days. Do not send passwords, Google passwords, JWTs, Firebase tokens, device tokens, keystores, private keys, or other secrets. Support bundles are not needed for deletion requests.
                     </div>
 
                     <h2>What we need</h2>
@@ -131,6 +131,7 @@ public class AccountDeletionWebController {
 
                     <h2>Support contact</h2>
                     <p><a href="%s">Email TrainFrame support</a> and include only your TrainFrame sign-in/contact email, that you are requesting TrainFrame account/data deletion, and optional context.</p>
+                    <p><a href="/privacy">Privacy policy</a> | <a href="/terms">Terms of Service</a></p>
                   </main>
                 </body>
                 </html>
@@ -160,10 +161,11 @@ public class AccountDeletionWebController {
                 <body>
                   <main>
                     <h1>Email TrainFrame support to request deletion</h1>
-                    <p>This web form does not automatically delete account data or submit a support ticket. To request manual deletion, email <a href="%s">%s</a>.</p>
+                    <p>In-app deletion from <strong>Settings -&gt; Delete account</strong> is fastest for signed-in users. This web form does not automatically delete account data or submit a support ticket. To request manual deletion, email <a href="%s">%s</a>.</p>
                     <p>Include your TrainFrame contact or Google sign-in email, for example <strong>%s</strong>, and say that you are requesting TrainFrame account/data deletion. You may add optional context.</p>
                     <p>If the email button does not open, copy and paste this address into your email app: <strong>%s</strong>.</p>
-                    <p>This does not delete your Google account. Do not send passwords, tokens, support bundles, or secrets.</p>
+                    <p>After account deletion, TrainFrame may keep limited deletion and security records so old sessions cannot restore deleted data and so the same Google account can create a fresh TrainFrame account later. Manual deletion requests are processed within 30 days. This does not delete your Google account. Do not send passwords, tokens, or secrets. Support bundles are not needed for deletion requests.</p>
+                    <p><a href="/privacy">Privacy policy</a> | <a href="/terms">Terms of Service</a></p>
                   </main>
                 </body>
                 </html>
