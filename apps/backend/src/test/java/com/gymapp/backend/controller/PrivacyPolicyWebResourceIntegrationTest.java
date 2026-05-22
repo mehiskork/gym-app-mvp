@@ -30,6 +30,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 class PrivacyPolicyWebResourceIntegrationTest {
     private static final String PUBLIC_WEB_CSP = String.join("; ",
             "default-src 'none'",
+            "img-src 'self'",
             "style-src 'self' 'unsafe-inline'",
             "form-action 'self'",
             "base-uri 'none'",

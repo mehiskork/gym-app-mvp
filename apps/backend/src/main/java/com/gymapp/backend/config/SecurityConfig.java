@@ -40,6 +40,7 @@ import org.springframework.util.StringUtils;
 public class SecurityConfig {
     private static final String PUBLIC_WEB_CONTENT_SECURITY_POLICY = String.join("; ",
             "default-src 'none'",
+            "img-src 'self'",
             "style-src 'self' 'unsafe-inline'",
             "form-action 'self'",
             "base-uri 'none'",
@@ -168,6 +169,8 @@ public class SecurityConfig {
                         .frameOptions(frame -> frame.deny()))
                 .addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class)
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/").permitAll()
+                        .requestMatchers("/assets/trainframe-logo.png").permitAll()
                         .requestMatchers("/health").permitAll()
                         .requestMatchers("/ready").permitAll()
                         .requestMatchers("/privacy").permitAll()
