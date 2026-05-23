@@ -195,12 +195,9 @@ export function ExerciseCard({
                 pressed ? { opacity: 0.85 } : null,
               ]}
             >
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.sm }}>
-                <Ionicons name="add" size={16} color={tokens.colors.mutedText} />
-                <Text variant="muted" color={tokens.colors.mutedText}>
-                  Add Set
-                </Text>
-              </View>
+              <Text variant="muted" color={tokens.colors.mutedText}>
+                Add Set
+              </Text>
             </Pressable>
           ) : null}
         </View>
