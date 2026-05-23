@@ -17,6 +17,8 @@ jest.mock('@react-navigation/native', () => ({
 jest.mock('react-native', () => {
   const React = require('react');
   return {
+    ScrollView: ({ children, ...props }: { children?: React.ReactNode }) =>
+      React.createElement('ScrollView', props, children),
     View: ({ children, ...props }: { children?: React.ReactNode }) =>
       React.createElement('View', props, children),
     StyleSheet: {
@@ -130,5 +132,30 @@ describe('Screen insets', () => {
     const screens = findElementsByType<ScreenProps>(element, Screen);
 
     expect(screens[0]?.props.bottomInset).toBe('tabBar');
+  });
+
+  it('omits the top safe-area edge by default while preserving bottom/side edges', () => {
+    const element = <Screen>Content</Screen>;
+    const rendered = element.type(element.props);
+
+    expect(rendered.props.edges).toEqual(['left', 'right', 'bottom']);
+  });
+
+  it('keeps tab-bar screens off the bottom safe-area edge by default', () => {
+    const element = (
+      <Screen scroll bottomInset="tabBar">
+        Content
+      </Screen>
+    );
+    const rendered = element.type(element.props);
+
+    expect(rendered.props.edges).toEqual(['left', 'right']);
+  });
+
+  it('supports explicit top safe-area opt-in', () => {
+    const element = <Screen topInset>Content</Screen>;
+    const rendered = element.type(element.props);
+
+    expect(rendered.props.edges).toEqual(['top', 'left', 'right', 'bottom']);
   });
 });

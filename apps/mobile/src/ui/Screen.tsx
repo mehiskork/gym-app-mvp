@@ -15,6 +15,7 @@ type ScreenProps = {
   style?: StyleProp<ViewStyle>;
   contentStyle?: StyleProp<ViewStyle>;
   bottomInset?: 'none' | 'tabBar';
+  topInset?: boolean;
 };
 
 export function Screen({
@@ -25,6 +26,7 @@ export function Screen({
   style,
   contentStyle,
   bottomInset = 'none',
+  topInset = false,
 }: ScreenProps) {
   const paddingValue = padded ? tokens.spacing.lg : 0;
   const bottomPadding = bottomInset === 'tabBar' ? tokens.layout.tabBarHeight : 0;
@@ -34,8 +36,8 @@ export function Screen({
     paddingBottom: paddingValue + bottomPadding,
   };
   const bgColor = backgroundColor ?? tokens.colors.bg;
-  const edges: Edge[] =
-    bottomInset === 'tabBar' ? ['top', 'left', 'right'] : ['top', 'left', 'right', 'bottom'];
+  const edges: Edge[] = topInset ? ['top', 'left', 'right'] : ['left', 'right'];
+  if (bottomInset !== 'tabBar') edges.push('bottom');
 
   if (scroll) {
     return (
