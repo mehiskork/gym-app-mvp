@@ -35,7 +35,6 @@ import { CardioSummaryEditor } from '../features/workoutSession/CardioSummaryEdi
 import { ExerciseCard } from '../features/workoutSession/ExerciseCard';
 import { SetRow } from '../features/workoutSession/SetRow';
 import { FinishWorkoutSheet } from '../features/workoutSession/FinishWorkoutSheet';
-import { WorkoutSessionHeaderCard } from '../features/workoutSession/WorkoutSessionHeaderCard';
 import { useKeyboardAvoidance } from '../features/workoutSession/useKeyboardAvoidance';
 import { useRestTimer } from '../features/workoutSession/useRestTimer';
 import { useSessionTick } from '../features/workoutSession/useSessionTick';
@@ -255,8 +254,6 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
           }}
           showsVerticalScrollIndicator={false}
         >
-          <WorkoutSessionHeaderCard status={session.status} startedAt={session.started_at} />
-
           {exercises.length === 0 ? (
             <Card>
               <EmptyState
