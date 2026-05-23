@@ -729,10 +729,22 @@ describe('WorkoutSessionScreen', () => {
     const overlayCard = allCards.find((card) => getPositionStyle(card.props.style) === 'absolute');
 
     expect(overlayCard).toBeDefined();
+    expect((StyleSheet.flatten(overlayCard?.props.style) as ViewStyle | undefined)?.top).toBe(
+      tokens.spacing.xs,
+    );
 
-    const scrollViews = findElementsByType(element, 'ScrollView') as Array<
-      React.ReactElement<{ children?: React.ReactNode }>
+    const scrollViews = findElementsByType(element, ScrollView) as Array<
+      React.ReactElement<{
+        children?: React.ReactNode;
+        contentContainerStyle?: StyleProp<ViewStyle>;
+        onScroll?: unknown;
+      }>
     >;
+    const workoutScrollView = scrollViews.find((scrollView) => scrollView.props.onScroll);
+    expect(
+      (StyleSheet.flatten(workoutScrollView?.props.contentContainerStyle) as ViewStyle | undefined)
+        ?.paddingTop,
+    ).toBe(tokens.spacing.xs + tokens.touchTargetMin + tokens.spacing.xl + tokens.spacing.sm);
     const scrollCards = scrollViews.flatMap(
       (scrollView) =>
         findElementsByType(scrollView.props.children, Card) as Array<React.ReactElement<CardProps>>,

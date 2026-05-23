@@ -47,6 +47,8 @@ import { cancelRestTimerNotification } from '../utils/restTimerNotifications';
 type Props = NativeStackScreenProps<RootStackParamList, 'WorkoutSession'>;
 
 const REST_TIMER_HEIGHT = tokens.touchTargetMin + tokens.spacing.xl;
+const REST_TIMER_TOP_OFFSET = tokens.spacing.xs;
+const REST_TIMER_CONTENT_GAP = tokens.spacing.sm;
 const CTA_HEIGHT = tokens.touchTargetMin + tokens.spacing.sm;
 const CTA_STACK_GAP = tokens.spacing.sm;
 const MAX_EXERCISE_COMMENT_LENGTH = 200;
@@ -224,9 +226,9 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
   const bottomStackOffset = -insets.bottom;
   const baseScrollPaddingTop = tokens.spacing.md;
   const scrollPaddingTop = timerActive
-    ? baseScrollPaddingTop + REST_TIMER_HEIGHT + tokens.spacing.lg
+    ? REST_TIMER_TOP_OFFSET + REST_TIMER_HEIGHT + REST_TIMER_CONTENT_GAP
     : baseScrollPaddingTop;
-  const restTimerTop = tokens.spacing.xs - insets.top;
+  const restTimerTop = REST_TIMER_TOP_OFFSET;
   if (!session) {
     return (
       <Screen style={{ justifyContent: 'center' }}>
