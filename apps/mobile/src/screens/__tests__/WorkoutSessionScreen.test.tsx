@@ -1124,13 +1124,19 @@ describe('WorkoutSessionScreen', () => {
     });
 
     const pressables = findElementsByType(element, Pressable) as Array<
-      React.ReactElement<{ onPress?: () => void; testID?: string }>
+      React.ReactElement<{ onPress?: () => void; style?: unknown; testID?: string }>
     >;
     const addSetRow = pressables.find(
       (pressable) => pressable.props.testID === 'exercise-card-add-set',
     );
+    const addSetStyle = StyleSheet.flatten(resolveStyle(addSetRow?.props.style)) as
+      | ViewStyle
+      | undefined;
 
     expect(addSetRow).toBeDefined();
+    expect(addSetStyle?.borderStyle).toBeUndefined();
+    expect(addSetStyle?.borderWidth).toBe(1);
+    expect(addSetStyle?.flex).toBe(1);
     addSetRow?.props.onPress?.();
     expect(onAddSet).toHaveBeenCalled();
   });

@@ -187,7 +187,6 @@ export function ExerciseCard({
                   flex: 1,
                   minHeight: tokens.touchTargetMin,
                   borderWidth: 1,
-                  borderStyle: 'dashed',
                   borderColor: tokens.colors.border,
                   borderRadius: tokens.radius.md,
                   alignItems: 'center',
