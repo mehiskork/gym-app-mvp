@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
+import { Keyboard, KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -248,6 +248,7 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
           ref={scrollViewRef}
           onScroll={handleScroll}
           scrollEventThrottle={16}
+          keyboardShouldPersistTaps="handled"
           contentContainerStyle={{
             paddingHorizontal: tokens.spacing.lg,
             paddingTop: scrollPaddingTop,
@@ -322,7 +323,10 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
                           setActions.handleWeightEndEditing(set, value)
                         }
                         onRepsEndEditing={(value) => setActions.handleRepsEndEditing(set, value)}
-                        onToggleComplete={() => setActions.handleToggleComplete(ex, set)}
+                        onToggleComplete={() => {
+                          Keyboard.dismiss();
+                          setActions.handleToggleComplete(ex, set);
+                        }}
                         onDelete={() => setActions.handleDeleteSet(set)}
                         onEditFocus={handleEditFocus}
                       />

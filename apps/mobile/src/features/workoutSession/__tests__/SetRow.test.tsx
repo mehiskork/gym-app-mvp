@@ -11,6 +11,9 @@ jest.mock('react', () => {
 jest.mock('react-native', () => {
   const React = require('react');
   return {
+    Keyboard: {
+      dismiss: jest.fn(),
+    },
     Pressable: ({ children, ...props }: { children?: React.ReactNode }) =>
       React.createElement('Pressable', props, children),
     TextInput: ({ children, ...props }: { children?: React.ReactNode }) =>
@@ -185,6 +188,24 @@ describe('SetRow input focus behavior', () => {
 
     expect(weightInput?.props.maxLength).toBe(6);
     expect(repsInput?.props.maxLength).toBe(3);
+  });
+
+  it('preserves weight and reps testIDs and applies return-key behavior', () => {
+    const element = SetRow({
+      set: createSet(),
+      onWeightEndEditing: jest.fn(),
+      onRepsEndEditing: jest.fn(),
+      onToggleComplete: jest.fn(),
+      onDelete: jest.fn(),
+    });
+
+    const weightInput = findElementByTestId<{ returnKeyType?: string }>(element, 'weight-input');
+    const repsInput = findElementByTestId<{ returnKeyType?: string }>(element, 'reps-input');
+
+    expect(weightInput).toBeDefined();
+    expect(repsInput).toBeDefined();
+    expect(weightInput?.props.returnKeyType).toBe('next');
+    expect(repsInput?.props.returnKeyType).toBe('done');
   });
 
   it('enables select-all on focus for weight and reps inputs so next digit replaces value', () => {

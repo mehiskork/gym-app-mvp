@@ -32,6 +32,7 @@ jest.mock('react-native', () => {
   return {
     Keyboard: {
       addListener: jest.fn(() => ({ remove: jest.fn() })),
+      dismiss: jest.fn(),
     },
     KeyboardAvoidingView: ({ children, ...props }: { children?: React.ReactNode }) =>
       React.createElement('KeyboardAvoidingView', props, children),
@@ -109,7 +110,7 @@ jest.mock('../../theme/theme', () => ({
 
 import React from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Keyboard, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { CommonActions, useFocusEffect } from '@react-navigation/native';
 
 import { WorkoutSessionScreen } from '../WorkoutSessionScreen';
@@ -178,6 +179,7 @@ describe('WorkoutSessionScreen', () => {
     useEffectMock.mockReset();
     (updateWorkoutSet as jest.Mock).mockReset();
     (clearRestTimer as jest.Mock).mockReset();
+    (Keyboard.dismiss as jest.Mock).mockReset();
     (getWorkoutLoggerData as jest.Mock).mockReset();
     (cancelRestTimerNotification as jest.Mock).mockReset();
     (maybeTriggerRestTimerHaptics as jest.Mock).mockReset();
@@ -277,8 +279,9 @@ describe('WorkoutSessionScreen', () => {
     expect(typeof setRows[0]?.props.onEditFocus).toBe('function');
 
     const scrollViews = findElementsByType(element, ScrollView) as Array<
-      React.ReactElement<{ onScroll?: unknown; ref?: unknown }>
+      React.ReactElement<{ keyboardShouldPersistTaps?: string; onScroll?: unknown; ref?: unknown }>
     >;
+    expect(scrollViews[0]?.props.keyboardShouldPersistTaps).toBe('handled');
     expect(typeof scrollViews[0]?.props.onScroll).toBe('function');
     expect(
       scrollViews[0]?.props.ref ?? (scrollViews[0] as { ref?: unknown } | undefined)?.ref,
@@ -286,7 +289,11 @@ describe('WorkoutSessionScreen', () => {
 
     setRows[0]?.props.onToggleComplete();
 
+    expect(Keyboard.dismiss).toHaveBeenCalledTimes(1);
     expect(updateWorkoutSet).toHaveBeenCalledWith('set-1', { is_completed: 1 });
+    expect((Keyboard.dismiss as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
+      (updateWorkoutSet as jest.Mock).mock.invocationCallOrder[0],
+    );
   });
 
   it('passes keyboard-safe focus handling to cardio inputs', () => {

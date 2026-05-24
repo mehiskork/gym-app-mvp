@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Keyboard, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { LoggerSet } from '../../db/workoutLoggerRepo';
 import { IconButton, Text } from '../../ui';
@@ -32,6 +32,7 @@ export function SetRow({
   onEditFocus,
 }: SetRowProps) {
   const rowRef = React.useRef<View | null>(null);
+  const repsInputRef = React.useRef<TextInput | null>(null);
   const completed = set.is_completed === 1;
   const rowStyle = completed ? styles.completedRow : styles.row;
   const inputStyle = completed ? styles.completedInput : styles.input;
@@ -69,26 +70,31 @@ export function SetRow({
               maxLength={6}
               selectTextOnFocus
               keyboardType="decimal-pad"
+              returnKeyType="next"
               placeholder="0"
               placeholderTextColor={tokens.colors.textSecondary}
               style={[inputStyle, { paddingHorizontal: inputPadding }]}
               onEndEditing={(e) => onWeightEndEditing(e.nativeEvent.text)}
               onFocus={handleEditFocus}
+              onSubmitEditing={() => repsInputRef.current?.focus()}
             />
           </View>
 
           <View style={styles.inputWrapper}>
             <TextInput
+              ref={repsInputRef}
               testID="reps-input"
               defaultValue={set.reps === null ? '' : String(set.reps)}
               maxLength={3}
               selectTextOnFocus
               keyboardType="number-pad"
+              returnKeyType="done"
               placeholder="0"
               placeholderTextColor={tokens.colors.textSecondary}
               style={[inputStyle, { paddingHorizontal: inputPadding }]}
               onEndEditing={(e) => onRepsEndEditing(e.nativeEvent.text)}
               onFocus={handleEditFocus}
+              onSubmitEditing={Keyboard.dismiss}
             />
           </View>
         </View>
