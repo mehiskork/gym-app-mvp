@@ -3,7 +3,12 @@ import { inTransaction } from './tx';
 import { newId } from '../utils/ids';
 import { enqueueOutboxOp } from './outboxRepo';
 import { DEFAULT_REST_SECONDS, type WorkoutSessionStatus } from './constants';
-import { MAX_SETS_PER_EXERCISE, WorkoutLimitError, WORKOUT_LIMIT_MESSAGES } from './workoutLimits';
+import {
+  MAX_EXERCISES_PER_SESSION,
+  MAX_SETS_PER_EXERCISE,
+  WorkoutLimitError,
+  WORKOUT_LIMIT_MESSAGES,
+} from './workoutLimits';
 import { fetchSessionDetail } from './sessionDetailRepo';
 import {
   EXERCISE_TYPE,
@@ -415,7 +420,6 @@ export function appendWorkoutSessionExercise(input: {
   exerciseName: string;
 }): { focusExerciseId: string } {
   const { workoutSessionId, exerciseId, exerciseName } = input;
-  const exerciseMeta = getExerciseMeta(exerciseId);
 
   return inTransaction(() => {
     const session = query<{ id: string }>(
@@ -433,6 +437,22 @@ export function appendWorkoutSessionExercise(input: {
     if (!session) {
       throw new Error('appendWorkoutSessionExercise: workout session not found');
     }
+
+    const exerciseCount =
+      query<{ n: number }>(
+        `
+        SELECT COUNT(*) AS n
+        FROM workout_session_exercise
+        WHERE workout_session_id = ? AND deleted_at IS NULL;
+      `,
+        [workoutSessionId],
+      )[0]?.n ?? 0;
+
+    if (exerciseCount >= MAX_EXERCISES_PER_SESSION) {
+      throw new WorkoutLimitError(WORKOUT_LIMIT_MESSAGES.maxExercisesPerSession);
+    }
+
+    const exerciseMeta = getExerciseMeta(exerciseId);
 
     const maxPosition =
       query<{ max_position: number | null }>(

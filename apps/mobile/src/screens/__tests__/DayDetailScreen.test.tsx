@@ -189,6 +189,40 @@ describe('DayDetailScreen', () => {
     expect(row.props.title).toBe('Bench Press');
   });
 
+  it('disables Add exercise and blocks picker navigation at 50 planned exercises', () => {
+    const items = Array.from({ length: 50 }, (_, index) => ({
+      id: `day-ex-${index + 1}`,
+      program_day_id: 'day-1',
+      exercise_id: `exercise-${index + 1}`,
+      exercise_name: `Exercise ${index + 1}`,
+      position: index + 1,
+      notes: null,
+    }));
+    useStateMock.mockImplementationOnce(() => ['Push', jest.fn()]);
+    useStateMock.mockImplementationOnce(() => ['Push', jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [items, jest.fn()]);
+
+    const navigation: Nav = { navigate: jest.fn(), replace: jest.fn(), setOptions: jest.fn() };
+    const element = DayDetailScreen({
+      navigation,
+      route: { key: 'DayDetail', name: 'DayDetail', params: { dayId: 'day-1' } },
+    } as never);
+
+    const lists = findElementsByType<React.ComponentProps<typeof DraggableFlatList>>(
+      element,
+      DraggableFlatList,
+    );
+    const buttons = findElementsByType<React.ComponentProps<typeof Button>>(
+      lists[0]?.props.ListHeaderComponent as React.ReactNode,
+      Button,
+    );
+    const addExerciseButton = buttons.find((button) => button.props.title === 'Max 50 exercises');
+
+    expect(addExerciseButton?.props.disabled).toBe(true);
+    addExerciseButton?.props.onPress?.({} as never);
+    expect(navigation.navigate).not.toHaveBeenCalledWith('ExercisePicker', { dayId: 'day-1' });
+  });
+
   it('uses destructive red for the exercise delete icon', () => {
     const items = [
       {

@@ -34,6 +34,7 @@ import {
   getInProgressSession,
   getSessionById,
 } from '../db/workoutSessionRepo';
+import { MAX_EXERCISES_PER_SESSION } from '../db/workoutLimits';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'DayDetail'>;
 
@@ -102,8 +103,9 @@ export function DayDetailScreen({ route, navigation }: Props) {
   }, [dayId, navigation, workoutPlanId]);
 
   const handleAddExercise = useCallback(() => {
+    if (items.length >= MAX_EXERCISES_PER_SESSION) return;
     navigation.navigate('ExercisePicker', { dayId });
-  }, [dayId, navigation]);
+  }, [dayId, items.length, navigation]);
 
   const commitDayName = useCallback(() => {
     const next = dayNameInput.trim();
@@ -141,6 +143,7 @@ export function DayDetailScreen({ route, navigation }: Props) {
     borderWidth: 1,
     borderColor: tokens.colors.border,
   } as const;
+  const exerciseLimitReached = items.length >= MAX_EXERCISES_PER_SESSION;
 
   const renderRowRight = useCallback(
     (item: DayExerciseRow, drag?: () => void, disabled = false) => {
@@ -238,7 +241,11 @@ export function DayDetailScreen({ route, navigation }: Props) {
             <Button title="Start workout" onPress={handleStartWorkout} />
           ) : (
             <>
-              <Button title="Add exercise" onPress={handleAddExercise} />
+              <Button
+                title={exerciseLimitReached ? 'Max 50 exercises' : 'Add exercise'}
+                disabled={exerciseLimitReached}
+                onPress={handleAddExercise}
+              />
               <Text variant="muted">Hold the reorder handle to move exercises.</Text>
             </>
           )}
@@ -258,7 +265,12 @@ export function DayDetailScreen({ route, navigation }: Props) {
           isStartSessionMode ? (
             <Button title="Start workout" variant="secondary" onPress={handleStartWorkout} />
           ) : (
-            <Button title="Add exercise" variant="secondary" onPress={handleAddExercise} />
+            <Button
+              title={exerciseLimitReached ? 'Max 50 exercises' : 'Add exercise'}
+              variant="secondary"
+              disabled={exerciseLimitReached}
+              onPress={handleAddExercise}
+            />
           )
         }
       />

@@ -31,8 +31,9 @@ describe('workoutLoggerRepo cardio', () => {
 
   it('appends cardio exercise without inserting strength set rows', () => {
     (query as jest.Mock)
-      .mockReturnValueOnce([{ exercise_type: 'cardio', cardio_profile: 'treadmill' }])
       .mockReturnValueOnce([{ id: 'ws-1' }])
+      .mockReturnValueOnce([{ n: 2 }])
+      .mockReturnValueOnce([{ exercise_type: 'cardio', cardio_profile: 'treadmill' }])
       .mockReturnValueOnce([{ max_position: 2 }])
       .mockReturnValueOnce([{ id: 'wse-new' }]);
 

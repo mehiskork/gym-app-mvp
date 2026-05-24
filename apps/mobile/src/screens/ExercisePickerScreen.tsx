@@ -18,6 +18,7 @@ import {
 
 import { addExerciseToDay } from '../db/dayExerciseRepo';
 import { appendWorkoutSessionExercise, swapWorkoutSessionExercise } from '../db/workoutLoggerRepo';
+import { isWorkoutLimitError } from '../db/workoutLimits';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ExercisePicker'>;
 const BOTTOM_CTA_HEIGHT = tokens.touchTargetMin + tokens.spacing.sm;
@@ -172,8 +173,12 @@ export function ExercisePickerScreen({ route, navigation }: Props) {
                     if (!dayId) return;
                     addExerciseToDay({ dayId, exerciseId: item.id });
                     navigation.goBack();
-                  } catch {
-                    setFeedback("Couldn't complete that action. Try again.");
+                  } catch (error) {
+                    setFeedback(
+                      isWorkoutLimitError(error)
+                        ? error.message
+                        : "Couldn't complete that action. Try again.",
+                    );
                   }
                 }}
                 style={({ pressed }) => [{ flex: 1 }, pressed ? { opacity: 0.85 } : null]}

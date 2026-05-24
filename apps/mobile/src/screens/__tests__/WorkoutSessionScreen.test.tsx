@@ -376,6 +376,77 @@ describe('WorkoutSessionScreen', () => {
     expect(exerciseCards[0]?.props.addSetDisabled).toBe(true);
   });
 
+  it('disables Add exercise and blocks picker navigation at 50 active exercises', () => {
+    const session = {
+      id: 'session-1',
+      title: 'Push Day',
+      status: 'in_progress',
+      started_at: '2024-01-01T00:00:00Z',
+      rest_timer_end_at: null,
+      rest_timer_seconds: null,
+      rest_timer_label: null,
+    };
+    const exercises = Array.from({ length: 50 }, (_, index) => ({
+      id: `exercise-${index + 1}`,
+      exercise_id: `exercise-template-${index + 1}`,
+      exercise_name: `Exercise ${index + 1}`,
+      exercise_type: 'strength',
+      cardio_profile: null,
+      cardio_summary: {
+        duration_minutes: null,
+        distance_km: null,
+        speed_kph: null,
+        incline_percent: null,
+        resistance_level: null,
+        pace_seconds_per_km: null,
+        floors: null,
+        stair_level: null,
+      },
+      notes: null,
+      position: index + 1,
+      sets: [],
+    }));
+
+    useStateMock.mockImplementationOnce(() => [session, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [exercises, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [0, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [
+      {
+        defaultRestSeconds: 120,
+        autoStartRestTimer: true,
+        restTimerVibration: true,
+        keepScreenOn: true,
+        restTimerNotifications: false,
+      },
+      jest.fn(),
+    ]);
+    useStateMock.mockImplementationOnce(() => [false, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [false, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [{ visible: false, payload: null }, jest.fn()]);
+    (getWorkoutLoggerData as jest.Mock).mockReturnValue({ session, exercises });
+
+    const navigation: Nav = {
+      navigate: jest.fn(),
+      dispatch: jest.fn(),
+      setOptions: jest.fn(),
+      addListener: jest.fn(),
+    };
+    const element = WorkoutSessionScreen({
+      navigation,
+      route: { key: 'WorkoutSession', name: 'WorkoutSession', params: { sessionId: 'session-1' } },
+    } as never);
+
+    type ButtonProps = React.ComponentProps<typeof Button>;
+    const buttons = findElementsByType<ButtonProps>(element, Button);
+    const addExerciseButton = buttons.find((button) => button.props.title === 'Max 50 exercises');
+
+    expect(addExerciseButton?.props.disabled).toBe(true);
+    addExerciseButton?.props.onPress?.({} as never);
+    expect(navigation.navigate).not.toHaveBeenCalledWith('ExercisePicker', {
+      addToSessionId: 'session-1',
+    });
+  });
+
   it('passes keyboard-safe focus handling to cardio inputs', () => {
     const session = {
       id: 'session-1',

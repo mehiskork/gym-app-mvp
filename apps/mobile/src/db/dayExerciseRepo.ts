@@ -2,6 +2,11 @@ import { exec, query } from './db';
 import { inTransaction } from './tx';
 import { newId } from '../utils/ids';
 import { enqueueOutboxOp } from './outboxRepo';
+import {
+  MAX_EXERCISES_PER_SESSION,
+  WorkoutLimitError,
+  WORKOUT_LIMIT_MESSAGES,
+} from './workoutLimits';
 
 export type DayRow = {
   id: string;
@@ -208,6 +213,20 @@ export function addExerciseToDay(input: { dayId: string; exerciseId: string }): 
 
   return inTransaction(() => {
     normalizeDeletedExercisePositions(dayId);
+
+    const count =
+      query<{ n: number }>(
+        `
+        SELECT COUNT(*) AS n
+        FROM program_day_exercise
+        WHERE program_day_id = ? AND deleted_at IS NULL;
+      `,
+        [dayId],
+      )[0]?.n ?? 0;
+
+    if (count >= MAX_EXERCISES_PER_SESSION) {
+      throw new WorkoutLimitError(WORKOUT_LIMIT_MESSAGES.maxExercisesPerSession);
+    }
 
     const nextPos =
       query<{ next_pos: number }>(

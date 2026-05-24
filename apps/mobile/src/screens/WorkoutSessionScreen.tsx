@@ -21,7 +21,7 @@ import {
 import { useAppTheme } from '../theme/theme';
 import { tokens } from '../theme/tokens';
 import { completeSession, updateWorkoutSessionNote } from '../db/workoutSessionRepo';
-import { MAX_SETS_PER_EXERCISE } from '../db/workoutLimits';
+import { MAX_EXERCISES_PER_SESSION, MAX_SETS_PER_EXERCISE } from '../db/workoutLimits';
 import {
   clearRestTimer,
   getWorkoutLoggerData,
@@ -198,10 +198,11 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
   }, [isFinishing]);
 
   const handleAddExercise = useCallback(() => {
+    if (exercises.length >= MAX_EXERCISES_PER_SESSION) return;
     navigation.navigate('ExercisePicker', {
       addToSessionId: sessionId,
     });
-  }, [navigation, sessionId]);
+  }, [exercises.length, navigation, sessionId]);
 
   const handleWorkoutNoteChange = useCallback(
     (value: string) => {
@@ -238,6 +239,7 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
     );
   }
   const canEditComment = session.status === 'in_progress';
+  const exerciseLimitReached = exercises.length >= MAX_EXERCISES_PER_SESSION;
 
   return (
     <Screen padded={false} bottomInset="none" contentStyle={{ paddingTop: 0 }}>
@@ -404,9 +406,9 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
             style={{ marginBottom: setActions.snackbarUndo.visible ? CTA_STACK_GAP : 0 }}
           />
           <Button
-            title="Add exercise"
+            title={exerciseLimitReached ? 'Max 50 exercises' : 'Add exercise'}
             variant="secondary"
-            disabled={session.status !== 'in_progress'}
+            disabled={session.status !== 'in_progress' || exerciseLimitReached}
             onPress={handleAddExercise}
             style={{ height: CTA_HEIGHT, flex: 1 }}
           />

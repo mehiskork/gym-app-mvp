@@ -57,14 +57,20 @@ jest.mock('@react-navigation/native', () => ({
 jest.mock('../../db/exerciseRepo', () => ({ listExercisesForCurrentUser: jest.fn() }));
 jest.mock('../../db/dayExerciseRepo', () => ({ addExerciseToDay: jest.fn() }));
 jest.mock('../../db/workoutLoggerRepo', () => ({
+  appendWorkoutSessionExercise: jest.fn(),
   swapWorkoutSessionExercise: jest.fn(),
 }));
 
 import React from 'react';
+import { FlatList, Pressable } from 'react-native';
 import { ExercisePickerScreen } from '../ExercisePickerScreen';
 import { Button } from '../../ui';
 import { listExercisesForCurrentUser } from '../../db/exerciseRepo';
-import { swapWorkoutSessionExercise } from '../../db/workoutLoggerRepo';
+import {
+  appendWorkoutSessionExercise,
+  swapWorkoutSessionExercise,
+} from '../../db/workoutLoggerRepo';
+import { WorkoutLimitError, WORKOUT_LIMIT_MESSAGES } from '../../db/workoutLimits';
 
 const findByType = (
   node: React.ReactNode,
@@ -90,6 +96,7 @@ describe('ExercisePickerScreen swap mode', () => {
     useStateMock.mockReset();
     useStateMock.mockImplementation((initial: unknown) => [initial, jest.fn()]);
     (swapWorkoutSessionExercise as jest.Mock).mockReset();
+    (appendWorkoutSessionExercise as jest.Mock).mockReset();
     (listExercisesForCurrentUser as jest.Mock).mockReturnValue([
       { id: 'ex-2', name: 'Incline Bench', is_custom: 1 },
     ]);
@@ -160,5 +167,52 @@ describe('ExercisePickerScreen swap mode', () => {
     expect(textContent).toContain('Custom');
     expect(textContent).not.toContain('Type');
     expect(textContent).not.toContain('Source');
+  });
+
+  it('shows the exercise limit message when adding to an active workout is rejected', () => {
+    const setFeedback = jest.fn();
+    useStateMock.mockImplementationOnce(() => ['', jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [
+      [{ id: 'ex-2', name: 'Incline Bench', is_custom: 1 }],
+      jest.fn(),
+    ]);
+    useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [null, setFeedback]);
+    (appendWorkoutSessionExercise as jest.Mock).mockImplementationOnce(() => {
+      throw new WorkoutLimitError(WORKOUT_LIMIT_MESSAGES.maxExercisesPerSession);
+    });
+
+    const navigation = { goBack: jest.fn(), navigate: jest.fn() };
+    const element = ExercisePickerScreen({
+      navigation,
+      route: {
+        key: 'ExercisePicker',
+        name: 'ExercisePicker',
+        params: { addToSessionId: 'session-1' },
+      },
+    } as never);
+
+    const lists = findByType(element, FlatList) as Array<
+      React.ReactElement<{
+        renderItem?: (input: {
+          item: { id: string; name: string; is_custom: number };
+        }) => React.ReactNode;
+      }>
+    >;
+    const renderItem = lists[0]?.props.renderItem as
+      | ((input: { item: { id: string; name: string; is_custom: number } }) => React.ReactNode)
+      | undefined;
+    const row = renderItem?.({ item: { id: 'ex-2', name: 'Incline Bench', is_custom: 1 } });
+    const pressables = findByType(row, Pressable) as Array<
+      React.ReactElement<{ accessibilityLabel?: string; onPress?: () => void }>
+    >;
+    const selectExercise = pressables.find(
+      (pressable) => pressable.props.accessibilityLabel === 'Select Incline Bench',
+    );
+    selectExercise?.props.onPress?.();
+
+    expect(setFeedback).toHaveBeenCalledWith(WORKOUT_LIMIT_MESSAGES.maxExercisesPerSession);
+    expect(navigation.goBack).not.toHaveBeenCalled();
   });
 });

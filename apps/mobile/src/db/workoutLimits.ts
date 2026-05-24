@@ -1,7 +1,9 @@
 export const MAX_SETS_PER_EXERCISE = 50;
+export const MAX_EXERCISES_PER_SESSION = 50;
 
 export const WORKOUT_LIMIT_MESSAGES = {
   maxSetsPerExercise: 'Max 50 sets per exercise',
+  maxExercisesPerSession: 'Max 50 exercises per session',
 } as const;
 
 export class WorkoutLimitError extends Error {
