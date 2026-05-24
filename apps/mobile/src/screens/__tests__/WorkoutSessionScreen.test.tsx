@@ -1147,7 +1147,7 @@ describe('WorkoutSessionScreen', () => {
     addSetRow?.props.onPress?.();
     expect(onAddSet).toHaveBeenCalled();
   });
-  it('renders weight and reps column headers once per exercise card without a set header', () => {
+  it('renders set, weight, and reps column headers once per exercise card', () => {
     const element = ExerciseCard({
       name: 'Deadlift',
       subtitle: '0/2 sets complete',
@@ -1199,7 +1199,7 @@ describe('WorkoutSessionScreen', () => {
     const weightLabels = texts.filter((text) => text.props.children === 'WEIGHT');
     const repLabels = texts.filter((text) => text.props.children === 'REPS');
 
-    expect(setLabels).toHaveLength(0);
+    expect(setLabels).toHaveLength(1);
     expect(weightLabels).toHaveLength(1);
     expect(repLabels).toHaveLength(1);
   });

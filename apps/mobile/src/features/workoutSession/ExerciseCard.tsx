@@ -108,7 +108,20 @@ export function ExerciseCard({
                 minWidth: 0,
               }}
             >
-              <View style={{ width: SET_NUMBER_COLUMN_WIDTH, flexShrink: 0 }} />
+              <View style={{ width: SET_NUMBER_COLUMN_WIDTH, flexShrink: 0, alignItems: 'center' }}>
+                <Text
+                  variant="label"
+                  color={tokens.colors.mutedText}
+                  numberOfLines={1}
+                  ellipsizeMode="clip"
+                  style={{
+                    fontSize: tokens.typography.caption.fontSize,
+                    textAlign: 'center',
+                  }}
+                >
+                  SET
+                </Text>
+              </View>
               <View style={{ flex: 1, flexDirection: 'row', gap: SET_INPUT_GAP, minWidth: 0 }}>
                 <View style={{ flex: 1, minWidth: 0, alignItems: 'center' }}>
                   <Text

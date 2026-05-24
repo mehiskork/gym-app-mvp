@@ -171,6 +171,21 @@ describe('SetRow layout sizing', () => {
     expect(weightStyle).toMatchObject({ textAlign: 'center' });
     expect(repsStyle).toMatchObject({ textAlign: 'center' });
   });
+
+  it('renders two-digit set numbers without truncating the value', () => {
+    const element = SetRow({
+      set: { ...createSet(), set_index: 10 },
+      onWeightEndEditing: jest.fn(),
+      onRepsEndEditing: jest.fn(),
+      onToggleComplete: jest.fn(),
+      onDelete: jest.fn(),
+    });
+
+    const setNumber = findElementByTestId<{ children?: React.ReactNode }>(element, 'set-number');
+
+    expect(setNumber?.props.children).toBe(10);
+    expect(String(setNumber?.props.children)).toBe('10');
+  });
 });
 
 describe('SetRow input focus behavior', () => {
