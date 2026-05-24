@@ -1,6 +1,6 @@
 # Account Deletion Design
 
-This document records the implemented TrainFrame account deletion/recreation behavior and the remaining Play production decisions.
+This document records the implemented TrainFrame account deletion/recreation behavior and the remaining future public-production/legal decisions.
 
 ## Purpose
 
@@ -51,7 +51,7 @@ Intended guest behavior:
 - Guest device/server records may be cleaned up later through retention or admin cleanup.
 - If guest data has synced to the backend through device-token sync, local reset alone may leave server-side guest-scoped sync records.
 
-Open release question: before public launch, decide whether guest server data needs self-service deletion or whether retention/admin cleanup is acceptable for guest-only data.
+Future public-production question: decide whether guest server data needs self-service deletion or whether retention/admin cleanup is acceptable for guest-only data.
 
 ## Account Users
 
@@ -72,20 +72,20 @@ Required behavior:
 
 Deletion handling should be explicit for each category.
 
-| Data category | Intended handling |
-|---|---|
-| Synced workout data/entities | Hard-delete account-owned TrainFrame entities for the principal-derived owner and linked claimed guest scopes. |
-| `entity_state` | Hard-delete account-owned rows and linked claimed guest rows. |
-| `change_log` | Hard-delete account-owned rows and linked claimed guest rows so old cursor replay cannot return deleted data. |
-| `op_ledger` | Hard-delete account-owned rows and linked claimed guest rows. |
-| `identity_link` | Remove links for the deleted account owner. |
-| Claim / guest migration audit records | Remove rows for the deleted account owner and linked claimed guest scopes. |
-| `device` records | Delete devices for linked claimed guest scopes. |
-| `device_token` records | Delete tokens for devices in linked claimed guest scopes. |
-| `account_identity` | Keep Firebase subject mapping and advance active owner/generation on recreation; use `auth_time_cutoff` to block stale old sessions. |
-| Local SQLite data | Clear only after backend deletion succeeds. |
-| SecureStore account/session material | Clear only after backend deletion succeeds. Includes account tokens/session secrets and device/session credentials used by this app. |
-| Support bundles already shared outside the app | Not recallable. The app should continue avoiding raw auth tokens/secrets in support bundles. |
+| Data category                                  | Intended handling                                                                                                                    |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Synced workout data/entities                   | Hard-delete account-owned TrainFrame entities for the principal-derived owner and linked claimed guest scopes.                       |
+| `entity_state`                                 | Hard-delete account-owned rows and linked claimed guest rows.                                                                        |
+| `change_log`                                   | Hard-delete account-owned rows and linked claimed guest rows so old cursor replay cannot return deleted data.                        |
+| `op_ledger`                                    | Hard-delete account-owned rows and linked claimed guest rows.                                                                        |
+| `identity_link`                                | Remove links for the deleted account owner.                                                                                          |
+| Claim / guest migration audit records          | Remove rows for the deleted account owner and linked claimed guest scopes.                                                           |
+| `device` records                               | Delete devices for linked claimed guest scopes.                                                                                      |
+| `device_token` records                         | Delete tokens for devices in linked claimed guest scopes.                                                                            |
+| `account_identity`                             | Keep Firebase subject mapping and advance active owner/generation on recreation; use `auth_time_cutoff` to block stale old sessions. |
+| Local SQLite data                              | Clear only after backend deletion succeeds.                                                                                          |
+| SecureStore account/session material           | Clear only after backend deletion succeeds. Includes account tokens/session secrets and device/session credentials used by this app. |
+| Support bundles already shared outside the app | Not recallable. The app should continue avoiding raw auth tokens/secrets in support bundles.                                         |
 
 ## Implemented Behavior
 
@@ -122,8 +122,13 @@ TrainFrame implements in-app deletion under `Settings -> Delete account` for sig
 
 TrainFrame exposes a public deletion request resource:
 
+- `https://www.trainframe.eu/account-deletion`
 - `GET /account-deletion`
 - `POST /account-deletion/request`
+
+The current public privacy policy is:
+
+- `https://www.trainframe.eu/privacy`
 
 The page explains the in-app deletion path, the manual web request path, and that deleting TrainFrame account data does not delete the user's Google account. It instructs users that the web form does not automatically delete data, manual requests are processed within 30 days, and passwords, JWTs, Firebase tokens, device tokens, keystores, private keys, and other secrets must not be sent. Support bundles are not needed for deletion requests.
 
@@ -137,15 +142,24 @@ TRAINFRAME_SUPPORT_EMAIL=trainframe1@gmail.com
 
 Production-like profiles must configure a real support address. Missing, blank, placeholder, or `.invalid` values are rejected in production-like mode.
 
-## Open Decisions
+## Current Retention Policy
 
-Decide these before Play production submission:
+Current implemented policy:
 
-- Retention period for audit, claim, rate-limit, and security records.
+- Hard-delete user workout/domain payload data for the deleted account owner and linked claimed guest scopes.
+- Retain only minimal non-payload security/audit metadata where operationally or legally necessary.
+- Keep account identity/tombstone metadata needed to block stale deleted sessions and protect same-Google recreation.
+- Process manual web deletion requests through support within 30 days.
+- Do not retain user workout payloads after account deletion.
+
+## Future Public-Production Decisions
+
+Decide these before broader public production:
+
+- Final retention period for audit, claim, rate-limit, and security records.
 - Whether guest server data needs self-service deletion before public launch.
 - Whether deletion requires recent login / Google re-auth.
-- Privacy policy URL and public hosting domain for Play Console fields.
-- Manual support SLA / reasonable processing expectation for web deletion requests.
+- Whether the 30-day manual support SLA needs legal/privacy-policy adjustment.
 - Whether a stronger TrainFrame app session architecture is needed beyond the current account identity incarnation/auth-time cutoff model.
 
 ## Recommended Initial Direction
@@ -154,7 +168,6 @@ For private beta / first public release, the implemented starting policy is:
 
 - Hard-delete user workout/domain data.
 - Retain only minimal non-payload security/audit metadata where legally or operationally necessary.
-- Do not retain user workout payloads after account deletion.
 - Make deletion idempotent.
 - Support same-Google recreation after fresh auth while keeping deleted data isolated from the new owner.
 

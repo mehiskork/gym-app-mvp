@@ -60,10 +60,11 @@ This repository has Firebase-backed Google account auth: account identity is can
 - Firebase is auth-only; app data remains SQLite mobile source of truth synced through Spring Boot/PostgreSQL.
 - Firebase mobile client config is tracked intentionally for the current private/dev phase; see `docs/firebase-client-config.md` for the restrictions and public-release policy.
 - Prod-like Railway deployments must configure `TRAINFRAME_SUPPORT_EMAIL` to a real support address; placeholder or missing values are rejected by startup validation.
+- Production backend and public pages are served from `https://www.trainframe.eu`; health and readiness are available at `/health` and `/ready`.
 - Local-first behavior is unchanged: local writes commit first; sync reconciles eventual server state.
 - Mobile SQLite migrations have been squashed into a reset-only private-beta baseline. Existing internal/dev installs from before the squash must uninstall, clear app storage, or use destructive reset before testing this baseline.
 - Backend Flyway migrations are currently `V1__baseline_private_beta.sql`, `V2__account_deletion_tombstone.sql`, and `V3__account_identity_incarnation.sql`. Spring Boot 4 uses the explicit `spring-boot-starter-flyway` dependency in this repo.
-- The checked-in mobile preview config targets the Railway shared dev/QA backend by default (`https://gym-app-mvp-production.up.railway.app`). This URL is not private and must not be treated as a security boundary. It is not the final production environment. Production builds must set `EXPO_PUBLIC_APP_ENV=production` and a real production `EXPO_PUBLIC_API_BASE_URL`; the app rejects the shared dev/QA URL in production mode.
+- The checked-in mobile preview config targets the Railway shared preview/dev QA backend by default (`https://gym-app-mvp-production.up.railway.app`). Production EAS builds use `EXPO_PUBLIC_APP_ENV=production`, `EXPO_PUBLIC_API_BASE_URL=https://www.trainframe.eu`, and channel `production`; see `docs/android-release.md`.
 - Android release build profiles are documented in `docs/android-release.md`; the app displays as `TrainFrame`, the Expo slug intentionally remains `mobile`, and the Android package is `com.mehka.gymappmvp`.
 - PR events are local-derived cache data. Workout history is synced; PR rows are recomputed locally and are not synced inbound or outbound.
 - Public repository readiness checklist: `docs/public-repo-safety.md`
@@ -72,12 +73,12 @@ This repository has Firebase-backed Google account auth: account identity is can
 
 ## Stack
 
-| Area | Technology |
-|---|---|
-| Mobile | Expo, React Native, TypeScript, React Navigation, `expo-sqlite` |
+| Area    | Technology                                                      |
+| ------- | --------------------------------------------------------------- |
+| Mobile  | Expo, React Native, TypeScript, React Navigation, `expo-sqlite` |
 | Backend | Java 25, Spring Boot 4.0.5, Spring Security, PostgreSQL, Flyway |
-| Testing | Jest, JUnit, Testcontainers |
-| Infra | Docker Compose, EAS Build |
+| Testing | Jest, JUnit, Testcontainers                                     |
+| Infra   | Docker Compose, EAS Build                                       |
 
 ---
 

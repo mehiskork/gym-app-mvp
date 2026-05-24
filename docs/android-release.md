@@ -1,6 +1,6 @@
 # Android Release Baseline
 
-This project is Android-focused for the current tester phase.
+This project is Android-focused for the current tester and Play closed-testing phase.
 
 For tester execution steps, see [`docs/android-tester-runbook.md`](./android-tester-runbook.md).
 
@@ -46,6 +46,18 @@ npx -y eas-cli@latest build -p android --profile production --clear-cache
 
 Use `--clear-cache` after icon or Expo config changes so EAS does not reuse stale native configuration.
 
+The production EAS profile is the canonical Play/closed-testing build profile. It must keep:
+
+- `autoIncrement: true`
+- Android `buildType: app-bundle`
+- `channel: production`
+- `EXPO_PUBLIC_APP_ENV=production`
+- `EXPO_PUBLIC_API_BASE_URL=https://www.trainframe.eu`
+
+Preview builds may continue to target the direct Railway preview/dev QA endpoint. Production builds must not use that endpoint.
+
+Current operational note: the next production AAB build is waiting for EAS quota reset.
+
 ## Firebase Android signing
 
 Firebase is used for Auth only. TrainFrame Google Sign-In depends on the Android package and signing fingerprints matching Firebase/Google Cloud configuration.
@@ -59,7 +71,7 @@ Before sharing a preview build or uploading a production build, manually verify:
   - local/debug signing, if used
   - EAS preview/internal build signing certificate
   - production/Play upload signing certificate
-  - Play App Signing certificate after Play Console is configured
+  - Play App Signing certificate after the first AAB upload / Play Console App integrity setup
 - SHA-1 is commonly required for Google Sign-In.
 - SHA-256 should also be added wherever Firebase/Google Cloud offers it.
 
@@ -74,7 +86,7 @@ cd apps/mobile
 npx -y eas-cli@latest credentials -p android
 ```
 
-Get the Play App Signing fingerprint from:
+After the first AAB upload, get the Play App Signing fingerprint from:
 
 ```text
 Play Console -> app -> Setup -> App integrity -> App signing key certificate
@@ -88,7 +100,7 @@ keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -sto
 
 ## Firebase API restrictions
 
-Before Android tester or Play release, manually verify Firebase/Google Cloud API key restrictions. Do not assume restrictions are configured just because the client config exists in the repo.
+Firebase API key restrictions have been externally verified for the current setup. Before Android tester or Play release, and after any signing change, recheck Firebase/Google Cloud API key restrictions. Do not assume restrictions are configured just because the client config exists in the repo.
 
 - Restrict Firebase Web/API key usage where possible.
 - For Android app restrictions, use package name `com.mehka.gymappmvp`.
@@ -114,20 +126,21 @@ Before inviting Android testers:
 - Unfinished reminder permission behavior matches the setting + OS permission gate.
 - Active workout online edits sync safely.
 - Support bundle does not contain raw auth tokens.
-- Railway `/ready` is green.
+- Target backend `/ready` is green.
 
 ## Play account deletion readiness
 
 Before Play production submission:
 
 - Verify in-app deletion works from `Settings -> Delete account` for signed-in users.
-- Verify the public web deletion resource is reachable at the deployed backend URL plus `/account-deletion`.
-- Verify the public privacy policy is reachable at the deployed backend URL plus `/privacy`.
+- Verify the public web deletion resource is reachable at `https://www.trainframe.eu/account-deletion`.
+- Verify the public privacy policy is reachable at `https://www.trainframe.eu/privacy`.
+- Verify the public terms page is reachable at `https://www.trainframe.eu/terms`.
 - Configure `TRAINFRAME_SUPPORT_EMAIL=trainframe1@gmail.com`; production-like backend profiles reject missing, blank, placeholder, or `.invalid` values.
-- Configure production mobile builds with `EXPO_PUBLIC_APP_ENV=production` and a real production `EXPO_PUBLIC_API_BASE_URL`.
+- Configure production mobile builds with `EXPO_PUBLIC_APP_ENV=production` and `EXPO_PUBLIC_API_BASE_URL=https://www.trainframe.eu`.
 - Do not use the checked-in shared Railway preview/dev backend URL for Play production builds; the mobile app rejects that URL when `EXPO_PUBLIC_APP_ENV=production`.
-- Use the public `/account-deletion` URL in Play Console account deletion / Data Safety fields.
-- Use the public `/privacy` URL in the Play Console privacy policy field.
+- Use `https://www.trainframe.eu/account-deletion` in Play Console account deletion / Data Safety fields.
+- Use `https://www.trainframe.eu/privacy` in the Play Console privacy policy field.
 - Confirm the privacy policy references the same `/account-deletion` deletion path.
-- Define the manual support processing expectation for web deletion requests before launch.
+- Keep the manual support processing expectation for web deletion requests at 30 days unless legal/public-production review changes it.
 - Confirm the public web form does not request passwords, tokens, keystores, or other secrets. Support bundles are not needed for deletion requests.

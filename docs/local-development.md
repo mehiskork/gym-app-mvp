@@ -19,12 +19,12 @@ docker-compose.yml   Starts Postgres + backend together (local dev only credenti
 
 ## Prerequisites
 
-| Tool | Version |
-|------|---------|
-| Node.js | 18+ |
-| Java | 25 |
-| Docker + Docker Compose | Any recent version |
-| EAS CLI | `>= 16.28.0` — `npm install -g eas-cli` |
+| Tool                    | Version                                 |
+| ----------------------- | --------------------------------------- |
+| Node.js                 | 18+                                     |
+| Java                    | 25                                      |
+| Docker + Docker Compose | Any recent version                      |
+| EAS CLI                 | `>= 16.28.0` — `npm install -g eas-cli` |
 
 The backend currently uses Spring Boot 4.0.5.
 
@@ -97,10 +97,10 @@ npm install
 
 The canonical mobile config lives under `apps/mobile/`. Always use these files, not the root-level Expo config.
 
-| File | Purpose |
-|------|---------|
-| `apps/mobile/app.json` | Expo app config, app name, bundle IDs, EAS project ID |
-| `apps/mobile/eas.json` | EAS build profiles |
+| File                               | Purpose                                                          |
+| ---------------------------------- | ---------------------------------------------------------------- |
+| `apps/mobile/app.json`             | Expo app config, app name, bundle IDs, EAS project ID            |
+| `apps/mobile/eas.json`             | EAS build profiles                                               |
 | `apps/mobile/google-services.json` | Android Firebase client config for the current private/dev phase |
 
 The canonical Expo/EAS config lives under `apps/mobile/`. Run EAS commands from `apps/mobile`; running from the repo root can fail or use the wrong context. Do not change Expo slug from `mobile` unless deliberately migrating the EAS project and credentials.
@@ -149,17 +149,17 @@ Once installed, open the dev build and connect it to the running Metro bundler.
 
 ### Development vs preview builds
 
-| Profile | Dev client | OTA updates | Use for |
-|---------|------------|-------------|---------|
-| `development` | ✓ | ✗ | Active development, Metro, fast refresh |
-| `preview` | ✗ | ✓ | Direct Android tester/device install |
-| `production` | ✗ | ✓ | Google Play upload AAB |
+| Profile       | Dev client | OTA updates | Use for                                 |
+| ------------- | ---------- | ----------- | --------------------------------------- |
+| `development` | ✓          | ✗           | Active development, Metro, fast refresh |
+| `preview`     | ✗          | ✓           | Direct Android tester/device install    |
+| `production`  | ✗          | ✓           | Google Play upload AAB                  |
 
 Use `development` for normal coding. Use `preview` when you want behavior closer to a production build.
 
 ### Android tester and release builds
 
-Controlled external Android tester builds should use the `preview` EAS profile from `apps/mobile`.
+Controlled direct-install QA builds should use the `preview` EAS profile from `apps/mobile`.
 
 ```bash
 cd apps/mobile
@@ -168,7 +168,7 @@ npx -y eas-cli@latest build -p android --profile preview --clear-cache
 
 The preview profile is configured as `distribution: internal`, so it produces an installable internal Android build rather than a Play Store production submission. The visible app name is `TrainFrame`; the Android package remains `com.mehka.gymappmvp` so Firebase and existing backend/client assumptions continue to line up.
 
-Production Android builds use the `production` EAS profile and output an Android App Bundle for Play Console upload:
+Production Android builds use the `production` EAS profile and output an Android App Bundle for Play Console upload. That profile uses `EXPO_PUBLIC_APP_ENV=production`, `EXPO_PUBLIC_API_BASE_URL=https://www.trainframe.eu`, and EAS Update channel `production`.
 
 ```bash
 cd apps/mobile
@@ -177,9 +177,9 @@ npx -y eas-cli@latest build -p android --profile production --clear-cache
 
 Keep `expo.name` as `TrainFrame` and keep `expo.slug` as `mobile`. The slug is tied to the existing EAS project and should not change unless the EAS project and credentials are deliberately migrated. Android `versionCode` starts at `1` and must increase for every Play upload; EAS remote app versioning may auto-increment it for production builds. Use `--clear-cache` after icon or Expo config changes.
 
-See `docs/android-release.md` for the Android release baseline.
+See [Android release baseline](./android-release.md) for canonical EAS, Play, signing, and production-build details.
 
-After installing the build, confirm the backend target inside the app:
+After installing a preview build, confirm the backend target inside the app:
 
 1. Open **Settings -> About**.
 2. Tap the version string 7 times quickly to unlock Debug.
@@ -190,9 +190,9 @@ After installing the build, confirm the backend target inside the app:
 https://gym-app-mvp-production.up.railway.app
 ```
 
-That Railway URL is intentionally the shared dev/QA backend for the current tester phase. It is public routing information, not a private protection mechanism, and it is not the final public production backend.
+That Railway URL is intentionally the shared preview/dev QA backend. It is public routing information, not a private protection mechanism, and it is not the primary production URL.
 
-Before sharing the build with testers, verify Firebase Android fingerprints for the exact build signing certificate. In Firebase Console / Google Cloud Console, the Android app for package `com.mehka.gymappmvp` should include the SHA-1 and SHA-256 fingerprints used by the EAS preview build. You can inspect EAS credentials with:
+Before sharing a preview build with testers, verify Firebase Android fingerprints for the exact build signing certificate. In Firebase Console / Google Cloud Console, the Android app for package `com.mehka.gymappmvp` should include the SHA-1 and SHA-256 fingerprints used by the EAS preview build. See [Android release baseline](./android-release.md#firebase-android-signing) for production and Play App Signing details. You can inspect EAS credentials with:
 
 ```bash
 cd apps/mobile
@@ -205,13 +205,17 @@ Compare the listed Android signing certificate fingerprints with Firebase projec
 
 ## Connecting the mobile app to the backend
 
-The checked-in mobile app currently targets the Railway shared dev/QA backend by default:
+The checked-in mobile app currently targets the Railway shared preview/dev QA backend by default:
 
 ```text
 https://gym-app-mvp-production.up.railway.app
 ```
 
-That default lives in `apps/mobile/app.json` under `expo.extra.EXPO_PUBLIC_API_BASE_URL`. This is intentional for the current phase because there is no separate production environment yet. It should not be treated as private, as the final public-beta backend, or as the production backend.
+That default lives in `apps/mobile/app.json` under `expo.extra.EXPO_PUBLIC_API_BASE_URL`. It should not be treated as private or as the production backend. Production EAS builds override the API URL through `apps/mobile/eas.json` and use:
+
+```text
+https://www.trainframe.eu
+```
 
 The mobile API URL precedence is:
 
@@ -219,11 +223,12 @@ The mobile API URL precedence is:
 2. Environment variables: `EXPO_PUBLIC_API_BASE_URL` or `API_BASE_URL`, when Expo constants are unavailable
 3. Fallback only: `http://localhost:8080`
 
-Because the checked-in Expo extra is present, normal dev builds use Railway unless you deliberately override it.
+Because the checked-in Expo extra is present, normal dev builds use the Railway preview/dev QA backend unless you deliberately override it.
 
 ### What works where
 
-- **Railway shared dev/QA:** works from simulators, emulators, and physical devices without a local backend.
+- **Railway shared preview/dev QA:** works from simulators, emulators, and physical devices without a local backend.
+- **Production:** production EAS/Play builds use `https://www.trainframe.eu`; use production only for release validation and operational smoke tests.
 - **iOS Simulator local backend:** `localhost` usually works if you override the API URL to `http://localhost:8080`.
 - **Physical device local backend:** `localhost` points to the phone itself; use your computer's LAN IP.
 - **Android emulator local backend:** use `http://10.0.2.2:8080` for the host machine, or a LAN IP for a physical device.
@@ -248,7 +253,7 @@ To verify what the app is using, open the hidden Debug screen and check **Backen
 
 The app is offline-first, so core local workout logging still works without the backend. Backend reachability mainly matters for sync, claim flow testing, and multi-device scenarios.
 
-For backend smoke tests against the shared dev/QA Railway service:
+For backend smoke tests against the shared preview/dev QA Railway service:
 
 ```bash
 BASE="https://gym-app-mvp-production.up.railway.app"
@@ -266,7 +271,7 @@ Expected results:
 - `/me` without auth returns `401`
 - `/me` with an invalid bearer token returns `401`
 
-Before real production or public beta, split dev/QA/prod backend config so local development cannot silently hit a production backend.
+Keep local development, preview/direct-install QA, and production backend targets explicit so local testing cannot silently hit production.
 
 ---
 
@@ -365,7 +370,6 @@ The backend must be running and reachable for sync to succeed.
 Mobile Google Sign-In plus guest migration orchestration is implemented. In normal mobile QA, use the Settings account flow: guest data is synced, `/claim/start` runs with the device token, Google Sign-In returns a Firebase ID token, `/claim/confirm` runs with that account JWT, and the account session is stored only after claim confirmation succeeds.
 
 ---
-
 
 ## Deployment/readiness checklist (quick)
 

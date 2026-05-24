@@ -6,42 +6,39 @@ Use this runbook to prepare and validate Android TrainFrame builds before wider 
 
 ## Build Profiles
 
-Preview builds are for direct Android device install and private QA:
+Preview builds are for direct Android device install and private QA. Production/Play build and signing details are canonical in [Android release baseline](./android-release.md).
 
 ```bash
 cd apps/mobile
 npx -y eas-cli@latest build -p android --profile preview --clear-cache
 ```
 
-Production builds output an Android App Bundle for Play Console upload:
+Play closed-testing builds use the `production` EAS profile from [Android release baseline](./android-release.md#build-profiles). That profile outputs an AAB, uses `https://www.trainframe.eu`, and targets EAS Update channel `production`.
 
-```bash
-cd apps/mobile
-npx -y eas-cli@latest build -p android --profile production --clear-cache
-```
-
-Build identity:
+Build identity, shared by preview and production:
 
 - App display name: `TrainFrame`
 - Expo slug: `mobile`
 - Android package: `com.mehka.gymappmvp`
 - Initial Android `versionCode`: `1`
 
-Do not change Expo slug from `mobile` unless deliberately migrating the EAS project and credentials. Android `versionCode` must increase for every Play upload. Use `--clear-cache` after icon or Expo config changes.
+Do not change Expo slug from `mobile` unless deliberately migrating the EAS project and credentials. Android `versionCode` must increase for every Play upload. See [Android release baseline](./android-release.md) for signing, fingerprints, API restrictions, Play App Signing, and production AAB status.
 
 ## Pre-Build Checklist
 
 Before building:
 
-- Railway `/ready` is green.
+- Backend `/ready` is green for the target environment.
 - Backend uses the expected Java/runtime profile.
 - Firebase Android app package is `com.mehka.gymappmvp`.
 - `google-services.json` belongs to Firebase project `gym-app-mvp-1d7f0`.
 - Firebase SHA-1 and SHA-256 fingerprints are added for the relevant signing certificate.
-- API key restrictions have been manually verified where possible.
-- Privacy policy URL/location decision exists before public Play testing.
-- Web account/data deletion request resource plan exists before Play production.
-- Support contact exists.
+- Firebase API key restrictions have been externally verified and are rechecked after signing changes.
+- Production public pages are reachable:
+  - `https://www.trainframe.eu/privacy`
+  - `https://www.trainframe.eu/terms`
+  - `https://www.trainframe.eu/account-deletion`
+- Support contact is `trainframe1@gmail.com`.
 
 ## Android Smoke Test Checklist
 
@@ -135,7 +132,7 @@ Before building:
 
 ## Backend Smoke Commands
 
-Run:
+For preview direct-install QA, use the direct Railway preview/dev QA endpoint:
 
 ```bash
 BASE="https://gym-app-mvp-production.up.railway.app"
@@ -153,6 +150,14 @@ Expected high-level behavior:
 - `/me` with an invalid token is unauthorized.
 
 Do not hardcode fragile full JSON assertions in manual runbooks.
+
+For Play closed-testing production AAB validation, use:
+
+```bash
+BASE="https://www.trainframe.eu"
+curl -i "$BASE/health"
+curl -i "$BASE/ready"
+```
 
 ## Known Destructive Actions
 
@@ -180,11 +185,14 @@ Testers should share support bundles only with TrainFrame support. Already share
 Before Play production:
 
 - Production build outputs AAB.
+- Production EAS profile uses `EXPO_PUBLIC_API_BASE_URL=https://www.trainframe.eu` and channel `production`.
+- Production AAB build is waiting for EAS quota reset.
 - `versionCode` is incremented before every Play upload.
-- Privacy policy URL is ready.
-- Account/data deletion web resource is ready.
+- Privacy policy URL is `https://www.trainframe.eu/privacy`.
+- Terms URL is `https://www.trainframe.eu/terms`.
+- Account/data deletion URL is `https://www.trainframe.eu/account-deletion`.
 - Play Data Safety answers match actual app behavior.
-- Firebase SHA for Play App Signing is added after Play Console app integrity is configured.
+- Firebase SHA for Play App Signing is added after the first AAB upload / Play Console app integrity setup.
 - API restrictions are rechecked after signing changes.
 
 ## Rollback Note
@@ -197,6 +205,5 @@ Keep preview/internal testing separate from production Play rollout.
 
 This runbook does not implement:
 
-- privacy policy
 - Firebase console changes
 - backend behavior changes

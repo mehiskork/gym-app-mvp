@@ -22,7 +22,7 @@ TRAINFRAME_SUPPORT_EMAIL=trainframe1@gmail.com
 
 The backend requires Java 25. If Railway builds the checked-in backend Dockerfile, no `NIXPACKS_JDK_VERSION` variable is needed because the Dockerfile pins Java 25 build and runtime images. If Railway uses Nixpacks/Railpack instead of the Dockerfile, verify Java 25 support in that builder and set the Java 25 runtime/build configuration before deploying.
 
-`SPRING_PROFILES_ACTIVE` must be `prod` so production safety checks are enforced. Prod-like profiles are `prod`, `production`, and `staging`; Railway should use `prod` for the current shared dev/QA backend service.
+`SPRING_PROFILES_ACTIVE` must be `prod` so production safety checks are enforced. Prod-like profiles are `prod`, `production`, and `staging`; Railway should use `prod` for deployed shared backend services.
 
 `TRAINFRAME_SUPPORT_EMAIL` must be a real support address for prod-like Railway deployments. Missing, blank, `support@example.invalid`, or `.invalid` placeholder values are rejected by startup validation.
 
@@ -83,10 +83,10 @@ If any readiness check fails, `/ready` returns non-200 with a safe structured re
 
 ## Smoke tests
 
-Use the deployed backend URL:
+Use the production custom domain for production smoke tests:
 
 ```bash
-BASE="https://gym-app-mvp-production.up.railway.app"
+BASE="https://www.trainframe.eu"
 
 curl -i "$BASE/health"
 curl -i "$BASE/ready"
@@ -101,6 +101,14 @@ Expected results:
 - `/me` -> `401`
 - `/me` with `invalid-token` -> `401 AUTH_UNAUTHORIZED` / malformed token
 
+The direct Railway service URL may still be used for preview/dev QA or as a fallback when diagnosing custom-domain routing:
+
+```text
+https://gym-app-mvp-production.up.railway.app
+```
+
+Treat the direct Railway URL as an internet-public service endpoint, not a secret or the primary production URL.
+
 ## Mobile app default during QA
 
 The checked-in mobile config in `apps/mobile/app.json` currently names the app `TrainFrame` and points preview/internal builds to this Railway backend:
@@ -109,9 +117,9 @@ The checked-in mobile config in `apps/mobile/app.json` currently names the app `
 https://gym-app-mvp-production.up.railway.app
 ```
 
-Treat this Railway service as the shared dev/QA backend for the current tester phase, not as the final production environment. The URL is public routing information and must not be relied on for privacy or access control. For local backend testing, temporarily override `expo.extra.EXPO_PUBLIC_API_BASE_URL` in `apps/mobile/app.json` and confirm the resolved value in the mobile Debug screen under **Backend / Environment** -> **Backend URL**.
+Treat this Railway service as the shared preview/dev QA backend. Production builds use `https://www.trainframe.eu`; see [Android release baseline](./android-release.md). For local backend testing, temporarily override `expo.extra.EXPO_PUBLIC_API_BASE_URL` in `apps/mobile/app.json` and confirm the resolved value in the mobile Debug screen under **Backend / Environment** -> **Backend URL**.
 
-Before public beta or real production, split dev/QA/prod backend config so local development and test builds cannot silently target production.
+Operational incident handling belongs in [Production Incident Runbook](./ops-runbook.md). Migration recovery belongs in [Flyway / Postgres Migration Rollback](./migration-rollback.md).
 
 ## Troubleshooting
 
