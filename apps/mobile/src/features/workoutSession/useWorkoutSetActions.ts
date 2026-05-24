@@ -14,6 +14,7 @@ import type { Settings } from '../../db/settingsRepo';
 import { isWorkoutLimitError } from '../../db/workoutLimits';
 import { useSnackbarUndo } from '../../hooks/useSnackbarUndo';
 import { scheduleRestTimerNotification } from '../../utils/restTimerNotifications';
+import { parseRepsInput, parseWeightInput } from './setInputParsing';
 
 type RestTimerSettings = Pick<
   Settings,
@@ -25,13 +26,6 @@ type UseWorkoutSetActionsArgs = {
   restTimerSettings: RestTimerSettings;
   load: () => void;
 };
-
-function parseSetNumber(input: string): number | null {
-  const trimmed = input.trim();
-  if (!trimmed) return null;
-  const n = Number(trimmed.replace(',', '.'));
-  return Number.isFinite(n) ? n : null;
-}
 
 export function useWorkoutSetActions({
   sessionId,
@@ -61,19 +55,24 @@ export function useWorkoutSetActions({
 
   const handleWeightEndEditing = useCallback(
     (set: LoggerSet, value: string) => {
-      updateWorkoutSet(set.id, { weight: parseSetNumber(value) });
+      const parsed = parseWeightInput(value);
+      if (!parsed.ok) return false;
+
+      updateWorkoutSet(set.id, { weight: parsed.value });
       load();
+      return true;
     },
     [load],
   );
 
   const handleRepsEndEditing = useCallback(
     (set: LoggerSet, value: string) => {
-      const n = parseSetNumber(value);
-      updateWorkoutSet(set.id, {
-        reps: n === null ? null : Math.max(0, Math.floor(n)),
-      });
+      const parsed = parseRepsInput(value);
+      if (!parsed.ok) return false;
+
+      updateWorkoutSet(set.id, { reps: parsed.value });
       load();
+      return true;
     },
     [load],
   );

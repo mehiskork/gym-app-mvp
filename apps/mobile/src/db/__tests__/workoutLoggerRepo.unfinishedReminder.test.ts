@@ -108,6 +108,71 @@ describe('workoutLoggerRepo unfinished workout reminders', () => {
     expect(payload).toMatchObject({ weight: 120, reps: 5, is_completed: 1 });
   });
 
+  const validPatchCases: Array<
+    [string, { weight?: number | null; reps?: number }, Array<number | null | string>]
+  > = [
+    ['null weight', { weight: null }, [null, 'set-1']],
+    ['zero weight', { weight: 0 }, [0, 'set-1']],
+    ['max weight', { weight: 999.9 }, [999.9, 'set-1']],
+    ['max reps', { reps: 999 }, [999, 'set-1']],
+  ];
+
+  it.each(validPatchCases)(
+    'persists valid %s patch and snapshots it',
+    (_label, patch, expectedParams) => {
+      (query as jest.Mock)
+        .mockReturnValueOnce([
+          {
+            id: 'set-1',
+            workout_session_exercise_id: 'wse-1',
+            set_index: 1,
+            weight: patch.weight ?? 100,
+            reps: patch.reps ?? 5,
+            is_completed: 1,
+            updated_at: '2026-05-09 11:00:00',
+          },
+        ])
+        .mockReturnValueOnce([
+          {
+            is_completed: 1,
+            session_id: 'ws-1',
+            status: 'in_progress',
+          },
+        ]);
+
+      updateWorkoutSet('set-1', patch);
+
+      const updateCall = (exec as jest.Mock).mock.calls.find(([sql]) =>
+        String(sql).includes('UPDATE workout_set'),
+      );
+      expect(updateCall?.[1]).toEqual(expectedParams);
+      expect(enqueueOutboxOp).toHaveBeenCalledWith(
+        expect.objectContaining({
+          entityType: 'workout_set',
+          entityId: 'set-1',
+          opType: 'upsert',
+        }),
+      );
+    },
+  );
+
+  it.each([
+    ['too heavy', { weight: 1000 }],
+    ['too many weight decimals', { weight: 82.55 }],
+    ['negative weight', { weight: -5 }],
+    ['too many reps', { reps: 1000 }],
+    ['decimal reps', { reps: 10.5 }],
+    ['negative reps', { reps: -1 }],
+  ])('ignores invalid %s patch without snapshotting outbox work', (_label, patch) => {
+    updateWorkoutSet('set-1', patch);
+
+    expect(exec).not.toHaveBeenCalled();
+    expect(query).not.toHaveBeenCalled();
+    expect(enqueueOutboxOp).not.toHaveBeenCalled();
+    expect(scheduleUnfinishedWorkoutReminderForSession).not.toHaveBeenCalled();
+    expect(reconcileUnfinishedWorkoutReminder).not.toHaveBeenCalled();
+  });
+
   it('completion update snapshots is_completed=1', () => {
     (query as jest.Mock)
       .mockReturnValueOnce([

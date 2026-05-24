@@ -223,6 +223,32 @@ function updateUnfinishedWorkoutReminderAfterSetMutation(setId: string, actionAt
   void reconcileUnfinishedWorkoutReminder().catch(() => undefined);
 }
 
+function hasAtMostOneDecimalPlace(value: number): boolean {
+  return Math.abs(value * 10 - Math.round(value * 10)) < 1e-9;
+}
+
+function isValidWorkoutSetPatchEntry(key: string, value: unknown): boolean {
+  if (key === 'weight') {
+    return (
+      value === null ||
+      (typeof value === 'number' &&
+        Number.isFinite(value) &&
+        value >= 0 &&
+        value <= 999.9 &&
+        hasAtMostOneDecimalPlace(value))
+    );
+  }
+
+  if (key === 'reps') {
+    return (
+      value === null ||
+      (typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 && value <= 999)
+    );
+  }
+
+  return true;
+}
+
 export function getWorkoutLoggerData(sessionId: string): {
   session: LoggerSession;
   exercises: LoggerExercise[];
@@ -682,7 +708,9 @@ export function updateWorkoutSet(
     is_completed: number;
   }>,
 ) {
-  const entries = Object.entries(patch).filter(([, v]) => v !== undefined);
+  const entries = Object.entries(patch).filter(
+    ([key, value]) => value !== undefined && isValidWorkoutSetPatchEntry(key, value),
+  );
   if (entries.length === 0) return;
 
   const cols = entries.map(([k]) => `${k} = ?`).join(', ');

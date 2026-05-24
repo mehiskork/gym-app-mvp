@@ -1,10 +1,17 @@
+const mockUseStateSetters: jest.Mock[] = [];
+
 jest.mock('react', () => {
   const actual = jest.requireActual('react');
   return {
     ...actual,
-    useState: jest.fn(),
+    useState: jest.fn((initial: unknown) => {
+      const setState = jest.fn();
+      mockUseStateSetters.push(setState);
+      return [initial, setState];
+    }),
     useRef: jest.fn(() => ({ current: null })),
-    useCallback: (fn: () => unknown) => fn,
+    useCallback: (fn: unknown) => fn,
+    useEffect: (fn: () => unknown) => fn(),
   };
 });
 
@@ -88,7 +95,7 @@ const findElementByTestId = <P,>(
   return undefined;
 };
 
-const createSet = () => ({
+const createSet = (overrides?: Partial<React.ComponentProps<typeof SetRow>['set']>) => ({
   id: 'set-1',
   workout_session_exercise_id: 'exercise-1',
   set_index: 1,
@@ -98,14 +105,19 @@ const createSet = () => ({
   rest_seconds: 90,
   notes: null,
   is_completed: 0,
+  ...overrides,
+});
+
+beforeEach(() => {
+  mockUseStateSetters.length = 0;
 });
 
 describe('SetRow layout sizing', () => {
   it('uses a compact set column, equal flex inputs, and a fixed right actions width', () => {
     const element = SetRow({
       set: createSet(),
-      onWeightEndEditing: jest.fn(),
-      onRepsEndEditing: jest.fn(),
+      onWeightEndEditing: jest.fn(() => true),
+      onRepsEndEditing: jest.fn(() => true),
       onToggleComplete: jest.fn(),
       onDelete: jest.fn(),
     });
@@ -138,8 +150,8 @@ describe('SetRow layout sizing', () => {
   it('matches set number typography with numeric inputs and centers values', () => {
     const element = SetRow({
       set: createSet(),
-      onWeightEndEditing: jest.fn(),
-      onRepsEndEditing: jest.fn(),
+      onWeightEndEditing: jest.fn(() => true),
+      onRepsEndEditing: jest.fn(() => true),
       onToggleComplete: jest.fn(),
       onDelete: jest.fn(),
     });
@@ -175,8 +187,8 @@ describe('SetRow layout sizing', () => {
   it('renders two-digit set numbers without truncating the value', () => {
     const element = SetRow({
       set: { ...createSet(), set_index: 10 },
-      onWeightEndEditing: jest.fn(),
-      onRepsEndEditing: jest.fn(),
+      onWeightEndEditing: jest.fn(() => true),
+      onRepsEndEditing: jest.fn(() => true),
       onToggleComplete: jest.fn(),
       onDelete: jest.fn(),
     });
@@ -192,8 +204,8 @@ describe('SetRow input focus behavior', () => {
   it('applies explicit max lengths to weight and reps fields', () => {
     const element = SetRow({
       set: createSet(),
-      onWeightEndEditing: jest.fn(),
-      onRepsEndEditing: jest.fn(),
+      onWeightEndEditing: jest.fn(() => true),
+      onRepsEndEditing: jest.fn(() => true),
       onToggleComplete: jest.fn(),
       onDelete: jest.fn(),
     });
@@ -208,8 +220,8 @@ describe('SetRow input focus behavior', () => {
   it('preserves weight and reps testIDs and applies return-key behavior', () => {
     const element = SetRow({
       set: createSet(),
-      onWeightEndEditing: jest.fn(),
-      onRepsEndEditing: jest.fn(),
+      onWeightEndEditing: jest.fn(() => true),
+      onRepsEndEditing: jest.fn(() => true),
       onToggleComplete: jest.fn(),
       onDelete: jest.fn(),
     });
@@ -226,8 +238,8 @@ describe('SetRow input focus behavior', () => {
   it('enables select-all on focus for weight and reps inputs so next digit replaces value', () => {
     const element = SetRow({
       set: createSet(),
-      onWeightEndEditing: jest.fn(),
-      onRepsEndEditing: jest.fn(),
+      onWeightEndEditing: jest.fn(() => true),
+      onRepsEndEditing: jest.fn(() => true),
       onToggleComplete: jest.fn(),
       onDelete: jest.fn(),
     });
@@ -245,31 +257,129 @@ describe('SetRow input focus behavior', () => {
   it('keeps existing values unchanged on focus without editing', () => {
     const element = SetRow({
       set: createSet(),
-      onWeightEndEditing: jest.fn(),
-      onRepsEndEditing: jest.fn(),
+      onWeightEndEditing: jest.fn(() => true),
+      onRepsEndEditing: jest.fn(() => true),
       onToggleComplete: jest.fn(),
       onDelete: jest.fn(),
     });
 
-    const weightInput = findElementByTestId<{ defaultValue?: string }>(element, 'weight-input');
-    const repsInput = findElementByTestId<{ defaultValue?: string }>(element, 'reps-input');
+    const weightInput = findElementByTestId<{ value?: string }>(element, 'weight-input');
+    const repsInput = findElementByTestId<{ value?: string }>(element, 'reps-input');
 
-    expect(weightInput?.props.defaultValue).toBe('100');
-    expect(repsInput?.props.defaultValue).toBe('8');
+    expect(weightInput?.props.value).toBe('100');
+    expect(repsInput?.props.value).toBe('8');
+  });
+
+  it('displays saved decimal weight with a comma separator', () => {
+    const element = SetRow({
+      set: createSet({ weight: 82.5 }),
+      onWeightEndEditing: jest.fn(() => true),
+      onRepsEndEditing: jest.fn(() => true),
+      onToggleComplete: jest.fn(),
+      onDelete: jest.fn(),
+    });
+
+    const weightInput = findElementByTestId<{ value?: string }>(element, 'weight-input');
+
+    expect(weightInput?.props.value).toBe('82,5');
+  });
+
+  it('formats dot decimal weight with comma after accepted end editing', () => {
+    const onWeightEndEditing = jest.fn(() => true);
+    const element = SetRow({
+      set: createSet({ weight: 82 }),
+      onWeightEndEditing,
+      onRepsEndEditing: jest.fn(() => true),
+      onToggleComplete: jest.fn(),
+      onDelete: jest.fn(),
+    });
+    const weightInput = findElementByTestId<{
+      onEndEditing?: (event: { nativeEvent: { text: string } }) => void;
+    }>(element, 'weight-input');
+    const weightSetter = mockUseStateSetters[0];
+    weightSetter?.mockClear();
+
+    weightInput?.props.onEndEditing?.({ nativeEvent: { text: '82.5' } });
+
+    expect(onWeightEndEditing).toHaveBeenCalledWith('82.5');
+    expect(weightSetter).toHaveBeenCalledWith('82,5');
+  });
+
+  it('keeps comma decimal weight after accepted end editing', () => {
+    const onWeightEndEditing = jest.fn(() => true);
+    const element = SetRow({
+      set: createSet({ weight: 82 }),
+      onWeightEndEditing,
+      onRepsEndEditing: jest.fn(() => true),
+      onToggleComplete: jest.fn(),
+      onDelete: jest.fn(),
+    });
+    const weightInput = findElementByTestId<{
+      onEndEditing?: (event: { nativeEvent: { text: string } }) => void;
+    }>(element, 'weight-input');
+    const weightSetter = mockUseStateSetters[0];
+    weightSetter?.mockClear();
+
+    weightInput?.props.onEndEditing?.({ nativeEvent: { text: '82,5' } });
+
+    expect(onWeightEndEditing).toHaveBeenCalledWith('82,5');
+    expect(weightSetter).toHaveBeenCalledWith('82,5');
+  });
+
+  it('resets invalid weight to the previous saved value without calling the save handler', () => {
+    const onWeightEndEditing = jest.fn(() => true);
+    const element = SetRow({
+      set: createSet({ weight: 82.5 }),
+      onWeightEndEditing,
+      onRepsEndEditing: jest.fn(() => true),
+      onToggleComplete: jest.fn(),
+      onDelete: jest.fn(),
+    });
+    const weightInput = findElementByTestId<{
+      onEndEditing?: (event: { nativeEvent: { text: string } }) => void;
+    }>(element, 'weight-input');
+    const weightSetter = mockUseStateSetters[0];
+    weightSetter?.mockClear();
+
+    weightInput?.props.onEndEditing?.({ nativeEvent: { text: '1e9' } });
+
+    expect(onWeightEndEditing).not.toHaveBeenCalled();
+    expect(weightSetter).toHaveBeenCalledWith('82,5');
+  });
+
+  it('resets invalid reps to the previous saved value without calling the save handler', () => {
+    const onRepsEndEditing = jest.fn(() => true);
+    const element = SetRow({
+      set: createSet({ reps: 8 }),
+      onWeightEndEditing: jest.fn(() => true),
+      onRepsEndEditing,
+      onToggleComplete: jest.fn(),
+      onDelete: jest.fn(),
+    });
+    const repsInput = findElementByTestId<{
+      onEndEditing?: (event: { nativeEvent: { text: string } }) => void;
+    }>(element, 'reps-input');
+    const repsSetter = mockUseStateSetters[1];
+    repsSetter?.mockClear();
+
+    repsInput?.props.onEndEditing?.({ nativeEvent: { text: '10.5' } });
+
+    expect(onRepsEndEditing).not.toHaveBeenCalled();
+    expect(repsSetter).toHaveBeenCalledWith('8');
   });
 
   it('keeps select-all enabled on repeated renders/focus cycles', () => {
     const firstRender = SetRow({
       set: createSet(),
-      onWeightEndEditing: jest.fn(),
-      onRepsEndEditing: jest.fn(),
+      onWeightEndEditing: jest.fn(() => true),
+      onRepsEndEditing: jest.fn(() => true),
       onToggleComplete: jest.fn(),
       onDelete: jest.fn(),
     });
     const secondRender = SetRow({
       set: createSet(),
-      onWeightEndEditing: jest.fn(),
-      onRepsEndEditing: jest.fn(),
+      onWeightEndEditing: jest.fn(() => true),
+      onRepsEndEditing: jest.fn(() => true),
       onToggleComplete: jest.fn(),
       onDelete: jest.fn(),
     });

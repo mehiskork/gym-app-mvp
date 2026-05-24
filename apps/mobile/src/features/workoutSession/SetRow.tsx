@@ -4,7 +4,6 @@ import { Ionicons } from '@expo/vector-icons';
 import type { LoggerSet } from '../../db/workoutLoggerRepo';
 import { IconButton, Text } from '../../ui';
 import { tokens } from '../../theme/tokens';
-import { formatOptionalNumber } from '../../utils/format';
 import {
   SET_ACTIONS_GAP,
   SET_ACTIONS_WIDTH,
@@ -12,12 +11,18 @@ import {
   SET_NUMBER_COLUMN_WIDTH,
   SET_ROW_GAP,
 } from './setRowLayout';
+import {
+  formatRepsInputValue,
+  formatWeightInputValue,
+  parseRepsInput,
+  parseWeightInput,
+} from './setInputParsing';
 
 type SetRowProps = {
   set: LoggerSet;
 
-  onWeightEndEditing: (value: string) => void;
-  onRepsEndEditing: (value: string) => void;
+  onWeightEndEditing: (value: string) => boolean;
+  onRepsEndEditing: (value: string) => boolean;
   onToggleComplete: () => void;
   onDelete: () => void;
   onEditFocus?: (metrics: { pageY: number; height: number }) => void;
@@ -39,6 +44,18 @@ export function SetRow({
   const checkStyle = completed ? styles.checkCompleted : styles.check;
   const buttonSize = tokens.touchTargetMin;
   const inputPadding = tokens.spacing.md;
+  const savedWeightText = formatWeightInputValue(set.weight);
+  const savedRepsText = formatRepsInputValue(set.reps);
+  const [weightText, setWeightText] = React.useState(savedWeightText);
+  const [repsText, setRepsText] = React.useState(savedRepsText);
+
+  React.useEffect(() => {
+    setWeightText(savedWeightText);
+  }, [savedWeightText]);
+
+  React.useEffect(() => {
+    setRepsText(savedRepsText);
+  }, [savedRepsText]);
 
   const handleEditFocus = React.useCallback(() => {
     if (!onEditFocus || !rowRef.current) return;
@@ -46,6 +63,34 @@ export function SetRow({
       onEditFocus({ pageY, height });
     });
   }, [onEditFocus]);
+
+  const handleWeightEndEditing = React.useCallback(
+    (value: string) => {
+      const parsed = parseWeightInput(value);
+      if (!parsed.ok) {
+        setWeightText(savedWeightText);
+        return;
+      }
+
+      const accepted = onWeightEndEditing(value);
+      setWeightText(accepted ? formatWeightInputValue(parsed.value) : savedWeightText);
+    },
+    [onWeightEndEditing, savedWeightText],
+  );
+
+  const handleRepsEndEditing = React.useCallback(
+    (value: string) => {
+      const parsed = parseRepsInput(value);
+      if (!parsed.ok) {
+        setRepsText(savedRepsText);
+        return;
+      }
+
+      const accepted = onRepsEndEditing(value);
+      setRepsText(accepted ? formatRepsInputValue(parsed.value) : savedRepsText);
+    },
+    [onRepsEndEditing, savedRepsText],
+  );
 
   return (
     <View ref={rowRef} style={rowStyle}>
@@ -66,7 +111,7 @@ export function SetRow({
           <View style={styles.inputWrapper}>
             <TextInput
               testID="weight-input"
-              defaultValue={formatOptionalNumber(set.weight, 2)}
+              value={weightText}
               maxLength={6}
               selectTextOnFocus
               keyboardType="decimal-pad"
@@ -74,7 +119,8 @@ export function SetRow({
               placeholder="0"
               placeholderTextColor={tokens.colors.textSecondary}
               style={[inputStyle, { paddingHorizontal: inputPadding }]}
-              onEndEditing={(e) => onWeightEndEditing(e.nativeEvent.text)}
+              onChangeText={setWeightText}
+              onEndEditing={(e) => handleWeightEndEditing(e.nativeEvent.text)}
               onFocus={handleEditFocus}
               onSubmitEditing={() => repsInputRef.current?.focus()}
             />
@@ -84,7 +130,7 @@ export function SetRow({
             <TextInput
               ref={repsInputRef}
               testID="reps-input"
-              defaultValue={set.reps === null ? '' : String(set.reps)}
+              value={repsText}
               maxLength={3}
               selectTextOnFocus
               keyboardType="number-pad"
@@ -92,7 +138,8 @@ export function SetRow({
               placeholder="0"
               placeholderTextColor={tokens.colors.textSecondary}
               style={[inputStyle, { paddingHorizontal: inputPadding }]}
-              onEndEditing={(e) => onRepsEndEditing(e.nativeEvent.text)}
+              onChangeText={setRepsText}
+              onEndEditing={(e) => handleRepsEndEditing(e.nativeEvent.text)}
               onFocus={handleEditFocus}
               onSubmitEditing={Keyboard.dismiss}
             />

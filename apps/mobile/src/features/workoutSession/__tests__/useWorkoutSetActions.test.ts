@@ -168,6 +168,25 @@ describe('useWorkoutSetActions', () => {
     expect(load).toHaveBeenCalledTimes(1);
   });
 
+  it('parses dot decimal set weight and reloads', () => {
+    const { handleWeightEndEditing, load } = setup();
+
+    handleWeightEndEditing(createSet(), '82.5');
+
+    expect(updateWorkoutSet).toHaveBeenCalledWith('set-1', { weight: 82.5 });
+    expect(load).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects invalid set weight without update or reload', () => {
+    const { handleWeightEndEditing, load } = setup();
+
+    const accepted = handleWeightEndEditing(createSet(), '1e9');
+
+    expect(accepted).toBe(false);
+    expect(updateWorkoutSet).not.toHaveBeenCalled();
+    expect(load).not.toHaveBeenCalled();
+  });
+
   it('parses empty set reps to null and reloads', () => {
     const { handleRepsEndEditing, load } = setup();
 
@@ -177,22 +196,33 @@ describe('useWorkoutSetActions', () => {
     expect(load).toHaveBeenCalledTimes(1);
   });
 
-  it('floors decimal set reps and reloads', () => {
+  it('parses integer set reps and reloads', () => {
     const { handleRepsEndEditing, load } = setup();
 
-    handleRepsEndEditing(createSet(), '8.9');
+    handleRepsEndEditing(createSet(), '999');
 
-    expect(updateWorkoutSet).toHaveBeenCalledWith('set-1', { reps: 8 });
+    expect(updateWorkoutSet).toHaveBeenCalledWith('set-1', { reps: 999 });
     expect(load).toHaveBeenCalledTimes(1);
   });
 
-  it('clamps negative set reps to zero and reloads', () => {
+  it('rejects decimal set reps without update or reload', () => {
     const { handleRepsEndEditing, load } = setup();
 
-    handleRepsEndEditing(createSet(), '-3');
+    const accepted = handleRepsEndEditing(createSet(), '8.9');
 
-    expect(updateWorkoutSet).toHaveBeenCalledWith('set-1', { reps: 0 });
-    expect(load).toHaveBeenCalledTimes(1);
+    expect(accepted).toBe(false);
+    expect(updateWorkoutSet).not.toHaveBeenCalled();
+    expect(load).not.toHaveBeenCalled();
+  });
+
+  it('rejects negative set reps without update or reload', () => {
+    const { handleRepsEndEditing, load } = setup();
+
+    const accepted = handleRepsEndEditing(createSet(), '-3');
+
+    expect(accepted).toBe(false);
+    expect(updateWorkoutSet).not.toHaveBeenCalled();
+    expect(load).not.toHaveBeenCalled();
   });
 
   it('completes a set, starts rest timer, schedules notification, then reloads in order', () => {
