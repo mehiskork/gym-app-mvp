@@ -87,10 +87,12 @@ import {
 } from '../../db/workoutSessionRepo';
 import { deleteDay } from '../../db/dayExerciseRepo';
 import {
+  addDayToWorkoutPlan,
   getWorkoutPlanById,
   listDaysForWorkoutPlan,
   updateWorkoutPlanName,
 } from '../../db/workoutPlanRepo';
+import { MAX_SESSIONS_PER_PLAN, WORKOUT_LIMIT_MESSAGES } from '../../db/workoutLimits';
 
 type Nav = {
   navigate: jest.Mock;
@@ -135,6 +137,8 @@ describe('WorkoutPlanDetailScreen', () => {
     (getMostRecentCompletedDayIdForPlan as jest.Mock).mockReset();
     (getMostRecentCompletedDayIdForPlan as jest.Mock).mockReturnValue(null);
     (updateWorkoutPlanName as jest.Mock).mockReset();
+    (addDayToWorkoutPlan as jest.Mock).mockReset();
+    (addDayToWorkoutPlan as jest.Mock).mockReturnValue('day-new');
     (getWorkoutPlanById as jest.Mock).mockReset();
     (getWorkoutPlanById as jest.Mock).mockReturnValue(plan);
     (listDaysForWorkoutPlan as jest.Mock).mockReset();
@@ -337,6 +341,43 @@ describe('WorkoutPlanDetailScreen', () => {
     type EmptyStateProps = React.ComponentProps<typeof EmptyState>;
     const emptyStates = findElementsByType<EmptyStateProps>(element, EmptyState);
     expect(emptyStates[0]?.props.title).toBe('No sessions yet');
+  });
+
+  it('disables Add session and blocks creation at 15 sessions', () => {
+    const setFeedback = jest.fn();
+    const days = Array.from({ length: MAX_SESSIONS_PER_PLAN }, (_, index) => ({
+      id: `day-${index + 1}`,
+      name: `Session ${index + 1}`,
+      day_index: index + 1,
+    }));
+    useStateMock.mockImplementationOnce(() => [plan, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [days, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [{}, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [plan.name, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [false, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [null, setFeedback]);
+
+    const navigation: Nav = { navigate: jest.fn(), goBack: jest.fn(), replace: jest.fn() };
+    const element = WorkoutPlanDetailScreen({
+      navigation,
+      route: {
+        key: 'WorkoutPlanDetail',
+        name: 'WorkoutPlanDetail',
+        params: { workoutPlanId: 'plan-1' },
+      },
+    } as never);
+
+    type ButtonProps = React.ComponentProps<typeof Button>;
+    const buttons = findElementsByType<ButtonProps>(element, Button);
+    const addSessionButton = buttons.find((button) => button.props.title === 'Max 15 sessions');
+
+    expect(addSessionButton?.props.disabled).toBe(true);
+    addSessionButton?.props.onPress?.({} as never);
+    expect(setFeedback).toHaveBeenCalledWith(WORKOUT_LIMIT_MESSAGES.maxSessionsPerPlan);
+    expect(addDayToWorkoutPlan).not.toHaveBeenCalled();
+    expect(navigation.navigate).not.toHaveBeenCalledWith('DayDetail', expect.anything());
   });
 
   it('replaces to active workout on focus in pickSessionToStart mode', () => {

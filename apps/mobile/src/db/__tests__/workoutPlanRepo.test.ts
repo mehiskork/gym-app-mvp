@@ -25,6 +25,7 @@ import {
   updateWorkoutPlanName,
 } from '../workoutPlanRepo';
 import { newId } from '../../utils/ids';
+import { MAX_SESSIONS_PER_PLAN, WorkoutLimitError, WORKOUT_LIMIT_MESSAGES } from '../workoutLimits';
 
 describe('workoutPlanRepo addDayToWorkoutPlan', () => {
   beforeEach(() => {
@@ -80,6 +81,67 @@ describe('workoutPlanRepo addDayToWorkoutPlan', () => {
         opType: 'upsert',
       }),
     );
+  });
+
+  it('allows adding the 15th active session', () => {
+    (query as jest.Mock).mockImplementation((sql: string, params?: unknown[]) => {
+      if (sql.includes('FROM program_week') && sql.includes('LIMIT 1')) return [{ id: 'week-1' }];
+      if (sql.includes('FROM program_day') && sql.includes('deleted_at IS NOT NULL')) return [];
+      if (sql.includes('SELECT id, name') && sql.includes('deleted_at IS NULL')) {
+        return Array.from({ length: MAX_SESSIONS_PER_PLAN - 1 }, (_, index) => ({
+          id: `day-${index + 1}`,
+          name: `Session ${index + 1}`,
+        }));
+      }
+      if (sql.includes('COUNT(*) AS n')) return [{ n: MAX_SESSIONS_PER_PLAN - 1 }];
+      if (sql.includes('SELECT *') && sql.includes('FROM program_day') && params?.[0] === 'day-3') {
+        return [{ id: 'day-3', program_week_id: 'week-1', day_index: MAX_SESSIONS_PER_PLAN }];
+      }
+      return [];
+    });
+
+    addDayToWorkoutPlan('plan-1');
+
+    expect(exec).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO program_day'), [
+      'day-3',
+      'week-1',
+      MAX_SESSIONS_PER_PLAN,
+      `Session ${MAX_SESSIONS_PER_PLAN}`,
+    ]);
+    expect(enqueueOutboxOp).toHaveBeenCalledWith(
+      expect.objectContaining({ entityType: 'program_day', entityId: 'day-3' }),
+    );
+  });
+
+  it('rejects the 16th active session without inserting or enqueueing outbox', () => {
+    (query as jest.Mock).mockImplementation((sql: string) => {
+      if (sql.includes('FROM program_week') && sql.includes('LIMIT 1')) return [{ id: 'week-1' }];
+      if (sql.includes('FROM program_day') && sql.includes('deleted_at IS NOT NULL')) return [];
+      if (sql.includes('SELECT id, name') && sql.includes('deleted_at IS NULL')) {
+        return Array.from({ length: MAX_SESSIONS_PER_PLAN }, (_, index) => ({
+          id: `day-${index + 1}`,
+          name: `Session ${index + 1}`,
+        }));
+      }
+      if (sql.includes('COUNT(*) AS n')) return [{ n: MAX_SESSIONS_PER_PLAN }];
+      return [];
+    });
+
+    let thrown: unknown;
+    try {
+      addDayToWorkoutPlan('plan-1');
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(WorkoutLimitError);
+    expect((thrown as Error).message).toBe(WORKOUT_LIMIT_MESSAGES.maxSessionsPerPlan);
+    expect(exec).not.toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO program_day'),
+      expect.any(Array),
+    );
+    expect(enqueueOutboxOp).not.toHaveBeenCalled();
+    expect(newId).not.toHaveBeenCalled();
   });
 
   it('enqueues program, week, and day snapshots when creating a workout plan', () => {

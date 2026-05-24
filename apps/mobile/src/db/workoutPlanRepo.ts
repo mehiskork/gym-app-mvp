@@ -2,6 +2,7 @@ import { exec, query } from './db';
 import { inTransaction } from './tx';
 import { newId } from '../utils/ids';
 import { enqueueOutboxOp } from './outboxRepo';
+import { MAX_SESSIONS_PER_PLAN, WorkoutLimitError, WORKOUT_LIMIT_MESSAGES } from './workoutLimits';
 
 export type WorkoutPlanRow = {
   id: string;
@@ -45,9 +46,9 @@ function getOrCreateWeek1Id(workoutPlanId: string): string {
 }
 
 function normalizeDeletedDayIndices(programWeekId: string) {
-  const deleted = query<{ id: string; day_index: number }>(
+  const deleted = query<{ id: string }>(
     `
-    SELECT id, day_index
+    SELECT id
     FROM program_day
     WHERE program_week_id = ? AND deleted_at IS NOT NULL
     ORDER BY day_index ASC;
@@ -55,19 +56,22 @@ function normalizeDeletedDayIndices(programWeekId: string) {
     [programWeekId],
   );
 
-  for (const d of deleted) {
-    const minIdx =
-      query<{ min_idx: number }>(
-        `
+  if (deleted.length === 0) return;
+
+  const minIdx =
+    query<{ min_idx: number }>(
+      `
         SELECT COALESCE(MIN(day_index), 0) AS min_idx
         FROM program_day
         WHERE program_week_id = ?;
       `,
-        [programWeekId],
-      )[0]?.min_idx ?? 0;
+      [programWeekId],
+    )[0]?.min_idx ?? 0;
 
-    const newIdx = minIdx - 1;
-    exec('UPDATE program_day SET day_index = ? WHERE id = ?', [newIdx, d.id]);
+  const base = minIdx - 1000;
+
+  for (let i = 0; i < deleted.length; i += 1) {
+    exec('UPDATE program_day SET day_index = ? WHERE id = ?', [base - (i + 1), deleted[i].id]);
   }
 }
 
@@ -319,6 +323,10 @@ export function addDayToWorkoutPlan(workoutPlanId: string): string {
       `,
         [weekId],
       )[0]?.n ?? 0;
+
+    if (count >= MAX_SESSIONS_PER_PLAN) {
+      throw new WorkoutLimitError(WORKOUT_LIMIT_MESSAGES.maxSessionsPerPlan);
+    }
 
     const nextIndex = count + 1;
 

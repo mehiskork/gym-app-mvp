@@ -35,6 +35,11 @@ import {
 } from '../db/workoutPlanRepo';
 import { deleteDay } from '../db/dayExerciseRepo';
 import {
+  MAX_SESSIONS_PER_PLAN,
+  WORKOUT_LIMIT_MESSAGES,
+  isWorkoutLimitError,
+} from '../db/workoutLimits';
+import {
   createSessionFromPlanDay,
   getInProgressSession,
   getLastCompletedAtByPlanDay,
@@ -95,10 +100,21 @@ export function WorkoutPlanDetailScreen({ route, navigation }: Props) {
   }, [plan, planName, workoutPlanId]);
 
   const handleAddDay = useCallback(() => {
-    const dayId = addDayToWorkoutPlan(workoutPlanId);
-    load();
-    navigation.navigate('DayDetail', { dayId });
-  }, [load, navigation, workoutPlanId]);
+    if (days.length >= MAX_SESSIONS_PER_PLAN) {
+      setFeedback(WORKOUT_LIMIT_MESSAGES.maxSessionsPerPlan);
+      return;
+    }
+
+    try {
+      const dayId = addDayToWorkoutPlan(workoutPlanId);
+      load();
+      navigation.navigate('DayDetail', { dayId });
+    } catch (error) {
+      setFeedback(
+        isWorkoutLimitError(error) ? error.message : "Couldn't complete that action. Try again.",
+      );
+    }
+  }, [days.length, load, navigation, workoutPlanId]);
 
   const confirmDeletePlan = useCallback(() => {
     setDeletePlanVisible(true);
@@ -125,6 +141,7 @@ export function WorkoutPlanDetailScreen({ route, navigation }: Props) {
 
   const sessionCountLabel = `${days.length} session${days.length === 1 ? '' : 's'}`;
   const isPickerMode = mode === 'pickSessionToStart';
+  const sessionLimitReached = days.length >= MAX_SESSIONS_PER_PLAN;
   const recommendedDayId = useMemo(() => {
     if (!isPickerMode) return null;
 
@@ -287,7 +304,12 @@ export function WorkoutPlanDetailScreen({ route, navigation }: Props) {
                 description="Add your first session to start logging."
                 action={
                   isPickerMode ? null : (
-                    <Button title="Add session" variant="secondary" onPress={handleAddDay} />
+                    <Button
+                      title={sessionLimitReached ? 'Max 15 sessions' : 'Add session'}
+                      variant="secondary"
+                      disabled={sessionLimitReached}
+                      onPress={handleAddDay}
+                    />
                   )
                 }
               />
@@ -296,7 +318,12 @@ export function WorkoutPlanDetailScreen({ route, navigation }: Props) {
           {isPickerMode ? null : (
             <View style={{ gap: tokens.spacing.sm }}>
               {days.length > 0 ? (
-                <Button title="Add session" variant="secondary" onPress={handleAddDay} />
+                <Button
+                  title={sessionLimitReached ? 'Max 15 sessions' : 'Add session'}
+                  variant="secondary"
+                  disabled={sessionLimitReached}
+                  onPress={handleAddDay}
+                />
               ) : null}
               <Button title="Delete plan" variant="destructive" onPress={confirmDeletePlan} />
             </View>
