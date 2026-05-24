@@ -3,6 +3,7 @@ import { inTransaction } from './tx';
 import { newId } from '../utils/ids';
 import { enqueueOutboxOp } from './outboxRepo';
 import { DEFAULT_REST_SECONDS, type WorkoutSessionStatus } from './constants';
+import { MAX_SETS_PER_EXERCISE, WorkoutLimitError, WORKOUT_LIMIT_MESSAGES } from './workoutLimits';
 import { fetchSessionDetail } from './sessionDetailRepo';
 import {
   EXERCISE_TYPE,
@@ -520,6 +521,20 @@ export function addWorkoutSet(wseId: string): string {
   return inTransaction(() => {
     const compactedIds = compactActiveSets(wseId);
 
+    const count =
+      query<{ n: number }>(
+        `
+        SELECT COUNT(*) AS n
+        FROM workout_set
+        WHERE workout_session_exercise_id = ? AND deleted_at IS NULL;
+      `,
+        [wseId],
+      )[0]?.n ?? 0;
+
+    if (count >= MAX_SETS_PER_EXERCISE) {
+      throw new WorkoutLimitError(WORKOUT_LIMIT_MESSAGES.maxSetsPerExercise);
+    }
+
     const last = query<Pick<LoggerSet, 'weight' | 'reps' | 'rpe' | 'rest_seconds'>>(
       `
       SELECT weight, reps, rpe, rest_seconds
@@ -530,16 +545,6 @@ export function addWorkoutSet(wseId: string): string {
     `,
       [wseId],
     )[0];
-
-    const count =
-      query<{ n: number }>(
-        `
-        SELECT COUNT(*) AS n
-        FROM workout_set
-        WHERE workout_session_exercise_id = ? AND deleted_at IS NULL;
-      `,
-        [wseId],
-      )[0]?.n ?? 0;
 
     const nextIndex = count + 1;
     const id = newId('set');

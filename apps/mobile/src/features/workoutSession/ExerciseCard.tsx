@@ -20,6 +20,7 @@ type ExerciseCardProps = {
   onCommentPress?: () => void;
   commentButtonLabel?: 'Add comment' | 'View comment';
   commentDisabled?: boolean;
+  addSetDisabled?: boolean;
   onPressTitle?: () => void;
   onSwap?: () => void;
   showAddSet?: boolean;
@@ -34,6 +35,7 @@ export function ExerciseCard({
   onCommentPress,
   commentButtonLabel = 'Add comment',
   commentDisabled = false,
+  addSetDisabled = false,
   onPressTitle,
   onSwap,
   showAddSet = true,
@@ -195,6 +197,7 @@ export function ExerciseCard({
             <Pressable
               testID="exercise-card-add-set"
               onPress={onAddSet}
+              disabled={addSetDisabled}
               style={({ pressed }) => [
                 {
                   flex: 1,
@@ -204,12 +207,13 @@ export function ExerciseCard({
                   borderRadius: tokens.radius.md,
                   alignItems: 'center',
                   justifyContent: 'center',
+                  opacity: addSetDisabled ? 0.6 : 1,
                 },
-                pressed ? { opacity: 0.85 } : null,
+                pressed && !addSetDisabled ? { opacity: 0.85 } : null,
               ]}
             >
               <Text variant="muted" color={tokens.colors.mutedText}>
-                Add Set
+                {addSetDisabled ? 'Max 50 sets' : 'Add Set'}
               </Text>
             </Pressable>
           ) : null}

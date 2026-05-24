@@ -39,6 +39,7 @@ import {
   type LoggerSet,
 } from '../../../db/workoutLoggerRepo';
 import { scheduleRestTimerNotification } from '../../../utils/restTimerNotifications';
+import { WorkoutLimitError, WORKOUT_LIMIT_MESSAGES } from '../../../db/workoutLimits';
 import { useWorkoutSetActions } from '../useWorkoutSetActions';
 
 const baseRestTimerSettings = {
@@ -134,6 +135,19 @@ describe('useWorkoutSetActions', () => {
     expect((Haptics.selectionAsync as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
       load.mock.invocationCallOrder[0],
     );
+  });
+
+  it('handles set limit errors without success haptics or reload', () => {
+    const { handleAddSet, load } = setup();
+    (addWorkoutSet as jest.Mock).mockImplementationOnce(() => {
+      throw new WorkoutLimitError(WORKOUT_LIMIT_MESSAGES.maxSetsPerExercise);
+    });
+
+    expect(() => handleAddSet(createExercise())).not.toThrow();
+
+    expect(addWorkoutSet).toHaveBeenCalledWith('exercise-1');
+    expect(Haptics.selectionAsync).not.toHaveBeenCalled();
+    expect(load).not.toHaveBeenCalled();
   });
 
   it('parses empty set weight to null and reloads', () => {

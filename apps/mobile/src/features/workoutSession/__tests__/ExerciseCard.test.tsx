@@ -34,7 +34,7 @@ jest.mock('react-native-safe-area-context', () => {
 });
 
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Text } from '../../../ui/Text';
 import { ExerciseCard } from '../ExerciseCard';
@@ -103,5 +103,30 @@ describe('ExerciseCard set headers', () => {
     expect(setHeaderColumn).toBeDefined();
     expect(weightLabels).toHaveLength(1);
     expect(repLabels).toHaveLength(1);
+  });
+
+  it('disables Add Set and shows the max label when addSetDisabled is true', () => {
+    const onAddSet = jest.fn();
+    const element = ExerciseCard({
+      name: 'Deadlift',
+      subtitle: '50/50 sets complete',
+      onAddSet,
+      addSetDisabled: true,
+      children: <Text>Set row</Text>,
+    });
+
+    const pressables = findElementsByType<{
+      disabled?: boolean;
+      onPress?: () => void;
+      testID?: string;
+    }>(element, Pressable);
+    const addSetButton = pressables.find(
+      (pressable) => pressable.props.testID === 'exercise-card-add-set',
+    );
+    const texts = findElementsByType<{ children?: React.ReactNode }>(element, Text);
+
+    expect(addSetButton?.props.disabled).toBe(true);
+    expect(texts.some((text) => text.props.children === 'Max 50 sets')).toBe(true);
+    expect(onAddSet).not.toHaveBeenCalled();
   });
 });

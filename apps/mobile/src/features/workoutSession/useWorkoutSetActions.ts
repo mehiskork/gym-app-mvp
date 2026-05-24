@@ -11,6 +11,7 @@ import {
   type LoggerSet,
 } from '../../db/workoutLoggerRepo';
 import type { Settings } from '../../db/settingsRepo';
+import { isWorkoutLimitError } from '../../db/workoutLimits';
 import { useSnackbarUndo } from '../../hooks/useSnackbarUndo';
 import { scheduleRestTimerNotification } from '../../utils/restTimerNotifications';
 
@@ -46,7 +47,12 @@ export function useWorkoutSetActions({
 
   const handleAddSet = useCallback(
     (exercise: LoggerExercise) => {
-      addWorkoutSet(exercise.id);
+      try {
+        addWorkoutSet(exercise.id);
+      } catch (error) {
+        if (isWorkoutLimitError(error)) return;
+        throw error;
+      }
       void Haptics.selectionAsync();
       load();
     },

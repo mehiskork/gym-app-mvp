@@ -21,6 +21,7 @@ import {
 import { useAppTheme } from '../theme/theme';
 import { tokens } from '../theme/tokens';
 import { completeSession, updateWorkoutSessionNote } from '../db/workoutSessionRepo';
+import { MAX_SETS_PER_EXERCISE } from '../db/workoutLimits';
 import {
   clearRestTimer,
   getWorkoutLoggerData,
@@ -289,6 +290,7 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
                     navigation.navigate('ExerciseDetail', { exerciseId: ex.exercise_id })
                   }
                   showAddSet={ex.exercise_type === EXERCISE_TYPE.STRENGTH}
+                  addSetDisabled={ex.sets.length >= MAX_SETS_PER_EXERCISE}
                   showSetHeaders={ex.exercise_type === EXERCISE_TYPE.STRENGTH}
                   onAddSet={() => {
                     if (ex.exercise_type !== EXERCISE_TYPE.STRENGTH) return;

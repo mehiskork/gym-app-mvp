@@ -296,6 +296,86 @@ describe('WorkoutSessionScreen', () => {
     );
   });
 
+  it('passes disabled Add Set state for an exercise with 50 sets', () => {
+    const session = {
+      id: 'session-1',
+      title: 'Push Day',
+      status: 'in_progress',
+      started_at: '2024-01-01T00:00:00Z',
+      rest_timer_end_at: null,
+      rest_timer_seconds: null,
+      rest_timer_label: null,
+    };
+    const sets = Array.from({ length: 50 }, (_, index) => ({
+      id: `set-${index + 1}`,
+      workout_session_exercise_id: 'exercise-1',
+      set_index: index + 1,
+      weight: 100,
+      reps: 5,
+      rpe: null,
+      rest_seconds: 90,
+      notes: null,
+      is_completed: 0,
+    }));
+    const exercises = [
+      {
+        id: 'exercise-1',
+        exercise_id: 'bench-press',
+        exercise_name: 'Bench Press',
+        exercise_type: 'strength',
+        cardio_profile: null,
+        cardio_summary: {
+          duration_minutes: null,
+          distance_km: null,
+          speed_kph: null,
+          incline_percent: null,
+          resistance_level: null,
+          pace_seconds_per_km: null,
+          floors: null,
+          stair_level: null,
+        },
+        notes: null,
+        position: 1,
+        sets,
+      },
+    ];
+
+    useStateMock.mockImplementationOnce(() => [session, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [exercises, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [0, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [
+      {
+        defaultRestSeconds: 120,
+        autoStartRestTimer: true,
+        restTimerVibration: true,
+        keepScreenOn: true,
+        restTimerNotifications: false,
+      },
+      jest.fn(),
+    ]);
+    useStateMock.mockImplementationOnce(() => [false, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [false, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [{ visible: false, payload: null }, jest.fn()]);
+    (getWorkoutLoggerData as jest.Mock).mockReturnValue({ session, exercises });
+
+    const element = WorkoutSessionScreen({
+      navigation: {
+        navigate: jest.fn(),
+        dispatch: jest.fn(),
+        setOptions: jest.fn(),
+        addListener: jest.fn(),
+      },
+      route: { key: 'WorkoutSession', name: 'WorkoutSession', params: { sessionId: 'session-1' } },
+    } as never);
+
+    type ExerciseCardProps = React.ComponentProps<typeof ExerciseCard>;
+    const exerciseCards = findElementsByType(element, ExerciseCard) as Array<
+      React.ReactElement<ExerciseCardProps>
+    >;
+
+    expect(exerciseCards[0]?.props.addSetDisabled).toBe(true);
+  });
+
   it('passes keyboard-safe focus handling to cardio inputs', () => {
     const session = {
       id: 'session-1',
