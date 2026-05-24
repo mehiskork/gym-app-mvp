@@ -29,7 +29,7 @@ describe('workoutSessionRepo unfinished workout reminder lifecycle', () => {
   });
 
   it('cancels unfinished workout reminder after completing a session', () => {
-    (query as jest.Mock).mockReturnValueOnce([{ id: 'ws-1' }]);
+    (query as jest.Mock).mockReturnValueOnce([{ n: 1 }]).mockReturnValue([{ id: 'ws-1' }]);
 
     completeSession('ws-1');
 
@@ -50,7 +50,7 @@ describe('workoutSessionRepo unfinished workout reminder lifecycle', () => {
 
   it('does not block completion or discard when cancellation rejects', () => {
     (cancelUnfinishedWorkoutReminder as jest.Mock).mockRejectedValue(new Error('cancel failed'));
-    (query as jest.Mock).mockReturnValue([{ id: 'snapshot' }]);
+    (query as jest.Mock).mockReturnValueOnce([{ n: 1 }]).mockReturnValue([{ id: 'snapshot' }]);
 
     expect(() => completeSession('ws-1')).not.toThrow();
     expect(() => discardSession('ws-1')).not.toThrow();

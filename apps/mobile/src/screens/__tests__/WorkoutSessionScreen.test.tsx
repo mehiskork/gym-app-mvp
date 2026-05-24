@@ -88,6 +88,7 @@ jest.mock('../../db/workoutLoggerRepo', () => ({
 
 jest.mock('../../db/workoutSessionRepo', () => ({
   completeSession: jest.fn(),
+  discardSession: jest.fn(),
   updateWorkoutSessionNote: jest.fn(),
 }));
 

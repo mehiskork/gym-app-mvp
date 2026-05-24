@@ -9,6 +9,7 @@ type FinishWorkoutSheetProps = {
   visible: boolean;
   onClose: () => void;
   onFinish: () => void;
+  mode?: 'normal' | 'incomplete' | 'noLoggedWork';
   completedSets: number;
   totalSets: number;
   durationMinutes: number;
@@ -43,6 +44,7 @@ export function FinishWorkoutSheet({
   visible,
   onClose,
   onFinish,
+  mode = 'normal',
   completedSets,
   totalSets,
   durationMinutes,
@@ -52,15 +54,22 @@ export function FinishWorkoutSheet({
   noteEditable = true,
 }: FinishWorkoutSheetProps) {
   const incompleteSets = Math.max(0, totalSets - completedSets);
-  const message =
-    incompleteSets > 0
-      ? `You have ${incompleteSets} incomplete sets. Finish anyway?`
-      : 'Finish and save this workout?';
+  const message = (() => {
+    if (mode === 'noLoggedWork') {
+      return 'No workout data was logged. End this workout without saving it to history?';
+    }
+    if (mode === 'incomplete' && incompleteSets > 0) {
+      return `You have ${incompleteSets} incomplete sets. Finish anyway?`;
+    }
+    return 'Finish and save this workout?';
+  })();
+  const keepTrainingLabel = mode === 'noLoggedWork' ? 'Keep training' : 'Keep Training';
+  const finishLabel = mode === 'noLoggedWork' ? 'End without saving' : 'Finish';
   const actions = (
     <View style={{ flexDirection: 'row', gap: tokens.spacing.md }}>
       <View style={{ flex: 1 }}>
         <Button
-          title="Keep Training"
+          title={keepTrainingLabel}
           variant="secondary"
           onPress={onClose}
           disabled={isFinishing}
@@ -68,7 +77,7 @@ export function FinishWorkoutSheet({
       </View>
       <View style={{ flex: 1 }}>
         <Button
-          title="Finish"
+          title={finishLabel}
           variant="primary"
           onPress={onFinish}
           disabled={isFinishing}

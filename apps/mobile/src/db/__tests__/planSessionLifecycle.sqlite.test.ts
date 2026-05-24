@@ -167,6 +167,16 @@ describe('plan session lifecycle with SQLite', () => {
     addExerciseWithPlannedSets(day4);
 
     const sessionId = createSessionFromPlanDay({ workoutPlanId: planId, dayId: day2 });
+    exec(
+      `
+      UPDATE workout_set
+      SET is_completed = 1
+      WHERE workout_session_exercise_id IN (
+        SELECT id FROM workout_session_exercise WHERE workout_session_id = ?
+      );
+    `,
+      [sessionId],
+    );
     completeSession(sessionId, 'completed before planner delete');
     const historyBefore = {
       sessions: count('SELECT COUNT(*) AS n FROM workout_session WHERE id = ?;', [sessionId]),

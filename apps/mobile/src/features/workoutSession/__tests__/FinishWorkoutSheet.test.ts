@@ -1,7 +1,7 @@
 import React from 'react';
 
 import { FinishWorkoutSheet } from '../FinishWorkoutSheet';
-import { Button, BottomSheetModal } from '../../../ui';
+import { Button, BottomSheetModal, Text } from '../../../ui';
 
 type ElementWithChildren = React.ReactElement<{ children?: React.ReactNode }>;
 
@@ -44,6 +44,16 @@ const findElementsByType = (
   return acc;
 };
 
+const flattenTextChildren = (node: React.ReactNode): string => {
+  if (node === null || node === undefined || typeof node === 'boolean') return '';
+  if (typeof node === 'string' || typeof node === 'number') return String(node);
+  if (Array.isArray(node)) return node.map((child) => flattenTextChildren(child)).join('');
+  if (React.isValidElement<{ children?: React.ReactNode }>(node)) {
+    return flattenTextChildren(node.props.children);
+  }
+  return '';
+};
+
 describe('FinishWorkoutSheet', () => {
   it('renders action buttons in BottomSheetModal actions footer', () => {
     const element = FinishWorkoutSheet({
@@ -67,5 +77,41 @@ describe('FinishWorkoutSheet', () => {
       React.ReactElement<{ title: string }>
     >;
     expect(actionButtons.map((button) => button.props.title)).toEqual(['Keep Training', 'Finish']);
+  });
+
+  it('renders no-logged-work copy and end-without-saving action', () => {
+    const element = FinishWorkoutSheet({
+      visible: true,
+      mode: 'noLoggedWork',
+      onClose: jest.fn(),
+      onFinish: jest.fn(),
+      completedSets: 0,
+      totalSets: 0,
+      durationMinutes: 10,
+      workoutNote: '',
+      onWorkoutNoteChange: jest.fn(),
+    });
+
+    const modal = findElementsByType(element, BottomSheetModal)[0] as React.ReactElement<{
+      actions?: React.ReactNode;
+    }>;
+    const actionButtons = findElementsByType(modal.props.actions, Button) as Array<
+      React.ReactElement<{ title: string }>
+    >;
+    const texts = findElementsByType(element, Text) as Array<
+      React.ReactElement<{ children?: React.ReactNode }>
+    >;
+
+    expect(actionButtons.map((button) => button.props.title)).toEqual([
+      'Keep training',
+      'End without saving',
+    ]);
+    expect(
+      texts.some(
+        (text) =>
+          flattenTextChildren(text.props.children).trim() ===
+          'No workout data was logged. End this workout without saving it to history?',
+      ),
+    ).toBe(true);
   });
 });

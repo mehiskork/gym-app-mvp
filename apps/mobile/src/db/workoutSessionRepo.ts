@@ -505,6 +505,46 @@ function normalizeWorkoutNote(note: string | null | undefined): string | null {
   return trimmed.slice(0, 200);
 }
 
+function sessionHasLoggedWork(sessionId: string): boolean {
+  const row = query<{ n: number }>(
+    `
+    SELECT EXISTS (
+      SELECT 1
+      FROM workout_set ws
+      JOIN workout_session_exercise wse ON wse.id = ws.workout_session_exercise_id
+      JOIN workout_session session ON session.id = wse.workout_session_id
+      WHERE session.id = ?
+        AND session.deleted_at IS NULL
+        AND wse.deleted_at IS NULL
+        AND ws.deleted_at IS NULL
+        AND wse.exercise_type = 'strength'
+        AND ws.is_completed = 1
+      UNION ALL
+      SELECT 1
+      FROM workout_session_exercise wse
+      JOIN workout_session session ON session.id = wse.workout_session_id
+      WHERE session.id = ?
+        AND session.deleted_at IS NULL
+        AND wse.deleted_at IS NULL
+        AND wse.exercise_type = 'cardio'
+        AND (
+          wse.cardio_duration_minutes IS NOT NULL OR
+          wse.cardio_distance_km IS NOT NULL OR
+          wse.cardio_speed_kph IS NOT NULL OR
+          wse.cardio_incline_percent IS NOT NULL OR
+          wse.cardio_resistance_level IS NOT NULL OR
+          wse.cardio_pace_seconds_per_km IS NOT NULL OR
+          wse.cardio_floors IS NOT NULL OR
+          wse.cardio_stair_level IS NOT NULL
+        )
+    ) AS n;
+  `,
+    [sessionId, sessionId],
+  )[0];
+
+  return row?.n === 1;
+}
+
 export function updateWorkoutSessionNote(sessionId: string, note: string | null) {
   inTransaction(() => {
     const normalized = normalizeWorkoutNote(note);
@@ -523,8 +563,10 @@ export function updateWorkoutSessionNote(sessionId: string, note: string | null)
   });
 }
 
-export function completeSession(sessionId: string, workoutNote: string | null = null) {
-  inTransaction(() => {
+export function completeSession(sessionId: string, workoutNote: string | null = null): boolean {
+  const completed = inTransaction(() => {
+    if (!sessionHasLoggedWork(sessionId)) return false;
+
     exec(
       `
       UPDATE workout_session
@@ -537,8 +579,14 @@ export function completeSession(sessionId: string, workoutNote: string | null = 
 
     // Run PR detection AFTER marking completed
     detectAndStorePrsForSession(sessionId);
+    return true;
   });
-  void cancelUnfinishedWorkoutReminder().catch(() => undefined);
+
+  if (completed) {
+    void cancelUnfinishedWorkoutReminder().catch(() => undefined);
+  }
+
+  return completed;
 }
 
 export function discardSession(sessionId: string) {

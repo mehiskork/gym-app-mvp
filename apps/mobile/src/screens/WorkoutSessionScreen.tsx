@@ -20,7 +20,11 @@ import {
 } from '../ui';
 import { useAppTheme } from '../theme/theme';
 import { tokens } from '../theme/tokens';
-import { completeSession, updateWorkoutSessionNote } from '../db/workoutSessionRepo';
+import {
+  completeSession,
+  discardSession,
+  updateWorkoutSessionNote,
+} from '../db/workoutSessionRepo';
 import { MAX_EXERCISES_PER_SESSION, MAX_SETS_PER_EXERCISE } from '../db/workoutLimits';
 import {
   clearRestTimer,
@@ -92,6 +96,10 @@ function parseCardioNumber(field: keyof CardioSummary, input: string): number | 
   return value;
 }
 
+function hasCardioSummaryEntry(summary: CardioSummary): boolean {
+  return Object.values(summary).some((value) => value !== null);
+}
+
 export function WorkoutSessionScreen({ route, navigation }: Props) {
   const { sessionId } = route.params;
 
@@ -110,6 +118,7 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
   const [commentEditorExerciseId, setCommentEditorExerciseId] = useState<string | null>(null);
   const [commentDraft, setCommentDraft] = useState('');
   const [workoutNoteDraft, setWorkoutNoteDraft] = useState('');
+  const finishingRef = React.useRef(false);
   const { resetToHome } = useWorkoutSessionNavGuard({ navigation });
   const { timerActive, remainingSeconds, clearRestTimerHandler } = useRestTimer({
     session,
@@ -162,6 +171,7 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
   );
 
   const totals = useMemo(() => {
+    const exerciseCount = exercises.length;
     const totalSets = exercises.reduce(
       (sum, exercise) =>
         sum + (exercise.exercise_type === EXERCISE_TYPE.STRENGTH ? exercise.sets.length : 0),
@@ -175,22 +185,46 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
           : 0),
       0,
     );
-    return { totalSets, completedSets };
+    const hasCardioEntry = exercises.some(
+      (exercise) =>
+        exercise.exercise_type === EXERCISE_TYPE.CARDIO &&
+        hasCardioSummaryEntry(exercise.cardio_summary),
+    );
+    const hasLoggedWork = completedSets > 0 || hasCardioEntry;
+    const incompleteSets = Math.max(0, totalSets - completedSets);
+    return {
+      exerciseCount,
+      totalSets,
+      completedSets,
+      incompleteSets,
+      hasCardioEntry,
+      hasLoggedWork,
+    };
   }, [exercises]);
 
   const handleFinish = useCallback(() => {
+    if (isFinishing || finishingRef.current) return;
+    finishingRef.current = true;
     setIsFinishing(true);
     setFinishOpen(false);
     try {
-      completeSession(sessionId, workoutNoteDraft);
+      if (totals.hasLoggedWork) {
+        const completed = completeSession(sessionId, workoutNoteDraft);
+        if (!completed) {
+          discardSession(sessionId);
+        }
+      } else {
+        discardSession(sessionId);
+      }
       clearRestTimer(sessionId);
       void cancelRestTimerNotification();
       load();
       resetToHome();
     } finally {
+      finishingRef.current = false;
       setIsFinishing(false);
     }
-  }, [load, resetToHome, sessionId, workoutNoteDraft]);
+  }, [isFinishing, load, resetToHome, sessionId, totals.hasLoggedWork, workoutNoteDraft]);
 
   const handleCloseFinish = useCallback(() => {
     if (isFinishing) return;
@@ -240,6 +274,11 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
   }
   const canEditComment = session.status === 'in_progress';
   const exerciseLimitReached = exercises.length >= MAX_EXERCISES_PER_SESSION;
+  const finishMode = !totals.hasLoggedWork
+    ? 'noLoggedWork'
+    : totals.incompleteSets > 0
+      ? 'incomplete'
+      : 'normal';
 
   return (
     <Screen padded={false} bottomInset="none" contentStyle={{ paddingTop: 0 }}>
@@ -425,6 +464,7 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
         visible: finishOpen,
         onClose: handleCloseFinish,
         onFinish: handleFinish,
+        mode: finishMode,
         completedSets: totals.completedSets,
         totalSets: totals.totalSets,
         durationMinutes,

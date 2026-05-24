@@ -21,10 +21,22 @@ describe('workoutSessionRepo workout note', () => {
   });
 
   it('completes workout with trimmed note and triggers PR detection', () => {
+    (query as jest.Mock).mockReturnValueOnce([{ n: 1 }]).mockReturnValue([{ id: 'ws-1' }]);
+
     completeSession('ws-1', '  Great session  ');
 
     expect(exec).toHaveBeenCalledTimes(1);
     expect((exec as jest.Mock).mock.calls[0][1]).toEqual(['Great session', 'ws-1']);
     expect(detectAndStorePrsForSession).toHaveBeenCalledWith('ws-1');
+  });
+
+  it('does not complete workouts with no logged work', () => {
+    (query as jest.Mock).mockReturnValueOnce([{ n: 0 }]);
+
+    const completed = completeSession('ws-1', 'No work');
+
+    expect(completed).toBe(false);
+    expect(exec).not.toHaveBeenCalled();
+    expect(detectAndStorePrsForSession).not.toHaveBeenCalled();
   });
 });
