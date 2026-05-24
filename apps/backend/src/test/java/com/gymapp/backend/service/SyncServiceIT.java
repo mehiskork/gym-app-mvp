@@ -11,8 +11,9 @@ import com.gymapp.backend.model.SyncOp;
 import com.gymapp.backend.model.SyncResponse;
 import com.gymapp.backend.repository.SyncRepository;
 import com.gymapp.backend.security.OwnerScope;
-import java.time.Instant;
 import java.lang.reflect.Field;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import javax.sql.DataSource;
@@ -408,6 +409,140 @@ class SyncServiceIT {
         assertThat(response.getDeltas()).isEmpty();
         assertThat(response.getHasMore()).isFalse();
         assertThat(response.getCursor()).isEqualTo("42");
+    }
+
+    @Test
+    void lwwCapsExistingFarFutureUpdatedAtSoEntityIsNotPinnedForever() {
+        Instant existingReceivedAt = Instant.now().minus(Duration.ofMinutes(10));
+        syncRepository.upsertEntityState(guestUserId, "program", "program-future-pinned", Map.of(
+                "id", "program-future-pinned",
+                "name", "Pinned",
+                "updated_at", "2099-01-01T00:00:00Z"), existingReceivedAt);
+
+        String incomingUpdatedAt = Instant.now().toString();
+        SyncResponse response = syncService.sync(deviceId, guestUserId, "0", List.of(upsertOp(
+                "op-future-pinned-recovery",
+                "program",
+                "program-future-pinned",
+                Map.of(
+                        "id", "program-future-pinned",
+                        "name", "Recovered",
+                        "updated_at", incomingUpdatedAt))));
+
+        assertThat(response.getAcks()).extracting(SyncAck::status).containsExactly("applied");
+        assertThat(entityStatePayload("program", "program-future-pinned"))
+                .containsEntry("name", "Recovered")
+                .containsEntry("updated_at", incomingUpdatedAt);
+    }
+
+    @Test
+    void lwwAcceptsIncomingUpdatedAtWithinAllowedFutureSkewNormally() {
+        Instant now = Instant.now();
+        syncRepository.upsertEntityState(guestUserId, "program", "program-future-skew", Map.of(
+                "id", "program-future-skew",
+                "name", "Existing",
+                "updated_at", now.minus(Duration.ofMinutes(1)).toString()), now);
+
+        String incomingUpdatedAt = now.plus(Duration.ofMinutes(2)).toString();
+        SyncResponse response = syncService.sync(deviceId, guestUserId, "0", List.of(upsertOp(
+                "op-future-skew",
+                "program",
+                "program-future-skew",
+                Map.of(
+                        "id", "program-future-skew",
+                        "name", "Within skew",
+                        "updated_at", incomingUpdatedAt))));
+
+        assertThat(response.getAcks()).extracting(SyncAck::status).containsExactly("applied");
+        assertThat(entityStatePayload("program", "program-future-skew"))
+                .containsEntry("name", "Within skew")
+                .containsEntry("updated_at", incomingUpdatedAt);
+    }
+
+    @Test
+    void lwwAppliesNormalNewerClientUpdateOverOlderExistingState() {
+        syncRepository.upsertEntityState(guestUserId, "program", "program-normal-newer", Map.of(
+                "id", "program-normal-newer",
+                "name", "Older",
+                "updated_at", "2026-03-01T00:00:00Z"), Instant.now());
+
+        SyncResponse response = syncService.sync(deviceId, guestUserId, "0", List.of(upsertOp(
+                "op-normal-newer",
+                "program",
+                "program-normal-newer",
+                Map.of(
+                        "id", "program-normal-newer",
+                        "name", "Newer",
+                        "updated_at", "2026-03-01T00:01:00Z"))));
+
+        assertThat(response.getAcks()).extracting(SyncAck::status).containsExactly("applied");
+        assertThat(entityStatePayload("program", "program-normal-newer"))
+                .containsEntry("name", "Newer")
+                .containsEntry("updated_at", "2026-03-01T00:01:00Z");
+    }
+
+    @Test
+    void lwwRejectsOlderClientUpdateAgainstNewerExistingState() {
+        syncRepository.upsertEntityState(guestUserId, "program", "program-normal-older", Map.of(
+                "id", "program-normal-older",
+                "name", "Newer existing",
+                "updated_at", "2026-03-01T00:01:00Z"), Instant.now());
+
+        SyncResponse response = syncService.sync(deviceId, guestUserId, "0", List.of(upsertOp(
+                "op-normal-older",
+                "program",
+                "program-normal-older",
+                Map.of(
+                        "id", "program-normal-older",
+                        "name", "Older incoming",
+                        "updated_at", "2026-03-01T00:00:00Z"))));
+
+        assertThat(response.getAcks()).extracting(SyncAck::status).containsExactly("noop");
+        assertThat(response.getAcks()).extracting(SyncAck::reason).containsExactly("stale update");
+        assertThat(entityStatePayload("program", "program-normal-older"))
+                .containsEntry("name", "Newer existing")
+                .containsEntry("updated_at", "2026-03-01T00:01:00Z");
+    }
+
+    @Test
+    void deleteWinsAgainstLaterUpsertEvenWhenUpsertTimestampWouldBeCapped() {
+        syncRepository.upsertEntityState(guestUserId, "program", "program-delete-wins", Map.of(
+                "id", "program-delete-wins",
+                "name", "Deleted",
+                "deleted_at", "2026-03-01T00:00:00Z",
+                "updated_at", "2026-03-01T00:00:00Z"), Instant.now());
+
+        SyncResponse response = syncService.sync(deviceId, guestUserId, "0", List.of(upsertOp(
+                "op-delete-wins-future-upsert",
+                "program",
+                "program-delete-wins",
+                Map.of(
+                        "id", "program-delete-wins",
+                        "name", "Resurrected",
+                        "updated_at", "2099-01-01T00:00:00Z"))));
+
+        assertThat(response.getAcks()).extracting(SyncAck::status).containsExactly("noop");
+        assertThat(response.getAcks()).extracting(SyncAck::reason)
+                .containsExactly("delete wins (no resurrection)");
+        assertThat(entityStatePayload("program", "program-delete-wins"))
+                .containsEntry("name", "Deleted")
+                .containsKey("deleted_at");
+    }
+
+    @Test
+    void upsertWithInvalidUpdatedAtIsStillRejected() {
+        SyncOp op = upsertOp("op-invalid-updated-at", "program", "program-invalid-updated-at", Map.of(
+                "id", "program-invalid-updated-at",
+                "updated_at", "not-a-timestamp"));
+
+        assertThatThrownBy(() -> syncService.sync(deviceId, guestUserId, "0", List.of(op)))
+                .isInstanceOf(ValidationException.class)
+                .satisfies(ex -> assertThat(((ValidationException) ex).getDetails())
+                        .containsEntry("field", "updated_at")
+                        .containsEntry("reason", "updated_at must be an ISO-8601 or SQLite timestamp"));
+
+        assertThat(countEntityStateRows(guestUserId, "program", "program-invalid-updated-at")).isZero();
+        assertThat(countOpLedgerRows(guestUserId, "op-invalid-updated-at")).isZero();
     }
 
     @Test
@@ -1401,6 +1536,10 @@ class SyncServiceIT {
 
     private SyncOp upsertOp(String opId, String entityType, String entityId, Map<String, Object> payload) {
         return new SyncOp(opId, entityType, entityId, "upsert", payload, null);
+    }
+
+    private Map<String, Object> entityStatePayload(String entityType, String entityId) {
+        return syncRepository.findEntityState(guestUserId, entityType, entityId).orElseThrow();
     }
 
     private long countOwnerRows(String table, String ownerId) {

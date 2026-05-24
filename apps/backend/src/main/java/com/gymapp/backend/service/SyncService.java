@@ -10,6 +10,7 @@ import com.gymapp.backend.model.SyncResponse;
 import com.gymapp.backend.repository.AccountDeletionRepository;
 import com.gymapp.backend.repository.SyncRepository;
 import com.gymapp.backend.security.OwnerScope;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -30,6 +31,7 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class SyncService {
         private static final int DELTA_LIMIT = 1000;
+        private static final Duration CLIENT_UPDATED_AT_ALLOWED_FUTURE_SKEW = Duration.ofMinutes(5);
         private static final String SNAPSHOT_CURSOR_PREFIX = "snapshot:";
         private static final Set<String> APP_META_DENYLIST = Set.of(
                         "access_token",
@@ -562,7 +564,9 @@ public class SyncService {
                         return new ResolutionResult("applied", null, incomingPayload);
                 }
 
-                int compare = compareByLww(existingPayload, incomingPayload, existingUpdatedAt, incomingUpdatedAt,
+                int compare = compareByLww(existingPayload, incomingPayload,
+                                capClientUpdatedAtForLww(existingUpdatedAt, existingReceivedAt),
+                                capClientUpdatedAtForLww(incomingUpdatedAt, incomingReceivedAt),
                                 existingReceivedAt, incomingReceivedAt);
                 if (compare > 0) {
                         ResolutionResult immutability = enforceImmutability(ownerId, op, existingPayload,
@@ -602,7 +606,9 @@ public class SyncService {
                 }
 
                 Instant incomingUpdatedAt = parseInstant(deletePayload, "updated_at", "updatedAt");
-                int compare = compareByLww(existingPayload, deletePayload, existingUpdatedAt, incomingUpdatedAt,
+                int compare = compareByLww(existingPayload, deletePayload,
+                                capClientUpdatedAtForLww(existingUpdatedAt, existingReceivedAt),
+                                capClientUpdatedAtForLww(incomingUpdatedAt, incomingReceivedAt),
                                 existingReceivedAt, incomingReceivedAt);
                 if (compare <= 0) {
                         return new ResolutionResult("noop",
@@ -718,6 +724,14 @@ public class SyncService {
                 Instant existingTie = existingReceivedAt != null ? existingReceivedAt : Instant.EPOCH;
                 Instant incomingTie = incomingReceivedAt != null ? incomingReceivedAt : Instant.EPOCH;
                 return incomingTie.compareTo(existingTie);
+        }
+
+        private Instant capClientUpdatedAtForLww(Instant clientUpdatedAt, Instant receivedAt) {
+                if (clientUpdatedAt == null || receivedAt == null) {
+                        return clientUpdatedAt;
+                }
+                Instant maxAllowedUpdatedAt = receivedAt.plus(CLIENT_UPDATED_AT_ALLOWED_FUTURE_SKEW);
+                return clientUpdatedAt.isAfter(maxAllowedUpdatedAt) ? maxAllowedUpdatedAt : clientUpdatedAt;
         }
 
         private int compareDelete(
