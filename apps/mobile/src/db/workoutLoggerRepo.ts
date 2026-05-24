@@ -20,6 +20,10 @@ import {
   reconcileUnfinishedWorkoutReminder,
   scheduleUnfinishedWorkoutReminderForSession,
 } from '../utils/unfinishedWorkoutReminderNotifications';
+import {
+  isCardioSummaryField,
+  isValidCardioSummaryValue,
+} from '../features/workoutSession/cardioInputParsing';
 
 const EXERCISE_POSITION_SHIFT_OFFSET = 1_000_000;
 
@@ -626,7 +630,14 @@ export function updateWorkoutSessionExerciseCardioSummary(
   wseId: string,
   patch: Partial<CardioSummary>,
 ) {
-  const entries = Object.entries(patch).filter(([, value]) => value !== undefined);
+  const entries = Object.entries(patch).filter(
+    (entry): entry is [keyof CardioSummary, number | null] => {
+      const [key, value] = entry;
+      return (
+        value !== undefined && isCardioSummaryField(key) && isValidCardioSummaryValue(key, value)
+      );
+    },
+  );
   if (entries.length === 0) return;
   const cols = entries.map(([key]) => `cardio_${key} = ?`).join(', ');
   const params = entries.map(([, value]) => value);

@@ -4,12 +4,13 @@ import { View } from 'react-native';
 import type { CardioProfile, CardioSummary } from '../../db/exerciseTypes';
 import { Input } from '../../ui';
 import { tokens } from '../../theme/tokens';
+import { formatCardioInputValue, parseCardioInput } from './cardioInputParsing';
 
 type CardioSummaryEditorProps = {
   profile: CardioProfile | null;
   summary: CardioSummary;
   editable: boolean;
-  onFieldEndEditing: (field: keyof CardioSummary, value: string) => void;
+  onFieldEndEditing: (field: keyof CardioSummary, value: string) => boolean;
   onEditFocus?: (metrics: { pageY: number; height: number }) => void;
 };
 
@@ -51,7 +52,7 @@ function fieldsForProfile(
       return [
         { key: 'duration_minutes', label: 'Duration (min)' },
         { key: 'distance_km', label: 'Distance (km)' },
-        { key: 'pace_seconds_per_km', label: 'Pace' },
+        { key: 'pace_seconds_per_km', label: 'Pace (min/km)' },
       ];
     case 'stairs':
       return [
@@ -79,6 +80,21 @@ export function CardioSummaryEditor({
 }: CardioSummaryEditorProps) {
   const fields = fieldsForProfile(profile);
   const fieldRefs = React.useRef<Partial<Record<keyof CardioSummary, View | null>>>({});
+  const savedTexts = React.useMemo(
+    () =>
+      Object.fromEntries(
+        (Object.keys(summary) as Array<keyof CardioSummary>).map((field) => [
+          field,
+          formatCardioInputValue(field, summary[field]),
+        ]),
+      ) as Record<keyof CardioSummary, string>,
+    [summary],
+  );
+  const [fieldTexts, setFieldTexts] = React.useState(savedTexts);
+
+  React.useEffect(() => {
+    setFieldTexts(savedTexts);
+  }, [savedTexts]);
   const rows = fields.reduce<Array<Array<{ key: keyof CardioSummary; label: string }>>>(
     (acc, field, index) => {
       const rowIndex = Math.floor(index / 2);
@@ -101,6 +117,23 @@ export function CardioSummaryEditor({
     [onEditFocus],
   );
 
+  const handleEndEditing = React.useCallback(
+    (field: keyof CardioSummary, value: string) => {
+      const parsed = parseCardioInput(field, value);
+      if (!parsed.ok) {
+        setFieldTexts((current) => ({ ...current, [field]: savedTexts[field] }));
+        return;
+      }
+
+      const accepted = onFieldEndEditing(field, value);
+      setFieldTexts((current) => ({
+        ...current,
+        [field]: accepted ? formatCardioInputValue(field, parsed.value) : savedTexts[field],
+      }));
+    },
+    [onFieldEndEditing, savedTexts],
+  );
+
   return (
     <View style={{ gap: tokens.spacing.sm }}>
       {rows.map((row, rowIndex) => (
@@ -116,12 +149,17 @@ export function CardioSummaryEditor({
               <Input
                 label={field.label}
                 maxLength={cardioFieldMaxLengths[field.key]}
-                defaultValue={summary[field.key] === null ? '' : String(summary[field.key])}
-                keyboardType="decimal-pad"
+                value={fieldTexts[field.key]}
+                keyboardType={
+                  field.key === 'pace_seconds_per_km' ? 'numbers-and-punctuation' : 'decimal-pad'
+                }
                 editable={editable}
                 inputStyle={cardioValueInputStyle}
+                onChangeText={(value) =>
+                  setFieldTexts((current) => ({ ...current, [field.key]: value }))
+                }
                 onFocus={() => handleFieldFocus(field.key)}
-                onEndEditing={(event) => onFieldEndEditing(field.key, event.nativeEvent.text)}
+                onEndEditing={(event) => handleEndEditing(field.key, event.nativeEvent.text)}
               />
             </View>
           ))}

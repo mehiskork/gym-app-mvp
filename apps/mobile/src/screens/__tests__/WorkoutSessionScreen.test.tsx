@@ -120,7 +120,12 @@ import { CardioSummaryEditor } from '../../features/workoutSession/CardioSummary
 import { ExerciseCard } from '../../features/workoutSession/ExerciseCard';
 import { SetRow } from '../../features/workoutSession/SetRow';
 import { Button, Card, EmptyState, IconButton, Text } from '../../ui';
-import { clearRestTimer, getWorkoutLoggerData, updateWorkoutSet } from '../../db/workoutLoggerRepo';
+import {
+  clearRestTimer,
+  getWorkoutLoggerData,
+  updateWorkoutSessionExerciseCardioSummary,
+  updateWorkoutSet,
+} from '../../db/workoutLoggerRepo';
 import { getSettings } from '../../db/settingsRepo';
 import { tokens } from '../../theme/tokens';
 import { cancelRestTimerNotification } from '../../utils/restTimerNotifications';
@@ -179,6 +184,7 @@ describe('WorkoutSessionScreen', () => {
     useStateMock.mockImplementation((initial: unknown) => [initial, jest.fn()]);
     useEffectMock.mockReset();
     (updateWorkoutSet as jest.Mock).mockReset();
+    (updateWorkoutSessionExerciseCardioSummary as jest.Mock).mockReset();
     (clearRestTimer as jest.Mock).mockReset();
     (Keyboard.dismiss as jest.Mock).mockReset();
     (getWorkoutLoggerData as jest.Mock).mockReset();
@@ -517,6 +523,121 @@ describe('WorkoutSessionScreen', () => {
     >;
     expect(editors).toHaveLength(1);
     expect(typeof editors[0]?.props.onEditFocus).toBe('function');
+  });
+
+  const renderCardioSession = () => {
+    const session = {
+      id: 'session-1',
+      title: 'Cardio Day',
+      status: 'in_progress',
+      started_at: '2024-01-01T00:00:00Z',
+      rest_timer_end_at: null,
+      rest_timer_seconds: null,
+      rest_timer_label: null,
+    };
+    const exercises = [
+      {
+        id: 'exercise-1',
+        exercise_id: 'erg',
+        exercise_name: 'Erg',
+        exercise_type: 'cardio',
+        cardio_profile: 'ergometer',
+        cardio_summary: {
+          duration_minutes: null,
+          distance_km: null,
+          speed_kph: null,
+          incline_percent: null,
+          resistance_level: null,
+          pace_seconds_per_km: null,
+          floors: null,
+          stair_level: null,
+        },
+        sets: [],
+        notes: null,
+        position: 1,
+      },
+    ];
+
+    useStateMock.mockImplementationOnce(() => [session, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [exercises, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [0, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [
+      {
+        defaultRestSeconds: 120,
+        autoStartRestTimer: true,
+        restTimerVibration: true,
+        keepScreenOn: true,
+        restTimerNotifications: false,
+      },
+      jest.fn(),
+    ]);
+    useStateMock.mockImplementationOnce(() => [false, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [false, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [{ visible: false, payload: null }, jest.fn()]);
+    (getWorkoutLoggerData as jest.Mock).mockReturnValue({ session, exercises });
+
+    const element = WorkoutSessionScreen({
+      navigation: {
+        navigate: jest.fn(),
+        dispatch: jest.fn(),
+        setOptions: jest.fn(),
+        addListener: jest.fn(),
+      },
+      route: { key: 'WorkoutSession', name: 'WorkoutSession', params: { sessionId: 'session-1' } },
+    } as never);
+
+    type CardioSummaryEditorProps = React.ComponentProps<typeof CardioSummaryEditor>;
+    return (
+      findElementsByType(element, CardioSummaryEditor) as Array<
+        React.ReactElement<CardioSummaryEditorProps>
+      >
+    )[0];
+  };
+
+  it('valid cardio edit updates summary then reloads', () => {
+    const editor = renderCardioSession();
+    (getWorkoutLoggerData as jest.Mock).mockClear();
+
+    const accepted = editor?.props.onFieldEndEditing('distance_km', '4,5');
+
+    expect(accepted).toBe(true);
+    expect(updateWorkoutSessionExerciseCardioSummary).toHaveBeenCalledWith('exercise-1', {
+      distance_km: 4.5,
+    });
+    expect(getWorkoutLoggerData).toHaveBeenCalledWith('session-1');
+  });
+
+  it('invalid cardio edit does not update summary or reload', () => {
+    const editor = renderCardioSession();
+    (getWorkoutLoggerData as jest.Mock).mockClear();
+
+    const accepted = editor?.props.onFieldEndEditing('distance_km', '4.55');
+
+    expect(accepted).toBe(false);
+    expect(updateWorkoutSessionExerciseCardioSummary).not.toHaveBeenCalled();
+    expect(getWorkoutLoggerData).not.toHaveBeenCalled();
+  });
+
+  it('empty cardio edit saves null', () => {
+    const editor = renderCardioSession();
+
+    const accepted = editor?.props.onFieldEndEditing('distance_km', '   ');
+
+    expect(accepted).toBe(true);
+    expect(updateWorkoutSessionExerciseCardioSummary).toHaveBeenCalledWith('exercise-1', {
+      distance_km: null,
+    });
+  });
+
+  it('valid pace cardio edit saves seconds', () => {
+    const editor = renderCardioSession();
+
+    const accepted = editor?.props.onFieldEndEditing('pace_seconds_per_km', '6:05');
+
+    expect(accepted).toBe(true);
+    expect(updateWorkoutSessionExerciseCardioSummary).toHaveBeenCalledWith('exercise-1', {
+      pace_seconds_per_km: 365,
+    });
   });
 
   it('renders swap on every exercise card and targets the tapped exercise', () => {

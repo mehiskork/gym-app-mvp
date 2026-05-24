@@ -1,9 +1,18 @@
+const mockUseStateSetters: jest.Mock[] = [];
+
 jest.mock('react', () => {
   const actual = jest.requireActual('react');
   return {
     ...actual,
     useRef: () => ({ current: {} }),
     useCallback: (fn: () => unknown) => fn,
+    useMemo: (fn: () => unknown) => fn(),
+    useEffect: (fn: () => unknown) => fn(),
+    useState: (initial: unknown) => {
+      const setter = jest.fn();
+      mockUseStateSetters.push(setter);
+      return [initial, setter];
+    },
   };
 });
 
@@ -60,6 +69,10 @@ const findRowViews = (
 };
 
 describe('CardioSummaryEditor', () => {
+  beforeEach(() => {
+    mockUseStateSetters.length = 0;
+  });
+
   it('applies explicit max lengths for cardio value inputs', () => {
     const treadmillElement = CardioSummaryEditor({
       profile: 'treadmill',
@@ -125,7 +138,7 @@ describe('CardioSummaryEditor', () => {
     expect(ergometerInputs.map((input) => [input.props.label, input.props.maxLength])).toEqual([
       ['Duration (min)', 3],
       ['Distance (km)', 5],
-      ['Pace', 5],
+      ['Pace (min/km)', 5],
     ]);
 
     const stairsElement = CardioSummaryEditor({
@@ -149,6 +162,182 @@ describe('CardioSummaryEditor', () => {
       ['Floors', 4],
       ['Level', 4],
     ]);
+  });
+
+  it('displays saved decimal values with comma and pace as min:sec', () => {
+    const element = CardioSummaryEditor({
+      profile: 'ergometer',
+      summary: {
+        duration_minutes: 10,
+        distance_km: 2.5,
+        speed_kph: null,
+        incline_percent: null,
+        resistance_level: null,
+        pace_seconds_per_km: 330,
+        floors: null,
+        stair_level: null,
+      },
+      editable: true,
+      onFieldEndEditing: jest.fn(),
+    });
+
+    const inputs = findByLabel<{ label?: string; value?: string }>(element);
+    expect(inputs.map((input) => [input.props.label, input.props.value])).toEqual([
+      ['Duration (min)', '10'],
+      ['Distance (km)', '2,5'],
+      ['Pace (min/km)', '5:30'],
+    ]);
+  });
+
+  it('valid decimal edit calls save handler and formats with comma', () => {
+    const onFieldEndEditing = jest.fn().mockReturnValue(true);
+    const element = CardioSummaryEditor({
+      profile: 'bike',
+      summary: {
+        duration_minutes: null,
+        distance_km: null,
+        speed_kph: null,
+        incline_percent: null,
+        resistance_level: null,
+        pace_seconds_per_km: null,
+        floors: null,
+        stair_level: null,
+      },
+      editable: true,
+      onFieldEndEditing,
+    });
+
+    const inputs = findByLabel<{
+      label?: string;
+      onEndEditing?: (event: { nativeEvent: { text: string } }) => void;
+    }>(element);
+    const setter = mockUseStateSetters[0];
+
+    inputs[1]?.props.onEndEditing?.({ nativeEvent: { text: '12.5' } });
+
+    expect(onFieldEndEditing).toHaveBeenCalledWith('distance_km', '12.5');
+    expect(setter).toHaveBeenCalledWith(expect.any(Function));
+    expect(setter.mock.calls.at(-1)?.[0]({ distance_km: '' })).toEqual({ distance_km: '12,5' });
+  });
+
+  it('valid pace edit calls save handler and formats as min:sec', () => {
+    const onFieldEndEditing = jest.fn().mockReturnValue(true);
+    const element = CardioSummaryEditor({
+      profile: 'ergometer',
+      summary: {
+        duration_minutes: null,
+        distance_km: null,
+        speed_kph: null,
+        incline_percent: null,
+        resistance_level: null,
+        pace_seconds_per_km: null,
+        floors: null,
+        stair_level: null,
+      },
+      editable: true,
+      onFieldEndEditing,
+    });
+
+    const inputs = findByLabel<{
+      label?: string;
+      onEndEditing?: (event: { nativeEvent: { text: string } }) => void;
+    }>(element);
+    const setter = mockUseStateSetters[0];
+
+    inputs[2]?.props.onEndEditing?.({ nativeEvent: { text: '6:05' } });
+
+    expect(onFieldEndEditing).toHaveBeenCalledWith('pace_seconds_per_km', '6:05');
+    expect(setter.mock.calls.at(-1)?.[0]({ pace_seconds_per_km: '' })).toEqual({
+      pace_seconds_per_km: '6:05',
+    });
+  });
+
+  it('invalid edit does not call save handler and resets visible value', () => {
+    const onFieldEndEditing = jest.fn();
+    const element = CardioSummaryEditor({
+      profile: 'bike',
+      summary: {
+        duration_minutes: 20,
+        distance_km: 4.5,
+        speed_kph: null,
+        incline_percent: null,
+        resistance_level: null,
+        pace_seconds_per_km: null,
+        floors: null,
+        stair_level: null,
+      },
+      editable: true,
+      onFieldEndEditing,
+    });
+
+    const inputs = findByLabel<{
+      label?: string;
+      onEndEditing?: (event: { nativeEvent: { text: string } }) => void;
+    }>(element);
+    const setter = mockUseStateSetters[0];
+
+    inputs[1]?.props.onEndEditing?.({ nativeEvent: { text: '1e3' } });
+
+    expect(onFieldEndEditing).not.toHaveBeenCalled();
+    expect(setter.mock.calls.at(-1)?.[0]({ distance_km: '1e3' })).toEqual({
+      distance_km: '4,5',
+    });
+  });
+
+  it('empty edit calls save handler with null-equivalent text and resets to empty', () => {
+    const onFieldEndEditing = jest.fn().mockReturnValue(true);
+    const element = CardioSummaryEditor({
+      profile: 'bike',
+      summary: {
+        duration_minutes: null,
+        distance_km: 4.5,
+        speed_kph: null,
+        incline_percent: null,
+        resistance_level: null,
+        pace_seconds_per_km: null,
+        floors: null,
+        stair_level: null,
+      },
+      editable: true,
+      onFieldEndEditing,
+    });
+
+    const inputs = findByLabel<{
+      label?: string;
+      onEndEditing?: (event: { nativeEvent: { text: string } }) => void;
+    }>(element);
+    const setter = mockUseStateSetters[0];
+
+    inputs[1]?.props.onEndEditing?.({ nativeEvent: { text: '   ' } });
+
+    expect(onFieldEndEditing).toHaveBeenCalledWith('distance_km', '   ');
+    expect(setter.mock.calls.at(-1)?.[0]({ distance_km: '4,5' })).toEqual({ distance_km: '' });
+  });
+
+  it('resyncs local state when summary props change', () => {
+    CardioSummaryEditor({
+      profile: 'bike',
+      summary: {
+        duration_minutes: 30,
+        distance_km: 8.5,
+        speed_kph: null,
+        incline_percent: null,
+        resistance_level: 7,
+        pace_seconds_per_km: null,
+        floors: null,
+        stair_level: null,
+      },
+      editable: true,
+      onFieldEndEditing: jest.fn(),
+    });
+
+    expect(mockUseStateSetters[0]).toHaveBeenCalledWith(
+      expect.objectContaining({
+        duration_minutes: '30',
+        distance_km: '8,5',
+        resistance_level: '7',
+      }),
+    );
   });
 
   it('renders treadmill-specific fields', () => {

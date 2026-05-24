@@ -656,6 +656,69 @@ describe('WorkoutSessionScreen finish modal', () => {
     ).toBe(true);
   });
 
+  it('counts cardio pace seconds as logged work', () => {
+    const { session, exercises } = setupBaseState({
+      exercises: [
+        {
+          id: 'exercise-1',
+          exercise_id: 'erg',
+          exercise_name: 'Erg',
+          exercise_type: EXERCISE_TYPE.CARDIO,
+          cardio_profile: 'ergometer',
+          position: 1,
+          sets: [],
+          notes: null,
+          cardio_summary: {
+            duration_minutes: null,
+            distance_km: null,
+            speed_kph: null,
+            incline_percent: null,
+            resistance_level: null,
+            pace_seconds_per_km: 330,
+            floors: null,
+            stair_level: null,
+          },
+        },
+      ],
+    });
+
+    useStateMock.mockImplementationOnce(() => [session, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [exercises, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [0, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [
+      {
+        defaultRestSeconds: 120,
+        autoStartRestTimer: true,
+        restTimerVibration: true,
+        keepScreenOn: true,
+        restTimerNotifications: false,
+      },
+      jest.fn(),
+    ]);
+    useStateMock.mockImplementationOnce(() => [true, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [false, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [{ visible: false, payload: null }, jest.fn()]);
+
+    (getWorkoutLoggerData as jest.Mock).mockReturnValue({ session, exercises });
+
+    const navigation: Nav = { navigate: jest.fn(), dispatch: jest.fn(), setOptions: jest.fn() };
+    const element = WorkoutSessionScreen({
+      navigation,
+      route: { key: 'WorkoutSession', name: 'WorkoutSession', params: { sessionId: session.id } },
+    } as never);
+
+    const texts = findElementsByType(element, Text) as Array<
+      React.ReactElement<{ children?: React.ReactNode }>
+    >;
+
+    expect(
+      texts.some(
+        (text) =>
+          flattenTextChildren(text.props.children).trim() === 'Finish and save this workout?',
+      ),
+    ).toBe(true);
+  });
+
   it('closes when Keep Training is pressed and finishes when Finish is pressed', () => {
     const { session, exercises } = setupBaseState({
       exercises: [

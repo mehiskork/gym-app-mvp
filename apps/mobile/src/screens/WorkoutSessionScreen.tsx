@@ -48,6 +48,7 @@ import { useWorkoutKeepAwake } from '../features/workoutSession/useWorkoutKeepAw
 import { useWorkoutSessionNavGuard } from '../features/workoutSession/useWorkoutSessionNavGuard';
 import { getSettings } from '../db/settingsRepo';
 import { cancelRestTimerNotification } from '../utils/restTimerNotifications';
+import { parseCardioInput } from '../features/workoutSession/cardioInputParsing';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'WorkoutSession'>;
 
@@ -58,13 +59,6 @@ const CTA_HEIGHT = tokens.touchTargetMin + tokens.spacing.sm;
 const CTA_STACK_GAP = tokens.spacing.sm;
 const MAX_EXERCISE_COMMENT_LENGTH = 200;
 const MAX_WORKOUT_NOTE_LENGTH = 200;
-
-function parseNumber(input: string): number | null {
-  const trimmed = input.trim();
-  if (!trimmed) return null;
-  const n = Number(trimmed.replace(',', '.'));
-  return Number.isFinite(n) ? n : null;
-}
 
 function getExerciseSubtitle(exercise: LoggerExercise): string | null {
   if (exercise.exercise_type === EXERCISE_TYPE.CARDIO) return null;
@@ -86,14 +80,6 @@ function getExerciseDisplayName(exercise: LoggerExercise): string {
     return cardioDisplayNames[exercise.cardio_profile];
   }
   return exercise.exercise_name;
-}
-
-function parseCardioNumber(field: keyof CardioSummary, input: string): number | null {
-  const value = parseNumber(input);
-  if (value === null) return null;
-  if (field === 'duration_minutes') return Math.max(0, Math.floor(value));
-  if (field === 'floors') return Math.max(0, Math.floor(value));
-  return value;
 }
 
 function hasCardioSummaryEntry(summary: CardioSummary): boolean {
@@ -351,10 +337,13 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
                       editable={session.status === 'in_progress'}
                       onEditFocus={handleEditFocus}
                       onFieldEndEditing={(field, value) => {
+                        const parsed = parseCardioInput(field, value);
+                        if (!parsed.ok) return false;
                         updateWorkoutSessionExerciseCardioSummary(ex.id, {
-                          [field]: parseCardioNumber(field, value),
+                          [field]: parsed.value,
                         });
                         load();
+                        return true;
                       }}
                     />
                   ) : (
