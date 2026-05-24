@@ -262,6 +262,10 @@ type OrderedEntityConfig = {
 };
 
 const orderedEntityConfigs: Partial<Record<string, OrderedEntityConfig>> = {
+  program_week: {
+    parentField: 'program_id',
+    orderField: 'week_index',
+  },
   program_day: {
     parentField: 'program_week_id',
     orderField: 'day_index',
@@ -650,8 +654,8 @@ function applyDelete(config: TableConfig, payload: Record<string, unknown>) {
 }
 
 function isForeignKeyError(err: unknown): boolean {
-  if (!(err instanceof Error)) return false;
-  return err.message.toLowerCase().includes('foreign key');
+  const message = err instanceof Error ? err.message : String(err ?? '');
+  return message.toLowerCase().includes('foreign key');
 }
 
 function normalizeWorkoutSessionStatus(status: unknown): string {
@@ -682,6 +686,100 @@ function shouldSkipInProgressConflict(delta: SyncDelta, payload: Record<string, 
     incomingUpdatedAt: parseUpdatedAt(payload),
   });
   return true;
+}
+
+type OrderedDeltaStagingCandidate = {
+  delta: SyncDelta;
+  config: TableConfig;
+  orderedConfig: OrderedEntityConfig;
+  payload: Record<string, unknown>;
+  id: string;
+  parentId: string;
+};
+
+function toOrderedDeltaStagingCandidate(
+  delta: SyncDelta,
+  protectedEntityKeys: Set<string>,
+): OrderedDeltaStagingCandidate | null {
+  const config = tableConfigs[delta.entityType];
+  const orderedConfig = orderedEntityConfigs[delta.entityType];
+  if (!config || !orderedConfig) return null;
+
+  const payload = normalizePayload(delta.payload, delta.entityId, config);
+  if (delta.opType.toLowerCase() !== 'upsert' || getDeletedAt(payload)) return null;
+
+  const id = String(payload[config.primaryKey]);
+  const parentValue = payload[orderedConfig.parentField];
+  if (parentValue === undefined || parentValue === null) return null;
+  const parentId = String(parentValue);
+  if (parentId.length === 0) return null;
+
+  const orderValue = payload[orderedConfig.orderField];
+  if (typeof orderValue !== 'number' || !Number.isFinite(orderValue)) return null;
+
+  if (shouldSkipInProgressConflict(delta, payload)) return null;
+
+  const localRow = fetchLocalRow(config, id);
+  if (!localRow) return null;
+
+  if (shouldSkipActiveWorkoutLocalWriteDelta({ delta, payload, localRow, protectedEntityKeys })) {
+    return null;
+  }
+
+  if (shouldSkipDelta(config, localRow, payload)) return null;
+
+  return { delta, config, orderedConfig, payload, id, parentId };
+}
+
+function stageOrderedDeltaGroup(candidates: OrderedDeltaStagingCandidate[]): void {
+  if (candidates.length < 2) return;
+
+  const { config, orderedConfig, parentId } = candidates[0];
+  const ids = candidates.map((candidate) => candidate.id);
+  const placeholders = ids.map(() => '?').join(', ');
+  const existingRows = query<{ id: string }>(
+    `
+    SELECT ${config.primaryKey} AS id
+    FROM ${config.tableName}
+    WHERE ${orderedConfig.parentField} = ?
+      AND ${config.primaryKey} IN (${placeholders});
+  `,
+    [parentId, ...ids],
+  );
+  const existingIds = new Set(existingRows.map((row) => String(row.id)));
+
+  candidates.forEach((candidate, index) => {
+    if (!existingIds.has(candidate.id)) return;
+    exec(
+      `
+      UPDATE ${candidate.config.tableName}
+      SET ${candidate.orderedConfig.orderField} = ?
+      WHERE ${candidate.config.primaryKey} = ?
+        AND ${candidate.orderedConfig.parentField} = ?;
+    `,
+      [-1_000_000_000 - index, candidate.id, candidate.parentId],
+    );
+  });
+}
+
+function stageOrderedDeltas(deltas: SyncDelta[], protectedEntityKeys: Set<string>): void {
+  const groups = new Map<string, OrderedDeltaStagingCandidate[]>();
+
+  for (const delta of deltas) {
+    const candidate = toOrderedDeltaStagingCandidate(delta, protectedEntityKeys);
+    if (!candidate) continue;
+    const key = `${candidate.delta.entityType}:${candidate.parentId}`;
+    const group = groups.get(key);
+    if (group) {
+      group.push(candidate);
+    } else {
+      groups.set(key, [candidate]);
+    }
+  }
+
+  for (const group of groups.values()) {
+    stageOrderedDeltaGroup(group);
+  }
 }
 
 function applyDelta(delta: SyncDelta, protectedEntityKeys: Set<string>): DeltaOutcome {
@@ -794,6 +892,7 @@ export function applyDeltas(
   while (pending.length > 0) {
     pass += 1;
     const deferred: SyncDelta[] = [];
+    stageOrderedDeltas(pending, protectedEntityKeys);
 
     for (const delta of pending) {
       try {
