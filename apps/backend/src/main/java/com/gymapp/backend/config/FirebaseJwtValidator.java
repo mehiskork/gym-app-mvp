@@ -1,5 +1,6 @@
 package com.gymapp.backend.config;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Date;
 import lombok.RequiredArgsConstructor;
@@ -14,6 +15,8 @@ import org.springframework.util.StringUtils;
 @Component
 @RequiredArgsConstructor
 public class FirebaseJwtValidator {
+    private static final Duration AUTH_TIME_FUTURE_SKEW = Duration.ofSeconds(60);
+
     private final FirebaseAuthProperties firebaseAuthProperties;
 
     public OAuth2TokenValidator<Jwt> validator(String issuerUri) {
@@ -63,8 +66,9 @@ public class FirebaseJwtValidator {
         if (authTime == null) {
             return invalidToken("Firebase token auth_time is invalid");
         }
-        if (authTime.isAfter(Instant.now())) {
-            return invalidToken("Firebase token auth_time must be in the past");
+        Instant now = Instant.now();
+        if (authTime.isAfter(now.plus(AUTH_TIME_FUTURE_SKEW))) {
+            return invalidToken("Firebase token auth_time is too far in the future");
         }
         return OAuth2TokenValidatorResult.success();
     }

@@ -142,6 +142,51 @@ class FirebaseAuthIT {
     }
 
     @Test
+    void meAcceptsFirebaseAuthTimeSlightlyInFuture() throws Exception {
+        String uid = "firebase-user-future-skew";
+
+        mockMvc.perform(get("/me")
+                .header("Authorization", "Bearer " + TOKEN_SIGNER.tokenWithAuthTime(
+                        FIREBASE_ISSUER,
+                        FIREBASE_PROJECT_ID,
+                        uid,
+                        Instant.now().plusSeconds(3600),
+                        Instant.now().plusSeconds(30).getEpochSecond())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.principalType").value("account"))
+                .andExpect(jsonPath("$.subject").value(uid));
+    }
+
+    @Test
+    void meRejectsFirebaseAuthTimeBeyondFutureSkew() throws Exception {
+        mockMvc.perform(get("/me")
+                .header("Authorization", "Bearer " + TOKEN_SIGNER.tokenWithAuthTime(
+                        FIREBASE_ISSUER,
+                        FIREBASE_PROJECT_ID,
+                        "firebase-user-future-auth-time",
+                        Instant.now().plusSeconds(3600),
+                        Instant.now().plusSeconds(61).getEpochSecond())))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("AUTH_UNAUTHORIZED"));
+    }
+
+    @Test
+    void meAcceptsFirebaseAuthTimeInPast() throws Exception {
+        String uid = "firebase-user-past-auth-time";
+
+        mockMvc.perform(get("/me")
+                .header("Authorization", "Bearer " + TOKEN_SIGNER.tokenWithAuthTime(
+                        FIREBASE_ISSUER,
+                        FIREBASE_PROJECT_ID,
+                        uid,
+                        Instant.now().plusSeconds(3600),
+                        Instant.now().minusSeconds(60).getEpochSecond())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.principalType").value("account"))
+                .andExpect(jsonPath("$.subject").value(uid));
+    }
+
+    @Test
     void meRejectsMissingFirebaseAuthTime() throws Exception {
         mockMvc.perform(get("/me")
                 .header("Authorization", "Bearer " + TOKEN_SIGNER.tokenWithoutAuthTime(
