@@ -185,31 +185,43 @@ describe('applyDeltas ordered sibling staging with SQLite', () => {
     ]);
   });
 
-  it.failing('does not throw when a two-row ordered swap arrives split across delta pages', () => {
+  it('applies a backend-expanded two-row ordered swap from a split base page', () => {
     insertProgramWithWeeks([
       { id: 'week-1', weekIndex: 0 },
       { id: 'week-2', weekIndex: 1 },
     ]);
 
-    expect(() => applyDeltas([programWeekDelta('week-1', 1)])).not.toThrow(
-      /UNIQUE constraint failed/,
-    );
+    expect(applyDeltas([programWeekDelta('week-1', 1), programWeekDelta('week-2', 0)])).toEqual({
+      applied: 2,
+      skipped: 0,
+      total: 2,
+    });
+    expect(rows('program_week', 'week_index')).toEqual([
+      { id: 'week-2', order_value: 0, deleted_at: null },
+      { id: 'week-1', order_value: 1, deleted_at: null },
+    ]);
   });
 
-  it.failing(
-    'does not throw when a partial three-row ordered reorder omits the target occupant delta',
-    () => {
-      insertProgramWithWeeks([
-        { id: 'week-a', weekIndex: 0 },
-        { id: 'week-b', weekIndex: 1 },
-        { id: 'week-c', weekIndex: 2 },
-      ]);
+  it('applies a backend-expanded three-row ordered reorder from a partial base page', () => {
+    insertProgramWithWeeks([
+      { id: 'week-a', weekIndex: 0 },
+      { id: 'week-b', weekIndex: 1 },
+      { id: 'week-c', weekIndex: 2 },
+    ]);
 
-      expect(() =>
-        applyDeltas([programWeekDelta('week-a', 1), programWeekDelta('week-c', 0)]),
-      ).not.toThrow(/UNIQUE constraint failed/);
-    },
-  );
+    expect(
+      applyDeltas([
+        programWeekDelta('week-a', 1),
+        programWeekDelta('week-c', 0),
+        programWeekDelta('week-b', 2),
+      ]),
+    ).toEqual({ applied: 3, skipped: 0, total: 3 });
+    expect(rows('program_week', 'week_index')).toEqual([
+      { id: 'week-c', order_value: 0, deleted_at: null },
+      { id: 'week-a', order_value: 1, deleted_at: null },
+      { id: 'week-b', order_value: 2, deleted_at: null },
+    ]);
+  });
 
   it('rolls back staged ordered rows when a partial reorder fails inside a transaction', () => {
     insertProgramWithWeeks([

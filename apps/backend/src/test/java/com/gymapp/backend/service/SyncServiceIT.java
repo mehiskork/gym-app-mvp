@@ -102,6 +102,306 @@ class SyncServiceIT {
     }
 
     @Test
+    void incrementalSyncExpandsTwoRowProgramWeekSwapWhenBasePageContainsOneSibling() {
+        seedProgramWeeks(0, 1);
+        long cursor = maxChangeId();
+        Instant now = Instant.now();
+        syncRepository.upsertEntityState(guestUserId, "program_week", "week-1", Map.of(
+                "id", "week-1",
+                "program_id", "program-1",
+                "week_index", 1), now);
+        insertChangeLog("program_week", "week-1", Map.of(
+                "id", "week-1",
+                "program_id", "program-1",
+                "week_index", 1));
+        syncRepository.upsertEntityState(guestUserId, "program_week", "week-2", Map.of(
+                "id", "week-2",
+                "program_id", "program-1",
+                "week_index", 0), now);
+
+        SyncResponse response = syncService.sync(deviceId, guestUserId, String.valueOf(cursor), List.of());
+
+        assertThat(response.getHasMore()).isFalse();
+        assertThat(response.getCursor()).isEqualTo(String.valueOf(maxChangeId()));
+        assertThat(response.getDeltas())
+                .extracting(SyncDelta::entityId)
+                .containsExactly("week-1", "week-2");
+        assertThat(response.getDeltas())
+                .extracting(delta -> delta.payload().get("week_index"))
+                .containsExactly(1, 0);
+    }
+
+    @Test
+    void incrementalSyncExpandsPartialThreeRowProgramWeekReorderToAllActiveSiblings() {
+        seedProgramWeeks(0, 1, 2);
+        long cursor = maxChangeId();
+        Instant now = Instant.now();
+        syncRepository.upsertEntityState(guestUserId, "program_week", "week-a", Map.of(
+                "id", "week-a",
+                "program_id", "program-1",
+                "week_index", 1), now);
+        insertChangeLog("program_week", "week-a", Map.of(
+                "id", "week-a",
+                "program_id", "program-1",
+                "week_index", 1));
+        syncRepository.upsertEntityState(guestUserId, "program_week", "week-b", Map.of(
+                "id", "week-b",
+                "program_id", "program-1",
+                "week_index", 2), now);
+        syncRepository.upsertEntityState(guestUserId, "program_week", "week-c", Map.of(
+                "id", "week-c",
+                "program_id", "program-1",
+                "week_index", 0), now);
+        insertChangeLog("program_week", "week-c", Map.of(
+                "id", "week-c",
+                "program_id", "program-1",
+                "week_index", 0));
+
+        long lastBaseChangeId = maxChangeId();
+        SyncResponse response = syncService.sync(deviceId, guestUserId, String.valueOf(cursor), List.of());
+
+        assertThat(response.getCursor()).isEqualTo(String.valueOf(lastBaseChangeId));
+        assertThat(response.getDeltas())
+                .extracting(SyncDelta::entityId)
+                .containsExactly("week-a", "week-c", "week-b");
+        assertThat(response.getDeltas().get(0).changeId()).isLessThan(lastBaseChangeId);
+        assertThat(response.getDeltas().get(1).changeId()).isEqualTo(lastBaseChangeId);
+        assertThat(response.getDeltas().get(2).changeId()).isEqualTo(lastBaseChangeId);
+        assertThat(response.getDeltas())
+                .extracting(delta -> delta.payload().get("week_index"))
+                .containsExactly(1, 0, 2);
+    }
+
+    @Test
+    void orderedSiblingExpansionDoesNotChangeHasMoreOrCursorFromBasePage() {
+        int limit = deltaLimit();
+        seedProgramWeeks(0, 1);
+        long cursor = maxChangeId();
+        Instant now = Instant.now();
+        syncRepository.upsertEntityState(guestUserId, "program_week", "week-1", Map.of(
+                "id", "week-1",
+                "program_id", "program-1",
+                "week_index", 1), now);
+        insertChangeLog("program_week", "week-1", Map.of(
+                "id", "week-1",
+                "program_id", "program-1",
+                "week_index", 1));
+        for (int i = 1; i <= limit; i += 1) {
+            upsertEntityStateAndChangeLog("program", "program-filler-" + i, Map.of(
+                    "id", "program-filler-" + i,
+                    "name", "Filler " + i), now);
+        }
+        syncRepository.upsertEntityState(guestUserId, "program_week", "week-2", Map.of(
+                "id", "week-2",
+                "program_id", "program-1",
+                "week_index", 0), now);
+        insertChangeLog("program_week", "week-2", Map.of(
+                "id", "week-2",
+                "program_id", "program-1",
+                "week_index", 0));
+
+        SyncResponse response = syncService.sync(deviceId, guestUserId, String.valueOf(cursor), List.of());
+
+        assertThat(response.getHasMore()).isTrue();
+        assertThat(response.getCursor()).isNotEqualTo(String.valueOf(maxChangeId()));
+        assertThat(response.getDeltas()).hasSize(limit + 1);
+        assertThat(response.getDeltas())
+                .extracting(SyncDelta::entityId)
+                .contains("week-1", "week-2")
+                .doesNotContain("program-filler-" + limit);
+    }
+
+    @Test
+    void incrementalSyncExpandsWorkoutSetSiblings() {
+        seedWorkoutSets(0, 1);
+        long cursor = maxChangeId();
+        Instant now = Instant.now();
+        syncRepository.upsertEntityState(guestUserId, "workout_set", "set-1", Map.of(
+                "id", "set-1",
+                "workout_session_exercise_id", "session-exercise-1",
+                "set_index", 1), now);
+        insertChangeLog("workout_set", "set-1", Map.of(
+                "id", "set-1",
+                "workout_session_exercise_id", "session-exercise-1",
+                "set_index", 1));
+        syncRepository.upsertEntityState(guestUserId, "workout_set", "set-2", Map.of(
+                "id", "set-2",
+                "workout_session_exercise_id", "session-exercise-1",
+                "set_index", 0), now);
+
+        SyncResponse response = syncService.sync(deviceId, guestUserId, String.valueOf(cursor), List.of());
+
+        assertThat(response.getDeltas())
+                .extracting(SyncDelta::entityId)
+                .containsExactly("set-1", "set-2");
+        assertThat(response.getDeltas())
+                .extracting(delta -> delta.payload().get("set_index"))
+                .containsExactly(1, 0);
+    }
+
+    @Test
+    void orderedSiblingExpansionExcludesTombstonedSiblings() {
+        seedProgramWeeks(0, 1);
+        long cursor = maxChangeId();
+        Instant now = Instant.now();
+        syncRepository.upsertEntityState(guestUserId, "program_week", "week-1", Map.of(
+                "id", "week-1",
+                "program_id", "program-1",
+                "week_index", 1), now);
+        insertChangeLog("program_week", "week-1", Map.of(
+                "id", "week-1",
+                "program_id", "program-1",
+                "week_index", 1));
+        syncRepository.upsertEntityState(guestUserId, "program_week", "week-2", Map.of(
+                "id", "week-2",
+                "program_id", "program-1",
+                "week_index", 0,
+                "deleted_at", "2026-05-24T12:00:00Z"), now);
+
+        SyncResponse response = syncService.sync(deviceId, guestUserId, String.valueOf(cursor), List.of());
+
+        assertThat(response.getDeltas())
+                .extracting(SyncDelta::entityId)
+                .containsExactly("week-1");
+    }
+
+    @Test
+    void baseTombstoneDeltaIsNotOverwrittenByExpandedSiblingSnapshot() {
+        seedProgramWeeks(0, 1);
+        long cursor = maxChangeId();
+        Instant now = Instant.now();
+        Map<String, Object> weekOneTombstone = Map.of(
+                "id", "week-1",
+                "program_id", "program-1",
+                "week_index", 0,
+                "deleted_at", "2026-05-24T12:00:00Z");
+        syncRepository.upsertEntityState(guestUserId, "program_week", "week-1", weekOneTombstone, now);
+        syncRepository.insertChangeLog(guestUserId, "program_week", "week-1", "delete", weekOneTombstone);
+        syncRepository.upsertEntityState(guestUserId, "program_week", "week-2", Map.of(
+                "id", "week-2",
+                "program_id", "program-1",
+                "week_index", 0), now);
+        insertChangeLog("program_week", "week-2", Map.of(
+                "id", "week-2",
+                "program_id", "program-1",
+                "week_index", 0));
+
+        SyncResponse response = syncService.sync(deviceId, guestUserId, String.valueOf(cursor), List.of());
+
+        assertThat(response.getDeltas())
+                .extracting(SyncDelta::entityId)
+                .containsExactly("week-1", "week-2");
+        assertThat(response.getDeltas().get(0).opType()).isEqualTo("delete");
+        assertThat(response.getDeltas().get(0).payload()).containsKey("deleted_at");
+    }
+
+    @Test
+    void snapshotExpansionIncludesSiblingActiveAtHighWaterButDeletedAfterward() {
+        seedProgramWeeks(0, 1);
+        long snapshotHighWater = maxChangeId();
+        Instant now = Instant.now();
+        Map<String, Object> weekOneTombstone = Map.of(
+                "id", "week-1",
+                "program_id", "program-1",
+                "week_index", 0,
+                "deleted_at", "2026-05-24T12:00:00Z");
+        syncRepository.upsertEntityState(guestUserId, "program_week", "week-1", weekOneTombstone, now);
+        syncRepository.insertChangeLog(guestUserId, "program_week", "week-1", "delete", weekOneTombstone);
+
+        SyncResponse response = syncService.sync(
+                deviceId,
+                guestUserId,
+                snapshotCursor(snapshotHighWater, "program_week", "week-1"),
+                List.of());
+
+        assertThat(response.getDeltas())
+                .extracting(SyncDelta::entityId)
+                .containsExactly("week-2", "week-1");
+        assertThat(response.getDeltas().get(1).payload())
+                .containsEntry("week_index", 0)
+                .doesNotContainKey("deleted_at");
+    }
+
+    @Test
+    void snapshotExpansionUsesSiblingRowJsonAtHighWaterNotPostSnapshotUpdate() {
+        seedProgramWeeks(0, 1);
+        long snapshotHighWater = maxChangeId();
+        Instant now = Instant.now();
+        syncRepository.upsertEntityState(guestUserId, "program_week", "week-1", Map.of(
+                "id", "week-1",
+                "program_id", "program-1",
+                "week_index", 9), now);
+        insertChangeLog("program_week", "week-1", Map.of(
+                "id", "week-1",
+                "program_id", "program-1",
+                "week_index", 9));
+
+        SyncResponse response = syncService.sync(
+                deviceId,
+                guestUserId,
+                snapshotCursor(snapshotHighWater, "program_week", "week-1"),
+                List.of());
+
+        assertThat(response.getDeltas())
+                .extracting(SyncDelta::entityId)
+                .containsExactly("week-2", "week-1");
+        assertThat(response.getDeltas().get(1).payload())
+                .containsEntry("week_index", 0);
+    }
+
+    @Test
+    void snapshotExpansionExcludesSiblingDeletedAtOrBeforeHighWater() {
+        seedProgramWeeks(0, 1);
+        Instant now = Instant.now();
+        Map<String, Object> weekOneTombstone = Map.of(
+                "id", "week-1",
+                "program_id", "program-1",
+                "week_index", 0,
+                "deleted_at", "2026-05-24T12:00:00Z");
+        syncRepository.upsertEntityState(guestUserId, "program_week", "week-1", weekOneTombstone, now);
+        syncRepository.insertChangeLog(guestUserId, "program_week", "week-1", "delete", weekOneTombstone);
+        long snapshotHighWater = maxChangeId();
+
+        SyncResponse response = syncService.sync(
+                deviceId,
+                guestUserId,
+                snapshotCursor(snapshotHighWater, "program_week", "week-1"),
+                List.of());
+
+        assertThat(response.getDeltas())
+                .extracting(SyncDelta::entityId)
+                .containsExactly("week-2");
+    }
+
+    @Test
+    void snapshotExpansionDoesNotChangeHasMoreOrCursorFromBasePage() {
+        int limit = deltaLimit();
+        seedProgramWeeks(0, 1);
+        Instant now = Instant.now();
+        for (int i = 1; i <= limit; i += 1) {
+            String exerciseId = "exercise-%04d".formatted(i);
+            upsertEntityStateAndChangeLog("exercise", exerciseId, Map.of(
+                    "id", exerciseId,
+                    "name", "Exercise " + i), now);
+        }
+        long snapshotHighWater = maxChangeId();
+
+        SyncResponse response = syncService.sync(
+                deviceId,
+                guestUserId,
+                snapshotCursor(snapshotHighWater, "program_week", "week-1"),
+                List.of());
+
+        assertThat(response.getHasMore()).isTrue();
+        assertThat(response.getCursor()).isEqualTo(snapshotCursor(snapshotHighWater, "exercise", "exercise-0999"));
+        assertThat(response.getDeltas()).hasSize(limit + 1);
+        assertThat(response.getDeltas())
+                .extracting(SyncDelta::entityId)
+                .contains("week-1", "week-2", "exercise-0999")
+                .doesNotContain("exercise-1000");
+    }
+
+    @Test
     void syncReturnsCursorUnchanged_whenNoDeltas() {
         SyncResponse response = syncService.sync(deviceId, guestUserId, "42", List.of());
 
@@ -1041,6 +1341,40 @@ class SyncServiceIT {
         }
     }
 
+    private void seedProgramWeeks(int... weekIndexes) {
+        Instant now = Instant.now();
+        upsertEntityStateAndChangeLog("program", "program-1", Map.of(
+                "id", "program-1",
+                "name", "Program"), now);
+        for (int i = 0; i < weekIndexes.length; i += 1) {
+            String weekId = weekIndexes.length == 3
+                    ? "week-" + (char) ('a' + i)
+                    : "week-" + (i + 1);
+            upsertEntityStateAndChangeLog("program_week", weekId, Map.of(
+                    "id", weekId,
+                    "program_id", "program-1",
+                    "week_index", weekIndexes[i]), now);
+        }
+    }
+
+    private void seedWorkoutSets(int... setIndexes) {
+        Instant now = Instant.now();
+        upsertEntityStateAndChangeLog("workout_session", "session-1", Map.of(
+                "id", "session-1",
+                "status", "completed"), now);
+        upsertEntityStateAndChangeLog("workout_session_exercise", "session-exercise-1", Map.of(
+                "id", "session-exercise-1",
+                "workout_session_id", "session-1",
+                "position", 0), now);
+        for (int i = 0; i < setIndexes.length; i += 1) {
+            String setId = "set-" + (i + 1);
+            upsertEntityStateAndChangeLog("workout_set", setId, Map.of(
+                    "id", setId,
+                    "workout_session_exercise_id", "session-exercise-1",
+                    "set_index", setIndexes[i]), now);
+        }
+    }
+
     private void upsertPlanDayGraph(Instant now) {
         upsertEntityStateAndChangeLog("program", "program-1", Map.of(
                 "id", "program-1",
@@ -1125,6 +1459,10 @@ class SyncServiceIT {
                 guestUserId);
         assertThat(maxChangeId).isNotNull();
         return maxChangeId;
+    }
+
+    private String snapshotCursor(long highWaterChangeId, String entityType, String entityId) {
+        return "snapshot:" + highWaterChangeId + ":" + entityType + ":" + entityId;
     }
 
     private String entityOwner(String entityType, String entityId) {

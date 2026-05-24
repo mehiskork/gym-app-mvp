@@ -431,6 +431,212 @@ public class SyncRepository {
                 return fetchDeltas(ownerId, cursor, limit, allowedEntityTypes);
         }
 
+        public List<SyncDelta> fetchActiveOrderedSiblingSnapshotsForOwner(
+                        String ownerId,
+                        Set<OrderedSiblingGroup> groups,
+                        long changeId) {
+                if (groups == null || groups.isEmpty()) {
+                        return List.of();
+                }
+
+                StringJoiner values = new StringJoiner(", ");
+                List<Object> params = new ArrayList<>();
+                for (OrderedSiblingGroup group : groups) {
+                        values.add("(?, ?, ?)");
+                        params.add(group.entityType());
+                        params.add(group.parentField());
+                        params.add(group.parentId());
+                }
+                params.add(changeId);
+                params.add(ownerId);
+
+                String sql = String.format(
+                                """
+                                                WITH requested(entity_type, parent_field, parent_id) AS (
+                                                        VALUES %s
+                                                )
+                                                SELECT DISTINCT
+                                                       ? AS change_id,
+                                                       es.entity_type,
+                                                       es.entity_id,
+                                                       'upsert' AS op_type,
+                                                       es.row_json
+                                                FROM requested r
+                                                JOIN entity_state es
+                                                  ON es.entity_type = r.entity_type
+                                                 AND es.row_json ->> r.parent_field = r.parent_id
+                                                WHERE es.guest_user_id = ?
+                                                  AND NOT (
+                                                    (jsonb_exists(es.row_json, 'deleted_at') AND COALESCE(es.row_json ->> 'deleted_at', '') <> '')
+                                                    OR (jsonb_exists(es.row_json, 'deletedAt') AND COALESCE(es.row_json ->> 'deletedAt', '') <> '')
+                                                  )
+                                                ORDER BY es.entity_type, es.entity_id
+                                                """,
+                                values);
+
+                return jdbcTemplate.query(
+                                sql,
+                                (rs, rowNum) -> new SyncDelta(
+                                                rs.getLong("change_id"),
+                                                rs.getString("entity_type"),
+                                                rs.getString("entity_id"),
+                                                rs.getString("op_type"),
+                                                parseJson(rs.getString("row_json"))),
+                                params.toArray());
+        }
+
+        public List<SyncDelta> fetchActiveOrderedSiblingSnapshotsForOwnerAtSnapshot(
+                        String ownerId,
+                        Set<OrderedSiblingGroup> groups,
+                        long snapshotChangeId,
+                        List<String> allowedEntityTypes) {
+                if (groups == null || groups.isEmpty()) {
+                        return List.of();
+                }
+
+                StringJoiner placeholders = new StringJoiner(", ");
+                for (int i = 0; i < allowedEntityTypes.size(); i += 1) {
+                        placeholders.add("?");
+                }
+
+                StringJoiner values = new StringJoiner(", ");
+                List<Object> params = new ArrayList<>();
+                params.add(ownerId);
+                params.add(snapshotChangeId);
+                params.addAll(allowedEntityTypes);
+                for (OrderedSiblingGroup group : groups) {
+                        values.add("(?, ?, ?)");
+                        params.add(group.entityType());
+                        params.add(group.parentField());
+                        params.add(group.parentId());
+                }
+                params.add(snapshotChangeId);
+
+                String sql = String.format(
+                                """
+                                                WITH latest_state AS (
+                                                        SELECT DISTINCT ON (guest_user_id, entity_type, entity_id)
+                                                               guest_user_id,
+                                                               entity_type,
+                                                               entity_id,
+                                                               row_json
+                                                        FROM change_log
+                                                        WHERE guest_user_id = ?
+                                                          AND change_id <= ?
+                                                          AND entity_type IN (%s)
+                                                        ORDER BY guest_user_id, entity_type, entity_id, change_id DESC
+                                                ),
+                                                active_state AS (
+                                                        SELECT guest_user_id, entity_type, entity_id, row_json
+                                                        FROM latest_state
+                                                        WHERE NOT (
+                                                            (jsonb_exists(row_json, 'deleted_at') AND COALESCE(row_json ->> 'deleted_at', '') <> '')
+                                                            OR (jsonb_exists(row_json, 'deletedAt') AND COALESCE(row_json ->> 'deletedAt', '') <> '')
+                                                          )
+                                                ),
+                                                snapshot_program AS (
+                                                        SELECT * FROM active_state
+                                                        WHERE entity_type = 'program'
+                                                ),
+                                                snapshot_program_week AS (
+                                                        SELECT week.*
+                                                        FROM active_state week
+                                                        JOIN snapshot_program program
+                                                          ON program.entity_id = week.row_json ->> 'program_id'
+                                                        WHERE week.entity_type = 'program_week'
+                                                ),
+                                                snapshot_program_day AS (
+                                                        SELECT day.*
+                                                        FROM active_state day
+                                                        JOIN snapshot_program_week week
+                                                          ON week.entity_id = day.row_json ->> 'program_week_id'
+                                                        WHERE day.entity_type = 'program_day'
+                                                ),
+                                                snapshot_exercise AS (
+                                                        SELECT * FROM active_state
+                                                        WHERE entity_type = 'exercise'
+                                                ),
+                                                snapshot_program_day_exercise AS (
+                                                        SELECT day_exercise.*
+                                                        FROM active_state day_exercise
+                                                        JOIN snapshot_program_day day
+                                                          ON day.entity_id = day_exercise.row_json ->> 'program_day_id'
+                                                        LEFT JOIN snapshot_exercise exercise
+                                                          ON exercise.entity_id = day_exercise.row_json ->> 'exercise_id'
+                                                        WHERE day_exercise.entity_type = 'program_day_exercise'
+                                                          AND (
+                                                            exercise.entity_id IS NOT NULL
+                                                            OR (
+                                                              LEFT(COALESCE(day_exercise.row_json ->> 'exercise_id', ''), 3) = 'ex_'
+                                                              AND LEFT(COALESCE(day_exercise.row_json ->> 'exercise_id', ''), 10) <> 'ex_custom_'
+                                                            )
+                                                          )
+                                                ),
+                                                snapshot_planned_set AS (
+                                                        SELECT planned_set.*
+                                                        FROM active_state planned_set
+                                                        JOIN snapshot_program_day_exercise day_exercise
+                                                          ON day_exercise.entity_id = planned_set.row_json ->> 'program_day_exercise_id'
+                                                        WHERE planned_set.entity_type = 'planned_set'
+                                                ),
+                                                snapshot_workout_session AS (
+                                                        SELECT * FROM active_state
+                                                        WHERE entity_type = 'workout_session'
+                                                ),
+                                                snapshot_workout_session_exercise AS (
+                                                        SELECT session_exercise.*
+                                                        FROM active_state session_exercise
+                                                        JOIN snapshot_workout_session workout_session
+                                                          ON workout_session.entity_id = session_exercise.row_json ->> 'workout_session_id'
+                                                        WHERE session_exercise.entity_type = 'workout_session_exercise'
+                                                ),
+                                                snapshot_workout_set AS (
+                                                        SELECT workout_set.*
+                                                        FROM active_state workout_set
+                                                        JOIN snapshot_workout_session_exercise session_exercise
+                                                          ON session_exercise.entity_id = workout_set.row_json ->> 'workout_session_exercise_id'
+                                                        WHERE workout_set.entity_type = 'workout_set'
+                                                ),
+                                                snapshot_state AS (
+                                                        SELECT * FROM snapshot_program
+                                                        UNION ALL SELECT * FROM snapshot_program_week
+                                                        UNION ALL SELECT * FROM snapshot_program_day
+                                                        UNION ALL SELECT * FROM snapshot_exercise
+                                                        UNION ALL SELECT * FROM snapshot_program_day_exercise
+                                                        UNION ALL SELECT * FROM snapshot_planned_set
+                                                        UNION ALL SELECT * FROM snapshot_workout_session
+                                                        UNION ALL SELECT * FROM snapshot_workout_session_exercise
+                                                        UNION ALL SELECT * FROM snapshot_workout_set
+                                                ),
+                                                requested(entity_type, parent_field, parent_id) AS (
+                                                        VALUES %s
+                                                )
+                                                SELECT DISTINCT
+                                                       ? AS change_id,
+                                                       s.entity_type,
+                                                       s.entity_id,
+                                                       'upsert' AS op_type,
+                                                       s.row_json
+                                                FROM requested r
+                                                JOIN snapshot_state s
+                                                  ON s.entity_type = r.entity_type
+                                                 AND s.row_json ->> r.parent_field = r.parent_id
+                                                ORDER BY s.entity_type, s.entity_id
+                                                """,
+                                placeholders,
+                                values);
+
+                return jdbcTemplate.query(
+                                sql,
+                                (rs, rowNum) -> new SyncDelta(
+                                                rs.getLong("change_id"),
+                                                rs.getString("entity_type"),
+                                                rs.getString("entity_id"),
+                                                rs.getString("op_type"),
+                                                parseJson(rs.getString("row_json"))),
+                                params.toArray());
+        }
+
         public List<SyncDelta> fetchEntityStateSnapshotForOwner(
                         String ownerId,
                         String afterEntityType,
@@ -649,6 +855,9 @@ public class SyncRepository {
         }
 
         public record EntityKey(String entityType, String entityId) {
+        }
+
+        public record OrderedSiblingGroup(String entityType, String parentField, String parentId) {
         }
 
         public enum EntityPresence {

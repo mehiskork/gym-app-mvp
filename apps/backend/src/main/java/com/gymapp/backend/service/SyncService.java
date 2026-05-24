@@ -38,6 +38,13 @@ public class SyncService {
                         "refresh_token",
                         "secret",
                         "token");
+        private static final Map<String, OrderedEntityConfig> ORDERED_ENTITY_CONFIGS = Map.of(
+                        "program_week", new OrderedEntityConfig("program_id"),
+                        "program_day", new OrderedEntityConfig("program_week_id"),
+                        "program_day_exercise", new OrderedEntityConfig("program_day_id"),
+                        "planned_set", new OrderedEntityConfig("program_day_exercise_id"),
+                        "workout_session_exercise", new OrderedEntityConfig("workout_session_id"),
+                        "workout_set", new OrderedEntityConfig("workout_session_exercise_id"));
         private static final Map<String, List<ParentReference>> REQUIRED_PARENT_REFERENCES = Map.of(
                         "program_week", List.of(new ParentReference("program_id", "program", false)),
                         "program_day", List.of(new ParentReference("program_week_id", "program_week", false)),
@@ -359,12 +366,17 @@ public class SyncService {
                                         allowedEntityTypes,
                                         highWaterChangeId);
                         boolean hasMore = fetchedDeltas.size() > DELTA_LIMIT;
-                        List<SyncDelta> deltas = sanitizeDeltas(hasMore
+                        List<SyncDelta> baseDeltas = sanitizeDeltas(hasMore
                                         ? fetchedDeltas.subList(0, DELTA_LIMIT)
                                         : fetchedDeltas);
+                        List<SyncDelta> deltas = expandOrderedSiblingDeltasFromSnapshot(
+                                        ownerId,
+                                        baseDeltas,
+                                        highWaterChangeId,
+                                        allowedEntityTypes);
                         String responseCursor = String.valueOf(highWaterChangeId);
-                        if (hasMore && !deltas.isEmpty()) {
-                                SyncDelta lastDelta = deltas.get(deltas.size() - 1);
+                        if (hasMore && !baseDeltas.isEmpty()) {
+                                SyncDelta lastDelta = baseDeltas.get(baseDeltas.size() - 1);
                                 responseCursor = snapshotCursor(
                                                 highWaterChangeId,
                                                 lastDelta.entityType(),
@@ -379,14 +391,101 @@ public class SyncService {
                                 DELTA_LIMIT + 1,
                                 allowedEntityTypes);
                 boolean hasMore = fetchedDeltas.size() > DELTA_LIMIT;
-                List<SyncDelta> deltas = sanitizeDeltas(hasMore
+                List<SyncDelta> baseDeltas = sanitizeDeltas(hasMore
                                 ? fetchedDeltas.subList(0, DELTA_LIMIT)
                                 : fetchedDeltas);
                 String responseCursor = requestCursor;
-                if (!deltas.isEmpty()) {
-                        responseCursor = String.valueOf(deltas.get(deltas.size() - 1).changeId());
+                if (!baseDeltas.isEmpty()) {
+                        responseCursor = String.valueOf(baseDeltas.get(baseDeltas.size() - 1).changeId());
                 }
+                long expansionChangeId = baseDeltas.isEmpty()
+                                ? parsedCursor.numericValue()
+                                : baseDeltas.get(baseDeltas.size() - 1).changeId();
+                List<SyncDelta> deltas = expandOrderedSiblingDeltas(ownerId, baseDeltas, expansionChangeId);
                 return new SyncResponse(List.of(), responseCursor, deltas, hasMore);
+        }
+
+        private List<SyncDelta> expandOrderedSiblingDeltas(
+                        String ownerId,
+                        List<SyncDelta> baseDeltas,
+                        long expansionChangeId) {
+                if (baseDeltas.isEmpty()) {
+                        return baseDeltas;
+                }
+
+                Set<SyncRepository.OrderedSiblingGroup> groups = collectOrderedSiblingGroups(baseDeltas);
+                if (groups.isEmpty()) {
+                        return baseDeltas;
+                }
+
+                List<SyncDelta> siblingSnapshots = syncRepository.fetchActiveOrderedSiblingSnapshotsForOwner(
+                                ownerId,
+                                groups,
+                                expansionChangeId);
+                return mergeBaseDeltasWithSiblingSnapshots(baseDeltas, siblingSnapshots);
+        }
+
+        private List<SyncDelta> expandOrderedSiblingDeltasFromSnapshot(
+                        String ownerId,
+                        List<SyncDelta> baseDeltas,
+                        long snapshotChangeId,
+                        List<String> allowedEntityTypes) {
+                if (baseDeltas.isEmpty()) {
+                        return baseDeltas;
+                }
+
+                Set<SyncRepository.OrderedSiblingGroup> groups = collectOrderedSiblingGroups(baseDeltas);
+                if (groups.isEmpty()) {
+                        return baseDeltas;
+                }
+
+                List<SyncDelta> siblingSnapshots = syncRepository.fetchActiveOrderedSiblingSnapshotsForOwnerAtSnapshot(
+                                ownerId,
+                                groups,
+                                snapshotChangeId,
+                                allowedEntityTypes);
+                return mergeBaseDeltasWithSiblingSnapshots(baseDeltas, siblingSnapshots);
+        }
+
+        private List<SyncDelta> mergeBaseDeltasWithSiblingSnapshots(
+                        List<SyncDelta> baseDeltas,
+                        List<SyncDelta> siblingSnapshots) {
+                if (siblingSnapshots.isEmpty()) {
+                        return baseDeltas;
+                }
+                Map<DeltaKey, SyncDelta> merged = new LinkedHashMap<>();
+                for (SyncDelta delta : baseDeltas) {
+                        merged.put(new DeltaKey(delta.entityType(), delta.entityId()), delta);
+                }
+                for (SyncDelta delta : siblingSnapshots) {
+                        merged.putIfAbsent(new DeltaKey(delta.entityType(), delta.entityId()), delta);
+                }
+                return new ArrayList<>(merged.values());
+        }
+
+        private Set<SyncRepository.OrderedSiblingGroup> collectOrderedSiblingGroups(List<SyncDelta> deltas) {
+                Set<SyncRepository.OrderedSiblingGroup> groups = new HashSet<>();
+                for (SyncDelta delta : deltas) {
+                        if (!"upsert".equalsIgnoreCase(delta.opType())) {
+                                continue;
+                        }
+                        if (hasTombstone(delta.payload())) {
+                                continue;
+                        }
+                        OrderedEntityConfig orderedConfig = ORDERED_ENTITY_CONFIGS.get(delta.entityType());
+                        if (orderedConfig == null) {
+                                continue;
+                        }
+                        String parentId = getText(delta.payload(), orderedConfig.parentField());
+                        if (parentId == null) {
+                                continue;
+                        }
+                        groups.add(new SyncRepository.OrderedSiblingGroup(
+                                        delta.entityType(),
+                                        orderedConfig.parentField(),
+                                        parentId));
+                }
+                return groups;
         }
 
         private void enforceOwnership(String ownerId, SyncOp op) {
@@ -734,6 +833,12 @@ public class SyncService {
         }
 
         private record ParentReference(String field, String parentEntityType, boolean exerciseReference) {
+        }
+
+        private record OrderedEntityConfig(String parentField) {
+        }
+
+        private record DeltaKey(String entityType, String entityId) {
         }
 
         private record IndexedSyncOp(int originalIndex, SyncOp op) {
