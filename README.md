@@ -107,6 +107,8 @@ docs/
   android-release.md
   android-tester-runbook.md
   account-deletion-design.md
+  ops-runbook.md
+  migration-rollback.md
   local-development.md
   railway-deployment.md
   public-repo-safety.md
@@ -125,5 +127,7 @@ docs/
 - Android release baseline: `docs/android-release.md`
 - Android tester and Play readiness runbook: `docs/android-tester-runbook.md`
 - Account deletion design: `docs/account-deletion-design.md`
+- Production incident runbook: `docs/ops-runbook.md`
+- Flyway/Postgres migration rollback: `docs/migration-rollback.md`
 - Railway backend deployment: `docs/railway-deployment.md`
 - Public repository safety checklist: `docs/public-repo-safety.md`
