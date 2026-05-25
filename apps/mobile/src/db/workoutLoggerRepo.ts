@@ -155,6 +155,39 @@ function compactActiveSets(wseId: string): string[] {
   return Array.from(mutatedIds);
 }
 
+function normalizeDeletedSessionExercisePositions(workoutSessionId: string): void {
+  const deleted = query<{ id: string }>(
+    `
+    SELECT id
+    FROM workout_session_exercise
+    WHERE workout_session_id = ? AND deleted_at IS NOT NULL
+    ORDER BY position ASC;
+  `,
+    [workoutSessionId],
+  );
+
+  if (deleted.length === 0) return;
+
+  const minPos =
+    query<{ min_pos: number }>(
+      `
+      SELECT COALESCE(MIN(position), 0) AS min_pos
+      FROM workout_session_exercise
+      WHERE workout_session_id = ?;
+    `,
+      [workoutSessionId],
+    )[0]?.min_pos ?? 0;
+
+  const base = minPos - 1000;
+
+  for (let i = 0; i < deleted.length; i += 1) {
+    exec('UPDATE workout_session_exercise SET position = ? WHERE id = ?', [
+      base - (i + 1),
+      deleted[i].id,
+    ]);
+  }
+}
+
 function enqueueWorkoutSetSnapshot(setId: string, opType: 'upsert' | 'delete' = 'upsert') {
   const row = query<Record<string, unknown>>(
     `
@@ -545,6 +578,147 @@ export function appendWorkoutSessionExercise(input: {
     if (setId) enqueueWorkoutSetSnapshot(setId);
 
     return { focusExerciseId: insertedId };
+  });
+}
+
+export function deleteWorkoutSessionExercise(
+  workoutSessionId: string,
+  workoutSessionExerciseId: string,
+): { deleted: boolean } {
+  return inTransaction(() => {
+    const session = query<{ id: string }>(
+      `
+      SELECT id
+      FROM workout_session
+      WHERE id = ?
+        AND status = 'in_progress'
+        AND deleted_at IS NULL
+      LIMIT 1;
+    `,
+      [workoutSessionId],
+    )[0];
+
+    if (!session) return { deleted: false };
+
+    const target = query<{ id: string; position: number }>(
+      `
+      SELECT id, position
+      FROM workout_session_exercise
+      WHERE id = ?
+        AND workout_session_id = ?
+        AND deleted_at IS NULL
+      LIMIT 1;
+    `,
+      [workoutSessionExerciseId, workoutSessionId],
+    )[0];
+
+    if (!target) return { deleted: false };
+
+    const setIds = query<{ id: string }>(
+      `
+      SELECT id
+      FROM workout_set
+      WHERE workout_session_exercise_id = ?
+        AND deleted_at IS NULL;
+    `,
+      [workoutSessionExerciseId],
+    ).map((row) => row.id);
+
+    const originalSiblingPositions = new Map(
+      query<{ id: string; position: number }>(
+        `
+        SELECT id, position
+        FROM workout_session_exercise
+        WHERE workout_session_id = ?
+          AND deleted_at IS NULL
+          AND id <> ?
+        ORDER BY position ASC;
+      `,
+        [workoutSessionId, workoutSessionExerciseId],
+      ).map((row) => [row.id, row.position]),
+    );
+
+    exec(
+      `
+      UPDATE workout_set
+      SET deleted_at = datetime('now'), updated_at = datetime('now')
+      WHERE workout_session_exercise_id = ?
+        AND deleted_at IS NULL;
+    `,
+      [workoutSessionExerciseId],
+    );
+
+    normalizeDeletedSessionExercisePositions(workoutSessionId);
+
+    const minPosition =
+      query<{ min_pos: number }>(
+        `
+        SELECT COALESCE(MIN(position), 0) AS min_pos
+        FROM workout_session_exercise
+        WHERE workout_session_id = ?;
+      `,
+        [workoutSessionId],
+      )[0]?.min_pos ?? 0;
+
+    exec(
+      `
+      UPDATE workout_session_exercise
+      SET position = ?, deleted_at = datetime('now'), updated_at = datetime('now')
+      WHERE id = ?
+        AND deleted_at IS NULL;
+    `,
+      [minPosition - 1, workoutSessionExerciseId],
+    );
+
+    const remaining = query<{ id: string }>(
+      `
+      SELECT id
+      FROM workout_session_exercise
+      WHERE workout_session_id = ?
+        AND deleted_at IS NULL
+      ORDER BY position ASC;
+    `,
+      [workoutSessionId],
+    );
+
+    for (let i = 0; i < remaining.length; i += 1) {
+      exec('UPDATE workout_session_exercise SET position = ? WHERE id = ?', [
+        -(i + 1),
+        remaining[i].id,
+      ]);
+    }
+
+    const changedSiblingIds: string[] = [];
+    for (let i = 0; i < remaining.length; i += 1) {
+      const nextPosition = i + 1;
+      const siblingId = remaining[i].id;
+      if (originalSiblingPositions.get(siblingId) === nextPosition) {
+        exec('UPDATE workout_session_exercise SET position = ? WHERE id = ?', [
+          nextPosition,
+          siblingId,
+        ]);
+      } else {
+        exec(
+          `
+          UPDATE workout_session_exercise
+          SET position = ?, updated_at = datetime('now')
+          WHERE id = ?;
+        `,
+          [nextPosition, siblingId],
+        );
+        changedSiblingIds.push(siblingId);
+      }
+    }
+
+    for (const setId of setIds) {
+      enqueueWorkoutSetSnapshot(setId, 'delete');
+    }
+    enqueueWorkoutSessionExerciseSnapshot(workoutSessionExerciseId, 'delete');
+    for (const siblingId of changedSiblingIds) {
+      enqueueWorkoutSessionExerciseSnapshot(siblingId);
+    }
+
+    return { deleted: true };
   });
 }
 

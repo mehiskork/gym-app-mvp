@@ -10,6 +10,7 @@ import {
   BottomSheetModal,
   Button,
   Card,
+  DestructiveConfirmDialog,
   EmptyState,
   IconButton,
   IconChip,
@@ -28,6 +29,7 @@ import {
 import { MAX_EXERCISES_PER_SESSION, MAX_SETS_PER_EXERCISE } from '../db/workoutLimits';
 import {
   clearRestTimer,
+  deleteWorkoutSessionExercise,
   getWorkoutLoggerData,
   updateWorkoutSessionExerciseComment,
   updateWorkoutSessionExerciseCardioSummary,
@@ -86,6 +88,20 @@ function hasCardioSummaryEntry(summary: CardioSummary): boolean {
   return Object.values(summary).some((value) => value !== null);
 }
 
+function shouldClearRestTimerAfterExerciseDelete(input: {
+  session: LoggerSession;
+  deletedExercise: LoggerExercise;
+  remainingExercises: LoggerExercise[];
+}): boolean {
+  const { session, deletedExercise, remainingExercises } = input;
+  if (!session.rest_timer_end_at) return false;
+  const deletedExerciseName = getExerciseDisplayName(deletedExercise);
+  if (session.rest_timer_label !== deletedExerciseName) return false;
+  return !remainingExercises.some(
+    (exercise) => getExerciseDisplayName(exercise) === deletedExerciseName,
+  );
+}
+
 export function WorkoutSessionScreen({ route, navigation }: Props) {
   const { sessionId } = route.params;
 
@@ -104,7 +120,11 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
   const [commentEditorExerciseId, setCommentEditorExerciseId] = useState<string | null>(null);
   const [commentDraft, setCommentDraft] = useState('');
   const [workoutNoteDraft, setWorkoutNoteDraft] = useState('');
+  const [deleteExerciseTarget, setDeleteExerciseTarget] = useState<LoggerExercise | null>(null);
+  const [isDeletingExercise, setIsDeletingExercise] = useState(false);
   const finishingRef = React.useRef(false);
+  const deletingExerciseRef = React.useRef(false);
+  const submittedDeleteExerciseIdRef = React.useRef<string | null>(null);
   const { resetToHome } = useWorkoutSessionNavGuard({ navigation });
   const { timerActive, remainingSeconds, clearRestTimerHandler } = useRestTimer({
     session,
@@ -239,6 +259,45 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
     [commentEditorExerciseId, exercises],
   );
 
+  const handleCloseDeleteExercise = useCallback(() => {
+    if (isDeletingExercise) return;
+    setDeleteExerciseTarget(null);
+  }, [isDeletingExercise]);
+
+  const handleConfirmDeleteExercise = useCallback(() => {
+    if (!deleteExerciseTarget || !session) return;
+    if (isDeletingExercise || deletingExerciseRef.current) return;
+    if (submittedDeleteExerciseIdRef.current === deleteExerciseTarget.id) return;
+    submittedDeleteExerciseIdRef.current = deleteExerciseTarget.id;
+    deletingExerciseRef.current = true;
+    setIsDeletingExercise(true);
+
+    try {
+      const remainingExercises = exercises.filter(
+        (exercise) => exercise.id !== deleteExerciseTarget.id,
+      );
+      const shouldClearRestTimer = shouldClearRestTimerAfterExerciseDelete({
+        session,
+        deletedExercise: deleteExerciseTarget,
+        remainingExercises,
+      });
+
+      const result = deleteWorkoutSessionExercise(sessionId, deleteExerciseTarget.id);
+      if (result.deleted && shouldClearRestTimer) {
+        clearRestTimer(sessionId);
+        void cancelRestTimerNotification();
+      }
+      setDeleteExerciseTarget(null);
+      load();
+    } catch (error) {
+      submittedDeleteExerciseIdRef.current = null;
+      throw error;
+    } finally {
+      deletingExerciseRef.current = false;
+      setIsDeletingExercise(false);
+    }
+  }, [deleteExerciseTarget, exercises, isDeletingExercise, load, session, sessionId]);
+
   const footerPaddingBottom = Math.max(insets.bottom, tokens.spacing.sm);
   const footerPaddingTop = tokens.spacing.sm;
   const footerHeight = CTA_HEIGHT + footerPaddingTop + footerPaddingBottom;
@@ -329,6 +388,8 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
                       swapSessionId: sessionId,
                     })
                   }
+                  onRemove={() => setDeleteExerciseTarget(ex)}
+                  removeDisabled={isDeletingExercise}
                 >
                   {ex.exercise_type === EXERCISE_TYPE.CARDIO ? (
                     <CardioSummaryEditor
@@ -462,6 +523,16 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
         onWorkoutNoteChange: handleWorkoutNoteChange,
         noteEditable: session.status === 'in_progress',
       })}
+      <DestructiveConfirmDialog
+        visible={deleteExerciseTarget !== null}
+        title="Remove exercise?"
+        body="This will remove this exercise, its sets, notes, and cardio details from this workout."
+        confirmLabel="Remove"
+        cancelLabel="Cancel"
+        onClose={handleCloseDeleteExercise}
+        onConfirm={handleConfirmDeleteExercise}
+        testID="remove-exercise-dialog"
+      />
       <BottomSheetModal
         visible={Boolean(editingExercise)}
         title={editingExercise ? `${editingExercise.exercise_name} comment` : 'Exercise comment'}

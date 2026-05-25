@@ -77,6 +77,7 @@ jest.mock('@expo/vector-icons', () => {
 jest.mock('../../db/workoutLoggerRepo', () => ({
   addWorkoutSet: jest.fn(),
   clearRestTimer: jest.fn(),
+  deleteWorkoutSessionExercise: jest.fn(),
   deleteWorkoutSet: jest.fn(),
   restoreWorkoutSet: jest.fn(),
   getWorkoutLoggerData: jest.fn(),
@@ -119,13 +120,23 @@ import { TAB_ROUTES } from '../../navigation/routes';
 import { CardioSummaryEditor } from '../../features/workoutSession/CardioSummaryEditor';
 import { ExerciseCard } from '../../features/workoutSession/ExerciseCard';
 import { SetRow } from '../../features/workoutSession/SetRow';
-import { Button, Card, EmptyState, IconButton, Text } from '../../ui';
+import {
+  BottomSheetModal,
+  Button,
+  Card,
+  DestructiveConfirmDialog,
+  EmptyState,
+  IconButton,
+  Text,
+} from '../../ui';
 import {
   clearRestTimer,
+  deleteWorkoutSessionExercise,
   getWorkoutLoggerData,
   updateWorkoutSessionExerciseCardioSummary,
   updateWorkoutSet,
 } from '../../db/workoutLoggerRepo';
+import { discardSession } from '../../db/workoutSessionRepo';
 import { getSettings } from '../../db/settingsRepo';
 import { tokens } from '../../theme/tokens';
 import { cancelRestTimerNotification } from '../../utils/restTimerNotifications';
@@ -175,6 +186,87 @@ const resolveStyle = (styleProp: unknown) => {
   return styleProp;
 };
 
+const createSession = (overrides: Record<string, unknown> = {}) => ({
+  id: 'session-remove',
+  title: 'Push Day',
+  status: 'in_progress',
+  started_at: '2024-01-01T00:00:00Z',
+  rest_timer_end_at: null,
+  rest_timer_seconds: null,
+  rest_timer_label: null,
+  workout_note: null,
+  ...overrides,
+});
+
+const createExercise = (overrides: Record<string, unknown> = {}) => ({
+  id: 'exercise-remove',
+  exercise_id: 'bench-press',
+  exercise_name: 'Bench Press',
+  exercise_type: 'strength',
+  cardio_profile: null,
+  position: 1,
+  notes: null,
+  cardio_summary: {
+    duration_minutes: null,
+    distance_km: null,
+    speed_kph: null,
+    incline_percent: null,
+    resistance_level: null,
+    pace_seconds_per_km: null,
+    floors: null,
+    stair_level: null,
+  },
+  sets: [
+    {
+      id: 'set-remove',
+      workout_session_exercise_id: 'exercise-remove',
+      set_index: 1,
+      weight: 100,
+      reps: 5,
+      rpe: null,
+      rest_seconds: 90,
+      notes: null,
+      is_completed: 0,
+    },
+  ],
+  ...overrides,
+});
+
+function mockScreenState(input: {
+  session: Record<string, unknown>;
+  exercises: Array<Record<string, unknown>>;
+  deleteExerciseTarget?: Record<string, unknown> | null;
+  isDeletingExercise?: boolean;
+  finishOpen?: boolean;
+}) {
+  const setDeleteExerciseTarget = jest.fn();
+  let callIndex = 0;
+  const settings = {
+    defaultRestSeconds: 120,
+    autoStartRestTimer: true,
+    restTimerVibration: true,
+    keepScreenOn: true,
+    restTimerNotifications: false,
+  };
+
+  (React.useState as jest.Mock).mockImplementation((initial: unknown) => {
+    callIndex += 1;
+    if (callIndex === 1) return [input.session, jest.fn()];
+    if (callIndex === 2) return [input.exercises, jest.fn()];
+    if (callIndex === 3) return [0, jest.fn()];
+    if (callIndex === 4) return [settings, jest.fn()];
+    if (callIndex === 5) return [input.finishOpen ?? false, jest.fn()];
+    if (callIndex === 6) return [false, jest.fn()];
+    if (callIndex === 7) return [0, jest.fn()];
+    if (callIndex === 11) return [input.deleteExerciseTarget ?? null, setDeleteExerciseTarget];
+    if (callIndex === 12) return [input.isDeletingExercise ?? false, jest.fn()];
+    if (callIndex === 13) return [{ visible: false, payload: null }, jest.fn()];
+    return [initial, jest.fn()];
+  });
+
+  return { setDeleteExerciseTarget };
+}
+
 describe('WorkoutSessionScreen', () => {
   const useStateMock = React.useState as jest.Mock;
   const useEffectMock = React.useEffect as jest.Mock;
@@ -184,6 +276,9 @@ describe('WorkoutSessionScreen', () => {
     useStateMock.mockImplementation((initial: unknown) => [initial, jest.fn()]);
     useEffectMock.mockReset();
     (updateWorkoutSet as jest.Mock).mockReset();
+    (deleteWorkoutSessionExercise as jest.Mock).mockReset();
+    (deleteWorkoutSessionExercise as jest.Mock).mockReturnValue({ deleted: true });
+    (discardSession as jest.Mock).mockReset();
     (updateWorkoutSessionExerciseCardioSummary as jest.Mock).mockReset();
     (clearRestTimer as jest.Mock).mockReset();
     (Keyboard.dismiss as jest.Mock).mockReset();
@@ -756,6 +851,391 @@ describe('WorkoutSessionScreen', () => {
       swapSessionExerciseId: 'exercise-2',
       swapSessionId: 'session-6',
     });
+  });
+
+  it('opens remove confirmation from the exercise card with exact copy', () => {
+    const session = createSession();
+    const exercise = createExercise();
+    const { setDeleteExerciseTarget } = mockScreenState({
+      session,
+      exercises: [exercise],
+    });
+    (getWorkoutLoggerData as jest.Mock).mockReturnValue({ session, exercises: [exercise] });
+
+    const navigation: Nav = {
+      navigate: jest.fn(),
+      dispatch: jest.fn(),
+      setOptions: jest.fn(),
+      addListener: jest.fn(),
+    };
+    const element = WorkoutSessionScreen({
+      navigation,
+      route: {
+        key: 'WorkoutSession',
+        name: 'WorkoutSession',
+        params: { sessionId: 'session-remove' },
+      },
+    } as never);
+
+    type ExerciseCardProps = React.ComponentProps<typeof ExerciseCard>;
+    const exerciseCards = findElementsByType(element, ExerciseCard) as Array<
+      React.ReactElement<ExerciseCardProps>
+    >;
+    exerciseCards[0]?.props.onRemove?.();
+
+    expect(setDeleteExerciseTarget).toHaveBeenCalledWith(exercise);
+
+    mockScreenState({
+      session,
+      exercises: [exercise],
+      deleteExerciseTarget: exercise,
+    });
+    const confirmElement = WorkoutSessionScreen({
+      navigation,
+      route: {
+        key: 'WorkoutSession',
+        name: 'WorkoutSession',
+        params: { sessionId: 'session-remove' },
+      },
+    } as never);
+    type ConfirmProps = React.ComponentProps<typeof DestructiveConfirmDialog>;
+    const dialogs = findElementsByType(confirmElement, DestructiveConfirmDialog) as Array<
+      React.ReactElement<ConfirmProps>
+    >;
+
+    expect(dialogs[0]?.props.visible).toBe(true);
+    expect(dialogs[0]?.props.title).toBe('Remove exercise?');
+    expect(dialogs[0]?.props.body).toBe(
+      'This will remove this exercise, its sets, notes, and cardio details from this workout.',
+    );
+    expect(dialogs[0]?.props.cancelLabel).toBe('Cancel');
+    expect(dialogs[0]?.props.confirmLabel).toBe('Remove');
+  });
+
+  it('cancels remove confirmation without deleting', () => {
+    const session = createSession();
+    const exercise = createExercise();
+    const { setDeleteExerciseTarget } = mockScreenState({
+      session,
+      exercises: [exercise],
+      deleteExerciseTarget: exercise,
+    });
+    (getWorkoutLoggerData as jest.Mock).mockReturnValue({ session, exercises: [exercise] });
+
+    const navigation: Nav = {
+      navigate: jest.fn(),
+      dispatch: jest.fn(),
+      setOptions: jest.fn(),
+      addListener: jest.fn(),
+    };
+    const element = WorkoutSessionScreen({
+      navigation,
+      route: {
+        key: 'WorkoutSession',
+        name: 'WorkoutSession',
+        params: { sessionId: 'session-remove' },
+      },
+    } as never);
+
+    type ConfirmProps = React.ComponentProps<typeof DestructiveConfirmDialog>;
+    const dialogs = findElementsByType(element, DestructiveConfirmDialog) as Array<
+      React.ReactElement<ConfirmProps>
+    >;
+    dialogs[0]?.props.onClose();
+
+    expect(setDeleteExerciseTarget).toHaveBeenCalledWith(null);
+    expect(deleteWorkoutSessionExercise).not.toHaveBeenCalled();
+  });
+
+  it('removes the selected exercise, reloads, and blocks duplicate stale confirms', () => {
+    const session = createSession();
+    const exercise = createExercise();
+    mockScreenState({
+      session,
+      exercises: [exercise],
+      deleteExerciseTarget: exercise,
+    });
+    (getWorkoutLoggerData as jest.Mock).mockReturnValue({ session, exercises: [] });
+
+    const navigation: Nav = {
+      navigate: jest.fn(),
+      dispatch: jest.fn(),
+      setOptions: jest.fn(),
+      addListener: jest.fn(),
+    };
+    const element = WorkoutSessionScreen({
+      navigation,
+      route: {
+        key: 'WorkoutSession',
+        name: 'WorkoutSession',
+        params: { sessionId: 'session-remove' },
+      },
+    } as never);
+
+    type ConfirmProps = React.ComponentProps<typeof DestructiveConfirmDialog>;
+    const dialogs = findElementsByType(element, DestructiveConfirmDialog) as Array<
+      React.ReactElement<ConfirmProps>
+    >;
+    dialogs[0]?.props.onConfirm();
+    dialogs[0]?.props.onConfirm();
+
+    expect(deleteWorkoutSessionExercise).toHaveBeenCalledTimes(1);
+    expect(deleteWorkoutSessionExercise).toHaveBeenCalledWith('session-remove', 'exercise-remove');
+    expect(getWorkoutLoggerData).toHaveBeenCalledWith('session-remove');
+  });
+
+  it('leaves the active workout open with empty state after removing the only exercise', () => {
+    const session = createSession();
+    mockScreenState({
+      session,
+      exercises: [],
+      finishOpen: true,
+    });
+    (getWorkoutLoggerData as jest.Mock).mockReturnValue({ session, exercises: [] });
+
+    const navigation: Nav = {
+      navigate: jest.fn(),
+      dispatch: jest.fn(),
+      setOptions: jest.fn(),
+      addListener: jest.fn(),
+    };
+    const element = WorkoutSessionScreen({
+      navigation,
+      route: {
+        key: 'WorkoutSession',
+        name: 'WorkoutSession',
+        params: { sessionId: 'session-remove' },
+      },
+    } as never);
+
+    type EmptyStateProps = React.ComponentProps<typeof EmptyState>;
+    const emptyStates = findElementsByType(element, EmptyState) as Array<
+      React.ReactElement<EmptyStateProps>
+    >;
+
+    expect(emptyStates[0]?.props.title).toBe('No exercises yet');
+    expect(navigation.dispatch).not.toHaveBeenCalled();
+  });
+
+  it('uses the existing no-work finish flow after the only exercise was removed', () => {
+    const session = createSession();
+    mockScreenState({
+      session,
+      exercises: [],
+    });
+    (getWorkoutLoggerData as jest.Mock).mockReturnValue({ session, exercises: [] });
+
+    const navigation: Nav = {
+      navigate: jest.fn(),
+      dispatch: jest.fn(),
+      setOptions: jest.fn(),
+      addListener: jest.fn(),
+    };
+    const element = WorkoutSessionScreen({
+      navigation,
+      route: {
+        key: 'WorkoutSession',
+        name: 'WorkoutSession',
+        params: { sessionId: 'session-remove' },
+      },
+    } as never);
+
+    type ButtonProps = React.ComponentProps<typeof Button>;
+    const buttons = findElementsByType(element, Button) as Array<React.ReactElement<ButtonProps>>;
+    const finishButton = buttons.find((button) => button.props.title === 'Finish workout');
+    finishButton?.props.onPress?.({} as never);
+
+    mockScreenState({
+      session,
+      exercises: [],
+    });
+    const openFinishElement = WorkoutSessionScreen({
+      navigation,
+      route: {
+        key: 'WorkoutSession',
+        name: 'WorkoutSession',
+        params: { sessionId: 'session-remove' },
+      },
+    } as never);
+    type BottomSheetProps = React.ComponentProps<typeof BottomSheetModal>;
+    const sheets = findElementsByType(openFinishElement, BottomSheetModal) as Array<
+      React.ReactElement<BottomSheetProps>
+    >;
+    const openButtons = findElementsByType(sheets[0]?.props.actions, Button) as Array<
+      React.ReactElement<ButtonProps>
+    >;
+    const endWithoutSavingButton = openButtons.find(
+      (button) => button.props.title === 'End without saving',
+    );
+
+    endWithoutSavingButton?.props.onPress?.({} as never);
+    expect(discardSession).toHaveBeenCalledWith('session-remove');
+  });
+
+  it('re-enables Add exercise after deleting below the 50 exercise limit', () => {
+    const session = createSession();
+    const exercises = Array.from({ length: 49 }, (_, index) =>
+      createExercise({
+        id: `exercise-${index + 1}`,
+        exercise_id: `exercise-base-${index + 1}`,
+        exercise_name: `Exercise ${index + 1}`,
+        position: index + 1,
+        sets: [],
+      }),
+    );
+    mockScreenState({
+      session,
+      exercises,
+    });
+    (getWorkoutLoggerData as jest.Mock).mockReturnValue({ session, exercises });
+
+    const navigation: Nav = {
+      navigate: jest.fn(),
+      dispatch: jest.fn(),
+      setOptions: jest.fn(),
+      addListener: jest.fn(),
+    };
+    const element = WorkoutSessionScreen({
+      navigation,
+      route: {
+        key: 'WorkoutSession',
+        name: 'WorkoutSession',
+        params: { sessionId: 'session-remove' },
+      },
+    } as never);
+
+    type ButtonProps = React.ComponentProps<typeof Button>;
+    const buttons = findElementsByType(element, Button) as Array<React.ReactElement<ButtonProps>>;
+    const addExerciseButton = buttons.find((button) => button.props.title === 'Add exercise');
+
+    expect(addExerciseButton?.props.disabled).toBe(false);
+    addExerciseButton?.props.onPress?.({} as never);
+    expect(navigation.navigate).toHaveBeenCalledWith('ExercisePicker', {
+      addToSessionId: 'session-remove',
+    });
+  });
+
+  it('clears only an unambiguous matching rest timer after exercise removal', () => {
+    const session = createSession({
+      rest_timer_end_at: '2024-01-01T00:01:00Z',
+      rest_timer_seconds: 60,
+      rest_timer_label: 'Bench Press',
+    });
+    const exercise = createExercise();
+    mockScreenState({
+      session,
+      exercises: [exercise],
+      deleteExerciseTarget: exercise,
+    });
+    (getWorkoutLoggerData as jest.Mock).mockReturnValue({ session, exercises: [] });
+
+    const navigation: Nav = {
+      navigate: jest.fn(),
+      dispatch: jest.fn(),
+      setOptions: jest.fn(),
+      addListener: jest.fn(),
+    };
+    const element = WorkoutSessionScreen({
+      navigation,
+      route: {
+        key: 'WorkoutSession',
+        name: 'WorkoutSession',
+        params: { sessionId: 'session-remove' },
+      },
+    } as never);
+
+    type ConfirmProps = React.ComponentProps<typeof DestructiveConfirmDialog>;
+    const dialogs = findElementsByType(element, DestructiveConfirmDialog) as Array<
+      React.ReactElement<ConfirmProps>
+    >;
+    dialogs[0]?.props.onConfirm();
+
+    expect(clearRestTimer).toHaveBeenCalledWith('session-remove');
+    expect(cancelRestTimerNotification).toHaveBeenCalledTimes(1);
+  });
+
+  it('leaves a non-matching rest timer alone after exercise removal', () => {
+    const session = createSession({
+      rest_timer_end_at: '2024-01-01T00:01:00Z',
+      rest_timer_seconds: 60,
+      rest_timer_label: 'Squat',
+    });
+    const exercise = createExercise();
+    mockScreenState({
+      session,
+      exercises: [exercise],
+      deleteExerciseTarget: exercise,
+    });
+    (getWorkoutLoggerData as jest.Mock).mockReturnValue({ session, exercises: [] });
+
+    const navigation: Nav = {
+      navigate: jest.fn(),
+      dispatch: jest.fn(),
+      setOptions: jest.fn(),
+      addListener: jest.fn(),
+    };
+    const element = WorkoutSessionScreen({
+      navigation,
+      route: {
+        key: 'WorkoutSession',
+        name: 'WorkoutSession',
+        params: { sessionId: 'session-remove' },
+      },
+    } as never);
+
+    type ConfirmProps = React.ComponentProps<typeof DestructiveConfirmDialog>;
+    const dialogs = findElementsByType(element, DestructiveConfirmDialog) as Array<
+      React.ReactElement<ConfirmProps>
+    >;
+    dialogs[0]?.props.onConfirm();
+
+    expect(clearRestTimer).not.toHaveBeenCalled();
+    expect(cancelRestTimerNotification).not.toHaveBeenCalled();
+  });
+
+  it('leaves an ambiguous duplicate-name rest timer alone after exercise removal', () => {
+    const session = createSession({
+      rest_timer_end_at: '2024-01-01T00:01:00Z',
+      rest_timer_seconds: 60,
+      rest_timer_label: 'Bench Press',
+    });
+    const exercise = createExercise();
+    const duplicate = createExercise({
+      id: 'exercise-duplicate',
+      exercise_id: 'bench-press-duplicate',
+      position: 2,
+      sets: [],
+    });
+    mockScreenState({
+      session,
+      exercises: [exercise, duplicate],
+      deleteExerciseTarget: exercise,
+    });
+    (getWorkoutLoggerData as jest.Mock).mockReturnValue({ session, exercises: [duplicate] });
+
+    const navigation: Nav = {
+      navigate: jest.fn(),
+      dispatch: jest.fn(),
+      setOptions: jest.fn(),
+      addListener: jest.fn(),
+    };
+    const element = WorkoutSessionScreen({
+      navigation,
+      route: {
+        key: 'WorkoutSession',
+        name: 'WorkoutSession',
+        params: { sessionId: 'session-remove' },
+      },
+    } as never);
+
+    type ConfirmProps = React.ComponentProps<typeof DestructiveConfirmDialog>;
+    const dialogs = findElementsByType(element, DestructiveConfirmDialog) as Array<
+      React.ReactElement<ConfirmProps>
+    >;
+    dialogs[0]?.props.onConfirm();
+
+    expect(clearRestTimer).not.toHaveBeenCalled();
+    expect(cancelRestTimerNotification).not.toHaveBeenCalled();
   });
 
   it('renders inline empty-state add exercise and footer add exercise next to finish workout', () => {

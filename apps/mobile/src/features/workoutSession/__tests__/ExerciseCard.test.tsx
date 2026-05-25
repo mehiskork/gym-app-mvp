@@ -36,6 +36,7 @@ jest.mock('react-native-safe-area-context', () => {
 import React from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
+import { IconButton } from '../../../ui/IconButton';
 import { Text } from '../../../ui/Text';
 import { ExerciseCard } from '../ExerciseCard';
 import { SET_NUMBER_COLUMN_WIDTH } from '../setRowLayout';
@@ -58,6 +59,61 @@ const findElementsByType = <P,>(
 };
 
 describe('ExerciseCard set headers', () => {
+  it('renders a remove action beside swap when onRemove exists', () => {
+    const onRemove = jest.fn();
+    const onSwap = jest.fn();
+    const element = ExerciseCard({
+      name: 'Deadlift',
+      subtitle: '0/1 sets complete',
+      onAddSet: jest.fn(),
+      onSwap,
+      onRemove,
+      children: <Text>Set row</Text>,
+    });
+
+    const iconButtons = findElementsByType<{
+      accessibilityLabel?: string;
+      onPress?: () => void;
+      variant?: string;
+      testID?: string;
+    }>(element, IconButton);
+    const removeButton = iconButtons.find(
+      (button) => button.props.testID === 'exercise-card-remove',
+    );
+    const pressables = findElementsByType<{
+      accessibilityLabel?: string;
+      onPress?: () => void;
+    }>(element, Pressable);
+    const swapButton = pressables.find(
+      (pressable) => pressable.props.accessibilityLabel === 'Swap Deadlift',
+    );
+
+    expect(removeButton?.props.accessibilityLabel).toBe('Remove Deadlift');
+    expect(removeButton?.props.variant).toBe('danger');
+    expect(swapButton).toBeDefined();
+
+    removeButton?.props.onPress?.();
+    swapButton?.props.onPress?.();
+
+    expect(onRemove).toHaveBeenCalledTimes(1);
+    expect(onSwap).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not render a remove action when onRemove is absent', () => {
+    const element = ExerciseCard({
+      name: 'Deadlift',
+      subtitle: '0/1 sets complete',
+      onAddSet: jest.fn(),
+      onSwap: jest.fn(),
+      children: <Text>Set row</Text>,
+    });
+
+    const iconButtons = findElementsByType<{ testID?: string }>(element, IconButton);
+    expect(
+      iconButtons.find((button) => button.props.testID === 'exercise-card-remove'),
+    ).toBeUndefined();
+  });
+
   it('renders set, weight, and reps headers once and keeps SET aligned to the set column', () => {
     const element = ExerciseCard({
       name: 'Deadlift',

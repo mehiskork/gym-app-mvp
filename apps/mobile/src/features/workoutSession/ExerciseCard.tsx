@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-import { Card, Text } from '../../ui';
+import { Card, IconButton, Text } from '../../ui';
 import { tokens } from '../../theme/tokens';
 import {
   SET_ACTIONS_GAP,
@@ -23,6 +23,8 @@ type ExerciseCardProps = {
   addSetDisabled?: boolean;
   onPressTitle?: () => void;
   onSwap?: () => void;
+  onRemove?: () => void;
+  removeDisabled?: boolean;
   showAddSet?: boolean;
   showSetHeaders?: boolean;
   children: ReactNode;
@@ -38,6 +40,8 @@ export function ExerciseCard({
   addSetDisabled = false,
   onPressTitle,
   onSwap,
+  onRemove,
+  removeDisabled = false,
   showAddSet = true,
   showSetHeaders = true,
   children,
@@ -60,37 +64,58 @@ export function ExerciseCard({
             </Text>
           ) : null}
         </View>
-        {onSwap ? (
-          <Pressable
-            onPress={onSwap}
-            accessibilityLabel={`Swap ${name}`}
-            style={({ pressed }) => [
-              {
-                minHeight: 32,
-                paddingHorizontal: tokens.spacing.sm,
-                backgroundColor: tokens.colors.surface,
-                borderWidth: 1,
-                borderColor: tokens.colors.border,
-                borderRadius: tokens.radius.sm,
-                flexDirection: 'row',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: tokens.spacing.xs,
-              },
-              pressed ? { opacity: 0.8 } : null,
-            ]}
+        {onSwap || onRemove ? (
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: tokens.spacing.xs,
+              flexShrink: 0,
+            }}
           >
-            <Ionicons
-              name="swap-horizontal"
-              size={14}
-              color={tokens.colors.mutedText}
-              accessibilityElementsHidden
-              importantForAccessibility="no"
-            />
-            <Text variant="muted" style={{ fontSize: tokens.typography.caption.fontSize }}>
-              Swap
-            </Text>
-          </Pressable>
+            {onSwap ? (
+              <Pressable
+                onPress={onSwap}
+                accessibilityLabel={`Swap ${name}`}
+                style={({ pressed }) => [
+                  {
+                    minHeight: tokens.touchTargetMin,
+                    paddingHorizontal: tokens.spacing.sm,
+                    backgroundColor: tokens.colors.surface,
+                    borderWidth: 1,
+                    borderColor: tokens.colors.border,
+                    borderRadius: tokens.radius.sm,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: tokens.spacing.xs,
+                  },
+                  pressed ? { opacity: 0.8 } : null,
+                ]}
+              >
+                <Ionicons
+                  name="swap-horizontal"
+                  size={14}
+                  color={tokens.colors.mutedText}
+                  accessibilityElementsHidden
+                  importantForAccessibility="no"
+                />
+                <Text variant="muted" style={{ fontSize: tokens.typography.caption.fontSize }}>
+                  Swap
+                </Text>
+              </Pressable>
+            ) : null}
+            {onRemove ? (
+              <IconButton
+                testID="exercise-card-remove"
+                onPress={onRemove}
+                disabled={removeDisabled}
+                accessibilityLabel={`Remove ${name}`}
+                variant="danger"
+                icon={<Ionicons name="trash-outline" size={18} />}
+              />
+            ) : null}
+          </View>
         ) : null}
       </View>
       <View style={{ gap: tokens.spacing.sm }}>
