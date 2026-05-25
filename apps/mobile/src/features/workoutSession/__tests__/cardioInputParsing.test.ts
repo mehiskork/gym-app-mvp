@@ -103,6 +103,10 @@ describe('cardioInputParsing', () => {
     ['5:30', 330],
     ['6:05', 365],
     ['10:00', 600],
+    ['5', 300],
+    ['530', 330],
+    ['605', 365],
+    ['1000', 600],
     ['0:01', 1],
     ['99:59', 5999],
   ])('parses pace input %p', (input, value) => {
@@ -117,7 +121,7 @@ describe('cardioInputParsing', () => {
     expect(formatCardioInputValue('pace_seconds_per_km', value)).toBe(expected);
   });
 
-  it.each(['100:00', '5:75', '5.30', '5,30', '-5:30', '1e3', 'text', '💪'])(
+  it.each(['0', '0:00', '100:00', '5:75', '9999', '5.30', '5,30', '-5:30', '1e3', 'text', '💪'])(
     'rejects invalid pace input %p',
     (input) => {
       expect(parseCardioInput('pace_seconds_per_km', input)).toEqual({ ok: false });

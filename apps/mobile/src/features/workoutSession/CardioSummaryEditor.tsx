@@ -23,12 +23,12 @@ const cardioValueInputStyle = {
 const cardioFieldMaxLengths: Record<keyof CardioSummary, number> = {
   duration_minutes: 3,
   distance_km: 5,
-  speed_kph: 5,
+  speed_kph: 4,
   incline_percent: 4,
-  resistance_level: 4,
+  resistance_level: 3,
   pace_seconds_per_km: 5,
-  floors: 4,
-  stair_level: 4,
+  floors: 3,
+  stair_level: 3,
 };
 
 function fieldsForProfile(
@@ -150,9 +150,9 @@ export function CardioSummaryEditor({
                 label={field.label}
                 maxLength={cardioFieldMaxLengths[field.key]}
                 value={fieldTexts[field.key]}
-                keyboardType={
-                  field.key === 'pace_seconds_per_km' ? 'numbers-and-punctuation' : 'decimal-pad'
-                }
+                keyboardType={field.key === 'pace_seconds_per_km' ? 'number-pad' : 'decimal-pad'}
+                placeholder={field.key === 'pace_seconds_per_km' ? '5:30' : undefined}
+                helperText={field.key === 'pace_seconds_per_km' ? 'Type 530 for 5:30' : undefined}
                 editable={editable}
                 inputStyle={cardioValueInputStyle}
                 onChangeText={(value) =>

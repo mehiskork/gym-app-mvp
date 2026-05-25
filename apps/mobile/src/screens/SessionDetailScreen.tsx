@@ -13,6 +13,7 @@ import {
   formatDateTime,
   formatDurationSeconds,
   formatNumber,
+  formatPacePerKm,
 } from '../utils/format';
 import {
   getSessionDetail,
@@ -104,7 +105,7 @@ export function SessionDetailScreen({ route, navigation }: Props) {
     if (ex.cardio_resistance_level !== null)
       fields.push(`Resistance ${ex.cardio_resistance_level}`);
     if (ex.cardio_pace_seconds_per_km !== null)
-      fields.push(`Pace ${ex.cardio_pace_seconds_per_km}s/km`);
+      fields.push(`Pace ${formatPacePerKm(ex.cardio_pace_seconds_per_km)}`);
     if (ex.cardio_floors !== null) fields.push(`Floors ${ex.cardio_floors}`);
     if (ex.cardio_stair_level !== null) fields.push(`Level ${ex.cardio_stair_level}`);
     return fields;

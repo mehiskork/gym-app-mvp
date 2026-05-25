@@ -93,7 +93,7 @@ describe('CardioSummaryEditor', () => {
     expect(treadmillInputs.map((input) => [input.props.label, input.props.maxLength])).toEqual([
       ['Duration (min)', 3],
       ['Distance (km)', 5],
-      ['Speed (km/h)', 5],
+      ['Speed (km/h)', 4],
       ['Incline (%)', 4],
     ]);
 
@@ -116,7 +116,7 @@ describe('CardioSummaryEditor', () => {
     expect(bikeInputs.map((input) => [input.props.label, input.props.maxLength])).toEqual([
       ['Duration (min)', 3],
       ['Distance (km)', 5],
-      ['Resistance', 4],
+      ['Resistance', 3],
     ]);
 
     const ergometerElement = CardioSummaryEditor({
@@ -159,8 +159,8 @@ describe('CardioSummaryEditor', () => {
     const stairsInputs = findByLabel<{ label?: string; maxLength?: number }>(stairsElement);
     expect(stairsInputs.map((input) => [input.props.label, input.props.maxLength])).toEqual([
       ['Duration (min)', 3],
-      ['Floors', 4],
-      ['Level', 4],
+      ['Floors', 3],
+      ['Level', 3],
     ]);
   });
 
@@ -173,7 +173,7 @@ describe('CardioSummaryEditor', () => {
         speed_kph: null,
         incline_percent: null,
         resistance_level: null,
-        pace_seconds_per_km: 330,
+        pace_seconds_per_km: 355,
         floors: null,
         stair_level: null,
       },
@@ -185,7 +185,7 @@ describe('CardioSummaryEditor', () => {
     expect(inputs.map((input) => [input.props.label, input.props.value])).toEqual([
       ['Duration (min)', '10'],
       ['Distance (km)', '2,5'],
-      ['Pace (min/km)', '5:30'],
+      ['Pace (min/km)', '5:55'],
     ]);
   });
 
@@ -220,7 +220,11 @@ describe('CardioSummaryEditor', () => {
     expect(setter.mock.calls.at(-1)?.[0]({ distance_km: '' })).toEqual({ distance_km: '12,5' });
   });
 
-  it('valid pace edit calls save handler and formats as min:sec', () => {
+  it.each([
+    ['6:05', '6:05'],
+    ['530', '5:30'],
+    ['605', '6:05'],
+  ])('valid pace edit %p calls save handler and formats as min:sec', (inputText, expectedText) => {
     const onFieldEndEditing = jest.fn().mockReturnValue(true);
     const element = CardioSummaryEditor({
       profile: 'ergometer',
@@ -244,12 +248,42 @@ describe('CardioSummaryEditor', () => {
     }>(element);
     const setter = mockUseStateSetters[0];
 
-    inputs[2]?.props.onEndEditing?.({ nativeEvent: { text: '6:05' } });
+    inputs[2]?.props.onEndEditing?.({ nativeEvent: { text: inputText } });
 
-    expect(onFieldEndEditing).toHaveBeenCalledWith('pace_seconds_per_km', '6:05');
+    expect(onFieldEndEditing).toHaveBeenCalledWith('pace_seconds_per_km', inputText);
     expect(setter.mock.calls.at(-1)?.[0]({ pace_seconds_per_km: '' })).toEqual({
-      pace_seconds_per_km: '6:05',
+      pace_seconds_per_km: expectedText,
     });
+  });
+
+  it('adds pace placeholder, helper text, and number-pad keyboard', () => {
+    const element = CardioSummaryEditor({
+      profile: 'ergometer',
+      summary: {
+        duration_minutes: null,
+        distance_km: null,
+        speed_kph: null,
+        incline_percent: null,
+        resistance_level: null,
+        pace_seconds_per_km: null,
+        floors: null,
+        stair_level: null,
+      },
+      editable: true,
+      onFieldEndEditing: jest.fn(),
+    });
+
+    const inputs = findByLabel<{
+      label?: string;
+      placeholder?: string;
+      helperText?: string;
+      keyboardType?: string;
+    }>(element);
+    const paceInput = inputs.find((input) => input.props.label === 'Pace (min/km)');
+
+    expect(paceInput?.props.placeholder).toBe('5:30');
+    expect(paceInput?.props.helperText).toBe('Type 530 for 5:30');
+    expect(paceInput?.props.keyboardType).toBe('number-pad');
   });
 
   it('invalid edit does not call save handler and resets visible value', () => {
@@ -284,6 +318,38 @@ describe('CardioSummaryEditor', () => {
     });
   });
 
+  it('invalid pace shorthand resets to the previous saved value', () => {
+    const onFieldEndEditing = jest.fn();
+    const element = CardioSummaryEditor({
+      profile: 'ergometer',
+      summary: {
+        duration_minutes: null,
+        distance_km: null,
+        speed_kph: null,
+        incline_percent: null,
+        resistance_level: null,
+        pace_seconds_per_km: 355,
+        floors: null,
+        stair_level: null,
+      },
+      editable: true,
+      onFieldEndEditing,
+    });
+
+    const inputs = findByLabel<{
+      label?: string;
+      onEndEditing?: (event: { nativeEvent: { text: string } }) => void;
+    }>(element);
+    const setter = mockUseStateSetters[0];
+
+    inputs[2]?.props.onEndEditing?.({ nativeEvent: { text: '9999' } });
+
+    expect(onFieldEndEditing).not.toHaveBeenCalled();
+    expect(setter.mock.calls.at(-1)?.[0]({ pace_seconds_per_km: '9999' })).toEqual({
+      pace_seconds_per_km: '5:55',
+    });
+  });
+
   it('empty edit calls save handler with null-equivalent text and resets to empty', () => {
     const onFieldEndEditing = jest.fn().mockReturnValue(true);
     const element = CardioSummaryEditor({
@@ -312,6 +378,38 @@ describe('CardioSummaryEditor', () => {
 
     expect(onFieldEndEditing).toHaveBeenCalledWith('distance_km', '   ');
     expect(setter.mock.calls.at(-1)?.[0]({ distance_km: '4,5' })).toEqual({ distance_km: '' });
+  });
+
+  it('empty pace edit calls save handler and resets to empty', () => {
+    const onFieldEndEditing = jest.fn().mockReturnValue(true);
+    const element = CardioSummaryEditor({
+      profile: 'ergometer',
+      summary: {
+        duration_minutes: null,
+        distance_km: null,
+        speed_kph: null,
+        incline_percent: null,
+        resistance_level: null,
+        pace_seconds_per_km: 355,
+        floors: null,
+        stair_level: null,
+      },
+      editable: true,
+      onFieldEndEditing,
+    });
+
+    const inputs = findByLabel<{
+      label?: string;
+      onEndEditing?: (event: { nativeEvent: { text: string } }) => void;
+    }>(element);
+    const setter = mockUseStateSetters[0];
+
+    inputs[2]?.props.onEndEditing?.({ nativeEvent: { text: '   ' } });
+
+    expect(onFieldEndEditing).toHaveBeenCalledWith('pace_seconds_per_km', '   ');
+    expect(setter.mock.calls.at(-1)?.[0]({ pace_seconds_per_km: '5:55' })).toEqual({
+      pace_seconds_per_km: '',
+    });
   });
 
   it('resyncs local state when summary props change', () => {

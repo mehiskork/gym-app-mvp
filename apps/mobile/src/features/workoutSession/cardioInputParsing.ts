@@ -28,6 +28,7 @@ export const cardioFieldConfigs: Record<keyof CardioSummary, CardioFieldConfig> 
 const INTEGER_INPUT_RE = /^[0-9]+$/;
 const DECIMAL_INPUT_RE = /^[0-9]+([.,][0-9])?$/;
 const PACE_INPUT_RE = /^[0-9]{1,2}:[0-9]{2}$/;
+const PACE_SHORTHAND_INPUT_RE = /^[0-9]{1,4}$/;
 
 export function isCardioSummaryField(field: string): field is keyof CardioSummary {
   return Object.prototype.hasOwnProperty.call(cardioFieldConfigs, field);
@@ -52,9 +53,16 @@ function parseDecimalInput(input: string, max: number): ParsedCardioInput {
 }
 
 function parsePaceInput(input: string): ParsedCardioInput {
-  if (!PACE_INPUT_RE.test(input)) return { ok: false };
+  const parts = (() => {
+    if (PACE_INPUT_RE.test(input)) return input.split(':');
+    if (!PACE_SHORTHAND_INPUT_RE.test(input)) return null;
+    if (input.length <= 2) return [input, '00'];
+    return [input.slice(0, -2), input.slice(-2)];
+  })();
 
-  const [minutesText, secondsText] = input.split(':');
+  if (!parts) return { ok: false };
+
+  const [minutesText, secondsText] = parts;
   const minutes = Number(minutesText);
   const seconds = Number(secondsText);
   if (!Number.isSafeInteger(minutes) || !Number.isSafeInteger(seconds)) return { ok: false };

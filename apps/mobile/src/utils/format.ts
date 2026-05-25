@@ -64,6 +64,14 @@ export function formatMMSS(totalSeconds: number): string {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
+export function formatPaceSeconds(totalSeconds: number): string {
+  return formatMMSS(Math.max(0, Math.floor(totalSeconds)));
+}
+
+export function formatPacePerKm(totalSeconds: number): string {
+  return `${formatPaceSeconds(totalSeconds)} /km`;
+}
+
 export function formatRestCountdown(totalSeconds: number): string {
   return formatMMSS(Math.max(0, totalSeconds));
 }

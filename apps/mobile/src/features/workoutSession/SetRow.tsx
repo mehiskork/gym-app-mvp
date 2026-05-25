@@ -3,6 +3,7 @@ import { Keyboard, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { LoggerSet } from '../../db/workoutLoggerRepo';
 import { IconButton, Text } from '../../ui';
+import { useAppTheme } from '../../theme/theme';
 import { tokens } from '../../theme/tokens';
 import {
   SET_ACTIONS_GAP,
@@ -17,6 +18,8 @@ import {
   parseRepsInput,
   parseWeightInput,
 } from './setInputParsing';
+
+type StrengthInputField = 'weight' | 'reps';
 
 type SetRowProps = {
   set: LoggerSet;
@@ -38,6 +41,7 @@ export function SetRow({
 }: SetRowProps) {
   const rowRef = React.useRef<View | null>(null);
   const repsInputRef = React.useRef<TextInput | null>(null);
+  const { colors } = useAppTheme();
   const completed = set.is_completed === 1;
   const rowStyle = completed ? styles.completedRow : styles.row;
   const inputStyle = completed ? styles.completedInput : styles.input;
@@ -48,6 +52,7 @@ export function SetRow({
   const savedRepsText = formatRepsInputValue(set.reps);
   const [weightText, setWeightText] = React.useState(savedWeightText);
   const [repsText, setRepsText] = React.useState(savedRepsText);
+  const [focusedField, setFocusedField] = React.useState<StrengthInputField | null>(null);
 
   React.useEffect(() => {
     setWeightText(savedWeightText);
@@ -63,6 +68,18 @@ export function SetRow({
       onEditFocus({ pageY, height });
     });
   }, [onEditFocus]);
+
+  const handleInputFocus = React.useCallback(
+    (field: StrengthInputField) => {
+      setFocusedField(field);
+      handleEditFocus();
+    },
+    [handleEditFocus],
+  );
+
+  const handleInputBlur = React.useCallback(() => {
+    setFocusedField(null);
+  }, []);
 
   const handleWeightEndEditing = React.useCallback(
     (value: string) => {
@@ -112,16 +129,21 @@ export function SetRow({
             <TextInput
               testID="weight-input"
               value={weightText}
-              maxLength={6}
+              maxLength={5}
               selectTextOnFocus
               keyboardType="decimal-pad"
               returnKeyType="next"
               placeholder="0"
               placeholderTextColor={tokens.colors.textSecondary}
-              style={[inputStyle, { paddingHorizontal: inputPadding }]}
+              style={[
+                inputStyle,
+                focusedField === 'weight' ? { borderColor: colors.primary } : null,
+                { paddingHorizontal: inputPadding },
+              ]}
               onChangeText={setWeightText}
               onEndEditing={(e) => handleWeightEndEditing(e.nativeEvent.text)}
-              onFocus={handleEditFocus}
+              onFocus={() => handleInputFocus('weight')}
+              onBlur={handleInputBlur}
               onSubmitEditing={() => repsInputRef.current?.focus()}
             />
           </View>
@@ -137,10 +159,15 @@ export function SetRow({
               returnKeyType="done"
               placeholder="0"
               placeholderTextColor={tokens.colors.textSecondary}
-              style={[inputStyle, { paddingHorizontal: inputPadding }]}
+              style={[
+                inputStyle,
+                focusedField === 'reps' ? { borderColor: colors.primary } : null,
+                { paddingHorizontal: inputPadding },
+              ]}
               onChangeText={setRepsText}
               onEndEditing={(e) => handleRepsEndEditing(e.nativeEvent.text)}
-              onFocus={handleEditFocus}
+              onFocus={() => handleInputFocus('reps')}
+              onBlur={handleInputBlur}
               onSubmitEditing={Keyboard.dismiss}
             />
           </View>

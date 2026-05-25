@@ -1,4 +1,5 @@
 const mockUseStateSetters: jest.Mock[] = [];
+const mockFocusedField: { value?: 'weight' | 'reps' | null } = {};
 
 jest.mock('react', () => {
   const actual = jest.requireActual('react');
@@ -7,11 +8,25 @@ jest.mock('react', () => {
     useState: jest.fn((initial: unknown) => {
       const setState = jest.fn();
       mockUseStateSetters.push(setState);
+      if (initial === null && mockFocusedField.value !== undefined) {
+        return [mockFocusedField.value, setState];
+      }
       return [initial, setState];
     }),
     useRef: jest.fn(() => ({ current: null })),
     useCallback: (fn: unknown) => fn,
     useEffect: (fn: () => unknown) => fn(),
+  };
+});
+
+jest.mock('../../../theme/theme', () => {
+  const { tokens } = require('../../../theme/tokens');
+  return {
+    useAppTheme: () => ({
+      colors: tokens.colors,
+      primaryColorKey: 'orange',
+      setPrimaryColorKey: jest.fn(),
+    }),
   };
 });
 
@@ -57,6 +72,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { SetRow } from '../SetRow';
 import { SET_ACTIONS_WIDTH, SET_NUMBER_COLUMN_WIDTH } from '../setRowLayout';
+import { tokens } from '../../../theme/tokens';
 
 const findElementsByType = <P,>(
   node: React.ReactNode,
@@ -110,6 +126,7 @@ const createSet = (overrides?: Partial<React.ComponentProps<typeof SetRow>['set'
 
 beforeEach(() => {
   mockUseStateSetters.length = 0;
+  mockFocusedField.value = undefined;
 });
 
 describe('SetRow layout sizing', () => {
@@ -213,7 +230,7 @@ describe('SetRow input focus behavior', () => {
     const weightInput = findElementByTestId<{ maxLength?: number }>(element, 'weight-input');
     const repsInput = findElementByTestId<{ maxLength?: number }>(element, 'reps-input');
 
-    expect(weightInput?.props.maxLength).toBe(6);
+    expect(weightInput?.props.maxLength).toBe(5);
     expect(repsInput?.props.maxLength).toBe(3);
   });
 
@@ -366,6 +383,115 @@ describe('SetRow input focus behavior', () => {
 
     expect(onRepsEndEditing).not.toHaveBeenCalled();
     expect(repsSetter).toHaveBeenCalledWith('8');
+  });
+
+  it('allows max-length weight examples through the input layer', () => {
+    const onWeightEndEditing = jest.fn(() => true);
+    const examples = ['82.5', '82,5', '999.9', '999,9'];
+
+    for (const value of examples) {
+      mockUseStateSetters.length = 0;
+      const element = SetRow({
+        set: createSet({ weight: null }),
+        onWeightEndEditing,
+        onRepsEndEditing: jest.fn(() => true),
+        onToggleComplete: jest.fn(),
+        onDelete: jest.fn(),
+      });
+      const weightInput = findElementByTestId<{
+        maxLength?: number;
+        onEndEditing?: (event: { nativeEvent: { text: string } }) => void;
+      }>(element, 'weight-input');
+
+      weightInput?.props.onEndEditing?.({ nativeEvent: { text: value } });
+
+      expect(value.length).toBeLessThanOrEqual(weightInput?.props.maxLength ?? 0);
+      expect(onWeightEndEditing).toHaveBeenCalledWith(value);
+    }
+  });
+
+  it('applies the primary border to the focused weight input only', () => {
+    mockFocusedField.value = 'weight';
+    const element = SetRow({
+      set: createSet(),
+      onWeightEndEditing: jest.fn(() => true),
+      onRepsEndEditing: jest.fn(() => true),
+      onToggleComplete: jest.fn(),
+      onDelete: jest.fn(),
+    });
+
+    const weightInput = findElementByTestId<{ style?: unknown }>(element, 'weight-input');
+    const repsInput = findElementByTestId<{ style?: unknown }>(element, 'reps-input');
+    const weightStyle = StyleSheet.flatten(weightInput?.props.style) as { borderColor?: string };
+    const repsStyle = StyleSheet.flatten(repsInput?.props.style) as { borderColor?: string };
+
+    expect(weightStyle.borderColor).toBe(tokens.colors.primary);
+    expect(repsStyle.borderColor).toBe(tokens.colors.border);
+  });
+
+  it('applies the primary border to the focused reps input only', () => {
+    mockFocusedField.value = 'reps';
+    const element = SetRow({
+      set: createSet(),
+      onWeightEndEditing: jest.fn(() => true),
+      onRepsEndEditing: jest.fn(() => true),
+      onToggleComplete: jest.fn(),
+      onDelete: jest.fn(),
+    });
+
+    const weightInput = findElementByTestId<{ style?: unknown }>(element, 'weight-input');
+    const repsInput = findElementByTestId<{ style?: unknown }>(element, 'reps-input');
+    const weightStyle = StyleSheet.flatten(weightInput?.props.style) as { borderColor?: string };
+    const repsStyle = StyleSheet.flatten(repsInput?.props.style) as { borderColor?: string };
+
+    expect(weightStyle.borderColor).toBe(tokens.colors.border);
+    expect(repsStyle.borderColor).toBe(tokens.colors.primary);
+  });
+
+  it('clears focused styling on blur and renders normal borders when no input is focused', () => {
+    const element = SetRow({
+      set: createSet(),
+      onWeightEndEditing: jest.fn(() => true),
+      onRepsEndEditing: jest.fn(() => true),
+      onToggleComplete: jest.fn(),
+      onDelete: jest.fn(),
+    });
+    const weightInput = findElementByTestId<{
+      style?: unknown;
+      onBlur?: () => void;
+    }>(element, 'weight-input');
+    const repsInput = findElementByTestId<{
+      style?: unknown;
+      onBlur?: () => void;
+    }>(element, 'reps-input');
+    const weightStyle = StyleSheet.flatten(weightInput?.props.style) as { borderColor?: string };
+    const repsStyle = StyleSheet.flatten(repsInput?.props.style) as { borderColor?: string };
+    const focusedSetter = mockUseStateSetters[2];
+
+    weightInput?.props.onBlur?.();
+    repsInput?.props.onBlur?.();
+
+    expect(weightStyle.borderColor).toBe(tokens.colors.border);
+    expect(repsStyle.borderColor).toBe(tokens.colors.border);
+    expect(focusedSetter).toHaveBeenCalledWith(null);
+  });
+
+  it('preserves completed input borders when not focused', () => {
+    const element = SetRow({
+      set: createSet({ is_completed: 1 }),
+      onWeightEndEditing: jest.fn(() => true),
+      onRepsEndEditing: jest.fn(() => true),
+      onToggleComplete: jest.fn(),
+      onDelete: jest.fn(),
+    });
+
+    const weightInput = findElementByTestId<{ style?: unknown }>(element, 'weight-input');
+    const repsInput = findElementByTestId<{ style?: unknown }>(element, 'reps-input');
+    const weightStyle = StyleSheet.flatten(weightInput?.props.style) as { borderColor?: string };
+    const repsStyle = StyleSheet.flatten(repsInput?.props.style) as { borderColor?: string };
+
+    expect(weightStyle.borderColor).toBe(tokens.colors.success);
+    expect(repsStyle.borderColor).toBe(tokens.colors.success);
   });
 
   it('keeps select-all enabled on repeated renders/focus cycles', () => {
