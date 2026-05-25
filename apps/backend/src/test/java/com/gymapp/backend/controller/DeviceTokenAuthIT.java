@@ -52,6 +52,7 @@ class DeviceTokenAuthIT {
                 registry.add("spring.datasource.username", postgres::getUsername);
                 registry.add("spring.datasource.password", postgres::getPassword);
                 registry.add("spring.flyway.enabled", () -> "true");
+                registry.add("deviceToken.cleanupBatchSize", () -> "1");
         }
 
         @Autowired
@@ -109,7 +110,7 @@ class DeviceTokenAuthIT {
         @Test
         void reregisteringDeviceInvalidatesPreviousTokenAndKeepsNewTokenValid() throws Exception {
                 String deviceId = "device-reregister";
-                String deviceSecret = "secret-reregister";
+                String deviceSecret = "sec_reregister_123456";
 
                 RegistrationResult first = registerDevice(deviceId, deviceSecret);
                 RegistrationResult second = registerDevice(deviceId, deviceSecret);
@@ -157,13 +158,36 @@ class DeviceTokenAuthIT {
                                 expiredDeviceId);
                 org.assertj.core.api.Assertions.assertThat(beforeCount).isEqualTo(1);
 
-                registerDevice("device-cleanup-trigger", "secret-cleanup");
+                registerDevice("device-cleanup-trigger", "sec_cleanup_123456");
 
                 Integer afterCount = jdbcTemplate.queryForObject(
                                 "SELECT COUNT(*) FROM device_token WHERE device_id = ?",
                                 Integer.class,
                                 expiredDeviceId);
                 org.assertj.core.api.Assertions.assertThat(afterCount).isZero();
+        }
+
+        @Test
+        void registerCleansUpExpiredTokensInConfiguredBatches() throws Exception {
+                String expiredDeviceIdA = "device-expired-batch-a";
+                String expiredDeviceIdB = "device-expired-batch-b";
+                insertDevice(expiredDeviceIdA, "guest-expired-batch-a");
+                insertDevice(expiredDeviceIdB, "guest-expired-batch-b");
+                insertToken("expired-batch-token-a", expiredDeviceIdA, Instant.now().minusSeconds(120));
+                insertToken("expired-batch-token-b", expiredDeviceIdB, Instant.now().minusSeconds(120));
+
+                registerDevice("device-cleanup-batch-trigger", "sec_cleanup_batch_123456");
+
+                Integer remainingExpired = jdbcTemplate.queryForObject(
+                                """
+                                                SELECT COUNT(*)
+                                                FROM device_token
+                                                WHERE device_id IN (?, ?)
+                                                """,
+                                Integer.class,
+                                expiredDeviceIdA,
+                                expiredDeviceIdB);
+                org.assertj.core.api.Assertions.assertThat(remainingExpired).isEqualTo(1);
         }
 
         @Test

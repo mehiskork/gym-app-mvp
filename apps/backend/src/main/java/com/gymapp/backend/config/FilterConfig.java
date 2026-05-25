@@ -43,4 +43,12 @@ public class FilterConfig {
         reg.setEnabled(false);
         return reg;
     }
+
+    @Bean
+    public FilterRegistrationBean<SyncRequestSizeLimitFilter> syncRequestSizeLimitFilterRegistration(
+            SyncRequestSizeLimitFilter filter) {
+        FilterRegistrationBean<SyncRequestSizeLimitFilter> reg = new FilterRegistrationBean<>(filter);
+        reg.setEnabled(false);
+        return reg;
+    }
 }

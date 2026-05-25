@@ -12,6 +12,7 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -111,6 +112,24 @@ class DeviceTokenRepositoryTest {
 
                 assertThat(result.status()).isEqualTo(DeviceTokenRepository.DeviceTokenStatus.VALID);
                 assertThat(result.deviceId()).isEqualTo("device-b");
+        }
+
+        @Test
+        void deleteExpiredTokensBatchUsesExpiresAtPredicateAndLimit() {
+                Instant now = Instant.parse("2026-02-13T12:34:56Z");
+                OffsetDateTime nowValue = OffsetDateTime.ofInstant(now, ZoneOffset.UTC);
+                when(jdbcTemplate.update(anyString(), eq(nowValue), eq(25))).thenReturn(25);
+
+                int deleted = repository.deleteExpiredTokensBatch(now, 25);
+
+                assertThat(deleted).isEqualTo(25);
+                ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+                verify(jdbcTemplate).update(sqlCaptor.capture(), eq(nowValue), eq(25));
+                assertThat(sqlCaptor.getValue())
+                                .contains("expires_at IS NOT NULL")
+                                .contains("expires_at < ?")
+                                .contains("ORDER BY expires_at ASC")
+                                .contains("LIMIT ?");
         }
 
         private record DeviceTokenRecordFixture(

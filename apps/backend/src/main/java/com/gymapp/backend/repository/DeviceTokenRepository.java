@@ -42,14 +42,26 @@ public class DeviceTokenRepository {
         }
 
         public int deleteExpiredTokens(Instant now) {
+                return deleteExpiredTokensBatch(now, Integer.MAX_VALUE);
+        }
+
+        public int deleteExpiredTokensBatch(Instant now, int limit) {
+                int safeLimit = Math.max(1, limit);
                 OffsetDateTime nowValue = OffsetDateTime.ofInstant(now, ZoneOffset.UTC);
                 return jdbcTemplate.update(
                                 """
                                                 DELETE FROM device_token
-                                                WHERE expires_at IS NOT NULL
-                                                  AND expires_at < ?
+                                                WHERE token_hash IN (
+                                                    SELECT token_hash
+                                                    FROM device_token
+                                                    WHERE expires_at IS NOT NULL
+                                                      AND expires_at < ?
+                                                    ORDER BY expires_at ASC
+                                                    LIMIT ?
+                                                )
                                                 """,
-                                nowValue);
+                                nowValue,
+                                safeLimit);
         }
 
         public int deleteTokensByDeviceId(String deviceId) {

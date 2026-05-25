@@ -95,7 +95,7 @@ class RateLimitIntegrationTest {
 
         @Test
         void registerIsRateLimitedByRemoteAddress() throws Exception {
-                String requestBody = "{\"deviceId\":\"rate-limit-device\",\"deviceSecret\":\"secret\"}";
+                String requestBody = "{\"deviceId\":\"rate-limit-device\",\"deviceSecret\":\"sec_rate_limit_123456\"}";
                 MockHttpServletRequestBuilder request = post("/device/register")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(requestBody)

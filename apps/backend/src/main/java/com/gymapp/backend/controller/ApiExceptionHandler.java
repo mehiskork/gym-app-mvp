@@ -84,6 +84,11 @@ public class ApiExceptionHandler {
         return buildResponse(HttpStatus.TOO_MANY_REQUESTS, ex.getCode(), ex.getMessage(), ex.getDetails());
     }
 
+    @ExceptionHandler(PayloadTooLargeException.class)
+    public ResponseEntity<ErrorResponse> handlePayloadTooLarge(PayloadTooLargeException ex) {
+        return buildResponse(HttpStatus.PAYLOAD_TOO_LARGE, ex.getCode(), ex.getMessage(), ex.getDetails());
+    }
+
     @ExceptionHandler(NotImplementedException.class)
     public ResponseEntity<ErrorResponse> handleNotImplemented(NotImplementedException ex) {
         return buildResponse(HttpStatus.NOT_IMPLEMENTED, ex.getCode(), ex.getMessage(), ex.getDetails());

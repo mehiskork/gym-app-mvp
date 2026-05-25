@@ -3,6 +3,7 @@ package com.gymapp.backend.service;
 import com.gymapp.backend.controller.AccountDeletedException;
 import com.gymapp.backend.controller.ForbiddenException;
 import com.gymapp.backend.controller.ValidationException;
+import com.gymapp.backend.config.SyncGuardrailsProperties;
 import com.gymapp.backend.model.SyncAck;
 import com.gymapp.backend.model.SyncDelta;
 import com.gymapp.backend.model.SyncOp;
@@ -10,6 +11,7 @@ import com.gymapp.backend.model.SyncResponse;
 import com.gymapp.backend.repository.AccountDeletionRepository;
 import com.gymapp.backend.repository.SyncRepository;
 import com.gymapp.backend.security.OwnerScope;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -22,13 +24,14 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 
 @Service
-@RequiredArgsConstructor
 public class SyncService {
         private static final int DELTA_LIMIT = 1000;
         private static final Duration CLIENT_UPDATED_AT_ALLOWED_FUTURE_SKEW = Duration.ofMinutes(5);
@@ -60,9 +63,72 @@ public class SyncService {
                                         new ParentReference("exercise_id", "exercise", true)),
                         "workout_set", List.of(new ParentReference("workout_session_exercise_id",
                                         "workout_session_exercise", false)));
+        private static final Map<String, Set<String>> ALLOWED_PAYLOAD_FIELDS = Map.of(
+                        "program", Set.of(
+                                        "id", "name", "description", "is_template", "owner_user_id",
+                                        "created_at", "updated_at", "deleted_at", "version",
+                                        "last_modified_by_device_id"),
+                        "program_week", Set.of(
+                                        "id", "program_id", "week_index", "created_at", "updated_at",
+                                        "deleted_at", "version", "last_modified_by_device_id"),
+                        "program_day", Set.of(
+                                        "id", "program_week_id", "day_index", "name", "created_at",
+                                        "updated_at", "deleted_at", "version", "last_modified_by_device_id"),
+                        "exercise", Set.of(
+                                        "id", "name", "normalized_name", "is_custom", "owner_user_id",
+                                        "equipment", "primary_muscle", "notes", "exercise_type",
+                                        "cardio_profile", "created_at", "updated_at", "deleted_at",
+                                        "version", "last_modified_by_device_id"),
+                        "program_day_exercise", Set.of(
+                                        "id", "program_day_id", "exercise_id", "position", "notes",
+                                        "created_at", "updated_at", "deleted_at", "version",
+                                        "last_modified_by_device_id"),
+                        "planned_set", Set.of(
+                                        "id", "program_day_exercise_id", "set_index", "target_reps_min",
+                                        "target_reps_max", "target_rpe", "target_weight", "rest_seconds",
+                                        "created_at", "updated_at", "deleted_at", "version",
+                                        "last_modified_by_device_id"),
+                        "workout_session", Set.of(
+                                        "id", "source_workout_plan_id", "source_program_day_id", "title",
+                                        "status", "started_at", "ended_at", "workout_note", "created_at",
+                                        "updated_at", "deleted_at"),
+                        "workout_session_exercise", Set.of(
+                                        "id", "workout_session_id", "source_program_day_exercise_id",
+                                        "exercise_id", "exercise_name", "exercise_type", "cardio_profile",
+                                        "position", "notes", "cardio_duration_minutes", "cardio_distance_km",
+                                        "cardio_speed_kph", "cardio_incline_percent",
+                                        "cardio_resistance_level", "cardio_pace_seconds_per_km",
+                                        "cardio_floors", "cardio_stair_level", "created_at", "updated_at",
+                                        "deleted_at"),
+                        "workout_set", Set.of(
+                                        "id", "workout_session_exercise_id", "set_index", "weight", "reps",
+                                        "rpe", "rest_seconds", "notes", "is_completed", "created_at",
+                                        "updated_at", "deleted_at"));
 
         private final SyncRepository syncRepository;
         private final AccountDeletionRepository accountDeletionRepository;
+        private final SyncGuardrailsProperties syncGuardrailsProperties;
+        private final ObjectMapper objectMapper;
+
+        @Autowired
+        public SyncService(
+                        SyncRepository syncRepository,
+                        AccountDeletionRepository accountDeletionRepository,
+                        SyncGuardrailsProperties syncGuardrailsProperties,
+                        ObjectMapper objectMapper) {
+                this.syncRepository = syncRepository;
+                this.accountDeletionRepository = accountDeletionRepository;
+                this.syncGuardrailsProperties = syncGuardrailsProperties;
+                this.objectMapper = objectMapper;
+        }
+
+        public SyncService(SyncRepository syncRepository, AccountDeletionRepository accountDeletionRepository) {
+                this(
+                                syncRepository,
+                                accountDeletionRepository,
+                                new SyncGuardrailsProperties(),
+                                JsonMapper.builder().findAndAddModules().build());
+        }
 
         @Transactional(isolation = Isolation.REPEATABLE_READ)
         public SyncResponse sync(String deviceId, String guestUserId, String cursor, List<SyncOp> ops) {
@@ -89,7 +155,7 @@ public class SyncService {
 
                 ParsedCursor parsedCursor = parseCursorOrThrow(cursor, allowedEntityTypes);
 
-                validateOps(ops, allowedEntityTypes);
+                ops = validateAndCanonicalizeOps(ops, allowedEntityTypes);
                 Instant requestReceivedAt = Instant.now();
                 List<SyncOpPlan> plans = buildSyncPlan(ownerId, ops, requestReceivedAt);
                 List<SyncAck> acks = persistSyncPlan(deviceId, ownerId, plans, ops.size(), requestReceivedAt);
@@ -919,7 +985,7 @@ public class SyncService {
                 return SNAPSHOT_CURSOR_PREFIX + highWaterChangeId + ":" + entityType + ":" + entityId;
         }
 
-        private void validateOps(List<SyncOp> ops, List<String> allowedEntityTypes) {
+        private List<SyncOp> validateAndCanonicalizeOps(List<SyncOp> ops, List<String> allowedEntityTypes) {
                 if (ops == null) {
                         throw new ValidationException(
                                         "Invalid sync request",
@@ -928,9 +994,11 @@ public class SyncService {
                                                         "field", "ops",
                                                         "reason", "ops must not be null"));
                 }
+                List<SyncOp> canonicalOps = new ArrayList<>(ops.size());
                 for (SyncOp op : ops) {
-                        validateOp(op, allowedEntityTypes);
+                        canonicalOps.add(validateAndCanonicalizeOp(op, allowedEntityTypes));
                 }
+                return canonicalOps;
         }
 
         private enum CursorMode {
@@ -958,7 +1026,7 @@ public class SyncService {
                 }
         }
 
-        private void validateOp(SyncOp op, List<String> allowedEntityTypes) {
+        private SyncOp validateAndCanonicalizeOp(SyncOp op, List<String> allowedEntityTypes) {
                 if (op == null) {
                         throw new ValidationException(
                                         "Invalid sync operation",
@@ -967,12 +1035,14 @@ public class SyncService {
                                                         "reason", "op must not be null"));
                 }
                 String opId = normalizeValue(op.opId());
+                validateStringLength(op, "op_id", opId);
                 if (opId == null) {
                         throw new ValidationException(
                                         "Invalid sync operation",
                                         buildDetails(op, "op_id", "op_id must not be blank"));
                 }
                 String entityType = normalizeValue(op.entityType());
+                validateStringLength(op, "entity_type", entityType);
                 if (entityType == null) {
                         throw new ValidationException(
                                         "Invalid sync operation",
@@ -984,12 +1054,14 @@ public class SyncService {
                                         buildDetails(op, "entity_type", "unsupported entity type"));
                 }
                 String entityId = normalizeValue(op.entityId());
+                validateStringLength(op, "entity_id", entityId);
                 if (entityId == null) {
                         throw new ValidationException(
                                         "Invalid sync operation",
                                         buildDetails(op, "entity_id", "entity_id must not be blank"));
                 }
                 String opType = normalizeValue(op.opType());
+                validateStringLength(op, "op_type", opType);
                 if (opType == null) {
                         throw new ValidationException(
                                         "Invalid sync operation",
@@ -1006,11 +1078,120 @@ public class SyncService {
                                         "Invalid sync operation",
                                         buildDetails(op, "payload", "payload must not be null"));
                 }
-                validatePayloadEntityId(op, entityId);
+                validatePayloadShape(op);
+                Map<String, Object> canonicalPayload = canonicalizePayload(op, entityType, entityId);
+                SyncOp canonicalOp = new SyncOp(opId, entityType, entityId, normalizedOpType, canonicalPayload,
+                                op.clientTime());
+                validatePayloadEntityId(canonicalOp, entityId);
                 if (normalizedOpType.equals("delete")) {
-                        validateDeletePayload(op);
+                        validateDeletePayload(canonicalOp);
                 } else {
-                        validateUpsertPayload(op);
+                        validateUpsertPayload(canonicalOp);
+                }
+                return canonicalOp;
+        }
+
+        private void validatePayloadShape(SyncOp op) {
+                int payloadBytes = serializedPayloadBytes(op);
+                if (payloadBytes > syncGuardrailsProperties.getMaxPayloadBytes()) {
+                        throw new ValidationException(
+                                        "Invalid sync operation",
+                                        buildDetails(op, "payload", "payload exceeds max allowed serialized size"));
+                }
+                validateJsonValue(op, "payload", op.payload(), 1);
+                for (Map.Entry<String, Object> entry : op.payload().entrySet()) {
+                        if (!isScalar(entry.getValue())) {
+                                throw new ValidationException(
+                                                "Invalid sync operation",
+                                                buildDetails(op, "payload." + entry.getKey(),
+                                                                "payload values must be scalar"));
+                        }
+                }
+        }
+
+        private int serializedPayloadBytes(SyncOp op) {
+                try {
+                        return objectMapper.writeValueAsString(op.payload()).getBytes(StandardCharsets.UTF_8).length;
+                } catch (Exception ex) {
+                        throw new ValidationException(
+                                        "Invalid sync operation",
+                                        buildDetails(op, "payload", "payload must be serializable JSON"));
+                }
+        }
+
+        @SuppressWarnings("unchecked")
+        private void validateJsonValue(SyncOp op, String field, Object value, int depth) {
+                if (depth > syncGuardrailsProperties.getMaxJsonDepth()) {
+                        throw new ValidationException(
+                                        "Invalid sync operation",
+                                        buildDetails(op, field, "payload exceeds max JSON depth"));
+                }
+                if (value instanceof String stringValue) {
+                        validateStringLength(op, field, stringValue);
+                        return;
+                }
+                if (value instanceof Map<?, ?> mapValue) {
+                        for (Map.Entry<?, ?> entry : mapValue.entrySet()) {
+                                if (entry.getKey() instanceof String key) {
+                                        validateStringLength(op, field + "." + key, key);
+                                        validateJsonValue(op, field + "." + key, entry.getValue(), depth + 1);
+                                } else {
+                                        throw new ValidationException(
+                                                        "Invalid sync operation",
+                                                        buildDetails(op, field, "payload object keys must be strings"));
+                                }
+                        }
+                        return;
+                }
+                if (value instanceof List<?> listValue) {
+                        for (int i = 0; i < listValue.size(); i += 1) {
+                                validateJsonValue(op, field + "[" + i + "]", listValue.get(i), depth + 1);
+                        }
+                        return;
+                }
+                if (!isScalar(value)) {
+                        throw new ValidationException(
+                                        "Invalid sync operation",
+                                        buildDetails(op, field, "payload contains unsupported JSON value"));
+                }
+        }
+
+        private boolean isScalar(Object value) {
+                return value == null || value instanceof String || value instanceof Number || value instanceof Boolean;
+        }
+
+        private void validateStringLength(SyncOp op, String field, String value) {
+                if (value != null && value.length() > syncGuardrailsProperties.getMaxStringLength()) {
+                        throw new ValidationException(
+                                        "Invalid sync operation",
+                                        buildDetails(op, field, "string exceeds max allowed length"));
+                }
+        }
+
+        private Map<String, Object> canonicalizePayload(SyncOp op, String entityType, String entityId) {
+                Set<String> allowedFields = ALLOWED_PAYLOAD_FIELDS.get(entityType);
+                if (allowedFields == null) {
+                        throw new ValidationException(
+                                        "Invalid sync operation",
+                                        buildDetails(op, "entity_type", "unsupported entity type"));
+                }
+                Map<String, Object> source = new LinkedHashMap<>(op.payload());
+                copyTimestampAlias(source, "updatedAt", "updated_at");
+                copyTimestampAlias(source, "deletedAt", "deleted_at");
+                Map<String, Object> canonical = new LinkedHashMap<>();
+                for (Map.Entry<String, Object> entry : source.entrySet()) {
+                        if (allowedFields.contains(entry.getKey())) {
+                                canonical.put(entry.getKey(), entry.getValue());
+                        }
+                }
+                canonical.putIfAbsent("id", entityId);
+                return canonical;
+        }
+
+        private void copyTimestampAlias(Map<String, Object> payload, String alias, String canonicalField) {
+                Object aliasValue = payload.get(alias);
+                if (aliasValue != null && !payload.containsKey(canonicalField)) {
+                        payload.put(canonicalField, aliasValue);
                 }
         }
 

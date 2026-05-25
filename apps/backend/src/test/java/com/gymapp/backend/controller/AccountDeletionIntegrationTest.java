@@ -204,7 +204,7 @@ class AccountDeletionIntegrationTest {
         String linkedGuest = "guest-linked-" + UUID.randomUUID();
         String deviceId = "device-linked-" + UUID.randomUUID();
         String rawToken = "token-linked-" + UUID.randomUUID();
-        String deviceSecret = "secret-linked";
+        String deviceSecret = "sec_linked_123456";
         insertDevice(deviceId, linkedGuest, deviceSecret);
         insertToken(rawToken, deviceId, Instant.now().plusSeconds(3600));
         insertIdentityLink(linkedGuest, accountOwnerId);
@@ -534,7 +534,7 @@ class AccountDeletionIntegrationTest {
                 .andExpect(status().isNoContent());
 
         String deviceId = "device-public-unaffected-" + UUID.randomUUID();
-        String deviceSecret = "secret-public-unaffected";
+        String deviceSecret = "sec_public_unaffected_123456";
         MvcResult registerResult = mockMvc.perform(post("/device/register")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""

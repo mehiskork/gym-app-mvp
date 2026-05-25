@@ -23,7 +23,7 @@ export function getCurrentExerciseOwnerUserId(): string {
   return getClaimedUserId() ?? getOrCreateLocalUserId();
 }
 
-function enqueueExerciseSnapshot(exerciseId: string) {
+function enqueueExerciseSnapshot(exerciseId: string, opType: 'upsert' | 'delete' = 'upsert') {
   const row = query<Record<string, unknown>>(
     `
     SELECT *
@@ -39,7 +39,7 @@ function enqueueExerciseSnapshot(exerciseId: string) {
   enqueueOutboxOp({
     entityType: 'exercise',
     entityId: exerciseId,
-    opType: 'upsert',
+    opType,
     payloadJson: JSON.stringify(row),
   });
 }
@@ -87,6 +87,50 @@ export function createCustomExercise(name: string): string {
 export function listExercisesForCurrentUser(): ExerciseRow[] {
   return listExercises(getCurrentExerciseOwnerUserId());
 }
+
+export async function rewriteCustomExerciseOwnerAfterAccountClaim(
+  fromOwnerUserId: string,
+  toOwnerUserId: string,
+): Promise<number> {
+  const fromOwner = fromOwnerUserId.trim();
+  const toOwner = toOwnerUserId.trim();
+  if (!fromOwner || !toOwner || fromOwner === toOwner) return 0;
+
+  return inTransaction(() => {
+    const rows = query<{ id: string; deleted_at: string | null }>(
+      `
+      SELECT id, deleted_at
+      FROM exercise
+      WHERE is_custom = 1
+        AND owner_user_id = ?;
+    `,
+      [fromOwner],
+    );
+
+    if (rows.length === 0) return 0;
+
+    const exerciseIds = rows.map((row) => row.id);
+    const placeholders = exerciseIds.map(() => '?').join(', ');
+
+    exec(
+      `
+      UPDATE exercise
+      SET owner_user_id = ?, updated_at = datetime('now')
+      WHERE is_custom = 1
+        AND owner_user_id = ?
+        AND id IN (${placeholders});
+    `,
+      [toOwner, fromOwner, ...exerciseIds],
+    );
+
+    for (const row of rows) {
+      enqueueExerciseSnapshot(row.id, row.deleted_at !== null ? 'delete' : 'upsert');
+    }
+
+    return rows.length;
+  });
+}
+
 export function claimLegacyCustomExercisesForDevice(ownerUserId: string): number {
   return inTransaction(() => {
     const before =

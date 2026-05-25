@@ -28,6 +28,7 @@ import {
   createCustomExercise,
   getCurrentExerciseOwnerUserId,
   listExercisesForCurrentUser,
+  rewriteCustomExerciseOwnerAfterAccountClaim,
 } from '../exerciseRepo';
 
 describe('exerciseRepo createCustomExercise', () => {
@@ -91,5 +92,89 @@ describe('exerciseRepo createCustomExercise', () => {
     expect(query).toHaveBeenCalledWith(expect.stringContaining('FROM exercise'), [
       'https://securetoken.google.com/gym-app-mvp-1d7f0|firebase-uid',
     ]);
+  });
+
+  it('rewrites guest custom exercise owners and enqueues corrected active and deleted snapshots', async () => {
+    (query as jest.Mock).mockImplementation((sql: string, params?: unknown[]) => {
+      if (sql.includes('SELECT id, deleted_at') && sql.includes('FROM exercise')) {
+        expect(params).toEqual(['local-user-1']);
+        return [
+          { id: 'ex_custom-active', deleted_at: null },
+          { id: 'ex_custom-deleted', deleted_at: '2026-05-25 10:00:00' },
+        ];
+      }
+      if (sql.includes('SELECT *') && sql.includes('FROM exercise')) {
+        return [
+          {
+            id: params?.[0],
+            is_custom: 1,
+            owner_user_id: 'account-owner-1',
+            deleted_at: params?.[0] === 'ex_custom-deleted' ? '2026-05-25 10:00:00' : null,
+          },
+        ];
+      }
+      return [];
+    });
+
+    await expect(
+      rewriteCustomExerciseOwnerAfterAccountClaim('local-user-1', 'account-owner-1'),
+    ).resolves.toBe(2);
+
+    expect(exec).toHaveBeenCalledWith(expect.stringContaining('UPDATE exercise'), [
+      'account-owner-1',
+      'local-user-1',
+      'ex_custom-active',
+      'ex_custom-deleted',
+    ]);
+    expect(enqueueOutboxOp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entityType: 'exercise',
+        entityId: 'ex_custom-active',
+        opType: 'upsert',
+        payloadJson: expect.stringContaining('"owner_user_id":"account-owner-1"'),
+      }),
+    );
+    expect(enqueueOutboxOp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entityType: 'exercise',
+        entityId: 'ex_custom-deleted',
+        opType: 'delete',
+        payloadJson: expect.stringContaining('"deleted_at":"2026-05-25 10:00:00"'),
+      }),
+    );
+    expect(inTransaction).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not rewrite built-in, already-account-owned, or repeatedly rewritten exercises', async () => {
+    (query as jest.Mock).mockImplementation((sql: string, params?: unknown[]) => {
+      if (sql.includes('SELECT id, deleted_at') && params?.[0] === 'local-user-1') {
+        return [];
+      }
+      return [];
+    });
+
+    await expect(
+      rewriteCustomExerciseOwnerAfterAccountClaim('local-user-1', 'account-owner-1'),
+    ).resolves.toBe(0);
+
+    expect(exec).not.toHaveBeenCalled();
+    expect(enqueueOutboxOp).not.toHaveBeenCalled();
+  });
+
+  it('no-ops when owner arguments are blank or already matching', async () => {
+    await expect(rewriteCustomExerciseOwnerAfterAccountClaim('', 'account-owner-1')).resolves.toBe(
+      0,
+    );
+    await expect(rewriteCustomExerciseOwnerAfterAccountClaim('local-user-1', '   ')).resolves.toBe(
+      0,
+    );
+    await expect(
+      rewriteCustomExerciseOwnerAfterAccountClaim('account-owner-1', 'account-owner-1'),
+    ).resolves.toBe(0);
+
+    expect(query).not.toHaveBeenCalled();
+    expect(exec).not.toHaveBeenCalled();
+    expect(enqueueOutboxOp).not.toHaveBeenCalled();
+    expect(inTransaction).not.toHaveBeenCalled();
   });
 });

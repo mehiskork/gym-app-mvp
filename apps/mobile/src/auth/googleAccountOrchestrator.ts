@@ -2,6 +2,10 @@ import { api } from '../api/client';
 import { isAccountDeletedApiError } from '../api/errors';
 import { getMeWithAccessToken } from '../api/accountClient';
 import {
+  getCurrentExerciseOwnerUserId,
+  rewriteCustomExerciseOwnerAfterAccountClaim,
+} from '../db/exerciseRepo';
+import {
   getClaimedUserId,
   pauseSync,
   resumeSync,
@@ -62,6 +66,7 @@ export async function createGoogleAccountFromGuest(): Promise<GoogleAccountSignI
   }
 
   await assertGuestOutboxDrained();
+  const previousExerciseOwnerUserId = getCurrentExerciseOwnerUserId();
   pauseSync('claim');
 
   let result: GoogleAccountSignInResult | null = null;
@@ -95,7 +100,17 @@ export async function createGoogleAccountFromGuest(): Promise<GoogleAccountSignI
 
     setClaimed(true);
     setClaimedUserId(claimConfirm.userId);
-    await getMeWithAccessToken(accountSession.accessToken);
+    const me = await getMeWithAccessToken(accountSession.accessToken);
+    const accountExerciseOwnerUserId = me.activeAccountOwnerId ?? me.externalAccountId;
+    if (accountExerciseOwnerUserId !== claimConfirm.userId) {
+      throw new Error(
+        'Different account detected. Sign out and reset local data before switching accounts.',
+      );
+    }
+    await rewriteCustomExerciseOwnerAfterAccountClaim(
+      previousExerciseOwnerUserId,
+      accountExerciseOwnerUserId,
+    );
     await accountSessionStore.set(accountSession);
     sessionStored = true;
     resetSyncCursor();

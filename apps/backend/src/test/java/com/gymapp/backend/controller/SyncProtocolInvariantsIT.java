@@ -158,7 +158,7 @@ class SyncProtocolInvariantsIT {
         private RegisteredDevice registerDevice() throws Exception {
                 String deviceId = "device-" + System.nanoTime();
                 String requestBody = """
-                                {"deviceId":"%s","deviceSecret":"secret"}
+                                {"deviceId":"%s","deviceSecret":"sec_12345678901234567890"}
                                 """.formatted(deviceId);
 
                 MvcResult registrationResult = mockMvc.perform(post("/device/register")

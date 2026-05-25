@@ -5,9 +5,15 @@ import { getMeWithAccessToken } from '../../api/accountClient';
 import {
   getClaimedUserId,
   isLinkedAccountState,
+  pauseSync,
+  resumeSync,
   setClaimed,
   setClaimedUserId,
 } from '../../db/appMetaRepo';
+import {
+  getCurrentExerciseOwnerUserId,
+  rewriteCustomExerciseOwnerAfterAccountClaim,
+} from '../../db/exerciseRepo';
 import { listNonAckedOutboxOps, repairStaleInFlightOps } from '../../db/outboxRepo';
 import { resetSyncCursor } from '../../db/syncStateRepo';
 import { syncNow } from '../../sync/syncWorker';
@@ -38,6 +44,11 @@ jest.mock('../../db/appMetaRepo', () => ({
 jest.mock('../../db/outboxRepo', () => ({
   listNonAckedOutboxOps: jest.fn(),
   repairStaleInFlightOps: jest.fn(),
+}));
+
+jest.mock('../../db/exerciseRepo', () => ({
+  getCurrentExerciseOwnerUserId: jest.fn(() => 'local-user-1'),
+  rewriteCustomExerciseOwnerAfterAccountClaim: jest.fn(() => Promise.resolve(0)),
 }));
 
 jest.mock('../../db/syncStateRepo', () => ({
@@ -114,6 +125,8 @@ describe('createGoogleAccountFromGuest', () => {
     (syncNow as jest.Mock).mockResolvedValue(undefined);
     (listNonAckedOutboxOps as jest.Mock).mockReturnValue([]);
     (repairStaleInFlightOps as jest.Mock).mockReturnValue(0);
+    (getCurrentExerciseOwnerUserId as jest.Mock).mockReturnValue('local-user-1');
+    (rewriteCustomExerciseOwnerAfterAccountClaim as jest.Mock).mockResolvedValue(0);
     (isLinkedAccountState as jest.Mock).mockReturnValue(false);
     (accountSessionStore.getUsable as jest.Mock).mockResolvedValue(null);
     (handleRemoteAccountDeletedCleanup as jest.Mock).mockResolvedValue(undefined);
@@ -189,6 +202,25 @@ describe('createGoogleAccountFromGuest', () => {
       'https://securetoken.google.com/gym-app-mvp-1d7f0|firebase-uid',
     );
     expect(getMeWithAccessToken).toHaveBeenCalledWith('firebase-id-token');
+    expect(rewriteCustomExerciseOwnerAfterAccountClaim).toHaveBeenCalledWith(
+      'local-user-1',
+      'https://securetoken.google.com/gym-app-mvp-1d7f0|firebase-uid',
+    );
+    expect(
+      (rewriteCustomExerciseOwnerAfterAccountClaim as jest.Mock).mock.invocationCallOrder[0],
+    ).toBeLessThan((accountSessionStore.set as jest.Mock).mock.invocationCallOrder[0]);
+    expect(
+      (rewriteCustomExerciseOwnerAfterAccountClaim as jest.Mock).mock.invocationCallOrder[0],
+    ).toBeLessThan((resetSyncCursor as jest.Mock).mock.invocationCallOrder[0]);
+    expect((pauseSync as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
+      (rewriteCustomExerciseOwnerAfterAccountClaim as jest.Mock).mock.invocationCallOrder[0],
+    );
+    expect(
+      (rewriteCustomExerciseOwnerAfterAccountClaim as jest.Mock).mock.invocationCallOrder[0],
+    ).toBeLessThan((resumeSync as jest.Mock).mock.invocationCallOrder[0]);
+    expect((resumeSync as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
+      (syncNow as jest.Mock).mock.invocationCallOrder[1],
+    );
   });
 
   it('can continue guest claim preflight after sync recovers a missing device token and drains outbox', async () => {
@@ -246,6 +278,10 @@ describe('createGoogleAccountFromGuest', () => {
 
     expect(setClaimed).toHaveBeenCalledWith(true);
     expect(setClaimedUserId).toHaveBeenCalledWith('account|new-generation');
+    expect(rewriteCustomExerciseOwnerAfterAccountClaim).toHaveBeenCalledWith(
+      'local-user-1',
+      'account|new-generation',
+    );
     expect(accountSessionStore.set).toHaveBeenCalledTimes(1);
     expect(signOutFromGoogle).not.toHaveBeenCalled();
   });
@@ -276,6 +312,7 @@ describe('createGoogleAccountFromGuest', () => {
 
     expect(accountSessionStore.set).not.toHaveBeenCalled();
     expect(resetSyncCursor).not.toHaveBeenCalled();
+    expect(rewriteCustomExerciseOwnerAfterAccountClaim).not.toHaveBeenCalled();
     expect(signOutFromGoogle).toHaveBeenCalledTimes(1);
   });
 
@@ -400,6 +437,7 @@ describe('createGoogleAccountFromGuest', () => {
     expect(setClaimed).toHaveBeenCalledWith(true);
     expect(accountSessionStore.set).not.toHaveBeenCalled();
     expect(resetSyncCursor).not.toHaveBeenCalled();
+    expect(rewriteCustomExerciseOwnerAfterAccountClaim).not.toHaveBeenCalled();
     expect(signOutFromGoogle).toHaveBeenCalledTimes(1);
     expect(getMeWithAccessToken).toHaveBeenCalledWith('firebase-id-token');
   });

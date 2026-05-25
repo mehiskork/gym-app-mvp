@@ -294,6 +294,103 @@ class SyncControllerValidationIT {
                                 .andExpect(jsonPath("$.details.actual").value(3));
         }
 
+        @Test
+        void oversizedSinglePayloadReturnsValidationErrorAndWritesNoSyncRows() throws Exception {
+                String deviceId = "device-payload-too-large";
+                String token = seedDeviceAndToken(deviceId);
+                String payload = """
+                                {"cursor":null,"ops":[{"opId":"op-payload-large","entityType":"program","entityId":"program-payload-large","opType":"upsert","payload":{"id":"program-payload-large","name":"%s","updated_at":"2026-02-13T12:34:56Z"}}]}
+                                """.formatted("a".repeat(8200));
+
+                mockMvc.perform(post("/sync")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .header("Authorization", "Bearer " + token)
+                                .content(payload))
+                                .andExpect(status().isBadRequest())
+                                .andExpect(jsonPath("$.code").value("SYNC_VALIDATION_ERROR"))
+                                .andExpect(jsonPath("$.details.field").value("payload"));
+
+                assertNoSyncRowsForRejectedOwner(guestUserIdForDevice(deviceId));
+        }
+
+        @Test
+        void tooLongStringReturnsValidationErrorAndWritesNoSyncRows() throws Exception {
+                String deviceId = "device-string-too-long";
+                String token = seedDeviceAndToken(deviceId);
+                String payload = """
+                                {"cursor":null,"ops":[{"opId":"op-string-long","entityType":"program","entityId":"program-string-long","opType":"upsert","payload":{"id":"program-string-long","name":"%s","updated_at":"2026-02-13T12:34:56Z"}}]}
+                                """.formatted("a".repeat(4100));
+
+                mockMvc.perform(post("/sync")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .header("Authorization", "Bearer " + token)
+                                .content(payload))
+                                .andExpect(status().isBadRequest())
+                                .andExpect(jsonPath("$.code").value("SYNC_VALIDATION_ERROR"))
+                                .andExpect(jsonPath("$.details.reason").value("string exceeds max allowed length"));
+
+                assertNoSyncRowsForRejectedOwner(guestUserIdForDevice(deviceId));
+        }
+
+        @Test
+        void nestedPayloadReturnsValidationErrorAndWritesNoSyncRows() throws Exception {
+                String deviceId = "device-payload-nested";
+                String token = seedDeviceAndToken(deviceId);
+                String payload = """
+                                {"cursor":null,"ops":[{"opId":"op-payload-nested","entityType":"program","entityId":"program-payload-nested","opType":"upsert","payload":{"id":"program-payload-nested","name":"Valid","unknown":{"nested":"value"},"updated_at":"2026-02-13T12:34:56Z"}}]}
+                                """;
+
+                mockMvc.perform(post("/sync")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .header("Authorization", "Bearer " + token)
+                                .content(payload))
+                                .andExpect(status().isBadRequest())
+                                .andExpect(jsonPath("$.code").value("SYNC_VALIDATION_ERROR"))
+                                .andExpect(jsonPath("$.details.reason").value("payload values must be scalar"));
+
+                assertNoSyncRowsForRejectedOwner(guestUserIdForDevice(deviceId));
+        }
+
+        @Test
+        void unknownPayloadFieldsAreStrippedBeforeStorage() throws Exception {
+                String deviceId = "device-unknown-strip";
+                String token = seedDeviceAndToken(deviceId);
+                String payload = """
+                                {"cursor":null,"ops":[{"opId":"op-unknown-strip","entityType":"program","entityId":"program-unknown-strip","opType":"upsert","payload":{"id":"program-unknown-strip","name":"Known","ignored_field":"drop-me","updated_at":"2026-02-13T12:34:56Z"}}]}
+                                """;
+
+                mockMvc.perform(post("/sync")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .header("Authorization", "Bearer " + token)
+                                .content(payload))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.acks[0].opId").value("op-unknown-strip"));
+
+                String guestUserId = guestUserIdForDevice(deviceId);
+                assertThat(storedPayloadText("entity_state", guestUserId, "program", "program-unknown-strip",
+                                "ignored_field")).isNull();
+                assertThat(storedPayloadText("change_log", guestUserId, "program", "program-unknown-strip",
+                                "ignored_field")).isNull();
+                assertThat(storedPayloadText("entity_state", guestUserId, "program", "program-unknown-strip",
+                                "name")).isEqualTo("Known");
+        }
+
+        @Test
+        void validMobileShapedPayloadStillSyncs() throws Exception {
+                String token = seedDeviceAndToken("device-valid-mobile-payload");
+                String payload = """
+                                {"cursor":null,"ops":[{"opId":"op-mobile-valid","entityType":"exercise","entityId":"ex_custom_valid_mobile","opType":"upsert","payload":{"id":"ex_custom_valid_mobile","name":"Bench Press","normalized_name":"bench press","is_custom":1,"owner_user_id":"usr_123","equipment":"barbell","primary_muscle":"chest","notes":null,"exercise_type":"strength","cardio_profile":null,"created_at":"2026-02-13 12:00:00","updated_at":"2026-02-13 12:34:56","deleted_at":null,"version":1,"last_modified_by_device_id":"dev_123"}}]}
+                                """;
+
+                mockMvc.perform(post("/sync")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .header("Authorization", "Bearer " + token)
+                                .content(payload))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.acks[0].opId").value("op-mobile-valid"))
+                                .andExpect(jsonPath("$.acks[0].status").value("applied"));
+        }
+
         private String seedDeviceAndToken(String deviceId) {
                 String guestUserId = guestUserIdForDevice(deviceId);
                 String rawToken = "token-" + deviceId;
@@ -327,6 +424,18 @@ class SyncControllerValidationIT {
                                                 WHERE guest_user_id = ? AND entity_type = ? AND entity_id = ?
                                                 """,
                                 String.class,
+                                guestUserId,
+                                entityType,
+                                entityId);
+        }
+
+        private String storedPayloadText(String table, String guestUserId, String entityType, String entityId,
+                        String field) {
+                return jdbcTemplate.queryForObject(
+                                "SELECT row_json ->> ? FROM " + table
+                                                + " WHERE guest_user_id = ? AND entity_type = ? AND entity_id = ?",
+                                String.class,
+                                field,
                                 guestUserId,
                                 entityType,
                                 entityId);

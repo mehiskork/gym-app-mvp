@@ -49,6 +49,7 @@ public class SecurityConfig {
     private final DeviceTokenRepository deviceTokenRepository;
     private final RateLimitFilter rateLimitFilter;
     private final AccountSyncRateLimitFilter accountSyncRateLimitFilter;
+    private final SyncRequestSizeLimitFilter syncRequestSizeLimitFilter;
     private final ObjectMapper objectMapper;
     private final PrincipalMapper principalMapper;
     private final FirebaseJwtValidator firebaseJwtValidator;
@@ -131,6 +132,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/sync").authenticated()
                         .anyRequest().denyAll())
+                .addFilterBefore(syncRequestSizeLimitFilter, BearerDeviceAuthFilter.class)
                 .addFilterBefore(bearerFilter, BearerTokenAuthenticationFilter.class)
                 .addFilterBefore(rateLimitFilter, BearerDeviceAuthFilter.class)
                 .addFilterAfter(accountSyncRateLimitFilter, BearerTokenAuthenticationFilter.class)
