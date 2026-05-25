@@ -3,6 +3,8 @@ import type { CardioProfile, ExerciseType } from './exerciseTypes';
 
 export type SessionDetailSession = {
   id: string;
+  source_workout_plan_id: string | null;
+  source_program_day_id: string | null;
   title: string;
   status: string;
   started_at: string;
@@ -52,6 +54,8 @@ export function fetchSessionDetail(sessionId: string): {
     `
     SELECT
       id,
+      source_workout_plan_id,
+      source_program_day_id,
       title,
       status,
       started_at,

@@ -13,7 +13,7 @@ export type RootStackParamList = {
   StartWorkout: undefined;
   WorkoutSession: { sessionId: string };
 
-  SessionDetail: { sessionId: string };
+  SessionDetail: { sessionId: string; postFinish?: boolean };
 
   ExerciseDetail: { exerciseId: string };
 

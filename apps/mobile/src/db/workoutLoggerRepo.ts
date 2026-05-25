@@ -29,6 +29,8 @@ const EXERCISE_POSITION_SHIFT_OFFSET = 1_000_000;
 
 export type LoggerSession = {
   id: string;
+  source_workout_plan_id: string | null;
+  source_program_day_id: string | null;
   title: string;
   status: WorkoutSessionStatus;
   started_at: string;
@@ -295,6 +297,8 @@ export function getWorkoutLoggerData(sessionId: string): {
 
   const session: LoggerSession = {
     id: detail.session.id,
+    source_workout_plan_id: detail.session.source_workout_plan_id,
+    source_program_day_id: detail.session.source_program_day_id,
     title: detail.session.title,
     status: detail.session.status as WorkoutSessionStatus,
     started_at: detail.session.started_at,

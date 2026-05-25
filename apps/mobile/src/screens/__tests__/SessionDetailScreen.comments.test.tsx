@@ -32,8 +32,35 @@ jest.mock('react-native-safe-area-context', () => {
   };
 });
 
+jest.mock('../../ui', () => {
+  const React = require('react');
+  return {
+    BottomSheetModal: ({
+      children,
+      visible,
+      ...props
+    }: {
+      children?: React.ReactNode;
+      visible?: boolean;
+    }) => (visible ? React.createElement('BottomSheetModal', props, children) : null),
+    Button: (props: { children?: React.ReactNode }) =>
+      React.createElement('Button', props, props.children),
+    Input: (props: { children?: React.ReactNode }) =>
+      React.createElement('Input', props, props.children),
+    ListRow: (props: { children?: React.ReactNode; right?: React.ReactNode }) =>
+      React.createElement('ListRow', props, props.children, props.right),
+    Snackbar: (props: { children?: React.ReactNode }) =>
+      React.createElement('Snackbar', props, props.children),
+  };
+});
+
 jest.mock('../../db/historyRepo', () => ({
   getSessionDetail: jest.fn(),
+}));
+
+jest.mock('../../db/workoutPlanRepo', () => ({
+  listWorkoutPlansWithSessionCounts: jest.fn(() => []),
+  saveCompletedQuickWorkoutAsPlan: jest.fn(),
 }));
 
 jest.mock('../../db/prRepo', () => ({
@@ -43,8 +70,41 @@ jest.mock('../../db/prRepo', () => ({
 
 import React from 'react';
 import { getSessionDetail } from '../../db/historyRepo';
+import {
+  listWorkoutPlansWithSessionCounts,
+  saveCompletedQuickWorkoutAsPlan,
+} from '../../db/workoutPlanRepo';
 import { SessionDetailScreen } from '../SessionDetailScreen';
 import type { SessionSetRow } from '../../db/historyRepo';
+import { Button } from '../../ui';
+
+const findElementsByType = <P,>(
+  node: React.ReactNode,
+  type: React.ElementType | string,
+  acc: Array<React.ReactElement<P>> = [],
+) => {
+  if (!node) return acc;
+  if (Array.isArray(node)) {
+    node.forEach((child) => findElementsByType<P>(child, type, acc));
+    return acc;
+  }
+  if (React.isValidElement<React.PropsWithChildren<P>>(node)) {
+    if (node.type === type) acc.push(node as React.ReactElement<P>);
+    Object.values(node.props ?? {}).forEach((value) => {
+      if (
+        value &&
+        (React.isValidElement(value) ||
+          Array.isArray(value) ||
+          typeof value === 'string' ||
+          typeof value === 'number')
+      ) {
+        findElementsByType<P>(value, type, acc);
+      }
+    });
+    return acc;
+  }
+  return acc;
+};
 
 describe('SessionDetailScreen comments', () => {
   const useStateMock = React.useState as jest.Mock;
@@ -53,6 +113,14 @@ describe('SessionDetailScreen comments', () => {
     useStateMock.mockReset();
     useStateMock.mockImplementation((initial: unknown) => [initial, jest.fn()]);
     (getSessionDetail as jest.Mock).mockReset();
+    (listWorkoutPlansWithSessionCounts as jest.Mock).mockReset();
+    (listWorkoutPlansWithSessionCounts as jest.Mock).mockReturnValue([]);
+    (saveCompletedQuickWorkoutAsPlan as jest.Mock).mockReset();
+    (saveCompletedQuickWorkoutAsPlan as jest.Mock).mockResolvedValue({
+      workoutPlanId: 'plan-1',
+      programDayId: 'day-1',
+      createdPlan: true,
+    });
   });
 
   it('shows exercise comment in history details', () => {
@@ -225,5 +293,134 @@ describe('SessionDetailScreen comments', () => {
     expect(serialized).toContain('Duration 20 min');
     expect(serialized).not.toContain('Pace ');
     expect(serialized).not.toContain('s/km');
+  });
+
+  it('shows reuse action for eligible quick workouts', () => {
+    const session = {
+      id: 's-5',
+      source_workout_plan_id: null,
+      source_program_day_id: null,
+      title: 'Quick Workout',
+      started_at: '2026-01-05T00:00:00Z',
+      ended_at: '2026-01-05T01:00:00Z',
+      workout_note: null,
+      can_reuse_as_plan: 1,
+    };
+
+    useStateMock.mockImplementationOnce(() => [session, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [[], jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [[], jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [[], jest.fn()]);
+    (getSessionDetail as jest.Mock).mockReturnValue({ session, exercises: [], sets: [] });
+
+    const element = SessionDetailScreen({
+      navigation: { setOptions: jest.fn(), navigate: jest.fn() },
+      route: {
+        key: 'SessionDetail',
+        name: 'SessionDetail',
+        params: { sessionId: 's-5', postFinish: true },
+      },
+    } as never);
+
+    const serialized = JSON.stringify(element);
+    expect(serialized).toContain('Reuse this workout');
+    expect(serialized).toContain(
+      'Save exercises, sets, reps, and weights so you can use this workout again.',
+    );
+  });
+
+  it('hides reuse action for planned workouts', () => {
+    const session = {
+      id: 's-6',
+      source_workout_plan_id: 'plan-1',
+      source_program_day_id: 'day-1',
+      title: 'Push',
+      started_at: '2026-01-06T00:00:00Z',
+      ended_at: '2026-01-06T01:00:00Z',
+      workout_note: null,
+      can_reuse_as_plan: 0,
+    };
+
+    useStateMock.mockImplementationOnce(() => [session, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [[], jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [[], jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [[], jest.fn()]);
+    (getSessionDetail as jest.Mock).mockReturnValue({ session, exercises: [], sets: [] });
+
+    const element = SessionDetailScreen({
+      navigation: { setOptions: jest.fn(), navigate: jest.fn() },
+      route: { key: 'SessionDetail', name: 'SessionDetail', params: { sessionId: 's-6' } },
+    } as never);
+
+    expect(JSON.stringify(element)).not.toContain(
+      'Save exercises, sets, reps, and weights so you can use this workout again.',
+    );
+  });
+
+  it('save sheet can call new-plan and existing-plan saves while full plans are disabled', () => {
+    const navigation = { setOptions: jest.fn(), navigate: jest.fn() };
+    const session = {
+      id: 's-7',
+      source_workout_plan_id: null,
+      source_program_day_id: null,
+      title: 'Quick Workout',
+      started_at: '2026-01-07T00:00:00Z',
+      ended_at: '2026-01-07T01:00:00Z',
+      workout_note: null,
+      can_reuse_as_plan: 1,
+    };
+    const plans = [
+      {
+        id: 'plan-open',
+        name: 'Open Plan',
+        description: null,
+        is_template: 0,
+        sessionCount: 2,
+      },
+      {
+        id: 'plan-full',
+        name: 'Full Plan',
+        description: null,
+        is_template: 0,
+        sessionCount: 15,
+      },
+    ];
+
+    useStateMock.mockImplementationOnce(() => [session, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [[], jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [[], jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [[], jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [true, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => ['Quick Workout Plan', jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [plans, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [false, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+    (getSessionDetail as jest.Mock).mockReturnValue({ session, exercises: [], sets: [] });
+
+    const element = SessionDetailScreen({
+      navigation,
+      route: { key: 'SessionDetail', name: 'SessionDetail', params: { sessionId: 's-7' } },
+    } as never);
+
+    const buttons = findElementsByType(element, Button) as Array<
+      React.ReactElement<React.ComponentProps<typeof Button>>
+    >;
+    const createButton = buttons.find((button) => button.props.title === 'Create new plan');
+    const addButton = buttons.find((button) => button.props.title === 'Add');
+    const fullButton = buttons.find((button) => button.props.title === 'Plan is full');
+
+    createButton?.props.onPress?.({} as never);
+    expect(saveCompletedQuickWorkoutAsPlan).toHaveBeenCalledWith({
+      sessionId: 's-7',
+      target: { kind: 'newPlan', name: 'Quick Workout Plan' },
+    });
+
+    addButton?.props.onPress?.({} as never);
+    expect(saveCompletedQuickWorkoutAsPlan).toHaveBeenCalledWith({
+      sessionId: 's-7',
+      target: { kind: 'existingPlan', workoutPlanId: 'plan-open' },
+    });
+    expect(fullButton?.props.disabled).toBe(true);
+    expect(JSON.stringify(element)).toContain('Plan is full');
   });
 });

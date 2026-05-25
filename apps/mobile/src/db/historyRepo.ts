@@ -7,10 +7,13 @@ import type { CardioProfile, ExerciseType } from './exerciseTypes';
 
 export type CompletedSessionRow = {
   id: string;
+  source_workout_plan_id: string | null;
+  source_program_day_id: string | null;
   title: string;
   started_at: string;
   ended_at: string | null;
   workout_note: string | null;
+  can_reuse_as_plan: number;
 };
 
 export type RecentSessionSummaryRow = {
@@ -79,7 +82,18 @@ function enqueueEntitySnapshot(
 export function listCompletedSessions(limit = 50): CompletedSessionRow[] {
   return query<CompletedSessionRow>(
     `
-     SELECT id, title, started_at, ended_at, workout_note
+     SELECT
+       id,
+       source_workout_plan_id,
+       source_program_day_id,
+       title,
+       started_at,
+       ended_at,
+       workout_note,
+       CASE
+         WHEN source_workout_plan_id IS NULL AND source_program_day_id IS NULL THEN 1
+         ELSE 0
+       END AS can_reuse_as_plan
     FROM workout_session
     WHERE status = '${WORKOUT_SESSION_STATUS.COMPLETED}' AND deleted_at IS NULL
     ORDER BY COALESCE(ended_at, started_at) DESC
@@ -305,10 +319,18 @@ export function getSessionDetail(sessionId: string): {
 
   const session: CompletedSessionRow = {
     id: detail.session.id,
+    source_workout_plan_id: detail.session.source_workout_plan_id,
+    source_program_day_id: detail.session.source_program_day_id,
     title: detail.session.title,
     started_at: detail.session.started_at,
     ended_at: detail.session.ended_at,
     workout_note: detail.session.workout_note,
+    can_reuse_as_plan:
+      detail.session.status === WORKOUT_SESSION_STATUS.COMPLETED &&
+      detail.session.source_workout_plan_id === null &&
+      detail.session.source_program_day_id === null
+        ? 1
+        : 0,
   };
 
   const isCompletedStrengthSet = (set: SessionSetRow): boolean => set.is_completed === 1;

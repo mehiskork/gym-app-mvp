@@ -38,6 +38,7 @@ type Scenario = {
     position: number;
     plannedSets: Array<{
       set_index: number;
+      target_weight?: number | null;
       target_reps_min: number | null;
       rest_seconds: number | null;
     }>;
@@ -345,6 +346,46 @@ describe('createSessionFromPlanDay prefill', () => {
 
     expect(setInserts).toHaveLength(3);
     expect(setInserts[0][1]).toEqual(['set-1', 'wse-1', 1, 0, 5, 150]);
+    expect(setInserts[2][1]).toEqual(['set-3', 'wse-1', 3, 0, 5, 150]);
+  });
+
+  it('prefills weight from planned target before falling back to history', () => {
+    setupScenario({
+      exercises: [
+        {
+          dayExerciseId: 'pde-bench',
+          exerciseId: 'bench',
+          exerciseName: 'Bench',
+          position: 1,
+          plannedSets: [
+            { set_index: 1, target_weight: 70, target_reps_min: 5, rest_seconds: 150 },
+            { set_index: 2, target_weight: null, target_reps_min: 5, rest_seconds: 150 },
+            { set_index: 3, target_weight: null, target_reps_min: 5, rest_seconds: 150 },
+          ],
+          historicalSets: [
+            { weight: 65, reps: 5, rest_seconds: 120 },
+            { weight: 67.5, reps: 5, rest_seconds: 120 },
+          ],
+        },
+      ],
+    });
+
+    (newId as jest.Mock)
+      .mockReturnValueOnce('ws-1')
+      .mockReturnValueOnce('wse-1')
+      .mockReturnValueOnce('set-1')
+      .mockReturnValueOnce('set-2')
+      .mockReturnValueOnce('set-3');
+
+    createSessionFromPlanDay({ workoutPlanId: 'plan-1', dayId: 'day-1' });
+
+    const setInserts = (exec as jest.Mock).mock.calls.filter((call) =>
+      String(call[0]).includes('INSERT INTO workout_set'),
+    );
+
+    expect(setInserts).toHaveLength(3);
+    expect(setInserts[0][1]).toEqual(['set-1', 'wse-1', 1, 70, 5, 120]);
+    expect(setInserts[1][1]).toEqual(['set-2', 'wse-1', 2, 67.5, 5, 120]);
     expect(setInserts[2][1]).toEqual(['set-3', 'wse-1', 3, 0, 5, 150]);
   });
 

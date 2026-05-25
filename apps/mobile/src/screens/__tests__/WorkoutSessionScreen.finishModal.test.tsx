@@ -797,6 +797,88 @@ describe('WorkoutSessionScreen finish modal', () => {
     });
   });
 
+  it('routes completed Quick Workouts to session details after finishing', () => {
+    const { session, exercises } = setupBaseState({
+      session: {
+        id: 'session-quick',
+        title: 'Quick Workout',
+        status: 'in_progress',
+        started_at: '2024-01-01T00:00:00Z',
+        workout_note: null,
+        source_workout_plan_id: null,
+        source_program_day_id: null,
+      } as never,
+      exercises: [
+        {
+          id: 'exercise-1',
+          exercise_id: 'bench-press',
+          exercise_name: 'Bench Press',
+          exercise_type: EXERCISE_TYPE.STRENGTH,
+          position: 1,
+          sets: [
+            {
+              id: 'set-1',
+              workout_session_exercise_id: 'exercise-1',
+              set_index: 1,
+              weight: 100,
+              reps: 5,
+              rpe: null,
+              rest_seconds: 90,
+              notes: null,
+              is_completed: 1,
+            },
+          ],
+        },
+      ],
+    });
+
+    useStateMock.mockImplementationOnce(() => [session, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [exercises, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [0, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [
+      {
+        defaultRestSeconds: 120,
+        autoStartRestTimer: true,
+        restTimerVibration: true,
+        keepScreenOn: true,
+        restTimerNotifications: false,
+      },
+      jest.fn(),
+    ]);
+    useStateMock.mockImplementationOnce(() => [true, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [false, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [{ visible: false, payload: null }, jest.fn()]);
+
+    (getWorkoutLoggerData as jest.Mock).mockReturnValue({ session, exercises });
+
+    const navigation = {
+      navigate: jest.fn(),
+      dispatch: jest.fn(),
+      setOptions: jest.fn(),
+      replace: jest.fn(),
+    };
+    const element = WorkoutSessionScreen({
+      navigation,
+      route: { key: 'WorkoutSession', name: 'WorkoutSession', params: { sessionId: session.id } },
+    } as never);
+
+    const buttons = findElementsByType(element, Button) as Array<
+      React.ReactElement<React.ComponentProps<typeof Button>>
+    >;
+    const finishButton = buttons.find((button) => button.props.title === 'Finish');
+
+    finishButton?.props.onPress?.({} as never);
+
+    expect(completeSession).toHaveBeenCalledWith(session.id, '');
+    expect(clearRestTimer).toHaveBeenCalledWith(session.id);
+    expect(cancelRestTimerNotification).toHaveBeenCalledTimes(1);
+    expect(navigation.replace).toHaveBeenCalledWith('SessionDetail', {
+      sessionId: session.id,
+      postFinish: true,
+    });
+    expect(CommonActions.reset).not.toHaveBeenCalled();
+  });
+
   it('passes workout note to completeSession when finishing', () => {
     const { session, exercises } = setupBaseState();
 

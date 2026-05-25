@@ -210,6 +210,7 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
 
   const handleFinish = useCallback(() => {
     if (isFinishing || finishingRef.current) return;
+    if (!session) return;
     finishingRef.current = true;
     setIsFinishing(true);
     setFinishOpen(false);
@@ -218,6 +219,14 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
         const completed = completeSession(sessionId, workoutNoteDraft);
         if (!completed) {
           discardSession(sessionId);
+        } else if (
+          session.source_workout_plan_id === null &&
+          session.source_program_day_id === null
+        ) {
+          clearRestTimer(sessionId);
+          void cancelRestTimerNotification();
+          navigation.replace('SessionDetail', { sessionId, postFinish: true });
+          return;
         }
       } else {
         discardSession(sessionId);
@@ -230,7 +239,16 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
       finishingRef.current = false;
       setIsFinishing(false);
     }
-  }, [isFinishing, load, resetToHome, sessionId, totals.hasLoggedWork, workoutNoteDraft]);
+  }, [
+    isFinishing,
+    load,
+    navigation,
+    resetToHome,
+    session,
+    sessionId,
+    totals.hasLoggedWork,
+    workoutNoteDraft,
+  ]);
 
   const handleCloseFinish = useCallback(() => {
     if (isFinishing) return;

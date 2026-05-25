@@ -2,7 +2,13 @@ import { exec, query } from './db';
 import { inTransaction } from './tx';
 import { newId } from '../utils/ids';
 import { enqueueOutboxOp } from './outboxRepo';
-import { MAX_SESSIONS_PER_PLAN, WorkoutLimitError, WORKOUT_LIMIT_MESSAGES } from './workoutLimits';
+import {
+  MAX_EXERCISES_PER_SESSION,
+  MAX_SESSIONS_PER_PLAN,
+  WorkoutLimitError,
+  WORKOUT_LIMIT_MESSAGES,
+} from './workoutLimits';
+import { WORKOUT_SESSION_STATUS } from './constants';
 
 export type WorkoutPlanRow = {
   id: string;
@@ -19,6 +25,36 @@ export type WorkoutPlanDayRow = {
   id: string;
   day_index: number;
   name: string | null;
+};
+
+export type SaveCompletedQuickWorkoutTarget =
+  | { kind: 'newPlan'; name: string }
+  | { kind: 'existingPlan'; workoutPlanId: string };
+
+export type SaveCompletedQuickWorkoutResult = {
+  workoutPlanId: string;
+  programDayId: string;
+  createdPlan: boolean;
+};
+
+type ReusableSessionRow = {
+  id: string;
+  title: string;
+  source_workout_plan_id: string | null;
+  source_program_day_id: string | null;
+};
+
+type CopyableExerciseRow = {
+  id: string;
+  exercise_id: string;
+  position: number;
+};
+
+type CopyableSetRow = {
+  workout_session_exercise_id: string;
+  weight: number | null;
+  reps: number | null;
+  set_index: number;
 };
 
 function getOrCreateWeek1Id(workoutPlanId: string): string {
@@ -43,6 +79,30 @@ function getOrCreateWeek1Id(workoutPlanId: string): string {
     [weekId, workoutPlanId],
   );
   return weekId;
+}
+
+function getOrCreateWeek1(workoutPlanId: string): { id: string; created: boolean } {
+  const existing = query<{ id: string }>(
+    `
+    SELECT id
+    FROM program_week
+    WHERE program_id = ? AND week_index = 1 AND deleted_at IS NULL
+    LIMIT 1;
+  `,
+    [workoutPlanId],
+  )[0];
+
+  if (existing?.id) return { id: existing.id, created: false };
+
+  const id = newId('week');
+  exec(
+    `
+    INSERT INTO program_week (id, program_id, week_index)
+    VALUES (?, ?, 1);
+  `,
+    [id, workoutPlanId],
+  );
+  return { id, created: true };
 }
 
 function normalizeDeletedDayIndices(programWeekId: string) {
@@ -183,6 +243,150 @@ function enqueuePlannedSetSnapshot(plannedSetId: string, opType: 'upsert' | 'del
   });
 }
 
+function getActiveSessionCount(programWeekId: string): number {
+  return (
+    query<{ n: number }>(
+      `
+      SELECT COUNT(*) AS n
+      FROM program_day
+      WHERE program_week_id = ? AND deleted_at IS NULL;
+    `,
+      [programWeekId],
+    )[0]?.n ?? 0
+  );
+}
+
+function insertProgramDay(input: {
+  weekId: string;
+  dayIndex: number;
+  name: string | null;
+}): string {
+  const dayId = newId('day');
+  exec(
+    `
+    INSERT INTO program_day (id, program_week_id, day_index, name)
+    VALUES (?, ?, ?, ?);
+  `,
+    [dayId, input.weekId, input.dayIndex, input.name],
+  );
+  return dayId;
+}
+
+function createReusablePlanSessionDay(input: {
+  weekId: string;
+  sessionName: string | null;
+}): string {
+  normalizeDeletedDayIndices(input.weekId);
+  compactActiveDays(input.weekId);
+
+  const count = getActiveSessionCount(input.weekId);
+  if (count >= MAX_SESSIONS_PER_PLAN) {
+    throw new WorkoutLimitError(WORKOUT_LIMIT_MESSAGES.maxSessionsPerPlan);
+  }
+
+  const nextIndex = count + 1;
+  const dayId = insertProgramDay({
+    weekId: input.weekId,
+    dayIndex: nextIndex,
+    name: input.sessionName?.trim() || `Session ${nextIndex}`,
+  });
+
+  enqueueProgramDaySnapshot(dayId);
+  return dayId;
+}
+
+function listCopyableStrengthExercises(sessionId: string): CopyableExerciseRow[] {
+  return query<CopyableExerciseRow>(
+    `
+    SELECT
+      wse.id,
+      wse.exercise_id,
+      wse.position
+    FROM workout_session_exercise wse
+    WHERE wse.workout_session_id = ?
+      AND wse.deleted_at IS NULL
+      AND wse.exercise_type = 'strength'
+      AND EXISTS (
+        SELECT 1
+        FROM workout_set ws
+        WHERE ws.workout_session_exercise_id = wse.id
+          AND ws.deleted_at IS NULL
+          AND ws.is_completed = 1
+      )
+    ORDER BY wse.position ASC;
+  `,
+    [sessionId],
+  );
+}
+
+function listCompletedStrengthSets(sessionExerciseId: string): CopyableSetRow[] {
+  return query<CopyableSetRow>(
+    `
+    SELECT
+      workout_session_exercise_id,
+      weight,
+      reps,
+      set_index
+    FROM workout_set
+    WHERE workout_session_exercise_id = ?
+      AND deleted_at IS NULL
+      AND is_completed = 1
+    ORDER BY set_index ASC;
+  `,
+    [sessionExerciseId],
+  );
+}
+
+function copyWorkoutExercisesIntoProgramDay(input: {
+  sourceSessionId: string;
+  programDayId: string;
+}): void {
+  const exercises = listCopyableStrengthExercises(input.sourceSessionId);
+
+  if (exercises.length === 0) {
+    throw new Error('No completed strength sets to reuse.');
+  }
+
+  if (exercises.length > MAX_EXERCISES_PER_SESSION) {
+    throw new WorkoutLimitError(WORKOUT_LIMIT_MESSAGES.maxExercisesPerSession);
+  }
+
+  for (let exerciseIndex = 0; exerciseIndex < exercises.length; exerciseIndex += 1) {
+    const exercise = exercises[exerciseIndex];
+    const dayExerciseId = newId('day_ex');
+    exec(
+      `
+      INSERT INTO program_day_exercise (id, program_day_id, exercise_id, position, notes)
+      VALUES (?, ?, ?, ?, NULL);
+    `,
+      [dayExerciseId, input.programDayId, exercise.exercise_id, exerciseIndex + 1],
+    );
+    enqueueProgramDayExerciseSnapshot(dayExerciseId);
+
+    const sets = listCompletedStrengthSets(exercise.id);
+    for (let setIndex = 0; setIndex < sets.length; setIndex += 1) {
+      const set = sets[setIndex];
+      const plannedSetId = newId('pset');
+      exec(
+        `
+        INSERT INTO planned_set (
+          id,
+          program_day_exercise_id,
+          set_index,
+          target_reps_min,
+          target_reps_max,
+          target_rpe,
+          target_weight,
+          rest_seconds
+        ) VALUES (?, ?, ?, ?, ?, NULL, ?, NULL);
+      `,
+        [plannedSetId, dayExerciseId, setIndex + 1, set.reps, set.reps, set.weight],
+      );
+      enqueuePlannedSetSnapshot(plannedSetId);
+    }
+  }
+}
+
 export function listWorkoutPlans(): WorkoutPlanRow[] {
   return query<WorkoutPlanRow>(
     `
@@ -307,41 +511,7 @@ function compactActiveDays(programWeekId: string) {
 export function addDayToWorkoutPlan(workoutPlanId: string): string {
   return inTransaction(() => {
     const weekId = getOrCreateWeek1Id(workoutPlanId);
-
-    // keep deleted days far-negative so UNIQUE doesn't block
-    normalizeDeletedDayIndices(weekId);
-
-    // IMPORTANT: repair active indices back to 1..N
-    compactActiveDays(weekId);
-
-    const count =
-      query<{ n: number }>(
-        `
-        SELECT COUNT(*) AS n
-        FROM program_day
-        WHERE program_week_id = ? AND deleted_at IS NULL;
-      `,
-        [weekId],
-      )[0]?.n ?? 0;
-
-    if (count >= MAX_SESSIONS_PER_PLAN) {
-      throw new WorkoutLimitError(WORKOUT_LIMIT_MESSAGES.maxSessionsPerPlan);
-    }
-
-    const nextIndex = count + 1;
-
-    const dayId = newId('day');
-    exec(
-      `
-      INSERT INTO program_day (id, program_week_id, day_index, name)
-      VALUES (?, ?, ?, ?);
-    `,
-      [dayId, weekId, nextIndex, `Session ${nextIndex}`],
-    );
-
-    enqueueProgramDaySnapshot(dayId);
-
-    return dayId;
+    return createReusablePlanSessionDay({ weekId, sessionName: null });
   });
 }
 
@@ -541,4 +711,96 @@ export function createWorkoutPlan(input: { name: string; description?: string | 
   });
 
   return workoutPlanId;
+}
+
+export async function saveCompletedQuickWorkoutAsPlan(input: {
+  sessionId: string;
+  target: SaveCompletedQuickWorkoutTarget;
+}): Promise<SaveCompletedQuickWorkoutResult> {
+  return inTransaction(() => {
+    const source = query<ReusableSessionRow>(
+      `
+      SELECT id, title, source_workout_plan_id, source_program_day_id
+      FROM workout_session
+      WHERE id = ?
+        AND status = '${WORKOUT_SESSION_STATUS.COMPLETED}'
+        AND deleted_at IS NULL
+      LIMIT 1;
+    `,
+      [input.sessionId],
+    )[0];
+
+    if (!source) {
+      throw new Error('Only completed Quick Workouts can be reused.');
+    }
+
+    if (source.source_workout_plan_id !== null || source.source_program_day_id !== null) {
+      throw new Error('Only completed Quick Workouts can be reused.');
+    }
+
+    let workoutPlanId: string;
+    let weekId: string;
+    let createdPlan = false;
+    let createdWeek = false;
+
+    if (input.target.kind === 'newPlan') {
+      const name = input.target.name.trim();
+      if (!name) throw new Error('Workout plan name is required');
+
+      workoutPlanId = newId('workout_plan');
+      weekId = newId('week');
+      createdPlan = true;
+      createdWeek = true;
+
+      exec(
+        `
+        INSERT INTO program (id, name, description, is_template, owner_user_id)
+        VALUES (?, ?, NULL, 0, NULL);
+      `,
+        [workoutPlanId, name],
+      );
+      exec(
+        `
+        INSERT INTO program_week (id, program_id, week_index)
+        VALUES (?, ?, 1);
+      `,
+        [weekId, workoutPlanId],
+      );
+    } else {
+      workoutPlanId = input.target.workoutPlanId;
+      const plan = query<{ id: string }>(
+        `
+        SELECT id
+        FROM program
+        WHERE id = ? AND deleted_at IS NULL
+        LIMIT 1;
+      `,
+        [workoutPlanId],
+      )[0];
+
+      if (!plan) throw new Error('Workout plan not found.');
+      const week = getOrCreateWeek1(workoutPlanId);
+      weekId = week.id;
+      createdWeek = week.created;
+    }
+
+    const programDayId = createReusablePlanSessionDay({
+      weekId,
+      sessionName: source.title,
+    });
+
+    copyWorkoutExercisesIntoProgramDay({
+      sourceSessionId: input.sessionId,
+      programDayId,
+    });
+
+    if (createdPlan) {
+      enqueueProgramSnapshot(workoutPlanId);
+      enqueueProgramWeekSnapshot(weekId);
+    } else if (createdWeek) {
+      enqueueProgramWeekSnapshot(weekId);
+    }
+
+    return { workoutPlanId, programDayId, createdPlan };
+  });
 }

@@ -433,11 +433,12 @@ export function createSessionFromPlanDay(input: { workoutPlanId: string; dayId: 
 
       const plannedSets = query<{
         set_index: number;
+        target_weight: number | null;
         target_reps_min: number | null;
         rest_seconds: number | null;
       }>(
         `
-        SELECT set_index, target_reps_min, rest_seconds
+        SELECT set_index, target_weight, target_reps_min, rest_seconds
         FROM planned_set
         WHERE program_day_exercise_id = ? AND deleted_at IS NULL
         ORDER BY set_index ASC;
@@ -474,7 +475,7 @@ export function createSessionFromPlanDay(input: { workoutPlanId: string; dayId: 
               setId,
               wseId,
               setPosition + 1,
-              historicalSet?.weight ?? 0,
+              plannedSet?.target_weight ?? historicalSet?.weight ?? 0,
               historicalSet?.reps ?? plannedSet?.target_reps_min ?? 0,
               historicalSet?.rest_seconds ?? plannedSet?.rest_seconds ?? DEFAULT_REST_SECONDS,
             ],

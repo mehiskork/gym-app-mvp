@@ -22,6 +22,13 @@ import {
   type CompletedSessionRow,
 } from '../db/historyRepo';
 import { EXERCISE_TYPE } from '../db/exerciseTypes';
+import {
+  listWorkoutPlansWithSessionCounts,
+  saveCompletedQuickWorkoutAsPlan,
+  type WorkoutPlanWithSessionCountRow,
+} from '../db/workoutPlanRepo';
+import { MAX_SESSIONS_PER_PLAN, isWorkoutLimitError } from '../db/workoutLimits';
+import { BottomSheetModal, Button, Input, ListRow, Snackbar } from '../ui';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'SessionDetail'>;
 
@@ -40,12 +47,20 @@ function formatPr(e: PrEventRow): string {
 }
 
 export function SessionDetailScreen({ route, navigation }: Props) {
-  const { sessionId } = route.params;
+  const { sessionId, postFinish } = route.params;
 
   const [session, setSession] = useState<CompletedSessionRow | null>(null);
   const [exercises, setExercises] = useState<SessionExerciseRow[]>([]);
   const [sets, setSets] = useState<SessionSetRow[]>([]);
   const [prs, setPrs] = useState<PrEventRow[]>([]);
+  const [reuseOpen, setReuseOpen] = useState(false);
+  const [planName, setPlanName] = useState('Quick Workout Plan');
+  const [plans, setPlans] = useState<WorkoutPlanWithSessionCountRow[]>([]);
+  const [isSavingReuse, setIsSavingReuse] = useState(false);
+  const [feedback, setFeedback] = useState<{
+    message: string;
+    variant: 'success' | 'error';
+  } | null>(null);
 
   const load = useCallback(() => {
     const data = getSessionDetail(sessionId);
@@ -61,6 +76,7 @@ export function SessionDetailScreen({ route, navigation }: Props) {
     setSets(data.sets);
     recomputeSessionPrsIfNeeded(sessionId);
     setPrs(listSessionPrEvents(sessionId));
+    setPlans(listWorkoutPlansWithSessionCounts());
   }, [sessionId]);
 
   useFocusEffect(
@@ -85,6 +101,37 @@ export function SessionDetailScreen({ route, navigation }: Props) {
     return map;
   }, [sets]);
 
+  const getReuseErrorMessage = useCallback((error: unknown) => {
+    if (isWorkoutLimitError(error)) return error.message;
+    if (error instanceof Error && error.message === 'No completed strength sets to reuse.') {
+      return 'This workout has no completed strength sets to reuse.';
+    }
+    if (error instanceof Error && error.message.trim()) return error.message;
+    return "Couldn't reuse this workout. Try again.";
+  }, []);
+
+  const handleSaveReuse = useCallback(
+    async (
+      target: { kind: 'newPlan'; name: string } | { kind: 'existingPlan'; workoutPlanId: string },
+    ) => {
+      if (isSavingReuse) return;
+      setIsSavingReuse(true);
+      setFeedback(null);
+
+      try {
+        const result = await saveCompletedQuickWorkoutAsPlan({ sessionId, target });
+        setReuseOpen(false);
+        setFeedback({ message: 'Workout saved as a plan.', variant: 'success' });
+        navigation.navigate('WorkoutPlanDetail', { workoutPlanId: result.workoutPlanId });
+      } catch (error) {
+        setFeedback({ message: getReuseErrorMessage(error), variant: 'error' });
+      } finally {
+        setIsSavingReuse(false);
+      }
+    },
+    [getReuseErrorMessage, isSavingReuse, navigation, sessionId],
+  );
+
   if (!session) {
     return (
       <Screen bottomInset="none" style={{ justifyContent: 'center' }}>
@@ -95,6 +142,7 @@ export function SessionDetailScreen({ route, navigation }: Props) {
   }
 
   const dur = formatDurationSeconds(durationSeconds(session.started_at, session.ended_at));
+  const canReuseAsPlan = session.can_reuse_as_plan === 1;
   const formatCardio = (ex: SessionExerciseRow) => {
     const fields: string[] = [];
     if (ex.cardio_duration_minutes !== null)
@@ -118,6 +166,32 @@ export function SessionDetailScreen({ route, navigation }: Props) {
         keyboardShouldPersistTaps="handled"
       >
         <View style={{ gap: tokens.spacing.xs }}>
+          {canReuseAsPlan ? (
+            <View
+              style={{
+                padding: tokens.spacing.md,
+                backgroundColor: postFinish ? tokens.colors.surface2 : tokens.colors.surface,
+                borderRadius: tokens.radius.md,
+                borderWidth: 1,
+                borderColor: postFinish ? tokens.colors.primary : tokens.colors.border,
+                gap: tokens.spacing.sm,
+              }}
+            >
+              <Text variant="subtitle">Reuse this workout</Text>
+              <Text variant="muted">
+                Save exercises, sets, reps, and weights so you can use this workout again.
+              </Text>
+              <Button
+                title="Reuse this workout"
+                variant="primary"
+                onPress={() => {
+                  setPlans(listWorkoutPlansWithSessionCounts());
+                  setReuseOpen(true);
+                }}
+              />
+            </View>
+          ) : null}
+
           {prs.length > 0 ? (
             <View
               style={{
@@ -204,6 +278,81 @@ export function SessionDetailScreen({ route, navigation }: Props) {
           );
         })}
       </ScrollView>
+      <BottomSheetModal
+        visible={reuseOpen}
+        title="Reuse this workout"
+        onClose={() => {
+          if (!isSavingReuse) setReuseOpen(false);
+        }}
+        keyboardAware
+      >
+        <View style={{ gap: tokens.spacing.lg }}>
+          <View style={{ gap: tokens.spacing.sm }}>
+            <Input
+              label="New plan name"
+              value={planName}
+              onChangeText={setPlanName}
+              placeholder="Quick Workout Plan"
+              editable={!isSavingReuse}
+              maxLength={50}
+            />
+            <Button
+              title="Create new plan"
+              variant="primary"
+              loading={isSavingReuse}
+              disabled={isSavingReuse || planName.trim().length === 0}
+              onPress={() => void handleSaveReuse({ kind: 'newPlan', name: planName })}
+            />
+          </View>
+
+          <View style={{ gap: tokens.spacing.sm }}>
+            <Text variant="label" color={tokens.colors.mutedText}>
+              ADD TO EXISTING PLAN
+            </Text>
+            {plans.length === 0 ? (
+              <Text variant="muted">No existing plans yet.</Text>
+            ) : (
+              plans.map((plan) => {
+                const full = plan.sessionCount >= MAX_SESSIONS_PER_PLAN;
+                return (
+                  <ListRow
+                    key={plan.id}
+                    title={plan.name}
+                    subtitle={full ? 'Plan is full' : `${plan.sessionCount} sessions`}
+                    showChevron={false}
+                    right={
+                      <Button
+                        title={full ? 'Plan is full' : 'Add'}
+                        variant="secondary"
+                        disabled={full || isSavingReuse}
+                        loading={isSavingReuse}
+                        onPress={() =>
+                          void handleSaveReuse({
+                            kind: 'existingPlan',
+                            workoutPlanId: plan.id,
+                          })
+                        }
+                      />
+                    }
+                  />
+                );
+              })
+            )}
+          </View>
+        </View>
+      </BottomSheetModal>
+      <Snackbar
+        visible={feedback !== null}
+        message={feedback?.message ?? ''}
+        variant={feedback?.variant ?? 'success'}
+        onDismiss={() => setFeedback(null)}
+        style={{
+          position: 'absolute',
+          left: tokens.spacing.lg,
+          right: tokens.spacing.lg,
+          bottom: tokens.spacing.lg,
+        }}
+      />
     </Screen>
   );
 }
