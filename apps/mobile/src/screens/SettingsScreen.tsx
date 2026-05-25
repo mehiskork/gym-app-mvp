@@ -50,6 +50,7 @@ import {
   getFriendlyAccountDeletionError,
 } from '../auth/accountDeletion';
 import { getAccountDeletionUrl, getPrivacyPolicyUrl } from '../api/config';
+import { getInProgressSession } from '../db/workoutSessionRepo';
 
 const REST_TIME_OPTIONS = [
   { label: '0:30', seconds: 30 },
@@ -62,6 +63,15 @@ const REST_TIME_OPTIONS = [
 
 type AccountAction = 'create' | 'reconnect' | 'reset' | 'switch';
 type DeleteAccountStep = 'review' | 'confirm';
+
+const GENERIC_LOGOUT_CONFIRM_BODY =
+  'This device will sign out and remove local synced data so another account cannot inherit it.';
+const ACTIVE_WORKOUT_LOGOUT_CONFIRM_BODY =
+  'You have an active workout in progress. Signing out will discard it. Continue?';
+const GENERIC_SWITCH_ACCOUNT_CONFIRM_BODY =
+  'Switching accounts clears local synced data first. Continue to a safe guest state before signing in again?';
+const ACTIVE_WORKOUT_SWITCH_ACCOUNT_CONFIRM_BODY =
+  'You have an active workout in progress. Switching accounts will discard it. Continue?';
 
 function getFriendlyAccountError(error: unknown, action: AccountAction): string {
   const rawMessage = error instanceof Error ? error.message : '';
@@ -115,7 +125,10 @@ export function SettingsScreen() {
   const [deleteAccountOpen, setDeleteAccountOpen] = useState(false);
   const [deleteAccountStep, setDeleteAccountStep] = useState<DeleteAccountStep>('review');
   const [deleteAccountConfirmText, setDeleteAccountConfirmText] = useState('');
-  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
+  const [logoutConfirm, setLogoutConfirm] = useState({
+    open: false,
+    body: GENERIC_LOGOUT_CONFIRM_BODY,
+  });
   const [accountDeletionLinkError, setAccountDeletionLinkError] = useState<string | null>(null);
   const [settings, setSettings] = useState(getSettings());
   const [restPickerOpen, setRestPickerOpen] = useState(false);
@@ -261,18 +274,23 @@ export function SettingsScreen() {
   const handleLogout = useCallback(() => {
     if (accountBusy) return;
     setAccountError(null);
-    setLogoutConfirmOpen(true);
+    setLogoutConfirm({
+      open: true,
+      body: getInProgressSession()
+        ? ACTIVE_WORKOUT_LOGOUT_CONFIRM_BODY
+        : GENERIC_LOGOUT_CONFIRM_BODY,
+    });
   }, [accountBusy]);
 
   const handleCloseLogoutConfirm = useCallback(() => {
     if (accountBusy) return;
-    setLogoutConfirmOpen(false);
+    setLogoutConfirm((current) => ({ ...current, open: false }));
   }, [accountBusy]);
 
   const handleConfirmLogout = useCallback(() => {
     if (accountBusy || logoutConfirmInFlightRef.current) return;
     logoutConfirmInFlightRef.current = true;
-    setLogoutConfirmOpen(false);
+    setLogoutConfirm((current) => ({ ...current, open: false }));
     void (async () => {
       try {
         setAccountBusy(true);
@@ -290,32 +308,32 @@ export function SettingsScreen() {
   }, [accountBusy, refreshAccountState]);
 
   const handleSwitchAccount = useCallback(() => {
-    Alert.alert(
-      'Switch account on this device?',
-      'Switching accounts clears local synced data first. Continue to a safe guest state before signing in again?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Continue',
-          style: 'destructive',
-          onPress: () => {
-            void (async () => {
-              try {
-                setAccountBusy(true);
-                setAccountError(null);
-                await signOutFromGoogle();
-                await resetToGuestBootstrap();
-                await refreshAccountState();
-              } catch (error) {
-                setAccountError(getFriendlyAccountError(error, 'switch'));
-              } finally {
-                setAccountBusy(false);
-              }
-            })();
-          },
+    const body = getInProgressSession()
+      ? ACTIVE_WORKOUT_SWITCH_ACCOUNT_CONFIRM_BODY
+      : GENERIC_SWITCH_ACCOUNT_CONFIRM_BODY;
+
+    Alert.alert('Switch account on this device?', body, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Continue',
+        style: 'destructive',
+        onPress: () => {
+          void (async () => {
+            try {
+              setAccountBusy(true);
+              setAccountError(null);
+              await signOutFromGoogle();
+              await resetToGuestBootstrap();
+              await refreshAccountState();
+            } catch (error) {
+              setAccountError(getFriendlyAccountError(error, 'switch'));
+            } finally {
+              setAccountBusy(false);
+            }
+          })();
         },
-      ],
-    );
+      },
+    ]);
   }, [refreshAccountState]);
 
   const handleCreateGoogleAccount = useCallback(async () => {
@@ -762,9 +780,9 @@ export function SettingsScreen() {
         </View>
       </View>
       <DestructiveConfirmDialog
-        visible={logoutConfirmOpen}
+        visible={logoutConfirm.open}
         title="Log out and clear local data?"
-        body="This device will sign out and remove local synced data so another account cannot inherit it."
+        body={logoutConfirm.body}
         cancelLabel="Cancel"
         confirmLabel="Log out"
         onClose={handleCloseLogoutConfirm}

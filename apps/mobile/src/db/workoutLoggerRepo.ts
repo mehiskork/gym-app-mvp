@@ -942,7 +942,32 @@ export function deleteWorkoutSet(setId: string) {
 }
 
 export function restoreWorkoutSet(set: RestoreWorkoutSetInput) {
-  inTransaction(() => {
+  const restored = inTransaction(() => {
+    const target = query<{ id: string; deleted_at: string | null }>(
+      `
+      SELECT id, deleted_at
+      FROM workout_set
+      WHERE id = ?
+        AND workout_session_exercise_id = ?
+      LIMIT 1;
+    `,
+      [set.id, set.workout_session_exercise_id],
+    )[0];
+
+    if (!target || target.deleted_at === null) return false;
+
+    const activeCount =
+      query<{ n: number }>(
+        `
+        SELECT COUNT(*) AS n
+        FROM workout_set
+        WHERE workout_session_exercise_id = ? AND deleted_at IS NULL;
+      `,
+        [set.workout_session_exercise_id],
+      )[0]?.n ?? 0;
+
+    if (activeCount >= MAX_SETS_PER_EXERCISE) return false;
+
     const affected = query<{ id: string }>(
       `
       SELECT id
@@ -1012,7 +1037,9 @@ export function restoreWorkoutSet(set: RestoreWorkoutSetInput) {
       enqueueWorkoutSetSnapshot(row.id);
     }
     enqueueWorkoutSetSnapshot(set.id);
+    return true;
   });
+  if (!restored) return;
   updateUnfinishedWorkoutReminderAfterSetMutation(set.id, new Date().toISOString());
 }
 

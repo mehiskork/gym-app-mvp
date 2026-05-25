@@ -153,6 +153,10 @@ jest.mock('../../db/settingsRepo', () => ({
   })),
 }));
 
+jest.mock('../../db/workoutSessionRepo', () => ({
+  getInProgressSession: jest.fn(() => null),
+}));
+
 jest.mock('../../utils/restTimerNotifications', () => ({
   cancelRestTimerNotification: jest.fn(() => Promise.resolve()),
   ensureRestTimerNotificationChannel: jest.fn(() => Promise.resolve()),
@@ -218,6 +222,7 @@ import {
   getUnfinishedWorkoutRemindersPreference,
   setUnfinishedWorkoutRemindersPreference,
 } from '../../utils/unfinishedWorkoutReminderNotifications';
+import { getInProgressSession } from '../../db/workoutSessionRepo';
 import { Button } from '../../ui';
 import { SettingsScreen } from '../SettingsScreen';
 import { getSettingsAccountUiState } from '../settingsAccountUiState';
@@ -370,6 +375,7 @@ describe('SettingsScreen account interactions', () => {
     (hasNotificationPermission as jest.Mock).mockResolvedValue(true);
     (requestRestTimerNotificationPermission as jest.Mock).mockResolvedValue(true);
     (Notifications.getPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'granted' });
+    (getInProgressSession as jest.Mock).mockReturnValue(null);
   });
 
   it('shows reconnect and reset actions instead of guest migration when reauth is required', () => {
@@ -689,7 +695,7 @@ describe('SettingsScreen account interactions', () => {
   });
 
   it('tapping reset opens app-owned confirmation before clearing local account data', () => {
-    const setLogoutConfirmOpen = jest.fn();
+    const setLogoutConfirm = jest.fn();
     useStateMock.mockReset();
     useStateMock.mockImplementation((initial: unknown) => [initial, jest.fn()]);
     useStateMock
@@ -701,7 +707,13 @@ describe('SettingsScreen account interactions', () => {
       .mockImplementationOnce(() => [false, jest.fn()])
       .mockImplementationOnce(() => ['review', jest.fn()])
       .mockImplementationOnce(() => ['', jest.fn()])
-      .mockImplementationOnce(() => [false, setLogoutConfirmOpen])
+      .mockImplementationOnce(() => [
+        {
+          open: false,
+          body: 'This device will sign out and remove local synced data so another account cannot inherit it.',
+        },
+        setLogoutConfirm,
+      ])
       .mockImplementationOnce(() => [null, jest.fn()])
       .mockImplementationOnce((initial: unknown) => [initial, jest.fn()])
       .mockImplementationOnce(() => [false, jest.fn()])
@@ -712,7 +724,10 @@ describe('SettingsScreen account interactions', () => {
 
     resetButton?.props.onPress();
 
-    expect(setLogoutConfirmOpen).toHaveBeenCalledWith(true);
+    expect(setLogoutConfirm).toHaveBeenCalledWith({
+      open: true,
+      body: 'This device will sign out and remove local synced data so another account cannot inherit it.',
+    });
     expect(Alert.alert).not.toHaveBeenCalledWith(
       'Log out and clear local data?',
       expect.any(String),
@@ -722,7 +737,7 @@ describe('SettingsScreen account interactions', () => {
   });
 
   it('tapping sign out opens app-owned confirmation instead of a native alert', () => {
-    const setLogoutConfirmOpen = jest.fn();
+    const setLogoutConfirm = jest.fn();
     useStateMock.mockReset();
     useStateMock.mockImplementation((initial: unknown) => [initial, jest.fn()]);
     useStateMock
@@ -737,7 +752,13 @@ describe('SettingsScreen account interactions', () => {
       .mockImplementationOnce(() => [false, jest.fn()])
       .mockImplementationOnce(() => ['review', jest.fn()])
       .mockImplementationOnce(() => ['', jest.fn()])
-      .mockImplementationOnce(() => [false, setLogoutConfirmOpen])
+      .mockImplementationOnce(() => [
+        {
+          open: false,
+          body: 'This device will sign out and remove local synced data so another account cannot inherit it.',
+        },
+        setLogoutConfirm,
+      ])
       .mockImplementationOnce(() => [null, jest.fn()])
       .mockImplementationOnce((initial: unknown) => [initial, jest.fn()])
       .mockImplementationOnce(() => [false, jest.fn()])
@@ -748,12 +769,60 @@ describe('SettingsScreen account interactions', () => {
 
     signOutButton?.props.onPress();
 
-    expect(setLogoutConfirmOpen).toHaveBeenCalledWith(true);
+    expect(setLogoutConfirm).toHaveBeenCalledWith({
+      open: true,
+      body: 'This device will sign out and remove local synced data so another account cannot inherit it.',
+    });
     expect(Alert.alert).not.toHaveBeenCalledWith(
       'Log out and clear local data?',
       expect.any(String),
       expect.any(Array),
     );
+  });
+
+  it('tapping sign out with an active workout shows the explicit discard warning', () => {
+    (getInProgressSession as jest.Mock).mockReturnValueOnce({
+      id: 'active-session-1',
+      title: 'Active Workout',
+    });
+    const setLogoutConfirm = jest.fn();
+    useStateMock.mockReset();
+    useStateMock.mockImplementation((initial: unknown) => [initial, jest.fn()]);
+    useStateMock
+      .mockImplementationOnce(() => [false, jest.fn()])
+      .mockImplementationOnce(() => ['linked_with_usable_account', jest.fn()])
+      .mockImplementationOnce(() => [
+        { accessToken: 'token', email: 'user@example.test' },
+        jest.fn(),
+      ])
+      .mockImplementationOnce(() => [false, jest.fn()])
+      .mockImplementationOnce(() => [null, jest.fn()])
+      .mockImplementationOnce(() => [false, jest.fn()])
+      .mockImplementationOnce(() => ['review', jest.fn()])
+      .mockImplementationOnce(() => ['', jest.fn()])
+      .mockImplementationOnce(() => [
+        {
+          open: false,
+          body: 'This device will sign out and remove local synced data so another account cannot inherit it.',
+        },
+        setLogoutConfirm,
+      ])
+      .mockImplementationOnce(() => [null, jest.fn()])
+      .mockImplementationOnce((initial: unknown) => [initial, jest.fn()])
+      .mockImplementationOnce(() => [false, jest.fn()])
+      .mockImplementationOnce(() => [null, jest.fn()]);
+
+    const tree = expandTree(SettingsScreen());
+    const signOutButton = buttons(tree).find((button) => button.props.title === 'Sign out');
+
+    signOutButton?.props.onPress();
+
+    expect(setLogoutConfirm).toHaveBeenCalledWith({
+      open: true,
+      body: 'You have an active workout in progress. Signing out will discard it. Continue?',
+    });
+    expect(resetToGuestBootstrap).not.toHaveBeenCalled();
+    expect(signOutFromGoogle).not.toHaveBeenCalled();
   });
 
   it('shows signed-in Switch account and opens destructive native confirmation', () => {
@@ -787,6 +856,62 @@ describe('SettingsScreen account interactions', () => {
   });
 
   it('canceling Switch account confirmation does not clear data or start Google sign-in', () => {
+    const tree = expandTree(
+      renderSettingsScreen({
+        accountState: 'linked_with_usable_account',
+        accountSession: { accessToken: 'token', email: 'user@example.test' },
+      }),
+    );
+    const switchButton = buttons(tree).find((button) => button.props.title === 'Switch account');
+
+    switchButton?.props.onPress();
+    latestAlertButtons()
+      ?.find((button) => button.text === 'Cancel')
+      ?.onPress?.();
+
+    expect(resetToGuestBootstrap).not.toHaveBeenCalled();
+    expect(signOutFromGoogle).not.toHaveBeenCalled();
+    expect(createGoogleAccountFromGuest).not.toHaveBeenCalled();
+    expect(reconnectGoogleAccount).not.toHaveBeenCalled();
+  });
+
+  it('switch account with an active workout shows the explicit discard warning', () => {
+    (getInProgressSession as jest.Mock).mockReturnValueOnce({
+      id: 'active-session-1',
+      title: 'Active Workout',
+    });
+    const tree = expandTree(
+      renderSettingsScreen({
+        accountState: 'linked_with_usable_account',
+        accountSession: { accessToken: 'token', email: 'user@example.test' },
+      }),
+    );
+    const switchButton = buttons(tree).find((button) => button.props.title === 'Switch account');
+
+    switchButton?.props.onPress();
+
+    expect(Alert.alert).toHaveBeenCalledWith(
+      'Switch account on this device?',
+      'You have an active workout in progress. Switching accounts will discard it. Continue?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        expect.objectContaining({
+          text: 'Continue',
+          style: 'destructive',
+          onPress: expect.any(Function),
+        }),
+      ],
+    );
+    expect(resetToGuestBootstrap).not.toHaveBeenCalled();
+    expect(signOutFromGoogle).not.toHaveBeenCalled();
+    expect(createGoogleAccountFromGuest).not.toHaveBeenCalled();
+  });
+
+  it('canceling active-workout Switch account confirmation does not reset or sign out', () => {
+    (getInProgressSession as jest.Mock).mockReturnValueOnce({
+      id: 'active-session-1',
+      title: 'Active Workout',
+    });
     const tree = expandTree(
       renderSettingsScreen({
         accountState: 'linked_with_usable_account',
@@ -862,13 +987,53 @@ describe('SettingsScreen account interactions', () => {
 
     dialog?.props.onClose();
 
-    expect(setLogoutConfirmOpen).toHaveBeenCalledWith(false);
+    expect(setLogoutConfirmOpen).toHaveBeenCalledWith(expect.any(Function));
+    expect(resetToGuestBootstrap).not.toHaveBeenCalled();
+    expect(signOutFromGoogle).not.toHaveBeenCalled();
+  });
+
+  it('canceling active-workout sign-out confirmation leaves local account data intact', () => {
+    const setLogoutConfirmOpen = jest.fn();
+    const tree = expandTree(
+      renderLogoutConfirmState(
+        setLogoutConfirmOpen,
+        'You have an active workout in progress. Signing out will discard it. Continue?',
+      ),
+    );
+    const dialog = destructiveDialogs(tree)[0];
+
+    expect(dialog?.props.body).toBe(
+      'You have an active workout in progress. Signing out will discard it. Continue?',
+    );
+
+    dialog?.props.onClose();
+
+    expect(setLogoutConfirmOpen).toHaveBeenCalledWith(expect.any(Function));
     expect(resetToGuestBootstrap).not.toHaveBeenCalled();
     expect(signOutFromGoogle).not.toHaveBeenCalled();
   });
 
   it('confirming sign-out uses the existing sign-out and local clear path', async () => {
     const tree = expandTree(renderLogoutConfirmState());
+    const dialog = destructiveDialogs(tree)[0];
+
+    dialog?.props.onConfirm();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(signOutFromGoogle).toHaveBeenCalledTimes(1);
+    expect(resetToGuestBootstrap).toHaveBeenCalledTimes(1);
+    expect(reconnectGoogleAccount).not.toHaveBeenCalled();
+    expect(createGoogleAccountFromGuest).not.toHaveBeenCalled();
+  });
+
+  it('confirming active-workout sign-out uses the existing sign-out and local clear path', async () => {
+    const tree = expandTree(
+      renderLogoutConfirmState(
+        jest.fn(),
+        'You have an active workout in progress. Signing out will discard it. Continue?',
+      ),
+    );
     const dialog = destructiveDialogs(tree)[0];
 
     dialog?.props.onConfirm();
@@ -1173,7 +1338,10 @@ function renderDeleteAccountState({ confirmText }: { confirmText: string }) {
   return SettingsScreen();
 }
 
-function renderLogoutConfirmState(setLogoutConfirmOpen = jest.fn()) {
+function renderLogoutConfirmState(
+  setLogoutConfirmOpen = jest.fn(),
+  body = 'This device will sign out and remove local synced data so another account cannot inherit it.',
+) {
   useStateMock.mockReset();
   useStateMock.mockImplementation((initial: unknown) => [initial, jest.fn()]);
   useStateMock
@@ -1185,7 +1353,7 @@ function renderLogoutConfirmState(setLogoutConfirmOpen = jest.fn()) {
     .mockImplementationOnce(() => [false, jest.fn()])
     .mockImplementationOnce(() => ['review', jest.fn()])
     .mockImplementationOnce(() => ['', jest.fn()])
-    .mockImplementationOnce(() => [true, setLogoutConfirmOpen])
+    .mockImplementationOnce(() => [{ open: true, body }, setLogoutConfirmOpen])
     .mockImplementationOnce(() => [null, jest.fn()])
     .mockImplementationOnce((initial: unknown) => [initial, jest.fn()])
     .mockImplementationOnce(() => [false, jest.fn()])

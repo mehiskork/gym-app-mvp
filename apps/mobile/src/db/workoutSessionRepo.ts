@@ -10,6 +10,11 @@ import {
   type WorkoutSessionStatus,
 } from './constants';
 import { EXERCISE_TYPE, type CardioProfile, type ExerciseType } from './exerciseTypes';
+import {
+  MAX_EXERCISES_PER_SESSION,
+  WorkoutLimitError,
+  WORKOUT_LIMIT_MESSAGES,
+} from './workoutLimits';
 
 export type WorkoutSessionRow = {
   id: string;
@@ -366,6 +371,10 @@ export function createSessionFromPlanDay(input: { workoutPlanId: string; dayId: 
     `,
       [dayId],
     );
+
+    if (exRows.length > MAX_EXERCISES_PER_SESSION) {
+      throw new WorkoutLimitError(WORKOUT_LIMIT_MESSAGES.maxExercisesPerSession);
+    }
 
     const sessionId = newId('ws');
 

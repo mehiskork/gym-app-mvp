@@ -60,6 +60,11 @@ import {
   listWorkoutPlansWithSessionCounts,
 } from '../workoutPlanRepo';
 import { completeSession, createSessionFromPlanDay } from '../workoutSessionRepo';
+import {
+  MAX_EXERCISES_PER_SESSION,
+  WorkoutLimitError,
+  WORKOUT_LIMIT_MESSAGES,
+} from '../workoutLimits';
 
 type CountRow = { n: number };
 type DayRow = { id: string; day_index: number; name: string | null; deleted_at: string | null };
@@ -109,6 +114,18 @@ function addExerciseWithPlannedSets(dayId: string): string {
   return dayExerciseId;
 }
 
+function seedDayExercisesDirectly(dayId: string, exerciseCount: number) {
+  for (let index = 1; index <= exerciseCount; index += 1) {
+    exec(
+      `
+      INSERT INTO program_day_exercise (id, program_day_id, exercise_id, position, notes)
+      VALUES (?, ?, ?, ?, NULL);
+    `,
+      [`pde-direct-${index}`, dayId, exerciseId, index],
+    );
+  }
+}
+
 function readOutboxRows(): OutboxRow[] {
   return query<OutboxRow>(
     `
@@ -150,6 +167,41 @@ describe('plan session lifecycle with SQLite', () => {
         planId,
       ])[0]?.deleted_at,
     ).toBeNull();
+  });
+
+  it('starts a planned session with exactly 50 day exercises', () => {
+    const planId = createWorkoutPlan({ name: 'Full Plan' });
+    const dayId = listDaysForWorkoutPlan(planId)[0]?.id;
+    if (!dayId) throw new Error('Expected a plan day.');
+    seedDayExercisesDirectly(dayId, MAX_EXERCISES_PER_SESSION);
+
+    const sessionId = createSessionFromPlanDay({ workoutPlanId: planId, dayId });
+
+    expect(count('SELECT COUNT(*) AS n FROM workout_session WHERE id = ?;', [sessionId])).toBe(1);
+    expect(
+      count('SELECT COUNT(*) AS n FROM workout_session_exercise WHERE workout_session_id = ?;', [
+        sessionId,
+      ]),
+    ).toBe(MAX_EXERCISES_PER_SESSION);
+  });
+
+  it('rejects 51 day exercises before creating a partial planned session', () => {
+    const planId = createWorkoutPlan({ name: 'Oversized Plan' });
+    const dayId = listDaysForWorkoutPlan(planId)[0]?.id;
+    if (!dayId) throw new Error('Expected a plan day.');
+    seedDayExercisesDirectly(dayId, MAX_EXERCISES_PER_SESSION + 1);
+
+    let thrown: unknown;
+    try {
+      createSessionFromPlanDay({ workoutPlanId: planId, dayId });
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(WorkoutLimitError);
+    expect((thrown as Error).message).toBe(WORKOUT_LIMIT_MESSAGES.maxExercisesPerSession);
+    expect(count('SELECT COUNT(*) AS n FROM workout_session;')).toBe(0);
+    expect(count('SELECT COUNT(*) AS n FROM workout_session_exercise;')).toBe(0);
   });
 
   it('tombstones a deleted session tree, preserves siblings and history, and enqueues sync rows', () => {

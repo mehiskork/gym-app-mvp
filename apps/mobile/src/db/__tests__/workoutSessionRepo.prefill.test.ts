@@ -21,8 +21,14 @@ jest.mock('../../utils/ids', () => ({
 
 import { exec, query } from '../db';
 import { newId } from '../../utils/ids';
+import { enqueueOutboxOp } from '../outboxRepo';
 import { createSessionFromPlanDay } from '../workoutSessionRepo';
 import { DEFAULT_REST_SECONDS } from '../constants';
+import {
+  MAX_EXERCISES_PER_SESSION,
+  WorkoutLimitError,
+  WORKOUT_LIMIT_MESSAGES,
+} from '../workoutLimits';
 
 type Scenario = {
   exercises: Array<{
@@ -81,6 +87,7 @@ describe('createSessionFromPlanDay prefill', () => {
     (exec as jest.Mock).mockReset();
     (query as jest.Mock).mockReset();
     (newId as jest.Mock).mockReset();
+    (enqueueOutboxOp as jest.Mock).mockReset();
   });
 
   it('prefills from most recent completed same-plan-day history and preserves exact values', () => {
@@ -404,5 +411,67 @@ describe('createSessionFromPlanDay prefill', () => {
     expect(setInserts[0][1]).toEqual(['set-1', 'wse-1', 1, 0, 5, 120]);
     expect(setInserts[1][1]).toEqual(['set-2', 'wse-1', 2, 0, 8, 135]);
     expect(setInserts[2][1]).toEqual(['set-3', 'wse-1', 3, 0, 12, 150]);
+  });
+
+  it('allows starting a planned session with 50 exercises', () => {
+    setupScenario({
+      exercises: Array.from({ length: MAX_EXERCISES_PER_SESSION }, (_, index) => ({
+        dayExerciseId: `pde-${index + 1}`,
+        exerciseId: `exercise-${index + 1}`,
+        exerciseName: `Exercise ${index + 1}`,
+        position: index + 1,
+        plannedSets: [],
+        historicalSets: [],
+      })),
+    });
+    let nextId = 1;
+    (newId as jest.Mock).mockImplementation((prefix: string) => `${prefix}-${nextId++}`);
+
+    createSessionFromPlanDay({ workoutPlanId: 'plan-1', dayId: 'day-1' });
+
+    const sessionInserts = (exec as jest.Mock).mock.calls.filter((call) =>
+      String(call[0]).includes('INSERT INTO workout_session ('),
+    );
+    const sessionExerciseInserts = (exec as jest.Mock).mock.calls.filter((call) =>
+      String(call[0]).includes('INSERT INTO workout_session_exercise'),
+    );
+
+    expect(sessionInserts).toHaveLength(1);
+    expect(sessionExerciseInserts).toHaveLength(MAX_EXERCISES_PER_SESSION);
+  });
+
+  it('rejects a planned session with 51 exercises before creating rows', () => {
+    setupScenario({
+      exercises: Array.from({ length: MAX_EXERCISES_PER_SESSION + 1 }, (_, index) => ({
+        dayExerciseId: `pde-${index + 1}`,
+        exerciseId: `exercise-${index + 1}`,
+        exerciseName: `Exercise ${index + 1}`,
+        position: index + 1,
+        plannedSets: [],
+        historicalSets: [],
+      })),
+    });
+
+    let thrown: unknown;
+    try {
+      createSessionFromPlanDay({ workoutPlanId: 'plan-1', dayId: 'day-1' });
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(WorkoutLimitError);
+    expect((thrown as Error).message).toBe(WORKOUT_LIMIT_MESSAGES.maxExercisesPerSession);
+    expect(newId).not.toHaveBeenCalled();
+    expect(enqueueOutboxOp).not.toHaveBeenCalled();
+    expect(
+      (exec as jest.Mock).mock.calls.filter((call) =>
+        String(call[0]).includes('INSERT INTO workout_session ('),
+      ),
+    ).toHaveLength(0);
+    expect(
+      (exec as jest.Mock).mock.calls.filter((call) =>
+        String(call[0]).includes('INSERT INTO workout_session_exercise'),
+      ),
+    ).toHaveLength(0);
   });
 });
