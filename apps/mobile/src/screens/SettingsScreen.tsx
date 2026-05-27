@@ -51,6 +51,7 @@ import {
 } from '../auth/accountDeletion';
 import { getAccountDeletionUrl, getPrivacyPolicyUrl } from '../api/config';
 import { getInProgressSession } from '../db/workoutSessionRepo';
+import { isDebugScreenEnabled } from '../config/env';
 
 const REST_TIME_OPTIONS = [
   { label: '0:30', seconds: 30 },
@@ -163,6 +164,11 @@ export function SettingsScreen() {
   }, []);
 
   useEffect(() => {
+    if (!isDebugScreenEnabled) {
+      setDebugUnlockedState(false);
+      return;
+    }
+
     let active = true;
     (async () => {
       const unlocked = await isDebugUnlocked();
@@ -182,6 +188,8 @@ export function SettingsScreen() {
   );
 
   const handleUnlocked = useCallback(() => {
+    if (!isDebugScreenEnabled) return;
+
     setDebugUnlockedState(true);
     navigation.navigate('Debug');
   }, [navigation]);
@@ -192,6 +200,8 @@ export function SettingsScreen() {
   }, []);
 
   const handleOpenDebug = useCallback(() => {
+    if (!isDebugScreenEnabled) return;
+
     navigation.navigate('Debug');
   }, [navigation]);
 
@@ -758,9 +768,15 @@ export function SettingsScreen() {
         </Text>
 
         <View style={{ gap: tokens.spacing.sm }}>
-          <VersionTapUnlock onUnlocked={handleUnlocked} onLocked={handleLocked} />
+          {isDebugScreenEnabled ? (
+            <VersionTapUnlock
+              enabled={isDebugScreenEnabled}
+              onUnlocked={handleUnlocked}
+              onLocked={handleLocked}
+            />
+          ) : null}
 
-          {debugUnlocked ? (
+          {isDebugScreenEnabled && debugUnlocked ? (
             <Pressable onPress={handleOpenDebug}>
               <Text color={colors.primary}>Open Debug</Text>
             </Pressable>

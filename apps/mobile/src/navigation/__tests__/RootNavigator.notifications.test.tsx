@@ -1,4 +1,5 @@
 let mockEffectCleanup: (() => void) | undefined;
+let mockIsDebugScreenEnabled = true;
 
 jest.mock('react-native-gesture-handler', () => ({}));
 
@@ -136,6 +137,12 @@ jest.mock('../../db/db', () => ({
   query: jest.fn(),
 }));
 
+jest.mock('../../config/env', () => ({
+  get isDebugScreenEnabled() {
+    return mockIsDebugScreenEnabled;
+  },
+}));
+
 import React from 'react';
 import type * as Notifications from 'expo-notifications';
 
@@ -194,6 +201,7 @@ describe('RootNavigator unfinished workout notification handling', () => {
     mockCapturedOnReady = undefined;
     mockEffectCleanup = undefined;
     mockNavigationReady = false;
+    mockIsDebugScreenEnabled = true;
     mockStackScreens.length = 0;
     mockNotificationListener = undefined;
     mockGetLastNotificationResponseAsync.mockResolvedValue(null);
@@ -317,6 +325,26 @@ describe('RootNavigator unfinished workout notification handling', () => {
           options: expect.objectContaining({ title: 'Day' }),
         }),
       ]),
+    );
+  });
+
+  it('does not register the Debug route when Debug is disabled', () => {
+    mockIsDebugScreenEnabled = false;
+
+    renderRootNavigator();
+
+    expect(mockStackScreens).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ name: 'Debug' })]),
+    );
+  });
+
+  it('registers the Debug route when Debug is enabled', () => {
+    mockIsDebugScreenEnabled = true;
+
+    renderRootNavigator();
+
+    expect(mockStackScreens).toEqual(
+      expect.arrayContaining([expect.objectContaining({ name: 'Debug' })]),
     );
   });
 });

@@ -3,6 +3,7 @@ import { Pressable } from 'react-native';
 import { tokens } from '../theme/tokens';
 import { Text } from '../ui/Text';
 import { setDebugUnlocked } from '../utils/debugUnlock';
+import { isDebugScreenEnabled } from '../config/env';
 import appConfig from '../../app.json';
 
 const expoConfig = appConfig.expo as {
@@ -17,9 +18,10 @@ const buildNumber =
 type Props = {
   onUnlocked: () => void;
   onLocked?: () => void;
+  enabled?: boolean;
 };
 
-export function VersionTapUnlock({ onUnlocked, onLocked }: Props) {
+export function VersionTapUnlock({ enabled = isDebugScreenEnabled, onUnlocked, onLocked }: Props) {
   const countRef = useRef(0);
   const lastTapRef = useRef(0);
 
@@ -28,6 +30,8 @@ export function VersionTapUnlock({ onUnlocked, onLocked }: Props) {
   return (
     <Pressable
       onPress={async () => {
+        if (!enabled) return;
+
         const now = Date.now();
         const withinWindow = now - lastTapRef.current < 1200;
 
@@ -41,6 +45,8 @@ export function VersionTapUnlock({ onUnlocked, onLocked }: Props) {
         }
       }}
       onLongPress={async () => {
+        if (!enabled) return;
+
         countRef.current = 0;
         await setDebugUnlocked(false);
         onLocked?.();

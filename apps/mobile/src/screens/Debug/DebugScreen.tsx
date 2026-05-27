@@ -39,6 +39,7 @@ import { registerDeviceIfNeeded, syncNow } from '../../sync/syncWorker';
 import { OUTBOX_STALE_IN_FLIGHT_SECONDS } from '../../sync/constants';
 import { formatTimestampForDisplay } from '../../utils/timestamp';
 import { sanitizeLogContext } from '../../utils/logger';
+import { isDebugScreenEnabled } from '../../config/env';
 
 function Card({
   title,
@@ -218,6 +219,14 @@ type Feedback = {
 };
 
 export function DebugScreen() {
+  if (!isDebugScreenEnabled) {
+    return null;
+  }
+
+  return <DebugScreenContent />;
+}
+
+function DebugScreenContent() {
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [inProgress, setInProgress] = useState<ReturnType<typeof getInProgressWorkout>>(null);
   const [syncInfo, setSyncInfo] = useState<ReturnType<typeof getSyncDebugInfo> | null>(null);

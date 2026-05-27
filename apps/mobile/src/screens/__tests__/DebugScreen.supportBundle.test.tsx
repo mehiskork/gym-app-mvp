@@ -8,6 +8,8 @@ jest.mock('react', () => {
   };
 });
 
+let mockIsDebugScreenEnabled = true;
+
 jest.mock('react-native', () => {
   const React = require('react');
   return {
@@ -156,6 +158,12 @@ jest.mock('../../utils/logger', () => ({
   sanitizeLogContext: jest.fn((value: unknown) => value),
 }));
 
+jest.mock('../../config/env', () => ({
+  get isDebugScreenEnabled() {
+    return mockIsDebugScreenEnabled;
+  },
+}));
+
 import React from 'react';
 import * as Clipboard from 'expo-clipboard';
 import * as Sharing from 'expo-sharing';
@@ -207,8 +215,20 @@ function expandTree(node: React.ReactNode): React.ReactNode {
 describe('DebugScreen support bundle export', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockIsDebugScreenEnabled = true;
     useStateMock.mockReset();
     useStateMock.mockImplementation((initial: unknown) => [initial, jest.fn()]);
+  });
+
+  it('does not render sync or repair actions when Debug is disabled', () => {
+    mockIsDebugScreenEnabled = false;
+
+    const element = expandTree(DebugScreen());
+
+    expect(element).toBeNull();
+    expect(textContent(element)).not.toContain('Sync now');
+    expect(textContent(element)).not.toContain('Pull latest');
+    expect(textContent(element)).not.toContain('Repair stale in-flight');
   });
 
   it('opens a privacy confirmation before exporting the support bundle', () => {

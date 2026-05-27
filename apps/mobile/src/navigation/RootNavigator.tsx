@@ -21,6 +21,7 @@ import { ClaimStartScreen } from '../screens/ClaimStartScreen';
 import { tokens } from '../theme/tokens';
 import { handleUnfinishedWorkoutReminderNotificationResponse } from '../utils/unfinishedWorkoutReminderNotifications';
 import { logEvent } from '../utils/logger';
+import { isDebugScreenEnabled } from '../config/env';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -132,7 +133,9 @@ export function RootNavigator() {
           component={ClaimStartScreen}
           options={{ title: 'Link account', headerShown: true }}
         />
-        <Stack.Screen name="Debug" component={DebugScreen} options={{ title: 'Debug' }} />
+        {isDebugScreenEnabled ? (
+          <Stack.Screen name="Debug" component={DebugScreen} options={{ title: 'Debug' }} />
+        ) : null}
       </Stack.Navigator>
     </NavigationContainer>
   );

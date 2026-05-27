@@ -31,6 +31,7 @@ jest.mock(
 );
 
 const mockNavigate = jest.fn();
+let mockIsDebugScreenEnabled = true;
 
 jest.mock('@react-navigation/native', () => ({
   useFocusEffect: jest.fn(),
@@ -198,6 +199,12 @@ jest.mock('../../auth/accountDeletion', () => ({
 jest.mock('../../api/config', () => ({
   getAccountDeletionUrl: jest.fn(() => 'https://trainframe.example/account-deletion'),
   getPrivacyPolicyUrl: jest.fn(() => 'https://trainframe.example/privacy'),
+}));
+
+jest.mock('../../config/env', () => ({
+  get isDebugScreenEnabled() {
+    return mockIsDebugScreenEnabled;
+  },
 }));
 
 import React from 'react';
@@ -376,6 +383,7 @@ describe('SettingsScreen account interactions', () => {
     (requestRestTimerNotificationPermission as jest.Mock).mockResolvedValue(true);
     (Notifications.getPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'granted' });
     (getInProgressSession as jest.Mock).mockReturnValue(null);
+    mockIsDebugScreenEnabled = true;
   });
 
   it('shows reconnect and reset actions instead of guest migration when reauth is required', () => {
@@ -614,6 +622,28 @@ describe('SettingsScreen account interactions', () => {
     );
 
     expect(reminderToggle?.props.value).toBe(false);
+  });
+
+  it('does not render or open Debug controls when Debug is disabled', () => {
+    mockIsDebugScreenEnabled = false;
+
+    const tree = expandTree(renderSettingsScreen({ accountState: 'guest' }));
+    const buttonTitles = buttons(tree).map((button) => button.props.title);
+    const debugUnlocks = findElements(tree, (element) => element.type === 'VersionTapUnlock');
+
+    expect(debugUnlocks).toHaveLength(0);
+    expect(textContent(tree)).not.toContain('Open Debug');
+    expect(buttonTitles).not.toContain('Open Debug');
+    expect(mockNavigate).not.toHaveBeenCalledWith('Debug');
+  });
+
+  it('renders Debug unlock controls when Debug is enabled', () => {
+    mockIsDebugScreenEnabled = true;
+
+    const tree = expandTree(renderSettingsScreen({ accountState: 'guest' }));
+    const debugUnlocks = findElements(tree, (element) => element.type === 'VersionTapUnlock');
+
+    expect(debugUnlocks).toHaveLength(1);
   });
 
   it('clears unfinished reminders on focus when permission was revoked', async () => {
