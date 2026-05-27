@@ -59,6 +59,7 @@ class DeviceRegisterValidationIT {
 
     @Test
     void oversizedDeviceIdReturnsBadRequestAndCreatesNoDeviceRows() throws Exception {
+        int initialDeviceCount = deviceCount();
         String deviceId = "d" + "a".repeat(80);
 
         mockMvc.perform(post("/device/register")
@@ -69,11 +70,13 @@ class DeviceRegisterValidationIT {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("BAD_REQUEST"));
 
-        assertThat(deviceCount()).isZero();
+        assertThat(deviceCount()).isEqualTo(initialDeviceCount);
     }
 
     @Test
     void invalidDeviceSecretReturnsBadRequestAndCreatesNoDeviceRows() throws Exception {
+        int initialDeviceCount = deviceCount();
+
         mockMvc.perform(post("/device/register")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
@@ -82,7 +85,7 @@ class DeviceRegisterValidationIT {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("BAD_REQUEST"));
 
-        assertThat(deviceCount()).isZero();
+        assertThat(deviceCount()).isEqualTo(initialDeviceCount);
     }
 
     @Test

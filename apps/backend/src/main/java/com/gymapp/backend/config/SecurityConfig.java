@@ -132,8 +132,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/sync").authenticated()
                         .anyRequest().denyAll())
-                .addFilterBefore(syncRequestSizeLimitFilter, BearerDeviceAuthFilter.class)
                 .addFilterBefore(bearerFilter, BearerTokenAuthenticationFilter.class)
+                .addFilterBefore(syncRequestSizeLimitFilter, BearerDeviceAuthFilter.class)
                 .addFilterBefore(rateLimitFilter, BearerDeviceAuthFilter.class)
                 .addFilterAfter(accountSyncRateLimitFilter, BearerTokenAuthenticationFilter.class)
                 .oauth2ResourceServer(oauth2 -> oauth2
