@@ -28,8 +28,7 @@ function readExpoExtra(key: string): string | undefined {
   return undefined;
 }
 
-function readEnv(key: string): string | undefined {
-  const value = process.env[key];
+function readOptionalString(value: string | undefined): string | undefined {
   if (typeof value === 'string' && value.trim().length > 0) {
     return value.trim();
   }
@@ -42,8 +41,8 @@ function normalizeBaseUrlForComparison(value: string): string {
 
 export function getAppEnv(): string {
   return (
-    readEnv('EXPO_PUBLIC_APP_ENV') ??
-    readEnv('APP_ENV') ??
+    readOptionalString(process.env.EXPO_PUBLIC_APP_ENV) ??
+    readOptionalString(process.env.APP_ENV) ??
     readExpoExtra('EXPO_PUBLIC_APP_ENV') ??
     readExpoExtra('APP_ENV') ??
     'development'
@@ -51,7 +50,9 @@ export function getAppEnv(): string {
 }
 
 export function getApiBaseUrl(): string {
-  const envValue = readEnv('EXPO_PUBLIC_API_BASE_URL') ?? readEnv('API_BASE_URL');
+  const envValue =
+    readOptionalString(process.env.EXPO_PUBLIC_API_BASE_URL) ??
+    readOptionalString(process.env.API_BASE_URL);
   const appEnv = getAppEnv();
 
   if (appEnv === 'production') {

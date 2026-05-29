@@ -28,7 +28,8 @@
       "predictiveBackGestureEnabled": false,
       "googleServicesFile": "./google-services.json",
       "package": "com.mehka.gymappmvp",
-      "versionCode": 1
+      "versionCode": 1,
+      "allowBackup": false
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -36,7 +37,8 @@
     "plugins": [
       "expo-sqlite",
       "expo-secure-store",
-      "@react-native-google-signin/google-signin"
+      "@react-native-google-signin/google-signin",
+      "./plugins/withAndroidBackupDisabled"
     ],
     "extra": {
       "EXPO_PUBLIC_APP_ENV": "preview",
