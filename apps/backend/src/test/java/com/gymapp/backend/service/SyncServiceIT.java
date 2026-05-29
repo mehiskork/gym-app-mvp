@@ -3,6 +3,7 @@ package com.gymapp.backend.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.gymapp.backend.controller.ConflictException;
 import com.gymapp.backend.controller.ForbiddenException;
 import com.gymapp.backend.controller.ValidationException;
 import com.gymapp.backend.model.SyncAck;
@@ -950,6 +951,130 @@ class SyncServiceIT {
 
         assertThat(response.getAcks()).extracting(SyncAck::status).containsOnly("applied");
         assertThat(countEntityStateRows(guestUserId, "workout_set", "set-workout-graph")).isEqualTo(1);
+    }
+
+    @Test
+    void sameBatchWorkoutCompletionAllowsSessionExerciseAndSetWhenSessionWasNotCompletedBeforeRequest() {
+        SyncResponse response = syncService.sync(deviceId, guestUserId, "0", List.of(
+                upsertOp("op-same-batch-set", "workout_set", "set-same-batch-complete", Map.of(
+                        "id", "set-same-batch-complete",
+                        "workout_session_exercise_id", "session-ex-same-batch-complete",
+                        "set_index", 0,
+                        "reps", 5,
+                        "updated_at", "2026-03-01T00:03:00Z")),
+                upsertOp("op-same-batch-session-ex", "workout_session_exercise",
+                        "session-ex-same-batch-complete", Map.of(
+                                "id", "session-ex-same-batch-complete",
+                                "workout_session_id", "session-same-batch-complete",
+                                "exercise_id", "ex_bench_press_barbell",
+                                "position", 0,
+                                "updated_at", "2026-03-01T00:02:00Z")),
+                upsertOp("op-same-batch-session", "workout_session", "session-same-batch-complete", Map.of(
+                        "id", "session-same-batch-complete",
+                        "status", "completed",
+                        "updated_at", "2026-03-01T00:01:00Z"))));
+
+        assertThat(response.getAcks()).extracting(SyncAck::status)
+                .containsExactly("applied", "applied", "applied");
+        assertThat(entityStatePayload("workout_session", "session-same-batch-complete"))
+                .containsEntry("status", "completed");
+        assertThat(countEntityStateRows(guestUserId, "workout_session_exercise", "session-ex-same-batch-complete"))
+                .isEqualTo(1);
+        assertThat(countEntityStateRows(guestUserId, "workout_set", "set-same-batch-complete")).isEqualTo(1);
+    }
+
+    @Test
+    void laterWorkoutSetMutationAfterCompletedSessionFailsWithoutPartialWrites() {
+        Instant now = Instant.now();
+        upsertEntityStateAndChangeLog("workout_session", "session-completed-for-set", Map.of(
+                "id", "session-completed-for-set",
+                "status", "completed"), now);
+        upsertEntityStateAndChangeLog("workout_session_exercise", "session-exercise-completed-for-set", Map.of(
+                "id", "session-exercise-completed-for-set",
+                "workout_session_id", "session-completed-for-set",
+                "position", 0), now);
+        upsertEntityStateAndChangeLog("workout_set", "set-after-complete-target", Map.of(
+                "id", "set-after-complete-target",
+                "workout_session_exercise_id", "session-exercise-completed-for-set",
+                "set_index", 0), now);
+
+        assertThatThrownBy(() -> syncService.sync(deviceId, guestUserId, "0", List.of(
+                upsertOp("op-set-after-complete", "workout_set", "set-after-complete-target", Map.of(
+                        "id", "set-after-complete-target",
+                        "workout_session_exercise_id", "session-exercise-completed-for-set",
+                        "set_index", 0,
+                        "reps", 10,
+                        "updated_at", "2026-03-01T00:01:00Z")))))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("workout_set immutable when session completed");
+
+        assertThat(entityStatePayload("workout_set", "set-after-complete-target")).doesNotContainKey("reps");
+        assertThat(countChangeLogRows(guestUserId, "workout_set", "set-after-complete-target")).isEqualTo(1);
+        assertThat(countOpLedgerRows(guestUserId, "op-set-after-complete")).isZero();
+    }
+
+    @Test
+    void laterWorkoutSessionExerciseMutationAfterCompletedSessionFailsWithoutPartialWrites() {
+        Instant now = Instant.now();
+        upsertEntityStateAndChangeLog("workout_session", "session-completed-for-exercise", Map.of(
+                "id", "session-completed-for-exercise",
+                "status", "completed"), now);
+        upsertEntityStateAndChangeLog("workout_session_exercise", "session-exercise-after-complete", Map.of(
+                "id", "session-exercise-after-complete",
+                "workout_session_id", "session-completed-for-exercise",
+                "position", 0), now);
+
+        assertThatThrownBy(() -> syncService.sync(deviceId, guestUserId, "0", List.of(
+                upsertOp("op-session-ex-after-complete", "workout_session_exercise",
+                        "session-exercise-after-complete", Map.of(
+                                "id", "session-exercise-after-complete",
+                                "workout_session_id", "session-completed-for-exercise",
+                                "position", 1,
+                                "updated_at", "2026-03-01T00:01:00Z")))))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("workout_session_exercise immutable when session completed");
+
+        assertThat(entityStatePayload("workout_session_exercise", "session-exercise-after-complete"))
+                .containsEntry("position", 0);
+        assertThat(countChangeLogRows(guestUserId, "workout_session_exercise", "session-exercise-after-complete"))
+                .isEqualTo(1);
+        assertThat(countOpLedgerRows(guestUserId, "op-session-ex-after-complete")).isZero();
+    }
+
+    @Test
+    void immutableFailureInMixedBatchRollsBackAllSyncWrites() {
+        Instant now = Instant.now();
+        upsertEntityStateAndChangeLog("workout_session", "session-completed-for-mixed", Map.of(
+                "id", "session-completed-for-mixed",
+                "status", "completed"), now);
+        upsertEntityStateAndChangeLog("workout_session_exercise", "session-exercise-completed-for-mixed", Map.of(
+                "id", "session-exercise-completed-for-mixed",
+                "workout_session_id", "session-completed-for-mixed",
+                "position", 0), now);
+        upsertEntityStateAndChangeLog("workout_set", "set-immutable-mixed-target", Map.of(
+                "id", "set-immutable-mixed-target",
+                "workout_session_exercise_id", "session-exercise-completed-for-mixed",
+                "set_index", 0), now);
+
+        assertThatThrownBy(() -> syncService.sync(deviceId, guestUserId, "0", List.of(
+                upsertOp("op-valid-before-immutable", "program", "program-valid-before-immutable", Map.of(
+                        "id", "program-valid-before-immutable",
+                        "name", "Should Not Persist",
+                        "updated_at", "2026-03-01T00:00:00Z")),
+                upsertOp("op-set-immutable-mixed", "workout_set", "set-immutable-mixed-target", Map.of(
+                        "id", "set-immutable-mixed-target",
+                        "workout_session_exercise_id", "session-exercise-completed-for-mixed",
+                        "set_index", 0,
+                        "reps", 12,
+                        "updated_at", "2026-03-01T00:01:00Z")))))
+                .isInstanceOf(ConflictException.class);
+
+        assertThat(countEntityStateRows(guestUserId, "program", "program-valid-before-immutable")).isZero();
+        assertThat(countChangeLogRows(guestUserId, "program", "program-valid-before-immutable")).isZero();
+        assertThat(countOpLedgerRows(guestUserId, "op-valid-before-immutable")).isZero();
+        assertThat(entityStatePayload("workout_set", "set-immutable-mixed-target")).doesNotContainKey("reps");
+        assertThat(countChangeLogRows(guestUserId, "workout_set", "set-immutable-mixed-target")).isEqualTo(1);
+        assertThat(countOpLedgerRows(guestUserId, "op-set-immutable-mixed")).isZero();
     }
 
     @Test

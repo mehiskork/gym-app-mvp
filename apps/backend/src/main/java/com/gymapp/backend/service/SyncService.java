@@ -1,6 +1,7 @@
 package com.gymapp.backend.service;
 
 import com.gymapp.backend.controller.AccountDeletedException;
+import com.gymapp.backend.controller.ConflictException;
 import com.gymapp.backend.controller.ForbiddenException;
 import com.gymapp.backend.controller.ValidationException;
 import com.gymapp.backend.config.SyncGuardrailsProperties;
@@ -194,6 +195,9 @@ public class SyncService {
                                 .findEntityPresenceForOwner(ownerId, referencedParentKeys);
                 Set<SyncRepository.EntityKey> foreignParentKeys = syncRepository.findForeignEntityKeys(ownerId,
                                 referencedParentKeys);
+                PreRequestWorkoutCompletionState preRequestWorkoutCompletionState = collectPreRequestWorkoutCompletionState(
+                                ownerId,
+                                candidates);
                 Set<SyncRepository.EntityKey> appliedActiveKeys = new HashSet<>();
                 Set<SyncRepository.EntityKey> plannedInactiveKeys = new HashSet<>();
                 Map<SyncRepository.EntityKey, SyncRepository.EntityStateRecord> plannedStateByKey = new HashMap<>();
@@ -211,7 +215,8 @@ public class SyncService {
                                                 foreignParentKeys,
                                                 appliedActiveKeys,
                                                 plannedInactiveKeys,
-                                                plannedStateByKey)));
+                                                plannedStateByKey,
+                                                preRequestWorkoutCompletionState)));
 
                 return plans;
         }
@@ -224,7 +229,8 @@ public class SyncService {
                         Set<SyncRepository.EntityKey> foreignParentKeys,
                         Set<SyncRepository.EntityKey> appliedActiveKeys,
                         Set<SyncRepository.EntityKey> plannedInactiveKeys,
-                        Map<SyncRepository.EntityKey, SyncRepository.EntityStateRecord> plannedStateByKey) {
+                        Map<SyncRepository.EntityKey, SyncRepository.EntityStateRecord> plannedStateByKey,
+                        PreRequestWorkoutCompletionState preRequestWorkoutCompletionState) {
                 SyncOp op = indexed.op();
                 String opType = op.opType().toLowerCase();
                 enforceOwnership(ownerId, op);
@@ -251,7 +257,8 @@ public class SyncService {
                                 opType,
                                 existingPayload,
                                 existingReceivedAt,
-                                receivedAt);
+                                receivedAt,
+                                preRequestWorkoutCompletionState);
 
                 if ("applied".equals(resolution.status())) {
                         validateParentsForAppliedOp(
@@ -352,6 +359,55 @@ public class SyncService {
                         }
                 }
                 return keys;
+        }
+
+        private PreRequestWorkoutCompletionState collectPreRequestWorkoutCompletionState(
+                        String ownerId,
+                        List<IndexedSyncOp> ops) {
+                Set<String> sessionIds = new HashSet<>();
+                Set<String> sessionExerciseIds = new HashSet<>();
+                Set<String> setIds = new HashSet<>();
+                Map<String, String> sessionIdBySessionExerciseId = new HashMap<>();
+
+                for (IndexedSyncOp indexed : ops) {
+                        SyncOp op = indexed.op();
+                        if ("workout_session".equals(op.entityType())) {
+                                sessionIds.add(op.entityId());
+                                continue;
+                        }
+                        if ("workout_session_exercise".equals(op.entityType())) {
+                                sessionExerciseIds.add(op.entityId());
+                                String sessionId = getText(op.payload(), "workout_session_id");
+                                if (sessionId != null) {
+                                        sessionIds.add(sessionId);
+                                        sessionIdBySessionExerciseId.put(op.entityId(), sessionId);
+                                }
+                                continue;
+                        }
+                        if ("workout_set".equals(op.entityType())) {
+                                setIds.add(op.entityId());
+                                String sessionExerciseId = getText(op.payload(), "workout_session_exercise_id");
+                                if (sessionExerciseId != null) {
+                                        sessionExerciseIds.add(sessionExerciseId);
+                                }
+                        }
+                }
+
+                Map<String, String> sessionExerciseIdBySetId = syncRepository
+                                .findWorkoutSessionExerciseIdsByWorkoutSetIdsForOwner(ownerId, setIds);
+                sessionExerciseIds.addAll(sessionExerciseIdBySetId.values());
+
+                Map<String, String> preRequestSessionIdBySessionExerciseId = syncRepository
+                                .findWorkoutSessionIdsBySessionExerciseIdsForOwner(ownerId, sessionExerciseIds);
+                sessionIdBySessionExerciseId.putAll(preRequestSessionIdBySessionExerciseId);
+                sessionIds.addAll(sessionIdBySessionExerciseId.values());
+
+                Set<String> completedSessionIds = syncRepository.findCompletedWorkoutSessionIdsForOwner(ownerId,
+                                sessionIds);
+                return new PreRequestWorkoutCompletionState(
+                                completedSessionIds,
+                                sessionIdBySessionExerciseId,
+                                sessionExerciseIdBySetId);
         }
 
         private void validateParentsForAppliedOp(
@@ -602,7 +658,8 @@ public class SyncService {
                         String opType,
                         Map<String, Object> existingPayload,
                         Instant existingReceivedAt,
-                        Instant incomingReceivedAt) {
+                        Instant incomingReceivedAt,
+                        PreRequestWorkoutCompletionState preRequestWorkoutCompletionState) {
                 Map<String, Object> incomingPayload = ensureEntityId(op.payload(), op.entityId());
 
                 Instant incomingUpdatedAt = parseInstant(incomingPayload, "updated_at", "updatedAt");
@@ -623,10 +680,7 @@ public class SyncService {
                 }
 
                 if (existingPayload == null) {
-                        ResolutionResult immutability = enforceImmutability(ownerId, op, null, incomingPayload);
-                        if (immutability != null) {
-                                return immutability;
-                        }
+                        enforceImmutability(op, null, incomingPayload, preRequestWorkoutCompletionState);
                         return new ResolutionResult("applied", null, incomingPayload);
                 }
 
@@ -635,11 +689,7 @@ public class SyncService {
                                 capClientUpdatedAtForLww(incomingUpdatedAt, incomingReceivedAt),
                                 existingReceivedAt, incomingReceivedAt);
                 if (compare > 0) {
-                        ResolutionResult immutability = enforceImmutability(ownerId, op, existingPayload,
-                                        incomingPayload);
-                        if (immutability != null) {
-                                return immutability;
-                        }
+                        enforceImmutability(op, existingPayload, incomingPayload, preRequestWorkoutCompletionState);
                         return new ResolutionResult("applied", null, incomingPayload);
                 }
 
@@ -685,61 +735,70 @@ public class SyncService {
                 return new ResolutionResult("applied", null, mergeDelete(existingPayload, deletePayload));
         }
 
-        private ResolutionResult enforceImmutability(
-                        String ownerId,
+        private void enforceImmutability(
                         SyncOp op,
                         Map<String, Object> existingPayload,
-                        Map<String, Object> incomingPayload) {
+                        Map<String, Object> incomingPayload,
+                        PreRequestWorkoutCompletionState preRequestWorkoutCompletionState) {
                 if ("delete".equals(op.opType().toLowerCase())) {
-                        return null;
+                        return;
                 }
                 if (op.entityType().equals("workout_session")) {
-                        String status = getText(existingPayload, "status");
-                        if ("completed".equals(status)) {
-                                if (hasMutableChanges(existingPayload, incomingPayload)) {
-                                        return new ResolutionResult("rejected",
-                                                        "workout_session immutable after completion", null);
-                                }
+                        if (preRequestWorkoutCompletionState.isCompleted(op.entityId())
+                                        && hasMutableChanges(existingPayload, incomingPayload)) {
+                                throw immutableConflict(op, "workout_session immutable after completion");
+                        }
+                }
+
+                if (op.entityType().equals("workout_session_exercise")) {
+                        String sessionId = getText(incomingPayload, "workout_session_id");
+                        if (sessionId == null) {
+                                sessionId = getText(existingPayload, "workout_session_id");
+                        }
+                        if (sessionId != null
+                                        && preRequestWorkoutCompletionState.isCompleted(sessionId)
+                                        && hasMutableChanges(existingPayload, incomingPayload)) {
+                                throw immutableConflict(op,
+                                                "workout_session_exercise immutable when session completed");
                         }
                 }
 
                 if (op.entityType().equals("workout_set")) {
-                        String sessionId = resolveWorkoutSessionId(ownerId, existingPayload, incomingPayload);
-                        if (sessionId != null) {
-                                Optional<Map<String, Object>> sessionPayload = syncRepository.findEntityStateForOwner(
-                                                ownerId,
-                                                "workout_session",
-                                                sessionId);
-                                if (sessionPayload.isPresent()
-                                                && "completed".equals(getText(sessionPayload.get(), "status"))) {
-                                        if (hasMutableChanges(existingPayload, incomingPayload)) {
-                                                return new ResolutionResult("rejected",
-                                                                "workout_set immutable when session completed",
-                                                                null);
-                                        }
-                                }
+                        String sessionId = resolveWorkoutSessionId(
+                                        op,
+                                        existingPayload,
+                                        incomingPayload,
+                                        preRequestWorkoutCompletionState);
+                        if (sessionId != null
+                                        && preRequestWorkoutCompletionState.isCompleted(sessionId)
+                                        && hasMutableChanges(existingPayload, incomingPayload)) {
+                                throw immutableConflict(op, "workout_set immutable when session completed");
                         }
                 }
-
-                return null;
         }
 
         private String resolveWorkoutSessionId(
-                        String ownerId,
+                        SyncOp op,
                         Map<String, Object> existingPayload,
-                        Map<String, Object> incomingPayload) {
+                        Map<String, Object> incomingPayload,
+                        PreRequestWorkoutCompletionState preRequestWorkoutCompletionState) {
                 String wseId = getText(incomingPayload, "workout_session_exercise_id");
                 if (wseId == null) {
                         wseId = getText(existingPayload, "workout_session_exercise_id");
                 }
                 if (wseId == null) {
+                        wseId = preRequestWorkoutCompletionState.sessionExerciseIdBySetId().get(op.entityId());
+                }
+                if (wseId == null) {
                         return null;
                 }
-                Optional<Map<String, Object>> wsePayload = syncRepository.findEntityStateForOwner(
-                                ownerId,
-                                "workout_session_exercise",
-                                wseId);
-                return wsePayload.map(node -> getText(node, "workout_session_id")).orElse(null);
+                return preRequestWorkoutCompletionState.sessionIdBySessionExerciseId().get(wseId);
+        }
+
+        private ConflictException immutableConflict(SyncOp op, String message) {
+                return new ConflictException(
+                                message,
+                                buildDetails(op, "payload", message));
         }
 
         private boolean hasMutableChanges(Map<String, Object> existingPayload,
@@ -930,6 +989,15 @@ public class SyncService {
                         String opType,
                         ResolutionResult resolution,
                         boolean duplicate) {
+        }
+
+        private record PreRequestWorkoutCompletionState(
+                        Set<String> completedSessionIds,
+                        Map<String, String> sessionIdBySessionExerciseId,
+                        Map<String, String> sessionExerciseIdBySetId) {
+                boolean isCompleted(String sessionId) {
+                        return sessionId != null && completedSessionIds.contains(sessionId);
+                }
         }
 
         private ParsedCursor parseCursorOrThrow(String cursor, List<String> allowedEntityTypes) {

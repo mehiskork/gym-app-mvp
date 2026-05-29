@@ -296,6 +296,110 @@ public class SyncRepository {
                 return findEntityStateWithReceivedAt(ownerId, entityType, entityId);
         }
 
+        public Set<String> findCompletedWorkoutSessionIdsForOwner(String ownerId, Set<String> sessionIds) {
+                if (sessionIds == null || sessionIds.isEmpty()) {
+                        return Set.of();
+                }
+
+                StringJoiner placeholders = new StringJoiner(", ");
+                List<Object> params = new ArrayList<>();
+                params.add(ownerId);
+                for (String sessionId : sessionIds) {
+                        placeholders.add("?");
+                        params.add(sessionId);
+                }
+
+                String sql = String.format(
+                                """
+                                                SELECT entity_id
+                                                FROM entity_state
+                                                WHERE guest_user_id = ?
+                                                  AND entity_type = 'workout_session'
+                                                  AND entity_id IN (%s)
+                                                  AND row_json ->> 'status' = 'completed'
+                                                """,
+                                placeholders);
+                return new HashSet<>(jdbcTemplate.query(
+                                sql,
+                                (rs, rowNum) -> rs.getString("entity_id"),
+                                params.toArray()));
+        }
+
+        public Map<String, String> findWorkoutSessionIdsBySessionExerciseIdsForOwner(
+                        String ownerId,
+                        Set<String> sessionExerciseIds) {
+                if (sessionExerciseIds == null || sessionExerciseIds.isEmpty()) {
+                        return Map.of();
+                }
+
+                StringJoiner placeholders = new StringJoiner(", ");
+                List<Object> params = new ArrayList<>();
+                params.add(ownerId);
+                for (String sessionExerciseId : sessionExerciseIds) {
+                        placeholders.add("?");
+                        params.add(sessionExerciseId);
+                }
+
+                String sql = String.format(
+                                """
+                                                SELECT entity_id, row_json ->> 'workout_session_id' AS workout_session_id
+                                                FROM entity_state
+                                                WHERE guest_user_id = ?
+                                                  AND entity_type = 'workout_session_exercise'
+                                                  AND entity_id IN (%s)
+                                                """,
+                                placeholders);
+                List<Map.Entry<String, String>> rows = jdbcTemplate.query(
+                                sql,
+                                (rs, rowNum) -> new java.util.AbstractMap.SimpleEntry<>(
+                                                rs.getString("entity_id"),
+                                                rs.getString("workout_session_id")),
+                                params.toArray());
+                Map<String, String> sessionIdsBySessionExerciseId = new LinkedHashMap<>();
+                for (Map.Entry<String, String> row : rows) {
+                        sessionIdsBySessionExerciseId.put(row.getKey(), row.getValue());
+                }
+                return sessionIdsBySessionExerciseId;
+        }
+
+        public Map<String, String> findWorkoutSessionExerciseIdsByWorkoutSetIdsForOwner(
+                        String ownerId,
+                        Set<String> setIds) {
+                if (setIds == null || setIds.isEmpty()) {
+                        return Map.of();
+                }
+
+                StringJoiner placeholders = new StringJoiner(", ");
+                List<Object> params = new ArrayList<>();
+                params.add(ownerId);
+                for (String setId : setIds) {
+                        placeholders.add("?");
+                        params.add(setId);
+                }
+
+                String sql = String.format(
+                                """
+                                                SELECT entity_id,
+                                                       row_json ->> 'workout_session_exercise_id' AS workout_session_exercise_id
+                                                FROM entity_state
+                                                WHERE guest_user_id = ?
+                                                  AND entity_type = 'workout_set'
+                                                  AND entity_id IN (%s)
+                                                """,
+                                placeholders);
+                List<Map.Entry<String, String>> rows = jdbcTemplate.query(
+                                sql,
+                                (rs, rowNum) -> new java.util.AbstractMap.SimpleEntry<>(
+                                                rs.getString("entity_id"),
+                                                rs.getString("workout_session_exercise_id")),
+                                params.toArray());
+                Map<String, String> sessionExerciseIdsBySetId = new LinkedHashMap<>();
+                for (Map.Entry<String, String> row : rows) {
+                        sessionExerciseIdsBySetId.put(row.getKey(), row.getValue());
+                }
+                return sessionExerciseIdsBySetId;
+        }
+
         public Set<String> findExistingOpLedgerIdsForOwner(String ownerId, Set<String> opIds) {
                 if (opIds == null || opIds.isEmpty()) {
                         return Set.of();
