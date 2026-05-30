@@ -53,6 +53,7 @@ import {
   saveCompletedQuickWorkoutAsPlan,
 } from '../workoutPlanRepo';
 import { MAX_SESSIONS_PER_PLAN, WorkoutLimitError } from '../workoutLimits';
+import { SYNC_BATCH_LIMIT } from '../../sync/constants';
 
 type CountRow = { n: number };
 type OutboxRow = {
@@ -151,14 +152,113 @@ function seedCompletedQuickWorkout(sessionId = 'quick-1') {
   return sessionId;
 }
 
-function readOutboxRows(): OutboxRow[] {
+function seedLargeCompletedQuickWorkout(sessionId = 'quick-large') {
+  const setsPerExercise = Math.ceil((SYNC_BATCH_LIMIT + 1) / 3);
+
+  exec(
+    `
+    INSERT INTO workout_session (
+      id,
+      source_workout_plan_id,
+      source_program_day_id,
+      title,
+      status,
+      started_at,
+      ended_at
+    ) VALUES (?, NULL, NULL, 'Quick Workout', 'completed', '2026-01-02T10:00:00Z', '2026-01-02T11:00:00Z');
+  `,
+    [sessionId],
+  );
+
+  for (let exerciseIndex = 1; exerciseIndex <= 3; exerciseIndex += 1) {
+    const sessionExerciseId = `large-wse-${exerciseIndex}`;
+    exec(
+      `
+      INSERT INTO workout_session_exercise (
+        id,
+        workout_session_id,
+        source_program_day_exercise_id,
+        exercise_id,
+        exercise_name,
+        exercise_type,
+        cardio_profile,
+        position,
+        notes
+      ) VALUES (?, ?, NULL, ?, ?, 'strength', NULL, ?, NULL);
+    `,
+      [
+        sessionExerciseId,
+        sessionId,
+        exerciseIndex === 2 ? rowId : benchId,
+        exerciseIndex === 2 ? 'Barbell Row' : 'Bench Press',
+        exerciseIndex,
+      ],
+    );
+
+    for (let setIndex = 1; setIndex <= setsPerExercise; setIndex += 1) {
+      exec(
+        `
+        INSERT INTO workout_set (
+          id,
+          workout_session_exercise_id,
+          set_index,
+          weight,
+          reps,
+          is_completed
+        ) VALUES (?, ?, ?, ?, ?, 1);
+      `,
+        [
+          `large-set-${exerciseIndex}-${setIndex}`,
+          sessionExerciseId,
+          setIndex,
+          100 + exerciseIndex,
+          setIndex,
+        ],
+      );
+    }
+  }
+
+  return sessionId;
+}
+
+function readOutboxRows(limit?: number): OutboxRow[] {
+  if (limit !== undefined) {
+    return query<OutboxRow>(
+      `
+      SELECT entity_type, entity_id, payload_json
+      FROM outbox_op
+      ORDER BY created_at, rowid
+      LIMIT ?;
+    `,
+      [limit],
+    );
+  }
+
   return query<OutboxRow>(
     `
     SELECT entity_type, entity_id, payload_json
     FROM outbox_op
-    ORDER BY created_at, id;
+    ORDER BY created_at, rowid;
   `,
   );
+}
+
+function expectGroupedPlannerOrder(entityTypes: string[], prefix: string[]) {
+  expect(entityTypes.slice(0, prefix.length)).toEqual(prefix);
+
+  const firstDayExercise = entityTypes.indexOf('program_day_exercise');
+  const firstPlannedSet = entityTypes.indexOf('planned_set');
+  expect(firstDayExercise).toBeGreaterThanOrEqual(prefix.length);
+  expect(firstPlannedSet).toBeGreaterThan(firstDayExercise);
+  expect(entityTypes.slice(prefix.length, firstPlannedSet)).toEqual(
+    expect.arrayContaining(['program_day_exercise']),
+  );
+  expect(
+    entityTypes
+      .slice(prefix.length, firstPlannedSet)
+      .every((type) => type === 'program_day_exercise'),
+  ).toBe(true);
+  expect(entityTypes.slice(firstPlannedSet).every((type) => type === 'planned_set')).toBe(true);
 }
 
 describe('saveCompletedQuickWorkoutAsPlan', () => {
@@ -269,6 +369,9 @@ describe('saveCompletedQuickWorkoutAsPlan', () => {
         result.programDayId,
       ]),
     ).toBe(3);
+
+    const entityTypes = readOutboxRows().map((row) => row.entity_type);
+    expectGroupedPlannerOrder(entityTypes, ['program_day']);
   });
 
   it('enqueues planner outbox snapshots for inserted entities', async () => {
@@ -281,6 +384,18 @@ describe('saveCompletedQuickWorkoutAsPlan', () => {
     });
 
     const entityTypes = readOutboxRows().map((row) => row.entity_type);
+    expect(entityTypes).toEqual([
+      'program',
+      'program_week',
+      'program_day',
+      'program_day_exercise',
+      'program_day_exercise',
+      'program_day_exercise',
+      'planned_set',
+      'planned_set',
+      'planned_set',
+      'planned_set',
+    ]);
     expect(entityTypes.filter((type) => type === 'program')).toHaveLength(1);
     expect(entityTypes.filter((type) => type === 'program_week')).toHaveLength(1);
     expect(entityTypes.filter((type) => type === 'program_day')).toHaveLength(1);
@@ -290,6 +405,53 @@ describe('saveCompletedQuickWorkoutAsPlan', () => {
       readOutboxRows()
         .filter((row) => row.entity_type === 'planned_set')
         .every((row) => JSON.parse(row.payload_json).rest_seconds === null),
+    ).toBe(true);
+  });
+
+  it('enqueues a created week before the appended day and copied children', async () => {
+    const sessionId = seedCompletedQuickWorkout();
+    const planId = 'existing-plan-without-week';
+    exec(
+      `
+      INSERT INTO program (id, name, description, is_template, owner_user_id)
+      VALUES (?, 'Existing Plan Without Week', NULL, 0, NULL);
+    `,
+      [planId],
+    );
+    exec('DELETE FROM outbox_op;');
+
+    await saveCompletedQuickWorkoutAsPlan({
+      sessionId,
+      target: { kind: 'existingPlan', workoutPlanId: planId },
+    });
+
+    const entityTypes = readOutboxRows().map((row) => row.entity_type);
+    expectGroupedPlannerOrder(entityTypes, ['program_week', 'program_day']);
+  });
+
+  it('keeps parent snapshots in the first sync-sized slice for large reused workouts', async () => {
+    const sessionId = seedLargeCompletedQuickWorkout();
+    exec('DELETE FROM outbox_op;');
+
+    await saveCompletedQuickWorkoutAsPlan({
+      sessionId,
+      target: { kind: 'newPlan', name: 'Large Synced Plan' },
+    });
+
+    const allEntityTypes = readOutboxRows().map((row) => row.entity_type);
+    expect(allEntityTypes.length).toBeGreaterThan(SYNC_BATCH_LIMIT);
+
+    const firstSyncSlice = readOutboxRows(SYNC_BATCH_LIMIT).map((row) => row.entity_type);
+    expect(firstSyncSlice.slice(0, 3)).toEqual(['program', 'program_week', 'program_day']);
+
+    const lastDayExerciseIndex = firstSyncSlice.lastIndexOf('program_day_exercise');
+    const firstPlannedSetIndex = firstSyncSlice.indexOf('planned_set');
+    expect(lastDayExerciseIndex).toBeGreaterThan(2);
+    expect(firstPlannedSetIndex).toBeGreaterThan(lastDayExerciseIndex);
+    expect(
+      firstSyncSlice
+        .slice(3, firstPlannedSetIndex)
+        .every((type) => type === 'program_day_exercise'),
     ).toBe(true);
   });
 

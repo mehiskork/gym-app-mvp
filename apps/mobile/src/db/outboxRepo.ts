@@ -86,7 +86,7 @@ export function listPendingOutboxOps(limit: number): OutboxOp[] {
     FROM outbox_op
     WHERE status IN ('${OUTBOX_STATUS.PENDING}', '${OUTBOX_STATUS.FAILED}')
       AND (next_attempt_at IS NULL OR datetime(next_attempt_at) <= datetime('now'))
-    ORDER BY created_at ASC
+    ORDER BY created_at ASC, rowid ASC
     LIMIT ?;
   `,
     [limit],
@@ -114,7 +114,7 @@ export function listNonAckedOutboxOps(limit: number): OutboxOp[] {
       updated_at
     FROM outbox_op
     WHERE status <> '${OUTBOX_STATUS.ACKED}'
-    ORDER BY created_at ASC
+    ORDER BY created_at ASC, rowid ASC
     LIMIT ?;
   `,
     [limit],

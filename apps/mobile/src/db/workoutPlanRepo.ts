@@ -275,6 +275,7 @@ function insertProgramDay(input: {
 function createReusablePlanSessionDay(input: {
   weekId: string;
   sessionName: string | null;
+  enqueueSnapshot?: boolean;
 }): string {
   normalizeDeletedDayIndices(input.weekId);
   compactActiveDays(input.weekId);
@@ -291,7 +292,9 @@ function createReusablePlanSessionDay(input: {
     name: input.sessionName?.trim() || `Session ${nextIndex}`,
   });
 
-  enqueueProgramDaySnapshot(dayId);
+  if (input.enqueueSnapshot !== false) {
+    enqueueProgramDaySnapshot(dayId);
+  }
   return dayId;
 }
 
@@ -342,6 +345,8 @@ function copyWorkoutExercisesIntoProgramDay(input: {
   programDayId: string;
 }): void {
   const exercises = listCopyableStrengthExercises(input.sourceSessionId);
+  const dayExerciseIds: string[] = [];
+  const plannedSetIds: string[] = [];
 
   if (exercises.length === 0) {
     throw new Error('No completed strength sets to reuse.');
@@ -361,7 +366,7 @@ function copyWorkoutExercisesIntoProgramDay(input: {
     `,
       [dayExerciseId, input.programDayId, exercise.exercise_id, exerciseIndex + 1],
     );
-    enqueueProgramDayExerciseSnapshot(dayExerciseId);
+    dayExerciseIds.push(dayExerciseId);
 
     const sets = listCompletedStrengthSets(exercise.id);
     for (let setIndex = 0; setIndex < sets.length; setIndex += 1) {
@@ -382,8 +387,16 @@ function copyWorkoutExercisesIntoProgramDay(input: {
       `,
         [plannedSetId, dayExerciseId, setIndex + 1, set.reps, set.reps, set.weight],
       );
-      enqueuePlannedSetSnapshot(plannedSetId);
+      plannedSetIds.push(plannedSetId);
     }
+  }
+
+  for (const dayExerciseId of dayExerciseIds) {
+    enqueueProgramDayExerciseSnapshot(dayExerciseId);
+  }
+
+  for (const plannedSetId of plannedSetIds) {
+    enqueuePlannedSetSnapshot(plannedSetId);
   }
 }
 
@@ -787,11 +800,7 @@ export async function saveCompletedQuickWorkoutAsPlan(input: {
     const programDayId = createReusablePlanSessionDay({
       weekId,
       sessionName: source.title,
-    });
-
-    copyWorkoutExercisesIntoProgramDay({
-      sourceSessionId: input.sessionId,
-      programDayId,
+      enqueueSnapshot: false,
     });
 
     if (createdPlan) {
@@ -800,6 +809,12 @@ export async function saveCompletedQuickWorkoutAsPlan(input: {
     } else if (createdWeek) {
       enqueueProgramWeekSnapshot(weekId);
     }
+    enqueueProgramDaySnapshot(programDayId);
+
+    copyWorkoutExercisesIntoProgramDay({
+      sourceSessionId: input.sessionId,
+      programDayId,
+    });
 
     return { workoutPlanId, programDayId, createdPlan };
   });
