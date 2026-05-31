@@ -6,7 +6,12 @@ jest.mock('../../utils/logger', () => ({
   logEvent: jest.fn(),
 }));
 
+jest.mock('../../db/appMetaRepo', () => ({
+  isSyncPaused: jest.fn(() => false),
+}));
+
 import { logEvent } from '../../utils/logger';
+import { isSyncPaused } from '../../db/appMetaRepo';
 import { syncNow } from '../syncWorker';
 import {
   cancelScheduledSync,
@@ -22,6 +27,7 @@ describe('syncScheduler', () => {
     jest.clearAllMocks();
     resetSyncSchedulerForTests();
     (syncNow as jest.Mock).mockResolvedValue(undefined);
+    (isSyncPaused as jest.Mock).mockReturnValue(false);
   });
 
   afterEach(() => {
@@ -109,6 +115,15 @@ describe('syncScheduler', () => {
     scheduleSyncSoon('outbox_write');
     cancelScheduledSync();
 
+    await jest.advanceTimersByTimeAsync(3000);
+
+    expect(syncNow).not.toHaveBeenCalled();
+  });
+
+  it('does not create a timer or call syncNow while sync is paused', async () => {
+    (isSyncPaused as jest.Mock).mockReturnValue(true);
+
+    scheduleSyncSoon('outbox_write');
     await jest.advanceTimersByTimeAsync(3000);
 
     expect(syncNow).not.toHaveBeenCalled();

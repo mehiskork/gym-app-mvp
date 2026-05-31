@@ -174,6 +174,10 @@ jest.mock('../../auth/identityTransition', () => ({
   resetToGuestBootstrap: jest.fn(() => Promise.resolve()),
 }));
 
+jest.mock('../../auth/syncQuiescence', () => ({
+  quiesceSyncBeforeIdentityReset: jest.fn(() => Promise.resolve()),
+}));
+
 jest.mock('../../auth/googleAccountOrchestrator', () => ({
   createGoogleAccountFromGuest: jest.fn(() => Promise.resolve()),
   reconnectGoogleAccount: jest.fn(() => Promise.resolve()),
@@ -196,6 +200,10 @@ jest.mock('../../auth/accountDeletion', () => ({
   ),
 }));
 
+jest.mock('../../db/appMetaRepo', () => ({
+  resumeSync: jest.fn(),
+}));
+
 jest.mock('../../api/config', () => ({
   getAccountDeletionUrl: jest.fn(() => 'https://trainframe.example/account-deletion'),
   getPrivacyPolicyUrl: jest.fn(() => 'https://trainframe.example/privacy'),
@@ -213,6 +221,7 @@ import * as Notifications from 'expo-notifications';
 import { useFocusEffect } from '@react-navigation/native';
 
 import { resetToGuestBootstrap } from '../../auth/identityTransition';
+import { quiesceSyncBeforeIdentityReset } from '../../auth/syncQuiescence';
 import { signOutFromGoogle } from '../../auth/firebaseGoogleAuthClient';
 import {
   createGoogleAccountFromGuest,
@@ -230,6 +239,7 @@ import {
   setUnfinishedWorkoutRemindersPreference,
 } from '../../utils/unfinishedWorkoutReminderNotifications';
 import { getInProgressSession } from '../../db/workoutSessionRepo';
+import { resumeSync } from '../../db/appMetaRepo';
 import { Button } from '../../ui';
 import { SettingsScreen } from '../SettingsScreen';
 import { getSettingsAccountUiState } from '../settingsAccountUiState';
@@ -383,6 +393,7 @@ describe('SettingsScreen account interactions', () => {
     (requestRestTimerNotificationPermission as jest.Mock).mockResolvedValue(true);
     (Notifications.getPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'granted' });
     (getInProgressSession as jest.Mock).mockReturnValue(null);
+    (quiesceSyncBeforeIdentityReset as jest.Mock).mockResolvedValue(undefined);
     mockIsDebugScreenEnabled = true;
   });
 
@@ -883,6 +894,7 @@ describe('SettingsScreen account interactions', () => {
     expect(resetToGuestBootstrap).not.toHaveBeenCalled();
     expect(signOutFromGoogle).not.toHaveBeenCalled();
     expect(createGoogleAccountFromGuest).not.toHaveBeenCalled();
+    expect(quiesceSyncBeforeIdentityReset).not.toHaveBeenCalled();
   });
 
   it('canceling Switch account confirmation does not clear data or start Google sign-in', () => {
@@ -903,6 +915,7 @@ describe('SettingsScreen account interactions', () => {
     expect(signOutFromGoogle).not.toHaveBeenCalled();
     expect(createGoogleAccountFromGuest).not.toHaveBeenCalled();
     expect(reconnectGoogleAccount).not.toHaveBeenCalled();
+    expect(quiesceSyncBeforeIdentityReset).not.toHaveBeenCalled();
   });
 
   it('switch account with an active workout shows the explicit discard warning', () => {
@@ -935,6 +948,7 @@ describe('SettingsScreen account interactions', () => {
     expect(resetToGuestBootstrap).not.toHaveBeenCalled();
     expect(signOutFromGoogle).not.toHaveBeenCalled();
     expect(createGoogleAccountFromGuest).not.toHaveBeenCalled();
+    expect(quiesceSyncBeforeIdentityReset).not.toHaveBeenCalled();
   });
 
   it('canceling active-workout Switch account confirmation does not reset or sign out', () => {
@@ -959,6 +973,7 @@ describe('SettingsScreen account interactions', () => {
     expect(signOutFromGoogle).not.toHaveBeenCalled();
     expect(createGoogleAccountFromGuest).not.toHaveBeenCalled();
     expect(reconnectGoogleAccount).not.toHaveBeenCalled();
+    expect(quiesceSyncBeforeIdentityReset).not.toHaveBeenCalled();
   });
 
   it('confirming Switch account uses the destructive sign-out and local reset path', async () => {
@@ -996,6 +1011,13 @@ describe('SettingsScreen account interactions', () => {
 
     expect(signOutFromGoogle).toHaveBeenCalledTimes(1);
     expect(resetToGuestBootstrap).toHaveBeenCalledTimes(1);
+    expect(quiesceSyncBeforeIdentityReset).toHaveBeenCalledWith('identity_reset');
+    expect((quiesceSyncBeforeIdentityReset as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
+      (signOutFromGoogle as jest.Mock).mock.invocationCallOrder[0],
+    );
+    expect((quiesceSyncBeforeIdentityReset as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
+      (resetToGuestBootstrap as jest.Mock).mock.invocationCallOrder[0],
+    );
     expect(resolveLocalAccountState).toHaveBeenCalled();
     expect(setAccountBusy).toHaveBeenCalledWith(true);
     expect(setAccountBusy).toHaveBeenLastCalledWith(false);
@@ -1020,6 +1042,7 @@ describe('SettingsScreen account interactions', () => {
     expect(setLogoutConfirmOpen).toHaveBeenCalledWith(expect.any(Function));
     expect(resetToGuestBootstrap).not.toHaveBeenCalled();
     expect(signOutFromGoogle).not.toHaveBeenCalled();
+    expect(quiesceSyncBeforeIdentityReset).not.toHaveBeenCalled();
   });
 
   it('canceling active-workout sign-out confirmation leaves local account data intact', () => {
@@ -1041,6 +1064,7 @@ describe('SettingsScreen account interactions', () => {
     expect(setLogoutConfirmOpen).toHaveBeenCalledWith(expect.any(Function));
     expect(resetToGuestBootstrap).not.toHaveBeenCalled();
     expect(signOutFromGoogle).not.toHaveBeenCalled();
+    expect(quiesceSyncBeforeIdentityReset).not.toHaveBeenCalled();
   });
 
   it('confirming sign-out uses the existing sign-out and local clear path', async () => {
@@ -1053,6 +1077,10 @@ describe('SettingsScreen account interactions', () => {
 
     expect(signOutFromGoogle).toHaveBeenCalledTimes(1);
     expect(resetToGuestBootstrap).toHaveBeenCalledTimes(1);
+    expect(quiesceSyncBeforeIdentityReset).toHaveBeenCalledWith('identity_reset');
+    expect((quiesceSyncBeforeIdentityReset as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
+      (signOutFromGoogle as jest.Mock).mock.invocationCallOrder[0],
+    );
     expect(reconnectGoogleAccount).not.toHaveBeenCalled();
     expect(createGoogleAccountFromGuest).not.toHaveBeenCalled();
   });
@@ -1072,8 +1100,32 @@ describe('SettingsScreen account interactions', () => {
 
     expect(signOutFromGoogle).toHaveBeenCalledTimes(1);
     expect(resetToGuestBootstrap).toHaveBeenCalledTimes(1);
+    expect(quiesceSyncBeforeIdentityReset).toHaveBeenCalledWith('identity_reset');
+    expect((quiesceSyncBeforeIdentityReset as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
+      (signOutFromGoogle as jest.Mock).mock.invocationCallOrder[0],
+    );
     expect(reconnectGoogleAccount).not.toHaveBeenCalled();
     expect(createGoogleAccountFromGuest).not.toHaveBeenCalled();
+  });
+
+  it('resumes sync and shows the friendly error when sign-out fails before reset', async () => {
+    (signOutFromGoogle as jest.Mock).mockRejectedValueOnce(new Error('SecureStore failed'));
+    const setAccountError = jest.fn();
+    const tree = expandTree(renderLogoutConfirmState(jest.fn(), undefined, setAccountError));
+    const dialog = destructiveDialogs(tree)[0];
+
+    dialog?.props.onConfirm();
+    for (let i = 0; i < 5; i += 1) {
+      await Promise.resolve();
+    }
+
+    expect(quiesceSyncBeforeIdentityReset).toHaveBeenCalledWith('identity_reset');
+    expect(signOutFromGoogle).toHaveBeenCalledTimes(1);
+    expect(resetToGuestBootstrap).not.toHaveBeenCalled();
+    expect(resumeSync).toHaveBeenCalledTimes(1);
+    expect(setAccountError).toHaveBeenCalledWith(
+      "TrainFrame couldn't access secure account storage. Restart the app and try again.",
+    );
   });
 
   it('ignores a second immediate sign-out confirmation submit', async () => {
@@ -1371,6 +1423,7 @@ function renderDeleteAccountState({ confirmText }: { confirmText: string }) {
 function renderLogoutConfirmState(
   setLogoutConfirmOpen = jest.fn(),
   body = 'This device will sign out and remove local synced data so another account cannot inherit it.',
+  setAccountError = jest.fn(),
 ) {
   useStateMock.mockReset();
   useStateMock.mockImplementation((initial: unknown) => [initial, jest.fn()]);
@@ -1379,7 +1432,7 @@ function renderLogoutConfirmState(
     .mockImplementationOnce(() => ['linked_with_usable_account', jest.fn()])
     .mockImplementationOnce(() => [{ accessToken: 'token', email: 'user@example.test' }, jest.fn()])
     .mockImplementationOnce(() => [false, jest.fn()])
-    .mockImplementationOnce(() => [null, jest.fn()])
+    .mockImplementationOnce(() => [null, setAccountError])
     .mockImplementationOnce(() => [false, jest.fn()])
     .mockImplementationOnce(() => ['review', jest.fn()])
     .mockImplementationOnce(() => ['', jest.fn()])

@@ -37,6 +37,7 @@ import {
   setUnfinishedWorkoutRemindersPreference,
 } from '../utils/unfinishedWorkoutReminderNotifications';
 import { resetToGuestBootstrap } from '../auth/identityTransition';
+import { quiesceSyncBeforeIdentityReset } from '../auth/syncQuiescence';
 import type { AccountSession } from '../auth/accountSessionStore';
 import {
   createGoogleAccountFromGuest,
@@ -52,6 +53,7 @@ import {
 import { getAccountDeletionUrl, getPrivacyPolicyUrl } from '../api/config';
 import { getInProgressSession } from '../db/workoutSessionRepo';
 import { isDebugScreenEnabled } from '../config/env';
+import { resumeSync } from '../db/appMetaRepo';
 
 const REST_TIME_OPTIONS = [
   { label: '0:30', seconds: 30 },
@@ -305,10 +307,12 @@ export function SettingsScreen() {
       try {
         setAccountBusy(true);
         setAccountError(null);
+        await quiesceSyncBeforeIdentityReset('identity_reset');
         await signOutFromGoogle();
         await resetToGuestBootstrap();
         await refreshAccountState();
       } catch (error) {
+        resumeSync();
         setAccountError(getFriendlyAccountError(error, 'reset'));
       } finally {
         logoutConfirmInFlightRef.current = false;
@@ -332,10 +336,12 @@ export function SettingsScreen() {
             try {
               setAccountBusy(true);
               setAccountError(null);
+              await quiesceSyncBeforeIdentityReset('identity_reset');
               await signOutFromGoogle();
               await resetToGuestBootstrap();
               await refreshAccountState();
             } catch (error) {
+              resumeSync();
               setAccountError(getFriendlyAccountError(error, 'switch'));
             } finally {
               setAccountBusy(false);

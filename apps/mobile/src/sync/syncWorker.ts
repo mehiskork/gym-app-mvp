@@ -425,6 +425,11 @@ async function runSyncPage(options: SyncNowOptions): Promise<boolean> {
       hasMore?: boolean;
     };
 
+    if (isSyncPaused()) {
+      logEvent('info', 'sync', 'Sync paused before response processing');
+      return false;
+    }
+
     const ackClassification = classifyAcks(ops, data.acks ?? []);
     ackCounts = ackClassification.counts;
     let deltaSummary = { applied: 0, skipped: 0, total: 0 };

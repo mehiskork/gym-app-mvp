@@ -150,7 +150,7 @@ function clearMeta(key: string) {
   );
 }
 
-export type SyncPauseReason = 'claim' | 'account_deletion';
+export type SyncPauseReason = 'claim' | 'account_deletion' | 'identity_reset';
 
 const SYNC_PAUSED_REASON_KEY = 'sync_paused_reason';
 const CLAIMED_KEY = 'claimed';
@@ -180,7 +180,9 @@ export function isSyncPaused(): boolean {
 
 export function getSyncPauseReason(): SyncPauseReason | null {
   const value = getMeta(SYNC_PAUSED_REASON_KEY);
-  return value === 'claim' || value === 'account_deletion' ? value : null;
+  return value === 'claim' || value === 'account_deletion' || value === 'identity_reset'
+    ? value
+    : null;
 }
 
 export function setClaimed(value: boolean) {

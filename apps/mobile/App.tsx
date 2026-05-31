@@ -14,6 +14,7 @@ import { Button } from './src/ui/Button';
 import { Text } from './src/ui/Text';
 import { DestructiveConfirmDialog } from './src/ui/DestructiveConfirmDialog';
 import { resetToGuestBootstrap } from './src/auth/identityTransition';
+import { recoverInterruptedIdentityResetPause } from './src/auth/syncQuiescence';
 import { scheduleForegroundSync, scheduleStartupSync } from './src/sync/syncScheduler';
 import { AppErrorBoundary } from './src/components/AppErrorBoundary';
 import { logEvent } from './src/utils/logger';
@@ -118,6 +119,7 @@ export default function App() {
         if (accountDeletionRecoveryPending) {
           await recoverAccountDeletionAfterStartup();
         }
+        recoverInterruptedIdentityResetPause();
         seedCuratedExercises();
         repairStaleInFlightOps(120);
         if (!accountDeletionRecoveryPending) {

@@ -4,7 +4,7 @@ import { getSyncPauseReason, pauseSync, resumeSync } from '../db/appMetaRepo';
 import { resetToGuestBootstrap } from './identityTransition';
 import { signOutFromGoogle } from './firebaseGoogleAuthClient';
 import { cancelScheduledSync } from '../sync/syncScheduler';
-import { waitForInFlightSync } from '../sync/syncWorker';
+import { quiesceSyncBeforeIdentityReset } from './syncQuiescence';
 import { accountSessionStore } from './accountSessionStore';
 import {
   clearAccountDeletionCleanupPending,
@@ -49,12 +49,10 @@ export function getFriendlyAccountDeletionError(error: unknown): string {
 export async function deleteAccountAndResetLocalState({
   resumeSyncOnBackendFailure = true,
 }: DeleteAccountOptions = {}): Promise<void> {
-  pauseSync('account_deletion');
-  cancelScheduledSync();
+  await quiesceSyncBeforeIdentityReset('account_deletion');
   let backendDeleted = false;
 
   try {
-    await waitForInFlightSync();
     await deleteMeWithAccountAuth();
     backendDeleted = true;
     await markAccountDeletionCleanupPending();

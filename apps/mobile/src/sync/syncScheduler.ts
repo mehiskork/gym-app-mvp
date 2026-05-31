@@ -1,4 +1,5 @@
 import { logEvent } from '../utils/logger';
+import { isSyncPaused } from '../db/appMetaRepo';
 
 const SYNC_DEBOUNCE_MS = 3000;
 const FOREGROUND_SYNC_COOLDOWN_MS = 45000;
@@ -21,6 +22,10 @@ async function runScheduledSync(reason: string) {
 }
 
 export function scheduleSyncSoon(reason: string): void {
+  if (isSyncPaused()) {
+    return;
+  }
+
   pendingReason = reason;
   if (scheduledSync) {
     return;

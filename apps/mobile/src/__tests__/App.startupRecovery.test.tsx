@@ -102,6 +102,9 @@ jest.mock('../components/AppErrorBoundary', () => {
 jest.mock('../auth/identityTransition', () => ({
   resetToGuestBootstrap: jest.fn(() => Promise.resolve()),
 }));
+jest.mock('../auth/syncQuiescence', () => ({
+  recoverInterruptedIdentityResetPause: jest.fn(() => false),
+}));
 jest.mock('../auth/accountDeletion', () => ({
   hasPendingAccountDeletionCleanupMarker: jest.fn(() => Promise.resolve(false)),
   hasPendingAccountDeletionRecovery: jest.fn(() => Promise.resolve(false)),
@@ -146,6 +149,7 @@ import { repairStaleInFlightOps } from '../db/outboxRepo';
 import { ensureRestTimerNotificationChannel } from '../utils/restTimerNotifications';
 import { reconcileUnfinishedWorkoutReminder } from '../utils/unfinishedWorkoutReminderNotifications';
 import { resetToGuestBootstrap } from '../auth/identityTransition';
+import { recoverInterruptedIdentityResetPause } from '../auth/syncQuiescence';
 import {
   hasPendingAccountDeletionCleanupMarker,
   hasPendingAccountDeletionRecovery,
@@ -196,6 +200,7 @@ describe('App startup recovery', () => {
     (hasPendingAccountDeletionCleanupMarker as jest.Mock).mockResolvedValue(false);
     (hasPendingAccountDeletionRecovery as jest.Mock).mockResolvedValue(false);
     (recoverAccountDeletionAfterStartup as jest.Mock).mockResolvedValue(false);
+    (recoverInterruptedIdentityResetPause as jest.Mock).mockReturnValue(false);
     (resetToGuestBootstrap as jest.Mock).mockResolvedValue(undefined);
     (reconcileUnfinishedWorkoutReminder as jest.Mock).mockResolvedValue(undefined);
   });
@@ -208,6 +213,7 @@ describe('App startup recovery', () => {
     expect(hasPendingAccountDeletionRecovery).toHaveBeenCalledTimes(1);
     expect(recoverAccountDeletionAfterStartup).not.toHaveBeenCalled();
     expect(runMigrations).toHaveBeenCalledTimes(1);
+    expect(recoverInterruptedIdentityResetPause).toHaveBeenCalledTimes(1);
     expect(seedCuratedExercises).toHaveBeenCalledTimes(1);
     expect(repairStaleInFlightOps).toHaveBeenCalledWith(120);
     expect(reconcileUnfinishedWorkoutReminder).toHaveBeenCalledTimes(1);
@@ -232,6 +238,19 @@ describe('App startup recovery', () => {
 
     expect(runMigrations).toHaveBeenCalledTimes(1);
     expect(scheduleStartupSync).toHaveBeenCalledWith('app_start');
+  });
+
+  it('clears interrupted identity reset pause after migrations before startup sync', async () => {
+    App();
+    await flushPromises();
+
+    expect(recoverInterruptedIdentityResetPause).toHaveBeenCalledTimes(1);
+    expect((runMigrations as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
+      (recoverInterruptedIdentityResetPause as jest.Mock).mock.invocationCallOrder[0],
+    );
+    expect(
+      (recoverInterruptedIdentityResetPause as jest.Mock).mock.invocationCallOrder[0],
+    ).toBeLessThan((scheduleStartupSync as jest.Mock).mock.invocationCallOrder[0]);
   });
 
   it('does not fail startup when notification setup rejects', async () => {
