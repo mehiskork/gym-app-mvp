@@ -57,7 +57,7 @@ describe('addWorkoutSet limits', () => {
       'set-new',
       'wse-1',
       MAX_SETS_PER_EXERCISE,
-      0,
+      100,
       8,
       null,
       120,
@@ -65,6 +65,60 @@ describe('addWorkoutSet limits', () => {
     expect(enqueueOutboxOp).toHaveBeenCalledWith(
       expect.objectContaining({ entityType: 'workout_set', entityId: 'set-new' }),
     );
+  });
+
+  it('prefills weight and reps from the immediately previous active set', () => {
+    (query as jest.Mock).mockImplementation((sql: string, params?: unknown[]) => {
+      if (sql.includes('deleted_at IS NOT NULL')) return [];
+      if (sql.includes('SELECT id') && sql.includes('ORDER BY set_index ASC')) {
+        return createRows(1);
+      }
+      if (sql.includes('COUNT(*) AS n')) return [{ n: 1 }];
+      if (sql.includes('SELECT weight, reps, rpe, rest_seconds')) {
+        return [{ weight: 100, reps: 8, rpe: null, rest_seconds: 120 }];
+      }
+      if (sql.includes('SELECT *') && params?.[0] === 'set-new') return [{ id: 'set-new' }];
+      return [];
+    });
+
+    expect(addWorkoutSet('wse-1')).toBe('set-new');
+
+    expect(exec).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO workout_set'), [
+      'set-new',
+      'wse-1',
+      2,
+      100,
+      8,
+      null,
+      120,
+    ]);
+  });
+
+  it('preserves a blank previous weight when adding the next set', () => {
+    (query as jest.Mock).mockImplementation((sql: string, params?: unknown[]) => {
+      if (sql.includes('deleted_at IS NOT NULL')) return [];
+      if (sql.includes('SELECT id') && sql.includes('ORDER BY set_index ASC')) {
+        return createRows(1);
+      }
+      if (sql.includes('COUNT(*) AS n')) return [{ n: 1 }];
+      if (sql.includes('SELECT weight, reps, rpe, rest_seconds')) {
+        return [{ weight: null, reps: 8, rpe: null, rest_seconds: 120 }];
+      }
+      if (sql.includes('SELECT *') && params?.[0] === 'set-new') return [{ id: 'set-new' }];
+      return [];
+    });
+
+    expect(addWorkoutSet('wse-1')).toBe('set-new');
+
+    expect(exec).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO workout_set'), [
+      'set-new',
+      'wse-1',
+      2,
+      null,
+      8,
+      null,
+      120,
+    ]);
   });
 
   it('rejects the 51st active set without inserting or enqueueing outbox', () => {

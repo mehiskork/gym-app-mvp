@@ -693,6 +693,7 @@ export function SettingsScreen() {
         visible={deleteAccountOpen}
         title="Delete account"
         onClose={handleCloseDeleteAccount}
+        keyboardAware
       >
         {deleteAccountStep === 'review' ? (
           <View style={{ gap: tokens.spacing.md }}>

@@ -359,6 +359,10 @@ function inputs(node: React.ReactNode) {
   return findElements(node, (element) => element.type === 'Input');
 }
 
+function bottomSheets(node: React.ReactNode) {
+  return findElements(node, (element) => element.type === 'BottomSheetModal');
+}
+
 function destructiveDialogs(node: React.ReactNode) {
   return findElements(node, (element) => element.type === 'DestructiveConfirmDialog');
 }
@@ -1382,6 +1386,35 @@ describe('SettingsScreen account interactions', () => {
     expect(inputs(tree)[0]?.props.value).toBe('DEL');
   });
 
+  it('uses keyboard-aware layout for account deletion confirmation', () => {
+    const tree = expandTree(
+      renderDeleteAccountState({
+        confirmText: 'DEL',
+      }),
+    );
+    const deleteAccountSheet = bottomSheets(tree).find(
+      (sheet) => sheet.props.title === 'Delete account',
+    );
+
+    expect(deleteAccountSheet?.props.keyboardAware).toBe(true);
+  });
+
+  it('backs out of final account deletion confirmation without deleting', () => {
+    const setDeleteAccountStep = jest.fn();
+    const tree = expandTree(
+      renderDeleteAccountState({
+        confirmText: 'DELETE',
+        setDeleteAccountStep,
+      }),
+    );
+    const backButton = buttons(tree).find((button) => button.props.title === 'Back');
+
+    backButton?.props.onPress();
+
+    expect(setDeleteAccountStep).toHaveBeenCalledWith('review');
+    expect(deleteAccountAndResetLocalState).not.toHaveBeenCalled();
+  });
+
   it('calls account deletion coordinator from final confirmation and prevents double submit', async () => {
     const tree = expandTree(
       renderDeleteAccountState({
@@ -1399,7 +1432,13 @@ describe('SettingsScreen account interactions', () => {
   });
 });
 
-function renderDeleteAccountState({ confirmText }: { confirmText: string }) {
+function renderDeleteAccountState({
+  confirmText,
+  setDeleteAccountStep = jest.fn(),
+}: {
+  confirmText: string;
+  setDeleteAccountStep?: jest.Mock;
+}) {
   useStateMock.mockReset();
   useStateMock.mockImplementation((initial: unknown) => [initial, jest.fn()]);
   useStateMock
@@ -1409,7 +1448,7 @@ function renderDeleteAccountState({ confirmText }: { confirmText: string }) {
     .mockImplementationOnce(() => [false, jest.fn()])
     .mockImplementationOnce(() => [null, jest.fn()])
     .mockImplementationOnce(() => [true, jest.fn()])
-    .mockImplementationOnce(() => ['confirm', jest.fn()])
+    .mockImplementationOnce(() => ['confirm', setDeleteAccountStep])
     .mockImplementationOnce(() => [confirmText, jest.fn()])
     .mockImplementationOnce(() => [false, jest.fn()])
     .mockImplementationOnce(() => [null, jest.fn()])

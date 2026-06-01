@@ -788,7 +788,7 @@ export function addWorkoutSet(wseId: string): string {
         id,
         wseId,
         nextIndex,
-        0,
+        last ? last.weight : 0,
         last?.reps ?? 0,
         last?.rpe ?? null,
         last?.rest_seconds ?? DEFAULT_REST_SECONDS,
