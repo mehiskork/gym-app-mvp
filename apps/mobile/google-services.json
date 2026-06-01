@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "437357576332-0ljtuh9k14g6sunerbmispmliboinjga.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.mehka.gymappmvp",
+            "certificate_hash": "08d885f56b6430e81a59b66953be83727f01b8b1"
+          }
+        },
+        {
           "client_id": "437357576332-74bv53lu3dea7859osaor5np5rfm8o8u.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
