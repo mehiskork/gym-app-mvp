@@ -7,8 +7,6 @@ An offline-first workout tracker with:
 
 This repository has Firebase-backed Google account auth: account identity is canonical after login, guest/device identity is bootstrap-only, `/me` is account-JWT-only, `/sync` supports account JWT and true-guest device-token transport, and `/claim/confirm` derives account ownership from the verified Firebase principal.
 
----
-
 ## What is implemented
 
 ### Mobile (`apps/mobile`)
@@ -132,3 +130,13 @@ docs/
 - Flyway/Postgres migration rollback: `docs/migration-rollback.md`
 - Railway backend deployment: `docs/railway-deployment.md`
 - Public repository safety checklist: `docs/public-repo-safety.md`
+
+---
+
+## License / Usage
+
+Copyright © 2026 Mehis Kork. All rights reserved.
+
+This repository is public for portfolio, learning, and review purposes. You are welcome to fork the repository, explore the code, and use it for personal learning.
+
+Commercial use, redistribution, publishing modified versions, or using the source code in other projects requires written permission.
