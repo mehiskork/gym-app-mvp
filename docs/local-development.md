@@ -101,11 +101,11 @@ The canonical mobile config lives under `apps/mobile/`. Always use these files, 
 | ---------------------------------- | ---------------------------------------------------------------- |
 | `apps/mobile/app.json`             | Expo app config, app name, bundle IDs, EAS project ID            |
 | `apps/mobile/eas.json`             | EAS build profiles                                               |
-| `apps/mobile/google-services.json` | Android Firebase client config for the current private/dev phase |
+| `apps/mobile/google-services.json` | Android Firebase client config required by the app build |
 
 The canonical Expo/EAS config lives under `apps/mobile/`. Run EAS commands from `apps/mobile`; running from the repo root can fail or use the wrong context. Do not change Expo slug from `mobile` unless deliberately migrating the EAS project and credentials.
 
-`apps/mobile/google-services.json` is intentionally tracked while this repo and app distribution are private/internal. It is Firebase client configuration, not a private service-account key. Keep Firebase API key restrictions, Android package restrictions, SHA fingerprints, and quota monitoring configured as described in `docs/firebase-client-config.md`. Before a public repo, wider public beta, or Play Store release, revisit whether this file should move to local/EAS secret-file provisioning.
+`apps/mobile/google-services.json` is intentionally tracked because it contains Firebase Android client configuration required by the app build. It is public mobile client config, not a server credential or private service-account key. The associated Google Cloud API key must remain restricted to the intended app/package, signing fingerprints, and required Firebase APIs as described in `docs/firebase-client-config.md`.
 
 ### Expo Go is unsupported
 
@@ -261,7 +261,6 @@ BASE="https://gym-app-mvp-production.up.railway.app"
 curl -i "$BASE/health"
 curl -i "$BASE/ready"
 curl -i "$BASE/me"
-curl -i "$BASE/me" -H "Authorization: Bearer invalid-token"
 ```
 
 Expected results:
@@ -269,7 +268,7 @@ Expected results:
 - `/health` returns `200`
 - `/ready` returns `200` with database, Flyway, and required-table checks healthy
 - `/me` without auth returns `401`
-- `/me` with an invalid bearer token returns `401`
+- To test invalid auth handling, send a deliberately malformed token from your local shell; do not commit real tokens to docs.
 
 Keep local development, preview/direct-install QA, and production backend targets explicit so local testing cannot silently hit production.
 

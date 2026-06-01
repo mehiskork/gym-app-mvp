@@ -163,10 +163,9 @@ Useful smoke checks:
 
 ```bash
 curl -i https://www.trainframe.eu/me
-curl -i https://www.trainframe.eu/me -H "Authorization: Bearer invalid-token"
 ```
 
-Both should return unauthorized responses, not 5xx.
+The unauthenticated request should return an unauthorized response, not 5xx. To test invalid auth handling, send a deliberately malformed token from your local shell; do not commit real tokens to docs.
 
 ## Account Deletion Failing
 
@@ -208,11 +207,12 @@ After rollback or redeploy, verify:
 ```bash
 curl -i https://www.trainframe.eu/health
 curl -i https://www.trainframe.eu/ready
-curl -i https://www.trainframe.eu/me -H "Authorization: Bearer invalid-token"
+curl -i https://www.trainframe.eu/me
 ```
 
 Then smoke test:
 
+- Invalid auth handling with a deliberately malformed token from your local shell; do not commit real tokens to docs.
 - Google Sign-In on a real Android build.
 - `GET /me` with a real signed-in account if available.
 - Basic sync from mobile if possible: create or edit a low-risk item, sync, and verify it appears after refresh/reopen.

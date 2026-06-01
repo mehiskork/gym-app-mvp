@@ -1,5 +1,7 @@
 # TrainFrame
 
+TrainFrame is a first pet project / portfolio app currently in Google Play internal testing.
+
 An offline-first workout tracker with:
 
 - an Expo React Native / TypeScript mobile app with SQLite as the runtime source of truth (`apps/mobile`)
@@ -56,7 +58,7 @@ This repository has Firebase-backed Google account auth: account identity is can
 - Core ownership/auth/sync foundations are in place and tested.
 - Debug/support surfaces remain intentionally available for rollout support and incident triage.
 - Firebase is auth-only; app data remains SQLite mobile source of truth synced through Spring Boot/PostgreSQL.
-- Firebase mobile client config is tracked intentionally for the current private/dev phase; see `docs/firebase-client-config.md` for the restrictions and public-release policy.
+- `apps/mobile/google-services.json` is intentionally tracked as Firebase Android client configuration, not a server credential; see `docs/firebase-client-config.md` for the required Google Cloud/Firebase restrictions.
 - Prod-like Railway deployments must configure `TRAINFRAME_SUPPORT_EMAIL` to a real support address; placeholder or missing values are rejected by startup validation.
 - Production backend and public pages are served from `https://www.trainframe.eu`; health and readiness are available at `/health` and `/ready`.
 - Local-first behavior is unchanged: local writes commit first; sync reconciles eventual server state.

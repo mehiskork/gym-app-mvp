@@ -56,7 +56,7 @@ The production EAS profile is the canonical Play/closed-testing build profile. I
 
 Preview builds may continue to target the direct Railway preview/dev QA endpoint. Production builds must not use that endpoint.
 
-Current operational note: the next production AAB build is waiting for EAS quota reset.
+Current operational note: the first production AAB has been built and uploaded to Play internal testing. Internal testing is active, Play App Signing SHA-1/SHA-256 has been added to Firebase, and Google Sign-In has been validated from the Play-installed internal testing build. Future AAB uploads still require normal `versionCode` increments and Play release creation.
 
 ## Firebase Android signing
 
@@ -71,7 +71,7 @@ Before sharing a preview build or uploading a production build, manually verify:
   - local/debug signing, if used
   - EAS preview/internal build signing certificate
   - production/Play upload signing certificate
-  - Play App Signing certificate after the first AAB upload / Play Console App integrity setup
+  - Play App Signing certificate from Play Console App integrity setup
 - SHA-1 is commonly required for Google Sign-In.
 - SHA-256 should also be added wherever Firebase/Google Cloud offers it.
 
@@ -86,7 +86,7 @@ cd apps/mobile
 npx -y eas-cli@latest credentials -p android
 ```
 
-After the first AAB upload, get the Play App Signing fingerprint from:
+Get the Play App Signing fingerprint from:
 
 ```text
 Play Console -> app -> Setup -> App integrity -> App signing key certificate

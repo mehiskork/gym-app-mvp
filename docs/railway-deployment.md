@@ -52,7 +52,7 @@ The JWK Set URI is an explicit Railway configuration value for the current deplo
 
 Firebase Console SHA-1 configuration is not required for Spring Boot backend startup or Railway deployment. SHA-1 is required for Android Google Sign-In and mobile auth testing.
 
-Firebase mobile client config is handled separately from Railway backend secrets. `apps/mobile/google-services.json` is tracked intentionally for the current private/dev phase and must be protected with Firebase/Google Cloud API restrictions; see `docs/firebase-client-config.md`. Do not upload Firebase service-account JSON or private keys to the repo. Backend Railway config should use environment variables only.
+Firebase mobile client config is handled separately from Railway backend secrets. `apps/mobile/google-services.json` is intentionally tracked because it contains Firebase Android client configuration required by the app build. It is public mobile client config, not a server credential. The associated Google Cloud API key must remain restricted to the intended app/package, signing fingerprints, and required Firebase APIs; see `docs/firebase-client-config.md`. Do not upload Firebase service-account JSON or private keys to the repo. Backend Railway config should use environment variables only.
 
 ## Startup proof checklist
 
@@ -91,7 +91,6 @@ BASE="https://www.trainframe.eu"
 curl -i "$BASE/health"
 curl -i "$BASE/ready"
 curl -i "$BASE/me"
-curl -i "$BASE/me" -H "Authorization: Bearer invalid-token"
 ```
 
 Expected results:
@@ -99,7 +98,7 @@ Expected results:
 - `/health` -> `200`
 - `/ready` -> `200` with `database`, `flyway`, and `requiredTables` all `true`
 - `/me` -> `401`
-- `/me` with `invalid-token` -> `401 AUTH_UNAUTHORIZED` / malformed token
+- To test invalid auth handling, send a deliberately malformed token from your local shell; do not commit real tokens to docs.
 
 The direct Railway service URL may still be used for preview/dev QA or as a fallback when diagnosing custom-domain routing:
 

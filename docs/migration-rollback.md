@@ -141,11 +141,7 @@ curl -i https://www.trainframe.eu/ready
 ```
 
 - Smoke auth: Google Sign-In on Android and `/me` with a real account if available.
-- Confirm invalid JWT handling does not return 5xx:
-
-```bash
-curl -i https://www.trainframe.eu/me -H "Authorization: Bearer invalid-token"
-```
+- Confirm invalid JWT handling does not return 5xx by sending a deliberately malformed token from your local shell; do not commit real tokens to docs.
 
 - Smoke sync from mobile if possible.
 - Document the incident in [Production incident runbook](./ops-runbook.md#communication-templates) format.

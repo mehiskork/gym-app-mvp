@@ -139,7 +139,6 @@ BASE="https://gym-app-mvp-production.up.railway.app"
 curl -i "$BASE/health"
 curl -i "$BASE/ready"
 curl -i "$BASE/me"
-curl -i "$BASE/me" -H "Authorization: Bearer invalid-token"
 ```
 
 Expected high-level behavior:
@@ -147,7 +146,7 @@ Expected high-level behavior:
 - `/health` returns `200`.
 - `/ready` returns healthy database, Flyway, and required-table status.
 - `/me` without auth is unauthorized.
-- `/me` with an invalid token is unauthorized.
+- To test invalid auth handling, send a deliberately malformed token from your local shell; do not commit real tokens to docs.
 
 Do not hardcode fragile full JSON assertions in manual runbooks.
 
@@ -182,18 +181,21 @@ Testers should share support bundles only with TrainFrame support. Already share
 
 ## Play Readiness Notes
 
-Before Play production:
+Current Play internal testing state:
 
 - Production build outputs AAB.
 - Production EAS profile uses `EXPO_PUBLIC_API_BASE_URL=https://www.trainframe.eu` and channel `production`.
-- Production AAB build is waiting for EAS quota reset.
+- First production AAB has been built and uploaded to Play internal testing.
+- Internal testing is active.
+- Play App Signing SHA-1/SHA-256 has been added to Firebase.
+- Google Sign-In has been validated from the Play-installed internal testing build.
 - `versionCode` is incremented before every Play upload.
 - Privacy policy URL is `https://www.trainframe.eu/privacy`.
 - Terms URL is `https://www.trainframe.eu/terms`.
 - Account/data deletion URL is `https://www.trainframe.eu/account-deletion`.
 - Play Data Safety answers match actual app behavior.
-- Firebase SHA for Play App Signing is added after the first AAB upload / Play Console app integrity setup.
 - API restrictions are rechecked after signing changes.
+- Future AAB uploads still require normal `versionCode` increments and Play release creation.
 
 ## Rollback Note
 
