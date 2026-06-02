@@ -44,6 +44,16 @@
     "name": "Chest Press Machine"
   },
   {
+    "id": "ex_smith_machine_bench_press",
+    "name": "Smith Machine Bench Press",
+    "exercise_type": "strength"
+  },
+  {
+    "id": "ex_machine_chest_press",
+    "name": "Machine Chest Press",
+    "exercise_type": "strength"
+  },
+  {
     "id": "ex_overhead_press_barbell",
     "name": "Barbell Overhead Press"
   },
@@ -56,8 +66,23 @@
     "name": "Shoulder Press Machine"
   },
   {
+    "id": "ex_dumbbell_shoulder_press",
+    "name": "Dumbbell Shoulder Press",
+    "exercise_type": "strength"
+  },
+  {
+    "id": "ex_machine_shoulder_press",
+    "name": "Machine Shoulder Press",
+    "exercise_type": "strength"
+  },
+  {
     "id": "ex_lateral_raises",
     "name": "Lateral Raises"
+  },
+  {
+    "id": "ex_cable_lateral_raise",
+    "name": "Cable Lateral Raise",
+    "exercise_type": "strength"
   },
   {
     "id": "ex_front_raise_dumbbell",
@@ -70,6 +95,11 @@
   {
     "id": "ex_reverse_fly_dumbbell",
     "name": "Dumbbell Reverse Fly"
+  },
+  {
+    "id": "ex_reverse_pec_deck",
+    "name": "Reverse Pec Deck",
+    "exercise_type": "strength"
   },
   {
     "id": "ex_dumbbell_shrug",
@@ -88,6 +118,11 @@
     "name": "Triceps Pushdown"
   },
   {
+    "id": "ex_rope_triceps_pushdown",
+    "name": "Rope Triceps Pushdown",
+    "exercise_type": "strength"
+  },
+  {
     "id": "ex_skull_crusher",
     "name": "Skull Crushers"
   },
@@ -96,12 +131,22 @@
     "name": "Bench Dips"
   },
   {
+    "id": "ex_assisted_dip",
+    "name": "Assisted Dip",
+    "exercise_type": "strength"
+  },
+  {
     "id": "ex_toes_to_bar",
     "name": "Toes to Bar"
   },
   {
     "id": "ex_pullup",
     "name": "Pull-Up"
+  },
+  {
+    "id": "ex_assisted_pullup",
+    "name": "Assisted Pull-Up",
+    "exercise_type": "strength"
   },
   {
     "id": "ex_lat_pulldown",
@@ -140,8 +185,18 @@
     "name": "Face Pull"
   },
   {
+    "id": "ex_back_extension",
+    "name": "Back Extension",
+    "exercise_type": "strength"
+  },
+  {
     "id": "ex_bicep_curl_dumbbell",
     "name": "Dumbbell Bicep Curl"
+  },
+  {
+    "id": "ex_cable_bicep_curl",
+    "name": "Cable Bicep Curl",
+    "exercise_type": "strength"
   },
   {
     "id": "ex_seated_db_curl",
@@ -154,6 +209,11 @@
   {
     "id": "ex_biceps_curls",
     "name": "Biceps Curls"
+  },
+  {
+    "id": "ex_ez_bar_curl",
+    "name": "EZ-Bar Curl",
+    "exercise_type": "strength"
   },
   {
     "id": "ex_forearm_machine",
@@ -170,6 +230,11 @@
   {
     "id": "ex_goblet_squat",
     "name": "Goblet Squat"
+  },
+  {
+    "id": "ex_smith_machine_squat",
+    "name": "Smith Machine Squat",
+    "exercise_type": "strength"
   },
   {
     "id": "ex_belted_sumo_squat",
@@ -208,6 +273,11 @@
     "name": "Leg Press"
   },
   {
+    "id": "ex_leg_press_calf_raise",
+    "name": "Calf Press on Leg Press",
+    "exercise_type": "strength"
+  },
+  {
     "id": "ex_split_squat_bulgarian",
     "name": "Bulgarian Split Squat"
   },
@@ -230,6 +300,11 @@
   {
     "id": "ex_leg_curl_lying",
     "name": "Lying Leg Curl"
+  },
+  {
+    "id": "ex_leg_curl_seated",
+    "name": "Seated Leg Curl",
+    "exercise_type": "strength"
   },
   {
     "id": "ex_leg_extension",
@@ -262,6 +337,11 @@
   {
     "id": "ex_cable_kickback_straight_leg",
     "name": "Straight-Leg Cable Kickback"
+  },
+  {
+    "id": "ex_glute_kickback_machine",
+    "name": "Glute Kickback Machine",
+    "exercise_type": "strength"
   },
   {
     "id": "ex_calf_raise_standing",
