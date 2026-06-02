@@ -159,47 +159,11 @@ Use `development` for normal coding. Use `preview` when you want behavior closer
 
 ### Android tester and release builds
 
-Controlled direct-install QA builds should use the `preview` EAS profile from `apps/mobile`.
+Use this document for local development builds. For Android preview, production AAB, signing, Play status, and tester workflow, use:
 
-```bash
-cd apps/mobile
-npx -y eas-cli@latest build -p android --profile preview --clear-cache
-```
-
-The preview profile is configured as `distribution: internal`, so it produces an installable internal Android build rather than a Play Store production submission. The visible app name is `TrainFrame`; the Android package remains `com.mehka.gymappmvp` so Firebase and existing backend/client assumptions continue to line up.
-
-Production Android builds use the `production` EAS profile and output an Android App Bundle for Play Console upload. That profile uses `EXPO_PUBLIC_APP_ENV=production`, `EXPO_PUBLIC_API_BASE_URL=https://www.trainframe.eu`, and EAS Update channel `production`.
-
-```bash
-cd apps/mobile
-npx -y eas-cli@latest build -p android --profile production --clear-cache
-```
-
-Keep `expo.name` as `TrainFrame` and keep `expo.slug` as `mobile`. The slug is tied to the existing EAS project and should not change unless the EAS project and credentials are deliberately migrated. Android `versionCode` starts at `1` and must increase for every Play upload; EAS remote app versioning may auto-increment it for production builds. Use `--clear-cache` after icon or Expo config changes.
-
-See [Android release baseline](./android-release.md) for canonical EAS, Play, signing, and production-build details.
-
-After installing a preview build, confirm the backend target inside the app:
-
-1. Open **Settings -> About**.
-2. Tap the version string 7 times quickly to unlock Debug.
-3. Open **Debug -> Backend / Environment**.
-4. Confirm **Backend URL** is:
-
-```text
-https://gym-app-mvp-production.up.railway.app
-```
-
-That Railway URL is intentionally the shared preview/dev QA backend. It is public routing information, not a private protection mechanism, and it is not the primary production URL.
-
-Before sharing a preview build with testers, verify Firebase Android fingerprints for the exact build signing certificate. In Firebase Console / Google Cloud Console, the Android app for package `com.mehka.gymappmvp` should include the SHA-1 and SHA-256 fingerprints used by the EAS preview build. See [Android release baseline](./android-release.md#firebase-android-signing) for production and Play App Signing details. You can inspect EAS credentials with:
-
-```bash
-cd apps/mobile
-npx eas credentials --platform android
-```
-
-Compare the listed Android signing certificate fingerprints with Firebase project settings. If the preview build uses a new EAS signing key, add both SHA-1 and SHA-256 fingerprints in Firebase, then rebuild the preview app.
+- [Android release baseline](./android-release.md)
+- [Android tester runbook](./internal/android-tester-runbook.md)
+- [Firebase client config policy](./firebase-client-config.md)
 
 ---
 
@@ -253,7 +217,7 @@ To verify what the app is using, open the hidden Debug screen and check **Backen
 
 The app is offline-first, so core local workout logging still works without the backend. Backend reachability mainly matters for sync, claim flow testing, and multi-device scenarios.
 
-For backend smoke tests against the shared preview/dev QA Railway service:
+For quick backend smoke tests against the shared preview/dev QA Railway service:
 
 ```bash
 BASE="https://gym-app-mvp-production.up.railway.app"
@@ -270,7 +234,7 @@ Expected results:
 - `/me` without auth returns `401`
 - To test invalid auth handling, send a deliberately malformed token from your local shell; do not commit real tokens to docs.
 
-Keep local development, preview/direct-install QA, and production backend targets explicit so local testing cannot silently hit production.
+Keep local development, preview/direct-install QA, and production backend targets explicit so local testing cannot silently hit production. Railway deployment details live in [Railway backend deployment](./internal/railway-deployment.md).
 
 ---
 
@@ -369,18 +333,6 @@ The backend must be running and reachable for sync to succeed.
 Mobile Google Sign-In plus guest migration orchestration is implemented. In normal mobile QA, use the Settings account flow: guest data is synced, `/claim/start` runs with the device token, Google Sign-In returns a Firebase ID token, `/claim/confirm` runs with that account JWT, and the account session is stored only after claim confirmation succeeds.
 
 ---
-
-## Deployment/readiness checklist (quick)
-
-Before public or production-like deployment, verify:
-
-1. A prod-like Spring profile is active (`prod`, `production`, or `staging`). Railway should use `SPRING_PROFILES_ACTIVE=prod`.
-2. Firebase account-auth config is set for prod-like startup: `APP_AUTH_FIREBASE_PROJECT_ID` and `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI`. `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI` may be set as an explicit JWK override.
-3. `/ready` is checked after startup; it should report database, Flyway, and required tables healthy. Flyway readiness fails if `flyway_schema_history` contains any failed migration row.
-4. `/sync` auth path is validated for both account-JWT and device-token recovery behavior.
-5. QA covers guest sync, guest -> selected Google merge, direct account-switch destructive reset, same-Google account deletion/recreation, missing guest device-token recovery, notification permission gating, Quick Workout, Planned Workout, Templates preview/import, plan session deletion, and active workout online sync edits.
-6. Support/debug runbook is known to operators (Debug screen unlock, support bundle export).
-7. `./mvnw verify` and mobile test/typecheck/lint are green on the release candidate.
 
 ## Troubleshooting
 

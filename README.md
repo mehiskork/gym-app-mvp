@@ -1,17 +1,23 @@
 # TrainFrame
 
-TrainFrame is a first pet project / portfolio app currently in Google Play internal testing.
+TrainFrame is my first pet project / portfolio app. It is currently in Google Play internal testing.
 
-An offline-first workout tracker with:
+It is an offline-first workout tracker with:
 
 - an Expo React Native / TypeScript mobile app with SQLite as the runtime source of truth (`apps/mobile`)
 - a Spring Boot 4.0.5 / Java / PostgreSQL / Flyway backend (`apps/backend`)
 
-This repository has Firebase-backed Google account auth: account identity is canonical after login, guest/device identity is bootstrap-only, `/me` is account-JWT-only, `/sync` supports account JWT and true-guest device-token transport, and `/claim/confirm` derives account ownership from the verified Firebase principal.
+Firebase-backed Google Sign-In is implemented. Signed-in account identity is canonical after login, while guest/device identity is used for bootstrap and true guest-mode sync.
 
-## What is implemented
+## Current status
 
-### Mobile (`apps/mobile`)
+- Android app is in Google Play internal testing.
+- First production AAB has been uploaded.
+- Play App Signing SHA-1/SHA-256 has been added to Firebase.
+- Play-installed Google Sign-In works.
+- The repo is being prepared for public portfolio visibility.
+
+## Core features
 
 - offline-first SQLite local data model
 - user-facing Plan -> Session -> Exercises hierarchy
@@ -27,49 +33,26 @@ This repository has Firebase-backed Google account auth: account identity is can
 - unfinished workout reminders gated by both TrainFrame setting and OS notification permission
 - hidden debug/support surfaces for sync and diagnostics
 
-### Backend (`apps/backend`)
+## Architecture
+
+TrainFrame is local-first:
+
+- Mobile screens read and write SQLite first.
+- Local writes enqueue outbox operations in the same transaction.
+- `/sync` pushes outbox ops and pulls backend deltas.
+- The backend is the cross-device conflict arbiter, auth boundary, and account migration/deletion coordinator.
+- Firebase is used for authentication only; app data is stored locally in SQLite and synced through Spring Boot/PostgreSQL.
+
+Important backend routes:
 
 - `POST /device/register` for bootstrap guest/device registration
-- `POST /sync` with owner-scoped auth, op dedupe, acks, deltas, cursor paging
-- `GET /me` account principal identity endpoint (JWT resource server)
+- `POST /sync` with owner-scoped auth, op dedupe, acks, deltas, and cursor paging
+- `GET /me` account principal identity endpoint
 - `DELETE /me` account-JWT-only account deletion
-- claim flow endpoints (`/claim/start`, `/claim/confirm`) for guest-to-account migration
-- ownership enforcement, request IDs, rate limiting, and Flyway migrations
-- `/health` liveness and `/ready` DB/Flyway/schema readiness checks
+- `POST /claim/start` and `POST /claim/confirm` for guest-to-account migration
+- `/health` liveness and `/ready` database/Flyway/schema readiness
 
----
-
-## Auth and ownership boundaries (current)
-
-- **Canonical owner after login:** account principal (issuer + subject-derived external account id).
-- **Guest/device identity:** bootstrap and pre-login transport context.
-- **`/sync`:** accepts either account JWT or device bearer token; ownership is resolved server-side from principal, never client payload.
-- **`/me`:** account JWT only.
-- **`DELETE /me`:** account JWT only.
-- **`/claim/start`:** device-token only.
-- **`/claim/confirm`:** Firebase account JWT only; target account owner is derived server-side from the verified account principal.
-- **Guest -> Google merge:** signed-out guest data is intentionally merged into whichever Google account the user chooses. A direct Account A -> Account B switch on the same local install remains destructive/reset-based.
-- **No client-selected ownership:** backend sync, claim, and deletion paths derive ownership from the authenticated principal, not client-sent owner/user ids.
-
----
-
-## Launch-readiness notes
-
-- Core ownership/auth/sync foundations are in place and tested.
-- Debug/support surfaces remain intentionally available for rollout support and incident triage.
-- Firebase is auth-only; app data remains SQLite mobile source of truth synced through Spring Boot/PostgreSQL.
-- `apps/mobile/google-services.json` is intentionally tracked as Firebase Android client configuration, not a server credential; see `docs/firebase-client-config.md` for the required Google Cloud/Firebase restrictions.
-- Prod-like Railway deployments must configure `TRAINFRAME_SUPPORT_EMAIL` to a real support address; placeholder or missing values are rejected by startup validation.
-- Production backend and public pages are served from `https://www.trainframe.eu`; health and readiness are available at `/health` and `/ready`.
-- Local-first behavior is unchanged: local writes commit first; sync reconciles eventual server state.
-- Mobile SQLite migrations have been squashed into a reset-only private-beta baseline. Existing internal/dev installs from before the squash must uninstall, clear app storage, or use destructive reset before testing this baseline.
-- Backend Flyway migrations are currently `V1__baseline_private_beta.sql`, `V2__account_deletion_tombstone.sql`, and `V3__account_identity_incarnation.sql`. Spring Boot 4 uses the explicit `spring-boot-starter-flyway` dependency in this repo.
-- The checked-in mobile preview config targets the Railway shared preview/dev QA backend by default (`https://gym-app-mvp-production.up.railway.app`). Production EAS builds use `EXPO_PUBLIC_APP_ENV=production`, `EXPO_PUBLIC_API_BASE_URL=https://www.trainframe.eu`, and channel `production`; see `docs/android-release.md`.
-- Android release build profiles are documented in `docs/android-release.md`; the app displays as `TrainFrame`, the Expo slug intentionally remains `mobile`, and the Android package is `com.mehka.gymappmvp`.
-- PR events are local-derived cache data. Workout history is synced; PR rows are recomputed locally and are not synced inbound or outbound.
-- Public repository readiness checklist: `docs/public-repo-safety.md`
-
----
+Ownership is always resolved server-side from the authenticated principal, not from client-sent owner/user ids.
 
 ## Stack
 
@@ -82,7 +65,24 @@ This repository has Firebase-backed Google account auth: account identity is can
 
 ---
 
-## CI
+## Run locally
+
+Start the backend and Postgres from the repo root:
+
+```bash
+docker compose up --build
+```
+
+Install and start the mobile app from `apps/mobile`:
+
+```bash
+npm install
+npm run start
+```
+
+Expo Go is not supported because the app uses native modules such as `expo-sqlite`; use a development build. Full setup, device networking, and troubleshooting notes are in [`docs/local-development.md`](docs/local-development.md).
+
+## Tests and CI
 
 GitHub Actions fast gates run on pull requests and pushes:
 
@@ -91,9 +91,7 @@ GitHub Actions fast gates run on pull requests and pushes:
 
 Backend integration tests run separately with Java 25 and Docker/Testcontainers. They run `./mvnw verify` on backend-relevant pull requests, on `main` pushes, or manually. Local equivalents are documented in `docs/local-development.md`.
 
----
-
-## Repository structure
+## Docs
 
 ```text
 apps/
@@ -103,35 +101,34 @@ docs/
   architecture.md
   sync-protocol.md
   conflicts.md
-  firebase-client-config.md
   product-rules.md
-  android-release.md
-  android-tester-runbook.md
-  account-deletion-design.md
-  ops-runbook.md
-  migration-rollback.md
   local-development.md
-  railway-deployment.md
+  android-release.md
+  firebase-client-config.md
   public-repo-safety.md
-  account-ownership-decision.md
+  internal/        operational runbooks kept out of the public quick path
+  archive/         historical decision records
 ```
 
----
+Public docs:
 
-## Start here
+- Local setup: [`docs/local-development.md`](docs/local-development.md)
+- Architecture overview: [`docs/architecture.md`](docs/architecture.md)
+- Sync protocol: [`docs/sync-protocol.md`](docs/sync-protocol.md)
+- Conflict and immutability rules: [`docs/conflicts.md`](docs/conflicts.md)
+- Product behavior invariants: [`docs/product-rules.md`](docs/product-rules.md)
+- Android release baseline: [`docs/android-release.md`](docs/android-release.md)
+- Firebase client config policy: [`docs/firebase-client-config.md`](docs/firebase-client-config.md)
+- Public repo safety checklist: [`docs/public-repo-safety.md`](docs/public-repo-safety.md)
 
-- Local setup and runbook: `docs/local-development.md`
-- Architecture overview: `docs/architecture.md`
-- Sync protocol contract: `docs/sync-protocol.md`
-- Conflict policy: `docs/conflicts.md`
-- Product behavior invariants: `docs/product-rules.md`
-- Android release baseline: `docs/android-release.md`
-- Android tester and Play readiness runbook: `docs/android-tester-runbook.md`
-- Account deletion design: `docs/account-deletion-design.md`
-- Production incident runbook: `docs/ops-runbook.md`
-- Flyway/Postgres migration rollback: `docs/migration-rollback.md`
-- Railway backend deployment: `docs/railway-deployment.md`
-- Public repository safety checklist: `docs/public-repo-safety.md`
+Operational/internal notes:
+
+- Android tester runbook: [`docs/internal/android-tester-runbook.md`](docs/internal/android-tester-runbook.md)
+- Railway deployment: [`docs/internal/railway-deployment.md`](docs/internal/railway-deployment.md)
+- Production incident runbook: [`docs/internal/ops-runbook.md`](docs/internal/ops-runbook.md)
+- Migration rollback: [`docs/internal/migration-rollback.md`](docs/internal/migration-rollback.md)
+- Account deletion design: [`docs/internal/account-deletion-design.md`](docs/internal/account-deletion-design.md)
+- Historical ownership ADR: [`docs/archive/account-ownership-decision.md`](docs/archive/account-ownership-decision.md)
 
 ---
 

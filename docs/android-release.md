@@ -2,7 +2,7 @@
 
 This project is Android-focused for the current tester and Play closed-testing phase.
 
-For tester execution steps, see [`docs/android-tester-runbook.md`](./android-tester-runbook.md).
+For tester execution steps, see [`docs/internal/android-tester-runbook.md`](./internal/android-tester-runbook.md).
 
 ## App identity
 
@@ -107,26 +107,6 @@ Firebase API key restrictions have been externally verified for the current setu
 - Add the matching SHA-1 and SHA-256 fingerprints for each signing context in use.
 - Keep the Firebase Auth / Google Sign-In APIs required by the app enabled.
 - Do not paste private keys, service-account JSON, keystores, or secrets into the repo.
-
-## Pre-tester checklist
-
-Before inviting Android testers:
-
-- Preview EAS build is installed on a real Android device.
-- Google Sign-In works.
-- Guest -> Google migration works.
-- Guest -> selected Google account migration preserves existing account cloud data and additively merges local guest data.
-- Direct signed-in Account A -> Account B switch requires destructive reset.
-- Reconnect with the same Google account works.
-- Account sync uses `account_jwt`.
-- Missing guest device-token recovery works without app restart.
-- Quick Workout and Planned Workout work.
-- Templates preview/import works and duplicate imports are disabled.
-- Plan session deletion and zero-session plan empty state work.
-- Unfinished reminder permission behavior matches the setting + OS permission gate.
-- Active workout online edits sync safely.
-- Support bundle does not contain raw auth tokens.
-- Target backend `/ready` is green.
 
 ## Play account deletion readiness
 

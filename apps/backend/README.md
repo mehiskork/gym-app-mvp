@@ -58,29 +58,13 @@ Signed-out guest data belongs to the device. When the user signs in with Google 
 
 Account deletion and recreation with the same Google account is supported through account identity incarnations. Old deleted account rows must not restore into the recreated account, and stale old account tokens/sessions are blocked by the auth-time cutoff/active-owner checks instead of writing into the recreated owner.
 
-## JWT config for account endpoints
+## Account auth configuration
 
 Firebase is used for authentication only. Synced backend data is stored in PostgreSQL through the Spring Boot `/sync` API; mobile SQLite remains the runtime source of truth. Do not add Firestore, Realtime Database, Storage, or Hosting for app persistence.
 
-Firebase project ID:
-
-- `gym-app-mvp-1d7f0`
-
-Configure:
-
-- `APP_AUTH_FIREBASE_PROJECT_ID=gym-app-mvp-1d7f0`
-- `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI=https://securetoken.google.com/gym-app-mvp-1d7f0`
-- `TRAINFRAME_SUPPORT_EMAIL=trainframe1@gmail.com`
-
-Optional override, normally not needed with issuer discovery:
-
-- `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI`
-
 The backend validates Firebase token signature, expiry, issuer, audience, and nonblank subject. The account owner identity is derived from the verified issuer + Firebase UID. Missing JWT/Firebase configuration fails closed for account-token endpoints.
 
-Mobile Google Sign-In is implemented. Firebase is authentication-only; app data remains in PostgreSQL through the Spring Boot sync API.
-
-Prod-like profiles (`prod`, `production`, `staging`) fail startup unless datasource settings, `APP_AUTH_FIREBASE_PROJECT_ID`, `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI`, and a real `TRAINFRAME_SUPPORT_EMAIL` are configured. Railway should set `SPRING_PROFILES_ACTIVE=prod`; otherwise those production safety checks are not active. Placeholder support emails such as `support@example.invalid` are rejected. `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI` is supported as an explicit decoder override, but issuer discovery is sufficient for backend startup.
+For deployed Railway configuration and production readiness checks, see [`../../docs/internal/railway-deployment.md`](../../docs/internal/railway-deployment.md).
 
 `GET /ready` checks database connectivity, required tables, and Flyway state. It reports not-ready if `flyway_schema_history` contains any failed migration row.
 
@@ -106,6 +90,8 @@ From `apps/backend`:
 - On Windows, use `mvnw.cmd test` and `mvnw.cmd verify`
 
 Backend integration tests use Testcontainers and require a running Docker daemon.
+
+Operational incident handling lives in [`../../docs/internal/ops-runbook.md`](../../docs/internal/ops-runbook.md). Flyway/Postgres recovery lives in [`../../docs/internal/migration-rollback.md`](../../docs/internal/migration-rollback.md).
 
 ## Rate limiting
 

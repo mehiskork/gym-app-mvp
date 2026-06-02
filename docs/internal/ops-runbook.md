@@ -11,10 +11,10 @@ BASE="https://www.trainframe.eu"
 Related docs:
 
 - [Railway backend deployment](./railway-deployment.md)
-- [Android release baseline](./android-release.md)
+- [Android release baseline](../android-release.md)
 - [Android tester runbook](./android-tester-runbook.md)
 - [Account deletion design](./account-deletion-design.md)
-- [Firebase client config](./firebase-client-config.md)
+- [Firebase client config](../firebase-client-config.md)
 - [Migration rollback](./migration-rollback.md)
 
 ## Quick Triage Checklist
@@ -201,6 +201,8 @@ Use Railway deployment history to identify the last known good deploy. The exact
 - Check commit SHA, deployment time, environment changes, and migration logs.
 - If the prior deploy is known good and the database schema is compatible, use Railway's redeploy/rollback action for that deployment.
 - If a Flyway migration ran after the last known good deploy, read [Migration rollback](./migration-rollback.md) before rolling code back.
+
+For Flyway/schema failures, use [Migration rollback](./migration-rollback.md) instead of repeating the recovery procedure here.
 
 After rollback or redeploy, verify:
 

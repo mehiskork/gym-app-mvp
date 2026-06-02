@@ -6,23 +6,14 @@ Use this runbook to prepare and validate Android TrainFrame builds before wider 
 
 ## Build Profiles
 
-Preview builds are for direct Android device install and private QA. Production/Play build and signing details are canonical in [Android release baseline](./android-release.md).
+Preview builds are for direct Android device install and private QA. Production/Play build, identity, signing, Firebase fingerprint, and current Play status details are canonical in [Android release baseline](../android-release.md).
 
 ```bash
 cd apps/mobile
 npx -y eas-cli@latest build -p android --profile preview --clear-cache
 ```
 
-Play closed-testing builds use the `production` EAS profile from [Android release baseline](./android-release.md#build-profiles). That profile outputs an AAB, uses `https://www.trainframe.eu`, and targets EAS Update channel `production`.
-
-Build identity, shared by preview and production:
-
-- App display name: `TrainFrame`
-- Expo slug: `mobile`
-- Android package: `com.mehka.gymappmvp`
-- Initial Android `versionCode`: `1`
-
-Do not change Expo slug from `mobile` unless deliberately migrating the EAS project and credentials. Android `versionCode` must increase for every Play upload. See [Android release baseline](./android-release.md) for signing, fingerprints, API restrictions, Play App Signing, and production AAB status.
+Play closed-testing builds use the `production` EAS profile from [Android release baseline](../android-release.md#build-profiles).
 
 ## Pre-Build Checklist
 
@@ -181,15 +172,12 @@ Testers should share support bundles only with TrainFrame support. Already share
 
 ## Play Readiness Notes
 
-Current Play internal testing state:
+Current Play internal testing state is summarized here for tester context; [Android release baseline](../android-release.md) remains canonical.
 
-- Production build outputs AAB.
-- Production EAS profile uses `EXPO_PUBLIC_API_BASE_URL=https://www.trainframe.eu` and channel `production`.
 - First production AAB has been built and uploaded to Play internal testing.
 - Internal testing is active.
 - Play App Signing SHA-1/SHA-256 has been added to Firebase.
 - Google Sign-In has been validated from the Play-installed internal testing build.
-- `versionCode` is incremented before every Play upload.
 - Privacy policy URL is `https://www.trainframe.eu/privacy`.
 - Terms URL is `https://www.trainframe.eu/terms`.
 - Account/data deletion URL is `https://www.trainframe.eu/account-deletion`.

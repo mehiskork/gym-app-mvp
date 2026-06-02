@@ -322,7 +322,7 @@ A `/sync` response contains both:
 
 An important subtlety: `noop` acks are treated as idempotent success and become locally `acked`, but rejected ops do not. Rejected ops are marked failed with the server reason so they remain visible in Debug/support output instead of being silently dropped.
 
-Completed-workout immutability is not handled as a per-op rejected ack. Later mutations against an already-completed workout session graph fail the whole `/sync` request with `IMMUTABLE_ENTITY`; the client keeps the local outbox work unresolved and handles it through normal sync error handling. Keep the exact immutable rules in `docs/sync-protocol.md` and `docs/conflicts.md`.
+Completed-workout immutability is not handled through an individual rejected ack. Later mutations against an already-completed workout session graph fail the whole `/sync` request with `IMMUTABLE_ENTITY`; the client keeps the local outbox work unresolved and handles it through normal sync error handling. Keep the exact immutable rules in `docs/sync-protocol.md` and `docs/conflicts.md`.
 
 ### Atomic delta application
 

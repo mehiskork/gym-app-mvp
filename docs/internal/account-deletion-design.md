@@ -177,20 +177,9 @@ The public web form is a manual support request path, not an automatic unauthent
 
 `ACCOUNT_DELETED` means the current request is using a stale/deleted account owner or a Firebase token whose `auth_time` is not fresh enough for the active account identity. This is expected after in-app account deletion and prevents stale authenticated sync replay from offline devices.
 
-Support/admin may clear a tombstone only manually in PostgreSQL if needed for an operational issue. Do not add a public tombstone-clear endpoint for v1.
+Support/admin tombstone changes are internal operational actions only and should be rare. Do not add a public tombstone-clear endpoint for v1.
 
-Before clearing a tombstone, support must instruct the user to reset, uninstall, or sign out from all old TrainFrame installs. Clearing tombstones without understanding the current `account_identity` row can re-open stale replay paths.
-
-Manual clear example:
-
-```sql
-UPDATE account_deletion_tombstone
-SET cleared_at = now(),
-    cleared_by = 'support',
-    clear_reason = 'user requested same-Google recreation after confirming all old installs were reset'
-WHERE account_owner_id = '<issuer>|<subject>'
-  AND cleared_at IS NULL;
-```
+Before any manual tombstone change, support must confirm the user has reset, uninstalled, or signed out from old TrainFrame installs and must understand the current `account_identity` row. Changing tombstone state without that context can re-open stale replay paths. Record the reason, affected owner, validation, and post-change checks in incident notes.
 
 ## Proposed User-Facing Copy
 

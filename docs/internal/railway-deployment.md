@@ -50,9 +50,7 @@ The backend validates Firebase token signature, expiry, issuer, audience, and no
 
 The JWK Set URI is an explicit Railway configuration value for the current deployment. The backend can also build the decoder from issuer discovery, but prod-like startup requires at least the Firebase project id and issuer URI so account auth cannot be accidentally deployed with missing config.
 
-Firebase Console SHA-1 configuration is not required for Spring Boot backend startup or Railway deployment. SHA-1 is required for Android Google Sign-In and mobile auth testing.
-
-Firebase mobile client config is handled separately from Railway backend secrets. `apps/mobile/google-services.json` is intentionally tracked because it contains Firebase Android client configuration required by the app build. It is public mobile client config, not a server credential. The associated Google Cloud API key must remain restricted to the intended app/package, signing fingerprints, and required Firebase APIs; see `docs/firebase-client-config.md`. Do not upload Firebase service-account JSON or private keys to the repo. Backend Railway config should use environment variables only.
+Firebase Console SHA-1/SHA-256 configuration is not required for Spring Boot backend startup or Railway deployment. It is required for Android Google Sign-In and is covered in [Android release baseline](../android-release.md) and [Firebase client config policy](../firebase-client-config.md). Backend Railway config should use environment variables only.
 
 ## Startup proof checklist
 
@@ -116,7 +114,7 @@ The checked-in mobile config in `apps/mobile/app.json` currently names the app `
 https://gym-app-mvp-production.up.railway.app
 ```
 
-Treat this Railway service as the shared preview/dev QA backend. Production builds use `https://www.trainframe.eu`; see [Android release baseline](./android-release.md). For local backend testing, temporarily override `expo.extra.EXPO_PUBLIC_API_BASE_URL` in `apps/mobile/app.json` and confirm the resolved value in the mobile Debug screen under **Backend / Environment** -> **Backend URL**.
+Treat this Railway service as the shared preview/dev QA backend. Production builds use `https://www.trainframe.eu`; see [Android release baseline](../android-release.md). For local backend testing, temporarily override `expo.extra.EXPO_PUBLIC_API_BASE_URL` in `apps/mobile/app.json` and confirm the resolved value in the mobile Debug screen under **Backend / Environment** -> **Backend URL**.
 
 Operational incident handling belongs in [Production Incident Runbook](./ops-runbook.md). Migration recovery belongs in [Flyway / Postgres Migration Rollback](./migration-rollback.md).
 

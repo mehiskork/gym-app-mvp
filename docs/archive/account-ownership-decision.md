@@ -1,5 +1,7 @@
 # Account Ownership and Sync Scope Decision
 
+Historical decision record. Kept for project history; current behavior is summarized in architecture and product rules docs.
+
 - **Status:** Accepted (target model for PR 7+)
 - **Date:** 2026-03-31
 - **Owner:** TrainFrame maintainers
