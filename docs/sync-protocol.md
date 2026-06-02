@@ -202,7 +202,7 @@ Ack statuses:
 
 - `applied`: the backend accepted and processed the op
 - `noop`: the backend treated it as already seen or otherwise non-applying
-- `rejected`: the backend refused the op, for example due to immutability rules
+- `rejected`: the backend refused the op for a non-immutable per-op reason, if such a protocol case is added or returned
 
 Important consequence:
 
@@ -213,6 +213,8 @@ Important consequence:
 - missing ack entries are not marked `acked`; they are marked failed/retryable according to the outbox backoff policy
 
 So “acked” means the backend explicitly confirmed an applied or idempotent outcome for that op. Rejections and missing acks are not silently dropped.
+
+Immutable completed-workout conflicts are different from per-op rejected acks. If an inbound request attempts a later mutation of an already-completed `workout_session`, `workout_session_exercise`, or `workout_set`, the backend returns request-level `409 IMMUTABLE_ENTITY` and aborts the whole `/sync` request before persistence. No acks or deltas are returned for that failed request.
 
 #### `deltas`
 
@@ -537,27 +539,30 @@ For a single `/sync` call, backend processing is:
 1. parse request
 2. validate cursor
 3. validate all inbound ops
-4. process each op
-5. fetch deltas after cursor
-6. return `acks`, `deltas`, `cursor`, `hasMore`
+4. canonicalize and build the full request plan
+5. fail request-level conflicts, including immutable completed-workout violations, before persistence
+6. persist the accepted plan
+7. fetch deltas after cursor
+8. return `acks`, `deltas`, `cursor`, `hasMore`
 
 ### Per-op backend processing
 
-For each op:
+While building the request plan, the backend:
 
 1. enforce ownership boundary
-2. attempt idempotency insert into `op_ledger`
-3. if duplicate:
-   - return `noop`
-4. otherwise:
-   - run conflict checks
-   - run immutability checks
-   - if accepted:
-     - upsert `entity_state`
-     - append `change_log`
-     - return `applied`
-   - if not accepted:
-     - return `rejected` or `noop` depending on reason
+2. detect duplicate ops that will return `noop`
+3. run conflict checks
+4. run immutability checks against pre-request completed-workout state
+5. validate parent references for applied ops
+
+If the plan is accepted, persistence happens after planning:
+
+- insert `op_ledger` rows for accepted non-duplicate ops
+- upsert `entity_state` for applied ops
+- append `change_log` for applied ops
+- return per-op `applied` / `noop` acks
+
+If an immutable completed-workout conflict is found, the backend throws `IMMUTABLE_ENTITY` and aborts before those persistence steps. That failed request writes no `entity_state`, `change_log`, or `op_ledger` rows.
 
 ### Backend data structures involved
 
@@ -604,9 +609,12 @@ Certain entities become immutable after completion, except for delete-marker cas
 Current important examples:
 
 - completed `workout_session`
+- `workout_session_exercise` whose parent session is completed
 - `workout_set` whose parent session is completed
 
 These are enforced on the backend, not just the client.
+
+The immutability check uses the completed-session state from before the current request. This allows the offline completion batch where a request writes child `workout_session_exercise` / `workout_set` rows and completes the parent `workout_session` in the same request, as long as that session was not already completed before the request. Later requests that mutate the completed session, session exercise, or set fail with request-level `409 IMMUTABLE_ENTITY`.
 
 ### Conflict resolution
 

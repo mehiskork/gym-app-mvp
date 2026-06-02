@@ -19,17 +19,24 @@ This backend resolves conflicts deterministically on the server. Mobile clients 
 * When `deleted_at` is already set, it always wins over later updates (even if the update’s `updated_at` is newer).
 
 ### 4) Immutability
-* `workout_session`: if `status = 'completed'`, only `deleted_at` may change. Any other field update is rejected.
-* `workout_set`: if the related `workout_session` is completed, only `deleted_at` may change. Any other field update is rejected.
+* `workout_session`: if the session was already `status = 'completed'` before the current `/sync` request, only `deleted_at` may change. Any other field update fails the request with `IMMUTABLE_ENTITY`.
+* `workout_session_exercise`: if the related `workout_session` was already completed before the current `/sync` request, only `deleted_at` may change. Any other field update fails the request with `IMMUTABLE_ENTITY`.
+* `workout_set`: if the related `workout_session` was already completed before the current `/sync` request, only `deleted_at` may change. Any other field update fails the request with `IMMUTABLE_ENTITY`.
+* Same-request completion is allowed: if a `workout_session` was not completed before the request, the same request may include child `workout_session_exercise` / `workout_set` writes and the session completion.
 * `program`, `program_day`, `program_day_exercise`, and `planned_set` remain editable under LWW.
 
-### 5) Sync acknowledgements
-Every inbound op is acknowledged with:
+### 5) Sync acknowledgements and immutable failures
+Accepted inbound ops are acknowledged with:
 * `applied`: op won conflict resolution and was persisted.
 * `noop`: op lost conflict resolution (stale or delete already applied).
-* `rejected`: op violated immutability rules.
 
-Rejections include a reason, but they do not halt the sync.
+Immutable completed-workout violations are not returned as per-op rejected acks. They fail the whole `/sync` request with request-level `409 IMMUTABLE_ENTITY` before persistence.
+
+For a failed immutable request, the backend writes no rows for that request to:
+
+* `entity_state`
+* `change_log`
+* `op_ledger`
 
 ## Examples
 
@@ -49,7 +56,12 @@ Rejections include a reason, but they do not halt the sync.
 * Incoming update: `updated_at = 2024-01-04T00:00:00Z`
 * Result: **incoming is `noop`** (delete wins, no resurrection).
 
-### Immutability rejection
-* `workout_session.status = completed`
+### Immutability conflict
+* Existing server state before the request: `workout_session.status = completed`
 * Incoming update attempts to change `duration_sec`
-* Result: **rejected** with reason `workout_session immutable after completion`.
+* Result: the whole `/sync` request fails with `409 IMMUTABLE_ENTITY`; no request ops are persisted to `entity_state`, `change_log`, or `op_ledger`.
+
+### Same-request completion allowance
+* Existing server state before the request: `workout_session` is not completed or does not exist yet.
+* Incoming request contains child `workout_session_exercise` / `workout_set` writes and sets the parent `workout_session.status = completed`.
+* Result: allowed under normal conflict rules because the session was not completed before the request.

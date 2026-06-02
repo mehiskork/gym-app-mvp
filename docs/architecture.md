@@ -322,6 +322,8 @@ A `/sync` response contains both:
 
 An important subtlety: `noop` acks are treated as idempotent success and become locally `acked`, but rejected ops do not. Rejected ops are marked failed with the server reason so they remain visible in Debug/support output instead of being silently dropped.
 
+Completed-workout immutability is not handled as a per-op rejected ack. Later mutations against an already-completed workout session graph fail the whole `/sync` request with `IMMUTABLE_ENTITY`; the client keeps the local outbox work unresolved and handles it through normal sync error handling. Keep the exact immutable rules in `docs/sync-protocol.md` and `docs/conflicts.md`.
+
 ### Atomic delta application
 
 After a successful `/sync` response, the mobile app applies:
@@ -433,7 +435,7 @@ The important ownership key for synchronized data is **`guest_user_id`**, not th
 - appending `change_log`
 - serving cursor-based deltas
 
-The backend uses last-write-wins logic plus additional guards and tie-breakers. Completed workout entities have immutability protection. Deleted rows are treated as tombstones rather than temporary UI flags.
+The backend uses last-write-wins logic plus additional guards and tie-breakers. Completed workout entities have request-level immutability protection. Deleted rows are treated as tombstones rather than temporary UI flags.
 
 Keep the full rule set in `docs/conflicts.md`, not in this document.
 
@@ -536,7 +538,7 @@ The backend decides canonical cross-device outcomes. SQLite remains the local re
 
 ### 7. Completed workout entities have server-side immutability protection
 
-The client can make local edits that later get rejected by the backend. If you build features around completed sessions or sets, keep that asymmetry in mind.
+The client can make local edits that later fail on the backend. Immutable completed-workout mutations fail the sync request with `IMMUTABLE_ENTITY`, and the client keeps local outbox work unresolved through normal sync error handling. If you build features around completed sessions, session exercises, or sets, keep that asymmetry in mind.
 
 ### 8. Sync post-processing is atomic
 
