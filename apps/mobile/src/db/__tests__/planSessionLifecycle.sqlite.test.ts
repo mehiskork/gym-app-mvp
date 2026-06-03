@@ -96,6 +96,7 @@ function migrateAndSeed() {
 
 function addExerciseWithPlannedSets(dayId: string): string {
   const dayExerciseId = addExerciseToDay({ dayId, exerciseId });
+  exec('DELETE FROM planned_set WHERE program_day_exercise_id = ?;', [dayExerciseId]);
   exec(
     `
     INSERT INTO planned_set (

@@ -22,21 +22,120 @@ import {
 import { useAppTheme } from '../theme/theme';
 import { tokens } from '../theme/tokens';
 import {
+  addPlannedSetToDayExercise,
   deleteDayExercise,
+  deletePlannedSet,
   getDayById,
   listDayExercises,
+  listPlannedSetsForDayExercise,
   renameDay,
   reorderDayExercises,
+  updatePlannedSetTargets,
   type DayExerciseRow,
+  type PlannedSetRow,
 } from '../db/dayExerciseRepo';
 import {
   createSessionFromPlanDay,
   getInProgressSession,
   getSessionById,
 } from '../db/workoutSessionRepo';
-import { MAX_EXERCISES_PER_SESSION } from '../db/workoutLimits';
+import {
+  MAX_EXERCISES_PER_SESSION,
+  MAX_SETS_PER_EXERCISE,
+  WORKOUT_LIMIT_MESSAGES,
+  isWorkoutLimitError,
+} from '../db/workoutLimits';
+import { EXERCISE_TYPE } from '../db/exerciseTypes';
+import {
+  formatRepsInputValue,
+  formatWeightInputValue,
+  parseRepsInput,
+  parseWeightInput,
+} from '../features/workoutSession/setInputParsing';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'DayDetail'>;
+
+type PlannedSetInputProps = {
+  plannedSet: PlannedSetRow;
+  onCommitReps: (plannedSet: PlannedSetRow, value: string) => boolean;
+  onCommitTargetWeight: (plannedSet: PlannedSetRow, value: string) => boolean;
+};
+
+function PlannedSetInputs({
+  plannedSet,
+  onCommitReps,
+  onCommitTargetWeight,
+}: PlannedSetInputProps) {
+  const savedWeightText = formatWeightInputValue(plannedSet.target_weight);
+  const savedRepsText = formatRepsInputValue(plannedSet.target_reps_min);
+  const [weightText, setWeightText] = useState(savedWeightText);
+  const [repsText, setRepsText] = useState(savedRepsText);
+
+  React.useEffect(() => {
+    setWeightText(savedWeightText);
+  }, [savedWeightText]);
+
+  React.useEffect(() => {
+    setRepsText(savedRepsText);
+  }, [savedRepsText]);
+
+  const commitWeight = useCallback(
+    (value: string) => {
+      const parsed = parseWeightInput(value);
+      if (!parsed.ok) {
+        setWeightText(savedWeightText);
+        return;
+      }
+
+      const accepted = onCommitTargetWeight(plannedSet, value);
+      setWeightText(accepted ? formatWeightInputValue(parsed.value) : savedWeightText);
+    },
+    [onCommitTargetWeight, plannedSet, savedWeightText],
+  );
+
+  const commitReps = useCallback(
+    (value: string) => {
+      const parsed = parseRepsInput(value);
+      if (!parsed.ok) {
+        setRepsText(savedRepsText);
+        return;
+      }
+
+      const accepted = onCommitReps(plannedSet, value);
+      setRepsText(accepted ? formatRepsInputValue(parsed.value) : savedRepsText);
+    },
+    [onCommitReps, plannedSet, savedRepsText],
+  );
+
+  return (
+    <>
+      <Input
+        label="Weight"
+        value={weightText}
+        onChangeText={setWeightText}
+        onEndEditing={(event) => commitWeight(event.nativeEvent.text)}
+        onSubmitEditing={() => commitWeight(weightText)}
+        keyboardType="decimal-pad"
+        returnKeyType="next"
+        maxLength={5}
+        selectTextOnFocus
+        containerStyle={{ backgroundColor: tokens.colors.surface2 }}
+      />
+      <Input
+        label="Reps"
+        value={repsText}
+        onChangeText={setRepsText}
+        onEndEditing={(event) => commitReps(event.nativeEvent.text)}
+        onSubmitEditing={() => commitReps(repsText)}
+        keyboardType="number-pad"
+        returnKeyType="done"
+        maxLength={3}
+        selectTextOnFocus
+        containerStyle={{ backgroundColor: tokens.colors.surface2 }}
+      />
+    </>
+  );
+}
 
 export function DayDetailScreen({ route, navigation }: Props) {
   const { dayId, workoutPlanId, mode = 'edit' } = route.params;
@@ -48,7 +147,18 @@ export function DayDetailScreen({ route, navigation }: Props) {
   const [startNotice, setStartNotice] = useState<string | null>(null);
   const [deleteExerciseTarget, setDeleteExerciseTarget] = useState<DayExerciseRow | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [expandedExerciseId, setExpandedExerciseId] = useState<string | null>(null);
+  const [plannedSetsByExerciseId, setPlannedSetsByExerciseId] = useState<
+    Record<string, PlannedSetRow[]>
+  >({});
   const { colors } = useAppTheme();
+
+  const loadPlannedSets = useCallback((dayExerciseId: string) => {
+    setPlannedSetsByExerciseId((prev) => ({
+      ...prev,
+      [dayExerciseId]: listPlannedSetsForDayExercise(dayExerciseId),
+    }));
+  }, []);
 
   const load = useCallback(() => {
     const day = getDayById(dayId);
@@ -56,6 +166,8 @@ export function DayDetailScreen({ route, navigation }: Props) {
       setDayNameInput('');
       setSavedName('');
       setItems([]);
+      setExpandedExerciseId(null);
+      setPlannedSetsByExerciseId({});
       return;
     }
 
@@ -64,7 +176,8 @@ export function DayDetailScreen({ route, navigation }: Props) {
     setSavedName(input);
 
     setItems(listDayExercises(dayId));
-  }, [dayId]);
+    if (expandedExerciseId) loadPlannedSets(expandedExerciseId);
+  }, [dayId, expandedExerciseId, loadPlannedSets]);
 
   useFocusEffect(
     useCallback(() => {
@@ -130,9 +243,78 @@ export function DayDetailScreen({ route, navigation }: Props) {
   const handleDeleteExercise = useCallback(() => {
     if (!deleteExerciseTarget) return;
     deleteDayExercise(deleteExerciseTarget.id);
+    if (expandedExerciseId === deleteExerciseTarget.id) {
+      setExpandedExerciseId(null);
+    }
     setDeleteExerciseTarget(null);
     load();
-  }, [deleteExerciseTarget, load]);
+  }, [deleteExerciseTarget, expandedExerciseId, load]);
+
+  const handleToggleExerciseExpanded = useCallback(
+    (item: DayExerciseRow) => {
+      if (isStartSessionMode || item.exercise_type !== EXERCISE_TYPE.STRENGTH) {
+        navigation.navigate('ExerciseDetail', { exerciseId: item.exercise_id });
+        return;
+      }
+
+      setExpandedExerciseId((current) => {
+        if (current === item.id) return null;
+        loadPlannedSets(item.id);
+        return item.id;
+      });
+    },
+    [isStartSessionMode, loadPlannedSets, navigation],
+  );
+
+  const handleAddPlannedSet = useCallback(
+    (dayExerciseId: string) => {
+      try {
+        addPlannedSetToDayExercise(dayExerciseId);
+        loadPlannedSets(dayExerciseId);
+      } catch (error) {
+        setFeedback(
+          isWorkoutLimitError(error) ? error.message : "Couldn't complete that action. Try again.",
+        );
+      }
+    },
+    [loadPlannedSets],
+  );
+
+  const handleDeletePlannedSet = useCallback(
+    (plannedSet: PlannedSetRow) => {
+      try {
+        deletePlannedSet(plannedSet.id);
+        loadPlannedSets(plannedSet.program_day_exercise_id);
+      } catch {
+        setFeedback("Couldn't complete that action. Try again.");
+      }
+    },
+    [loadPlannedSets],
+  );
+
+  const handlePlannedSetRepsEndEditing = useCallback(
+    (plannedSet: PlannedSetRow, value: string) => {
+      const parsed = parseRepsInput(value);
+      if (!parsed.ok) return false;
+
+      updatePlannedSetTargets(plannedSet.id, { reps: parsed.value });
+      loadPlannedSets(plannedSet.program_day_exercise_id);
+      return true;
+    },
+    [loadPlannedSets],
+  );
+
+  const handlePlannedSetWeightEndEditing = useCallback(
+    (plannedSet: PlannedSetRow, value: string) => {
+      const parsed = parseWeightInput(value);
+      if (!parsed.ok) return false;
+
+      updatePlannedSetTargets(plannedSet.id, { targetWeight: parsed.value });
+      loadPlannedSets(plannedSet.program_day_exercise_id);
+      return true;
+    },
+    [loadPlannedSets],
+  );
 
   const rowActionButtonStyle = {
     minHeight: tokens.touchTargetMin,
@@ -174,30 +356,143 @@ export function DayDetailScreen({ route, navigation }: Props) {
     [confirmDeleteExercise, isStartSessionMode],
   );
 
+  const renderPlannedSets = useCallback(
+    (item: DayExerciseRow) => {
+      if (expandedExerciseId !== item.id || item.exercise_type !== EXERCISE_TYPE.STRENGTH) {
+        return null;
+      }
+
+      const plannedSets = plannedSetsByExerciseId[item.id] ?? [];
+      const setLimitReached = plannedSets.length >= MAX_SETS_PER_EXERCISE;
+      const canDelete = plannedSets.length > 1;
+
+      return (
+        <View
+          style={{
+            gap: tokens.spacing.sm,
+            padding: tokens.spacing.md,
+            borderWidth: 1,
+            borderTopWidth: 0,
+            borderColor: tokens.colors.border,
+            borderBottomLeftRadius: tokens.radius.md,
+            borderBottomRightRadius: tokens.radius.md,
+            backgroundColor: tokens.colors.surface,
+          }}
+        >
+          {plannedSets.map((plannedSet) => (
+            <View
+              key={plannedSet.id}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'flex-end',
+                gap: tokens.spacing.sm,
+              }}
+            >
+              <View
+                style={{ width: 28, minHeight: tokens.touchTargetMin, justifyContent: 'center' }}
+              >
+                <Text variant="label" color={tokens.colors.mutedText}>
+                  {plannedSet.set_index}
+                </Text>
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <PlannedSetInputs
+                  plannedSet={plannedSet}
+                  onCommitReps={handlePlannedSetRepsEndEditing}
+                  onCommitTargetWeight={handlePlannedSetWeightEndEditing}
+                />
+              </View>
+              <Pressable
+                disabled={!canDelete}
+                onPress={() => handleDeletePlannedSet(plannedSet)}
+                style={({ pressed }) => [
+                  rowActionButtonStyle,
+                  !canDelete ? { opacity: 0.45 } : null,
+                  pressed && canDelete ? { opacity: 0.85 } : null,
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel="Delete planned set"
+              >
+                <Ionicons name="trash-outline" size={18} color={tokens.colors.destructive} />
+              </Pressable>
+            </View>
+          ))}
+
+          <Button
+            title={setLimitReached ? WORKOUT_LIMIT_MESSAGES.maxSetsPerExercise : 'Add set'}
+            variant="secondary"
+            disabled={setLimitReached}
+            onPress={() => handleAddPlannedSet(item.id)}
+          />
+        </View>
+      );
+    },
+    [
+      expandedExerciseId,
+      handleAddPlannedSet,
+      handleDeletePlannedSet,
+      handlePlannedSetRepsEndEditing,
+      handlePlannedSetWeightEndEditing,
+      plannedSetsByExerciseId,
+      rowActionButtonStyle,
+    ],
+  );
+
   const renderItem = useCallback(
-    ({ item, drag, isActive }: RenderItemParams<DayExerciseRow>) => (
-      <ListRow
-        title={item.exercise_name}
-        subtitle={isStartSessionMode ? 'View exercise' : 'Tap to view'}
-        left={
-          <IconChip variant="primarySoft" size={40}>
-            <Ionicons name="barbell-outline" size={18} color={colors.primary} />
-          </IconChip>
-        }
-        onPress={() => navigation.navigate('ExerciseDetail', { exerciseId: item.exercise_id })}
-        showChevron
-        right={renderRowRight(item, drag)}
-        style={
-          isActive && !minimalDragVisuals
-            ? {
-                backgroundColor: tokens.colors.surface2,
-                borderColor: tokens.colors.primary,
-              }
-            : undefined
-        }
-      />
-    ),
-    [colors.primary, isStartSessionMode, minimalDragVisuals, navigation, renderRowRight],
+    ({ item, drag, isActive }: RenderItemParams<DayExerciseRow>) => {
+      const isStrengthEditable =
+        !isStartSessionMode && item.exercise_type === EXERCISE_TYPE.STRENGTH;
+      const expanded = expandedExerciseId === item.id;
+
+      return (
+        <View>
+          <ListRow
+            title={item.exercise_name}
+            subtitle={
+              isStartSessionMode
+                ? 'View exercise'
+                : isStrengthEditable
+                  ? expanded
+                    ? 'Hide planned sets'
+                    : 'Edit planned sets'
+                  : 'Tap to view'
+            }
+            left={
+              <IconChip variant="primarySoft" size={40}>
+                <Ionicons name="barbell-outline" size={18} color={colors.primary} />
+              </IconChip>
+            }
+            onPress={() => handleToggleExerciseExpanded(item)}
+            showChevron
+            right={renderRowRight(item, drag)}
+            style={[
+              isActive && !minimalDragVisuals
+                ? {
+                    backgroundColor: tokens.colors.surface2,
+                    borderColor: tokens.colors.primary,
+                  }
+                : undefined,
+              expanded
+                ? {
+                    borderBottomLeftRadius: 0,
+                    borderBottomRightRadius: 0,
+                  }
+                : undefined,
+            ]}
+          />
+          {renderPlannedSets(item)}
+        </View>
+      );
+    },
+    [
+      colors.primary,
+      expandedExerciseId,
+      handleToggleExerciseExpanded,
+      isStartSessionMode,
+      minimalDragVisuals,
+      renderPlannedSets,
+      renderRowRight,
+    ],
   );
 
   const renderPlaceholder = useCallback(

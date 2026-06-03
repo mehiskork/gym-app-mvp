@@ -14,9 +14,12 @@ jest.mock('../outboxRepo', () => ({
 import { exec, query } from '../db';
 import { enqueueOutboxOp } from '../outboxRepo';
 import {
+  addPlannedSetToDayExercise,
   addExerciseToDay,
   deleteDay,
   deleteDayExercise,
+  deletePlannedSet,
+  updatePlannedSetTargets,
   renameDay,
   reorderDayExercises,
 } from '../dayExerciseRepo';
@@ -172,6 +175,9 @@ describe('dayExerciseRepo outbound sync enqueue coverage', () => {
       if (sql.includes('COALESCE(MAX(position), 0) + 1 AS next_pos') && params?.[0] === 'day-1') {
         return [{ next_pos: 3 }];
       }
+      if (sql.includes('SELECT exercise_type') && params?.[0] === 'ex-1') {
+        return [{ exercise_type: 'cardio' }];
+      }
       if (sql.includes('SELECT *') && sql.includes('FROM program_day_exercise')) {
         return [
           {
@@ -195,6 +201,188 @@ describe('dayExerciseRepo outbound sync enqueue coverage', () => {
       }),
     );
     expect(call?.entityId).toBeTruthy();
+  });
+
+  it('creates a default planned_set for newly added strength exercises after parent snapshot', () => {
+    (query as jest.Mock).mockImplementation((sql: string, params?: unknown[]) => {
+      if (sql.includes('FROM program_day_exercise') && sql.includes('deleted_at IS NOT NULL')) {
+        return [];
+      }
+      if (sql.includes('COALESCE(MAX(position), 0) + 1 AS next_pos') && params?.[0] === 'day-1') {
+        return [{ next_pos: 3 }];
+      }
+      if (sql.includes('SELECT exercise_type') && params?.[0] === 'ex-1') {
+        return [{ exercise_type: 'strength' }];
+      }
+      if (sql.includes('SELECT *') && sql.includes('FROM program_day_exercise')) {
+        return [{ id: String(params?.[0] ?? 'day-ex-new'), program_day_id: 'day-1' }];
+      }
+      if (sql.includes('SELECT *') && sql.includes('FROM planned_set')) {
+        return [{ id: String(params?.[0] ?? 'pset-new'), target_reps_min: 0, target_weight: 0 }];
+      }
+      return [];
+    });
+
+    addExerciseToDay({ dayId: 'day-1', exerciseId: 'ex-1' });
+
+    expect(exec).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO planned_set'), [
+      expect.any(String),
+      expect.any(String),
+    ]);
+    expect(enqueueOutboxOp).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ entityType: 'program_day_exercise', opType: 'upsert' }),
+    );
+    expect(enqueueOutboxOp).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ entityType: 'planned_set', opType: 'upsert' }),
+    );
+  });
+
+  it('does not create a planned_set for newly added cardio exercises', () => {
+    (query as jest.Mock).mockImplementation((sql: string, params?: unknown[]) => {
+      if (sql.includes('FROM program_day_exercise') && sql.includes('deleted_at IS NOT NULL')) {
+        return [];
+      }
+      if (sql.includes('COALESCE(MAX(position), 0) + 1 AS next_pos') && params?.[0] === 'day-1') {
+        return [{ next_pos: 3 }];
+      }
+      if (sql.includes('SELECT exercise_type') && params?.[0] === 'ex-cardio') {
+        return [{ exercise_type: 'cardio' }];
+      }
+      if (sql.includes('SELECT *') && sql.includes('FROM program_day_exercise')) {
+        return [{ id: String(params?.[0] ?? 'day-ex-new'), program_day_id: 'day-1' }];
+      }
+      return [];
+    });
+
+    addExerciseToDay({ dayId: 'day-1', exerciseId: 'ex-cardio' });
+
+    const plannedSetInsert = (exec as jest.Mock).mock.calls.find(([sql]) =>
+      String(sql).includes('INSERT INTO planned_set'),
+    );
+    expect(plannedSetInsert).toBeUndefined();
+    expect(enqueueOutboxOp).toHaveBeenCalledTimes(1);
+  });
+
+  it('enqueues planned_set snapshot when adding a planned set', () => {
+    (query as jest.Mock).mockImplementation((sql: string, params?: unknown[]) => {
+      if (sql.includes('FROM planned_set') && sql.includes('deleted_at IS NOT NULL')) return [];
+      if (sql.includes('SELECT id, set_index')) return [{ id: 'ps-1', set_index: 1 }];
+      if (sql.includes('COUNT(*) AS n')) return [{ n: 1 }];
+      if (sql.includes('SELECT target_reps_min')) {
+        return [{ target_reps_min: 8, target_reps_max: 8, target_weight: 100 }];
+      }
+      if (sql.includes('SELECT *') && sql.includes('FROM planned_set')) {
+        return [{ id: String(params?.[0] ?? 'ps-new'), program_day_exercise_id: 'day-ex-1' }];
+      }
+      return [];
+    });
+
+    addPlannedSetToDayExercise('day-ex-1');
+
+    expect(exec).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO planned_set'), [
+      expect.any(String),
+      'day-ex-1',
+      2,
+      8,
+      8,
+      100,
+    ]);
+    expect(enqueueOutboxOp).toHaveBeenCalledWith(
+      expect.objectContaining({ entityType: 'planned_set', opType: 'upsert' }),
+    );
+  });
+
+  it('updates planned-set reps min/max together and enqueues a snapshot', () => {
+    (query as jest.Mock).mockImplementation((sql: string, params?: unknown[]) => {
+      if (sql.includes('SELECT *') && sql.includes('FROM planned_set') && params?.[0] === 'ps-1') {
+        return [{ id: 'ps-1', target_reps_min: 10, target_reps_max: 10 }];
+      }
+      return [];
+    });
+
+    updatePlannedSetTargets('ps-1', { reps: 10 });
+
+    expect(exec).toHaveBeenCalledWith(expect.stringContaining('UPDATE planned_set'), [
+      10,
+      10,
+      'ps-1',
+    ]);
+    expect(enqueueOutboxOp).toHaveBeenCalledWith(
+      expect.objectContaining({ entityType: 'planned_set', entityId: 'ps-1', opType: 'upsert' }),
+    );
+  });
+
+  it('updates planned-set target weight and enqueues a snapshot', () => {
+    (query as jest.Mock).mockImplementation((sql: string, params?: unknown[]) => {
+      if (sql.includes('SELECT *') && sql.includes('FROM planned_set') && params?.[0] === 'ps-1') {
+        return [{ id: 'ps-1', target_weight: 102.5 }];
+      }
+      return [];
+    });
+
+    updatePlannedSetTargets('ps-1', { targetWeight: 102.5 });
+
+    expect(exec).toHaveBeenCalledWith(expect.stringContaining('UPDATE planned_set'), [
+      102.5,
+      'ps-1',
+    ]);
+    expect(enqueueOutboxOp).toHaveBeenCalledWith(
+      expect.objectContaining({ entityType: 'planned_set', entityId: 'ps-1', opType: 'upsert' }),
+    );
+  });
+
+  it('deletes planned sets and enqueues the tombstone before changed sibling snapshots', () => {
+    (query as jest.Mock).mockImplementation((sql: string, params?: unknown[]) => {
+      if (sql.includes('SELECT program_day_exercise_id') && params?.[0] === 'ps-2') {
+        return [{ program_day_exercise_id: 'day-ex-1' }];
+      }
+      if (sql.includes('COUNT(*) AS n')) return [{ n: 3 }];
+      if (sql.includes('deleted_at IS NOT NULL')) return [];
+      if (sql.includes('COALESCE(MIN(set_index), 0) AS min_idx')) return [{ min_idx: 1 }];
+      if (sql.includes('SELECT id, set_index')) {
+        return [
+          { id: 'ps-1', set_index: 1 },
+          { id: 'ps-3', set_index: 3 },
+        ];
+      }
+      if (sql.includes('SELECT *') && sql.includes('FROM planned_set') && params?.[0] === 'ps-2') {
+        return [{ id: 'ps-2', deleted_at: '2026-04-16 00:00:00' }];
+      }
+      if (sql.includes('SELECT *') && sql.includes('FROM planned_set') && params?.[0] === 'ps-3') {
+        return [{ id: 'ps-3', set_index: 2, deleted_at: null }];
+      }
+      return [];
+    });
+
+    expect(deletePlannedSet('ps-2')).toBe(true);
+
+    expect(enqueueOutboxOp).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ entityType: 'planned_set', entityId: 'ps-2', opType: 'delete' }),
+    );
+    expect(enqueueOutboxOp).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ entityType: 'planned_set', entityId: 'ps-3', opType: 'upsert' }),
+    );
+  });
+
+  it('blocks deleting the last planned set', () => {
+    (query as jest.Mock).mockImplementation((sql: string, params?: unknown[]) => {
+      if (sql.includes('SELECT program_day_exercise_id') && params?.[0] === 'ps-1') {
+        return [{ program_day_exercise_id: 'day-ex-1' }];
+      }
+      if (sql.includes('COUNT(*) AS n')) return [{ n: 1 }];
+      return [];
+    });
+
+    expect(deletePlannedSet('ps-1')).toBe(false);
+    expect(exec).not.toHaveBeenCalledWith(expect.stringContaining('UPDATE planned_set'), [
+      expect.anything(),
+      'ps-1',
+    ]);
+    expect(enqueueOutboxOp).not.toHaveBeenCalled();
   });
 
   it('enqueues program_day_exercise upsert snapshots for all reordered rows whose position changed', () => {

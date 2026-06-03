@@ -4,9 +4,11 @@ import { newId } from '../utils/ids';
 import { enqueueOutboxOp } from './outboxRepo';
 import {
   MAX_EXERCISES_PER_SESSION,
+  MAX_SETS_PER_EXERCISE,
   WorkoutLimitError,
   WORKOUT_LIMIT_MESSAGES,
 } from './workoutLimits';
+import { EXERCISE_TYPE, type ExerciseType } from './exerciseTypes';
 
 export type DayRow = {
   id: string;
@@ -20,8 +22,23 @@ export type DayExerciseRow = {
   program_day_id: string;
   exercise_id: string;
   exercise_name: string;
+  exercise_type: ExerciseType;
   position: number;
   notes: string | null;
+};
+
+export type PlannedSetRow = {
+  id: string;
+  program_day_exercise_id: string;
+  set_index: number;
+  target_reps_min: number | null;
+  target_reps_max: number | null;
+  target_weight: number | null;
+};
+
+export type PlannedSetTargetPatch = {
+  reps?: number | null;
+  targetWeight?: number | null;
 };
 
 function enqueueProgramDaySnapshot(dayId: string, opType: 'upsert' | 'delete' = 'upsert') {
@@ -160,6 +177,112 @@ function normalizeDeletedExercisePositions(dayId: string) {
   }
 }
 
+function normalizeDeletedPlannedSetIndices(dayExerciseId: string): string[] {
+  const deleted = query<{ id: string }>(
+    `
+    SELECT id
+    FROM planned_set
+    WHERE program_day_exercise_id = ? AND deleted_at IS NOT NULL
+    ORDER BY set_index ASC;
+  `,
+    [dayExerciseId],
+  );
+
+  if (deleted.length === 0) return [];
+
+  const minIdx =
+    query<{ min_idx: number }>(
+      `
+      SELECT COALESCE(MIN(set_index), 0) AS min_idx
+      FROM planned_set
+      WHERE program_day_exercise_id = ?;
+    `,
+      [dayExerciseId],
+    )[0]?.min_idx ?? 0;
+
+  const base = minIdx - 1000;
+
+  for (let i = 0; i < deleted.length; i += 1) {
+    exec('UPDATE planned_set SET set_index = ? WHERE id = ?', [base - (i + 1), deleted[i].id]);
+  }
+
+  return deleted.map((row) => row.id);
+}
+
+function compactActivePlannedSets(dayExerciseId: string): string[] {
+  normalizeDeletedPlannedSetIndices(dayExerciseId);
+
+  const active = query<{ id: string; set_index: number }>(
+    `
+    SELECT id, set_index
+    FROM planned_set
+    WHERE program_day_exercise_id = ? AND deleted_at IS NULL
+    ORDER BY set_index ASC;
+  `,
+    [dayExerciseId],
+  );
+
+  const changedIds: string[] = [];
+  for (let i = 0; i < active.length; i += 1) {
+    exec('UPDATE planned_set SET set_index = ? WHERE id = ?', [-(i + 1), active[i].id]);
+  }
+
+  for (let i = 0; i < active.length; i += 1) {
+    const nextIndex = i + 1;
+    const row = active[i];
+    if (row.set_index === nextIndex) {
+      exec('UPDATE planned_set SET set_index = ? WHERE id = ?', [nextIndex, row.id]);
+      continue;
+    }
+
+    exec(
+      `
+      UPDATE planned_set
+      SET set_index = ?, updated_at = datetime('now')
+      WHERE id = ?;
+    `,
+      [nextIndex, row.id],
+    );
+    changedIds.push(row.id);
+  }
+
+  return changedIds;
+}
+
+function isValidRepsValue(value: number | null): boolean {
+  return value === null || (Number.isSafeInteger(value) && value >= 0 && value <= 999);
+}
+
+function hasAtMostOneDecimalPlace(value: number): boolean {
+  return Math.abs(value * 10 - Math.round(value * 10)) < 1e-9;
+}
+
+function isValidTargetWeightValue(value: number | null): boolean {
+  return (
+    value === null ||
+    (typeof value === 'number' &&
+      Number.isFinite(value) &&
+      value >= 0 &&
+      value <= 999.9 &&
+      hasAtMostOneDecimalPlace(value))
+  );
+}
+
+function getExerciseType(exerciseId: string): ExerciseType {
+  const row = query<{ exercise_type: ExerciseType }>(
+    `
+    SELECT exercise_type
+    FROM exercise
+    WHERE id = ? AND deleted_at IS NULL
+    LIMIT 1;
+  `,
+    [exerciseId],
+  )[0];
+
+  if (!row) throw new Error('exercise not found');
+  return row.exercise_type;
+}
+
 export function getDayById(dayId: string): DayRow | null {
   const rows = query<DayRow>(
     `
@@ -191,20 +314,38 @@ export function renameDay(dayId: string, name: string | null) {
 export function listDayExercises(dayId: string): DayExerciseRow[] {
   return query<DayExerciseRow>(
     `
-   SELECT
-  pde.id,
-  pde.program_day_id,
-  pde.exercise_id,         --
-  e.name AS exercise_name,
-  pde.position,
-  pde.notes
-FROM program_day_exercise pde
-JOIN exercise e ON e.id = pde.exercise_id
-WHERE pde.program_day_id = ? AND pde.deleted_at IS NULL
-ORDER BY pde.position ASC;
-
-  `,
+    SELECT
+      pde.id,
+      pde.program_day_id,
+      pde.exercise_id,
+      e.name AS exercise_name,
+      e.exercise_type AS exercise_type,
+      pde.position,
+      pde.notes
+    FROM program_day_exercise pde
+    JOIN exercise e ON e.id = pde.exercise_id
+    WHERE pde.program_day_id = ? AND pde.deleted_at IS NULL
+    ORDER BY pde.position ASC;
+    `,
     [dayId],
+  );
+}
+
+export function listPlannedSetsForDayExercise(dayExerciseId: string): PlannedSetRow[] {
+  return query<PlannedSetRow>(
+    `
+    SELECT
+      id,
+      program_day_exercise_id,
+      set_index,
+      target_reps_min,
+      target_reps_max,
+      target_weight
+    FROM planned_set
+    WHERE program_day_exercise_id = ? AND deleted_at IS NULL
+    ORDER BY set_index ASC;
+  `,
+    [dayExerciseId],
   );
 }
 
@@ -239,6 +380,8 @@ export function addExerciseToDay(input: { dayId: string; exerciseId: string }): 
       )[0]?.next_pos ?? 1;
 
     const id = newId('day_ex');
+    const exerciseType = getExerciseType(exerciseId);
+    let plannedSetId: string | null = null;
 
     exec(
       `
@@ -248,9 +391,181 @@ export function addExerciseToDay(input: { dayId: string; exerciseId: string }): 
       [id, dayId, exerciseId, nextPos],
     );
 
+    if (exerciseType === EXERCISE_TYPE.STRENGTH) {
+      plannedSetId = newId('pset');
+      exec(
+        `
+        INSERT INTO planned_set (
+          id,
+          program_day_exercise_id,
+          set_index,
+          target_reps_min,
+          target_reps_max,
+          target_rpe,
+          target_weight,
+          rest_seconds
+        ) VALUES (?, ?, 1, 0, 0, NULL, 0, NULL);
+      `,
+        [plannedSetId, id],
+      );
+    }
+
     enqueueProgramDayExerciseSnapshot(id);
+    if (plannedSetId) enqueuePlannedSetSnapshot(plannedSetId);
 
     return id;
+  });
+}
+
+export function addPlannedSetToDayExercise(dayExerciseId: string): string {
+  return inTransaction(() => {
+    compactActivePlannedSets(dayExerciseId);
+
+    const count =
+      query<{ n: number }>(
+        `
+        SELECT COUNT(*) AS n
+        FROM planned_set
+        WHERE program_day_exercise_id = ? AND deleted_at IS NULL;
+      `,
+        [dayExerciseId],
+      )[0]?.n ?? 0;
+
+    if (count >= MAX_SETS_PER_EXERCISE) {
+      throw new WorkoutLimitError(WORKOUT_LIMIT_MESSAGES.maxSetsPerExercise);
+    }
+
+    const previous = query<
+      Pick<PlannedSetRow, 'target_reps_min' | 'target_reps_max' | 'target_weight'>
+    >(
+      `
+      SELECT target_reps_min, target_reps_max, target_weight
+      FROM planned_set
+      WHERE program_day_exercise_id = ? AND deleted_at IS NULL
+      ORDER BY set_index DESC
+      LIMIT 1;
+    `,
+      [dayExerciseId],
+    )[0];
+
+    const plannedSetId = newId('pset');
+    const nextIndex = count + 1;
+    exec(
+      `
+      INSERT INTO planned_set (
+        id,
+        program_day_exercise_id,
+        set_index,
+        target_reps_min,
+        target_reps_max,
+        target_rpe,
+        target_weight,
+        rest_seconds
+      ) VALUES (?, ?, ?, ?, ?, NULL, ?, NULL);
+    `,
+      [
+        plannedSetId,
+        dayExerciseId,
+        nextIndex,
+        previous ? previous.target_reps_min : 0,
+        previous ? previous.target_reps_max : 0,
+        previous ? previous.target_weight : 0,
+      ],
+    );
+
+    enqueuePlannedSetSnapshot(plannedSetId);
+    return plannedSetId;
+  });
+}
+
+export function updatePlannedSetTargets(plannedSetId: string, patch: PlannedSetTargetPatch) {
+  const updates: Array<[string, number | null]> = [];
+
+  if (Object.prototype.hasOwnProperty.call(patch, 'reps')) {
+    if (!isValidRepsValue(patch.reps ?? null)) return;
+    updates.push(['target_reps_min', patch.reps ?? null]);
+    updates.push(['target_reps_max', patch.reps ?? null]);
+  }
+
+  if (Object.prototype.hasOwnProperty.call(patch, 'targetWeight')) {
+    if (!isValidTargetWeightValue(patch.targetWeight ?? null)) return;
+    updates.push(['target_weight', patch.targetWeight ?? null]);
+  }
+
+  if (updates.length === 0) return;
+
+  const cols = updates.map(([key]) => `${key} = ?`).join(', ');
+  const params = updates.map(([, value]) => value);
+
+  inTransaction(() => {
+    exec(
+      `
+      UPDATE planned_set
+      SET ${cols}, updated_at = datetime('now')
+      WHERE id = ? AND deleted_at IS NULL;
+    `,
+      [...params, plannedSetId],
+    );
+
+    enqueuePlannedSetSnapshot(plannedSetId);
+  });
+}
+
+export function deletePlannedSet(plannedSetId: string): boolean {
+  return inTransaction(() => {
+    const row = query<{ program_day_exercise_id: string }>(
+      `
+      SELECT program_day_exercise_id
+      FROM planned_set
+      WHERE id = ? AND deleted_at IS NULL
+      LIMIT 1;
+    `,
+      [plannedSetId],
+    )[0];
+
+    if (!row) return false;
+
+    const activeCount =
+      query<{ n: number }>(
+        `
+        SELECT COUNT(*) AS n
+        FROM planned_set
+        WHERE program_day_exercise_id = ? AND deleted_at IS NULL;
+      `,
+        [row.program_day_exercise_id],
+      )[0]?.n ?? 0;
+
+    if (activeCount <= 1) return false;
+
+    normalizeDeletedPlannedSetIndices(row.program_day_exercise_id);
+
+    const minIdx =
+      query<{ min_idx: number }>(
+        `
+        SELECT COALESCE(MIN(set_index), 0) AS min_idx
+        FROM planned_set
+        WHERE program_day_exercise_id = ?;
+      `,
+        [row.program_day_exercise_id],
+      )[0]?.min_idx ?? 0;
+
+    exec(
+      `
+      UPDATE planned_set
+      SET set_index = ?, deleted_at = datetime('now'), updated_at = datetime('now')
+      WHERE id = ? AND deleted_at IS NULL;
+    `,
+      [minIdx - 1, plannedSetId],
+    );
+
+    enqueuePlannedSetSnapshot(plannedSetId, 'delete');
+
+    const changedIds = compactActivePlannedSets(row.program_day_exercise_id);
+    for (const changedId of changedIds) {
+      enqueuePlannedSetSnapshot(changedId);
+    }
+
+    return true;
   });
 }
 

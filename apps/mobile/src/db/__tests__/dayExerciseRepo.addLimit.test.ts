@@ -38,6 +38,9 @@ describe('addExerciseToDay limits', () => {
       if (sql.includes('deleted_at IS NOT NULL')) return [];
       if (sql.includes('COUNT(*) AS n')) return [{ n: MAX_EXERCISES_PER_SESSION - 1 }];
       if (sql.includes('MAX(position)')) return [{ next_pos: MAX_EXERCISES_PER_SESSION }];
+      if (sql.includes('SELECT exercise_type') && params?.[0] === 'ex-50') {
+        return [{ exercise_type: 'cardio' }];
+      }
       if (
         sql.includes('SELECT *') &&
         sql.includes('FROM program_day_exercise') &&
@@ -91,6 +94,9 @@ describe('addExerciseToDay limits', () => {
       if (sql.includes('MIN(position)')) return [{ min_pos: -1000 }];
       if (sql.includes('COUNT(*) AS n')) return [{ n: MAX_EXERCISES_PER_SESSION - 1 }];
       if (sql.includes('MAX(position)')) return [{ next_pos: MAX_EXERCISES_PER_SESSION + 1 }];
+      if (sql.includes('SELECT exercise_type') && params?.[0] === 'ex-new') {
+        return [{ exercise_type: 'cardio' }];
+      }
       if (
         sql.includes('SELECT *') &&
         sql.includes('FROM program_day_exercise') &&
