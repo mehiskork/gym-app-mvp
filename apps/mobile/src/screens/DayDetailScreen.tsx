@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { Keyboard, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
 import DraggableFlatList, { type RenderItemParams } from 'react-native-draggable-flatlist';
@@ -52,24 +52,86 @@ import {
   parseRepsInput,
   parseWeightInput,
 } from '../features/workoutSession/setInputParsing';
+import {
+  SET_INPUT_GAP,
+  SET_NUMBER_COLUMN_WIDTH,
+  SET_ROW_GAP,
+} from '../features/workoutSession/setRowLayout';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'DayDetail'>;
 
-type PlannedSetInputProps = {
+type PlannedSetRowEditorProps = {
   plannedSet: PlannedSetRow;
+  canDelete: boolean;
   onCommitReps: (plannedSet: PlannedSetRow, value: string) => boolean;
   onCommitTargetWeight: (plannedSet: PlannedSetRow, value: string) => boolean;
+  onDelete: (plannedSet: PlannedSetRow) => void;
 };
 
-function PlannedSetInputs({
+type PlannedSetInputField = 'weight' | 'reps';
+
+function renderPlannedSetHeader() {
+  return (
+    <View style={plannedSetStyles.headerRow}>
+      <View style={[plannedSetStyles.leftCluster, { gap: SET_INPUT_GAP }]}>
+        <View style={[plannedSetStyles.setColumn, { width: SET_NUMBER_COLUMN_WIDTH }]}>
+          <Text
+            variant="label"
+            color={tokens.colors.mutedText}
+            numberOfLines={1}
+            ellipsizeMode="clip"
+            style={plannedSetStyles.headerText}
+          >
+            SET
+          </Text>
+        </View>
+        <View style={[plannedSetStyles.inputs, { gap: SET_INPUT_GAP }]}>
+          <View style={plannedSetStyles.inputWrapper}>
+            <Text
+              variant="label"
+              color={tokens.colors.mutedText}
+              numberOfLines={1}
+              style={plannedSetStyles.headerText}
+            >
+              WEIGHT
+            </Text>
+          </View>
+          <View style={plannedSetStyles.inputWrapper}>
+            <Text
+              variant="label"
+              color={tokens.colors.mutedText}
+              numberOfLines={1}
+              style={plannedSetStyles.headerText}
+            >
+              REPS
+            </Text>
+          </View>
+        </View>
+      </View>
+      <View
+        style={[
+          plannedSetStyles.actionColumn,
+          { width: tokens.touchTargetMin, marginLeft: SET_ROW_GAP },
+        ]}
+      />
+    </View>
+  );
+}
+
+function PlannedSetRowEditor({
   plannedSet,
+  canDelete,
   onCommitReps,
   onCommitTargetWeight,
-}: PlannedSetInputProps) {
+  onDelete,
+}: PlannedSetRowEditorProps) {
+  const repsInputRef = React.useRef<TextInput | null>(null);
+  const { colors } = useAppTheme();
   const savedWeightText = formatWeightInputValue(plannedSet.target_weight);
   const savedRepsText = formatRepsInputValue(plannedSet.target_reps_min);
   const [weightText, setWeightText] = useState(savedWeightText);
   const [repsText, setRepsText] = useState(savedRepsText);
+  const [focusedField, setFocusedField] = useState<PlannedSetInputField | null>(null);
 
   React.useEffect(() => {
     setWeightText(savedWeightText);
@@ -108,32 +170,81 @@ function PlannedSetInputs({
   );
 
   return (
-    <>
-      <Input
-        label="Weight"
-        value={weightText}
-        onChangeText={setWeightText}
-        onEndEditing={(event) => commitWeight(event.nativeEvent.text)}
-        onSubmitEditing={() => commitWeight(weightText)}
-        keyboardType="decimal-pad"
-        returnKeyType="next"
-        maxLength={5}
-        selectTextOnFocus
-        containerStyle={{ backgroundColor: tokens.colors.surface2 }}
-      />
-      <Input
-        label="Reps"
-        value={repsText}
-        onChangeText={setRepsText}
-        onEndEditing={(event) => commitReps(event.nativeEvent.text)}
-        onSubmitEditing={() => commitReps(repsText)}
-        keyboardType="number-pad"
-        returnKeyType="done"
-        maxLength={3}
-        selectTextOnFocus
-        containerStyle={{ backgroundColor: tokens.colors.surface2 }}
-      />
-    </>
+    <View style={plannedSetStyles.row}>
+      <View style={[plannedSetStyles.leftCluster, { gap: SET_INPUT_GAP }]}>
+        <View style={[plannedSetStyles.setColumn, { width: SET_NUMBER_COLUMN_WIDTH }]}>
+          <Text
+            testID="planned-set-number"
+            variant="body"
+            color={tokens.colors.mutedText}
+            numberOfLines={1}
+            ellipsizeMode="clip"
+            style={plannedSetStyles.setNumberText}
+          >
+            {plannedSet.set_index}
+          </Text>
+        </View>
+        <View style={[plannedSetStyles.inputs, { gap: SET_INPUT_GAP }]}>
+          <View style={plannedSetStyles.inputWrapper}>
+            <TextInput
+              testID="planned-set-weight-input"
+              value={weightText}
+              onChangeText={setWeightText}
+              onEndEditing={(event) => commitWeight(event.nativeEvent.text)}
+              onFocus={() => setFocusedField('weight')}
+              onBlur={() => setFocusedField(null)}
+              onSubmitEditing={() => repsInputRef.current?.focus()}
+              keyboardType="decimal-pad"
+              returnKeyType="next"
+              placeholder="0"
+              placeholderTextColor={tokens.colors.textSecondary}
+              maxLength={5}
+              selectTextOnFocus
+              style={[
+                plannedSetStyles.input,
+                focusedField === 'weight' ? { borderColor: colors.primary } : null,
+              ]}
+            />
+          </View>
+          <View style={plannedSetStyles.inputWrapper}>
+            <TextInput
+              ref={repsInputRef}
+              testID="planned-set-reps-input"
+              value={repsText}
+              onChangeText={setRepsText}
+              onEndEditing={(event) => commitReps(event.nativeEvent.text)}
+              onFocus={() => setFocusedField('reps')}
+              onBlur={() => setFocusedField(null)}
+              onSubmitEditing={Keyboard.dismiss}
+              keyboardType="number-pad"
+              returnKeyType="done"
+              placeholder="0"
+              placeholderTextColor={tokens.colors.textSecondary}
+              maxLength={3}
+              selectTextOnFocus
+              style={[
+                plannedSetStyles.input,
+                focusedField === 'reps' ? { borderColor: colors.primary } : null,
+              ]}
+            />
+          </View>
+        </View>
+      </View>
+      <Pressable
+        disabled={!canDelete}
+        onPress={() => onDelete(plannedSet)}
+        style={({ pressed }) => [
+          plannedSetStyles.deleteButton,
+          { marginLeft: SET_ROW_GAP },
+          !canDelete ? { opacity: 0.45 } : null,
+          pressed && canDelete ? { opacity: 0.85 } : null,
+        ]}
+        accessibilityRole="button"
+        accessibilityLabel="Delete planned set"
+      >
+        <Ionicons name="trash-outline" size={18} color={tokens.colors.destructive} />
+      </Pressable>
+    </View>
   );
 }
 
@@ -379,43 +490,16 @@ export function DayDetailScreen({ route, navigation }: Props) {
             backgroundColor: tokens.colors.surface,
           }}
         >
+          {renderPlannedSetHeader()}
           {plannedSets.map((plannedSet) => (
-            <View
+            <PlannedSetRowEditor
               key={plannedSet.id}
-              style={{
-                flexDirection: 'row',
-                alignItems: 'flex-end',
-                gap: tokens.spacing.sm,
-              }}
-            >
-              <View
-                style={{ width: 28, minHeight: tokens.touchTargetMin, justifyContent: 'center' }}
-              >
-                <Text variant="label" color={tokens.colors.mutedText}>
-                  {plannedSet.set_index}
-                </Text>
-              </View>
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <PlannedSetInputs
-                  plannedSet={plannedSet}
-                  onCommitReps={handlePlannedSetRepsEndEditing}
-                  onCommitTargetWeight={handlePlannedSetWeightEndEditing}
-                />
-              </View>
-              <Pressable
-                disabled={!canDelete}
-                onPress={() => handleDeletePlannedSet(plannedSet)}
-                style={({ pressed }) => [
-                  rowActionButtonStyle,
-                  !canDelete ? { opacity: 0.45 } : null,
-                  pressed && canDelete ? { opacity: 0.85 } : null,
-                ]}
-                accessibilityRole="button"
-                accessibilityLabel="Delete planned set"
-              >
-                <Ionicons name="trash-outline" size={18} color={tokens.colors.destructive} />
-              </Pressable>
-            </View>
+              plannedSet={plannedSet}
+              canDelete={canDelete}
+              onCommitReps={handlePlannedSetRepsEndEditing}
+              onCommitTargetWeight={handlePlannedSetWeightEndEditing}
+              onDelete={handleDeletePlannedSet}
+            />
           ))}
 
           <Button
@@ -434,7 +518,6 @@ export function DayDetailScreen({ route, navigation }: Props) {
       handlePlannedSetRepsEndEditing,
       handlePlannedSetWeightEndEditing,
       plannedSetsByExerciseId,
-      rowActionButtonStyle,
     ],
   );
 
@@ -662,3 +745,85 @@ export function DayDetailScreen({ route, navigation }: Props) {
     </Screen>
   );
 }
+
+const plannedSetStyles = StyleSheet.create({
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  leftCluster: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    minWidth: 0,
+  },
+  setColumn: {
+    alignItems: 'center',
+    flexShrink: 0,
+  },
+  inputs: {
+    flex: 1,
+    flexDirection: 'row',
+    flexShrink: 1,
+    minWidth: 0,
+  },
+  inputWrapper: {
+    flex: 1,
+    minWidth: 0,
+    overflow: 'hidden',
+    borderRadius: tokens.radius.md,
+  },
+  headerText: {
+    fontSize: tokens.typography.caption.fontSize,
+    textAlign: 'center',
+  },
+  actionColumn: {
+    flexShrink: 0,
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: tokens.spacing.sm,
+    paddingHorizontal: 0,
+    borderRadius: tokens.radius.md,
+    borderWidth: 1,
+    borderColor: tokens.colors.border,
+    backgroundColor: tokens.colors.surface2,
+  },
+  setNumberText: {
+    fontSize: tokens.typography.subtitle.fontSize + 2,
+    fontWeight: tokens.typography.subtitle.fontWeight,
+    lineHeight: tokens.typography.subtitle.fontSize + 6,
+    textAlign: 'center',
+    includeFontPadding: false,
+  },
+  input: {
+    width: '100%',
+    minHeight: tokens.touchTargetMin,
+    fontSize: tokens.typography.subtitle.fontSize + 2,
+    fontWeight: tokens.typography.subtitle.fontWeight,
+    lineHeight: tokens.typography.subtitle.fontSize + 6,
+    borderRadius: tokens.radius.md,
+    borderWidth: 1,
+    borderColor: tokens.colors.border,
+    paddingVertical: tokens.spacing.xs,
+    paddingHorizontal: tokens.spacing.md,
+    color: tokens.colors.text,
+    backgroundColor: tokens.colors.surface,
+    textAlign: 'center',
+    textAlignVertical: 'center',
+  },
+  deleteButton: {
+    minWidth: tokens.touchTargetMin,
+    minHeight: tokens.touchTargetMin,
+    width: tokens.touchTargetMin,
+    height: tokens.touchTargetMin,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: tokens.radius.md,
+    borderWidth: 1,
+    borderColor: tokens.colors.border,
+    backgroundColor: tokens.colors.surface,
+    flexShrink: 0,
+  },
+});

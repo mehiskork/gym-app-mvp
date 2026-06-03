@@ -10,6 +10,8 @@ jest.mock('react', () => {
     })),
     useCallback: (fn: () => unknown) => fn,
     useMemo: (fn: () => unknown) => fn(),
+    useEffect: (fn: () => unknown) => fn(),
+    useRef: jest.fn(() => ({ current: null })),
   };
 });
 
@@ -34,6 +36,7 @@ jest.mock('react-native', () => {
   const React = require('react');
   return {
     Alert: { alert: jest.fn() },
+    Keyboard: { dismiss: jest.fn() },
     Pressable: ({ children, ...props }: { children?: React.ReactNode }) =>
       React.createElement('Pressable', props, children),
     Text: ({ children, ...props }: { children?: React.ReactNode }) =>
@@ -86,10 +89,10 @@ jest.mock('../../db/workoutSessionRepo', () => ({
 }));
 
 import React from 'react';
-import { Pressable } from 'react-native';
+import { Pressable, TextInput } from 'react-native';
 import DraggableFlatList, { type RenderItemParams } from 'react-native-draggable-flatlist';
 import { Ionicons } from '@expo/vector-icons';
-import { Button, EmptyState, ListRow, Screen } from '../../ui';
+import { Button, EmptyState, ListRow, Screen, Text } from '../../ui';
 import { DayDetailScreen } from '../DayDetailScreen';
 import {
   createSessionFromPlanDay,
@@ -146,6 +149,15 @@ const findElementsByProp = <P extends Record<string, unknown>>(
   }
   return acc;
 };
+
+const renderComponentElement = <P extends Record<string, unknown>>(
+  element: React.ReactElement<P>,
+): React.ReactElement => (element.type as (props: P) => React.ReactElement)(element.props);
+
+const renderPlannedSetRows = (node: React.ReactNode) =>
+  findElementsByProp<{
+    plannedSet: { id: string };
+  }>(node, 'plannedSet').map((row) => renderComponentElement(row));
 
 describe('DayDetailScreen', () => {
   const useStateMock = React.useState as jest.Mock;
@@ -480,7 +492,7 @@ describe('DayDetailScreen', () => {
     expect(placeholderActions.every((action) => action.props.disabled)).toBe(true);
   });
 
-  it('renders planned sets when a strength exercise row is expanded', () => {
+  it('renders compact planned-set rows with one header when a strength exercise row is expanded', () => {
     const items = [
       {
         id: 'day-ex-1',
@@ -510,6 +522,14 @@ describe('DayDetailScreen', () => {
             target_reps_max: 8,
             target_weight: 100,
           },
+          {
+            id: 'ps-2',
+            program_day_exercise_id: 'day-ex-1',
+            set_index: 2,
+            target_reps_min: 10,
+            target_reps_max: 10,
+            target_weight: 105,
+          },
         ],
       },
       jest.fn(),
@@ -537,7 +557,32 @@ describe('DayDetailScreen', () => {
 
     const serialized = JSON.stringify(rowNode);
     expect(serialized).toContain('Hide planned sets');
-    expect(findElementsByProp(rowNode, 'plannedSet')).toHaveLength(1);
+
+    const texts = findElementsByType<React.ComponentProps<typeof Text>>(rowNode, Text);
+    expect(texts.filter((text) => text.props.children === 'SET')).toHaveLength(1);
+    expect(texts.filter((text) => text.props.children === 'WEIGHT')).toHaveLength(1);
+    expect(texts.filter((text) => text.props.children === 'REPS')).toHaveLength(1);
+    expect(texts.filter((text) => text.props.children === 'Weight')).toHaveLength(0);
+    expect(texts.filter((text) => text.props.children === 'Reps')).toHaveLength(0);
+
+    const plannedSetRows = findElementsByProp<{
+      plannedSet: { id: string };
+    }>(rowNode, 'plannedSet');
+    expect(plannedSetRows).toHaveLength(2);
+
+    const renderedRows = renderPlannedSetRows(rowNode);
+    const weightInputs = renderedRows.flatMap((row) =>
+      findElementsByType<React.ComponentProps<typeof TextInput>>(row, TextInput).filter(
+        (input) => input.props.testID === 'planned-set-weight-input',
+      ),
+    );
+    const repsInputs = renderedRows.flatMap((row) =>
+      findElementsByType<React.ComponentProps<typeof TextInput>>(row, TextInput).filter(
+        (input) => input.props.testID === 'planned-set-reps-input',
+      ),
+    );
+    expect(weightInputs).toHaveLength(2);
+    expect(repsInputs).toHaveLength(2);
   });
 
   it('editing planned-set reps calls update path', () => {
@@ -666,6 +711,75 @@ describe('DayDetailScreen', () => {
     expect(updatePlannedSetTargets).toHaveBeenCalledWith('ps-1', { targetWeight: 102.5 });
   });
 
+  it('cardio exercise rows do not render planned-set controls', () => {
+    const items = [
+      {
+        id: 'day-ex-1',
+        program_day_id: 'day-1',
+        exercise_id: 'run',
+        exercise_name: 'Run',
+        exercise_type: 'cardio',
+        position: 1,
+        notes: null,
+      },
+    ];
+    useStateMock.mockImplementationOnce(() => ['Conditioning', jest.fn()]);
+    useStateMock.mockImplementationOnce(() => ['Conditioning', jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [items, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => ['day-ex-1', jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [
+      {
+        'day-ex-1': [
+          {
+            id: 'ps-1',
+            program_day_exercise_id: 'day-ex-1',
+            set_index: 1,
+            target_reps_min: 8,
+            target_reps_max: 8,
+            target_weight: 100,
+          },
+        ],
+      },
+      jest.fn(),
+    ]);
+
+    const navigation: Nav = { navigate: jest.fn(), replace: jest.fn(), setOptions: jest.fn() };
+    const element = DayDetailScreen({
+      navigation,
+      route: { key: 'DayDetail', name: 'DayDetail', params: { dayId: 'day-1' } },
+    } as never);
+    const lists = findElementsByType<React.ComponentProps<typeof DraggableFlatList>>(
+      element,
+      DraggableFlatList,
+    );
+    const renderItem = lists[0]?.props.renderItem as (
+      params: RenderItemParams<(typeof items)[number]>,
+    ) => React.ReactElement;
+    const rowNode = renderItem({
+      item: items[0],
+      drag: jest.fn(),
+      isActive: false,
+      getIndex: () => 0,
+    });
+
+    const texts = findElementsByType<React.ComponentProps<typeof Text>>(rowNode, Text);
+    const buttons = findElementsByType<React.ComponentProps<typeof Button>>(rowNode, Button);
+    const plannedSetDeletes = findElementsByType<React.ComponentProps<typeof Pressable>>(
+      rowNode,
+      Pressable,
+    ).filter((pressable) => pressable.props.accessibilityLabel === 'Delete planned set');
+
+    expect(texts.some((text) => text.props.children === 'SET')).toBe(false);
+    expect(texts.some((text) => text.props.children === 'WEIGHT')).toBe(false);
+    expect(texts.some((text) => text.props.children === 'REPS')).toBe(false);
+    expect(buttons.some((button) => button.props.title === 'Add set')).toBe(false);
+    expect(findElementsByProp(rowNode, 'plannedSet')).toHaveLength(0);
+    expect(plannedSetDeletes).toHaveLength(0);
+  });
+
   it('Add Set button calls add path', () => {
     const items = [
       {
@@ -788,10 +902,11 @@ describe('DayDetailScreen', () => {
       getIndex: () => 0,
     });
 
-    const plannedSetDeletes = findElementsByType<React.ComponentProps<typeof Pressable>>(
-      rowNode,
-      Pressable,
-    ).filter((pressable) => pressable.props.accessibilityLabel === 'Delete planned set');
+    const plannedSetDeletes = renderPlannedSetRows(rowNode).flatMap((plannedSetRow) =>
+      findElementsByType<React.ComponentProps<typeof Pressable>>(plannedSetRow, Pressable).filter(
+        (pressable) => pressable.props.accessibilityLabel === 'Delete planned set',
+      ),
+    );
     plannedSetDeletes[0]?.props.onPress?.({} as never);
 
     expect(deletePlannedSet).toHaveBeenCalledWith('ps-1');
@@ -852,10 +967,11 @@ describe('DayDetailScreen', () => {
       getIndex: () => 0,
     });
 
-    const plannedSetDeletes = findElementsByType<React.ComponentProps<typeof Pressable>>(
-      rowNode,
-      Pressable,
-    ).filter((pressable) => pressable.props.accessibilityLabel === 'Delete planned set');
+    const plannedSetDeletes = renderPlannedSetRows(rowNode).flatMap((plannedSetRow) =>
+      findElementsByType<React.ComponentProps<typeof Pressable>>(plannedSetRow, Pressable).filter(
+        (pressable) => pressable.props.accessibilityLabel === 'Delete planned set',
+      ),
+    );
 
     expect(plannedSetDeletes[0]?.props.disabled).toBe(true);
   });
