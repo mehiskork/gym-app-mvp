@@ -1956,33 +1956,33 @@ describe('WorkoutSessionScreen', () => {
     expect(weightLabels).toHaveLength(1);
     expect(repLabels).toHaveLength(1);
   });
-  it('shows Add comment label when no exercise comment exists', () => {
+  it('shows Add Note label when no exercise note exists', () => {
     const element = ExerciseCard({
       name: 'Deadlift',
       subtitle: null,
       onAddSet: jest.fn(),
       onCommentPress: jest.fn(),
-      commentButtonLabel: 'Add comment',
+      commentButtonLabel: 'Add Note',
       children: [],
     });
     const texts = findElementsByType(element, Text) as Array<
       React.ReactElement<{ children?: React.ReactNode }>
     >;
-    expect(texts.some((text) => text.props.children === 'Add comment')).toBe(true);
+    expect(texts.some((text) => text.props.children === 'Add Note')).toBe(true);
   });
 
-  it('shows View comment label when exercise comment exists', () => {
+  it('shows View Note label when exercise note exists', () => {
     const element = ExerciseCard({
       name: 'Deadlift',
       subtitle: null,
       onAddSet: jest.fn(),
       onCommentPress: jest.fn(),
-      commentButtonLabel: 'View comment',
+      commentButtonLabel: 'View Note',
       children: [],
     });
     const texts = findElementsByType(element, Text) as Array<
       React.ReactElement<{ children?: React.ReactNode }>
     >;
-    expect(texts.some((text) => text.props.children === 'View comment')).toBe(true);
+    expect(texts.some((text) => text.props.children === 'View Note')).toBe(true);
   });
 });

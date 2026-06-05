@@ -74,6 +74,7 @@ function createExercise(overrides?: Partial<LoggerExercise>): LoggerExercise {
     position: 1,
     sets: [createSet()],
     notes: null,
+    plan_note_snapshot: null,
     cardio_summary: {
       duration_minutes: null,
       distance_km: null,

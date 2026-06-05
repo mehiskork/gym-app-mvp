@@ -1004,7 +1004,7 @@ describe('WorkoutSessionScreen finish modal', () => {
       React.ReactElement<{ label?: string; onChangeText?: (value: string) => void }>
     >;
 
-    const noteInput = inputs.find((input) => input.props.label === 'Workout note (optional)');
+    const noteInput = inputs.find((input) => input.props.label === 'Workout Note (optional)');
     expect(noteInput).toBeDefined();
 
     noteInput?.props.onChangeText?.(longNote);

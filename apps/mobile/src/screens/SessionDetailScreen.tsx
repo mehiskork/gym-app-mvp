@@ -213,7 +213,7 @@ export function SessionDetailScreen({ route, navigation }: Props) {
           <Text variant="muted">{formatDateTime(session.started_at)}</Text>
           {dur ? <Text variant="muted">Duration: {dur}</Text> : null}
           {session.workout_note?.trim() ? (
-            <Text variant="muted">Workout note: {session.workout_note.trim()}</Text>
+            <Text variant="muted">Workout Note: {session.workout_note.trim()}</Text>
           ) : null}
         </View>
 
@@ -240,7 +240,12 @@ export function SessionDetailScreen({ route, navigation }: Props) {
               >
                 <Text variant="subtitle">{ex.exercise_name}</Text>
               </Pressable>
-              {ex.notes?.trim() ? <Text variant="muted">Comment: {ex.notes.trim()}</Text> : null}
+              {ex.plan_note_snapshot?.trim() ? (
+                <Text variant="muted">Plan Note: {ex.plan_note_snapshot.trim()}</Text>
+              ) : null}
+              {ex.notes?.trim() ? (
+                <Text variant="muted">Workout Note: {ex.notes.trim()}</Text>
+              ) : null}
 
               {ex.exercise_type === EXERCISE_TYPE.CARDIO ? (
                 formatCardio(ex).length === 0 ? (

@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import type { RootStackParamList } from '../navigation/types';
 import {
   Button,
+  BottomSheetModal,
   Card,
   EmptyState,
   IconChip,
@@ -30,6 +31,7 @@ import {
   listPlannedSetsForDayExercise,
   renameDay,
   reorderDayExercises,
+  updateDayExerciseNote,
   updatePlannedSetTargets,
   type DayExerciseRow,
   type PlannedSetRow,
@@ -59,6 +61,7 @@ import {
 } from '../features/workoutSession/setRowLayout';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'DayDetail'>;
+const MAX_PLAN_NOTE_LENGTH = 200;
 
 type PlannedSetRowEditorProps = {
   plannedSet: PlannedSetRow;
@@ -259,6 +262,8 @@ export function DayDetailScreen({ route, navigation }: Props) {
   const [deleteExerciseTarget, setDeleteExerciseTarget] = useState<DayExerciseRow | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [expandedExerciseId, setExpandedExerciseId] = useState<string | null>(null);
+  const [noteEditorExerciseId, setNoteEditorExerciseId] = useState<string | null>(null);
+  const [planNoteDraft, setPlanNoteDraft] = useState('');
   const [plannedSetsByExerciseId, setPlannedSetsByExerciseId] = useState<
     Record<string, PlannedSetRow[]>
   >({});
@@ -363,14 +368,14 @@ export function DayDetailScreen({ route, navigation }: Props) {
 
   const handleToggleExerciseExpanded = useCallback(
     (item: DayExerciseRow) => {
-      if (isStartSessionMode || item.exercise_type !== EXERCISE_TYPE.STRENGTH) {
+      if (isStartSessionMode) {
         navigation.navigate('ExerciseDetail', { exerciseId: item.exercise_id });
         return;
       }
 
       setExpandedExerciseId((current) => {
         if (current === item.id) return null;
-        loadPlannedSets(item.id);
+        if (item.exercise_type === EXERCISE_TYPE.STRENGTH) loadPlannedSets(item.id);
         return item.id;
       });
     },
@@ -467,15 +472,16 @@ export function DayDetailScreen({ route, navigation }: Props) {
     [confirmDeleteExercise, isStartSessionMode],
   );
 
-  const renderPlannedSets = useCallback(
+  const renderExerciseEditor = useCallback(
     (item: DayExerciseRow) => {
-      if (expandedExerciseId !== item.id || item.exercise_type !== EXERCISE_TYPE.STRENGTH) {
+      if (expandedExerciseId !== item.id) {
         return null;
       }
 
       const plannedSets = plannedSetsByExerciseId[item.id] ?? [];
       const setLimitReached = plannedSets.length >= MAX_SETS_PER_EXERCISE;
       const canDelete = plannedSets.length > 1;
+      const noteButtonTitle = item.notes?.trim() ? 'View Note' : 'Add Note';
 
       return (
         <View
@@ -490,24 +496,49 @@ export function DayDetailScreen({ route, navigation }: Props) {
             backgroundColor: tokens.colors.surface,
           }}
         >
-          {renderPlannedSetHeader()}
-          {plannedSets.map((plannedSet) => (
-            <PlannedSetRowEditor
-              key={plannedSet.id}
-              plannedSet={plannedSet}
-              canDelete={canDelete}
-              onCommitReps={handlePlannedSetRepsEndEditing}
-              onCommitTargetWeight={handlePlannedSetWeightEndEditing}
-              onDelete={handleDeletePlannedSet}
-            />
-          ))}
+          {item.exercise_type === EXERCISE_TYPE.STRENGTH ? (
+            <>
+              {renderPlannedSetHeader()}
+              {plannedSets.map((plannedSet) => (
+                <PlannedSetRowEditor
+                  key={plannedSet.id}
+                  plannedSet={plannedSet}
+                  canDelete={canDelete}
+                  onCommitReps={handlePlannedSetRepsEndEditing}
+                  onCommitTargetWeight={handlePlannedSetWeightEndEditing}
+                  onDelete={handleDeletePlannedSet}
+                />
+              ))}
 
-          <Button
-            title={setLimitReached ? WORKOUT_LIMIT_MESSAGES.maxSetsPerExercise : 'Add set'}
-            variant="secondary"
-            disabled={setLimitReached}
-            onPress={() => handleAddPlannedSet(item.id)}
-          />
+              <View style={{ flexDirection: 'row', gap: tokens.spacing.sm }}>
+                <Button
+                  title={noteButtonTitle}
+                  variant="secondary"
+                  style={{ flex: 1 }}
+                  onPress={() => {
+                    setNoteEditorExerciseId(item.id);
+                    setPlanNoteDraft(item.notes ?? '');
+                  }}
+                />
+                <Button
+                  title={setLimitReached ? WORKOUT_LIMIT_MESSAGES.maxSetsPerExercise : 'Add Set'}
+                  variant="secondary"
+                  disabled={setLimitReached}
+                  style={{ flex: 1 }}
+                  onPress={() => handleAddPlannedSet(item.id)}
+                />
+              </View>
+            </>
+          ) : (
+            <Button
+              title={noteButtonTitle}
+              variant="secondary"
+              onPress={() => {
+                setNoteEditorExerciseId(item.id);
+                setPlanNoteDraft(item.notes ?? '');
+              }}
+            />
+          )}
         </View>
       );
     },
@@ -520,6 +551,8 @@ export function DayDetailScreen({ route, navigation }: Props) {
       plannedSetsByExerciseId,
     ],
   );
+
+  const noteEditingExercise = items.find((item) => item.id === noteEditorExerciseId) ?? null;
 
   const renderItem = useCallback(
     ({ item, drag, isActive }: RenderItemParams<DayExerciseRow>) => {
@@ -563,7 +596,7 @@ export function DayDetailScreen({ route, navigation }: Props) {
                 : undefined,
             ]}
           />
-          {renderPlannedSets(item)}
+          {renderExerciseEditor(item)}
         </View>
       );
     },
@@ -573,7 +606,7 @@ export function DayDetailScreen({ route, navigation }: Props) {
       handleToggleExerciseExpanded,
       isStartSessionMode,
       minimalDragVisuals,
-      renderPlannedSets,
+      renderExerciseEditor,
       renderRowRight,
     ],
   );
@@ -742,6 +775,54 @@ export function DayDetailScreen({ route, navigation }: Props) {
         variant="error"
         onDismiss={() => setFeedback(null)}
       />
+      <BottomSheetModal
+        visible={Boolean(noteEditingExercise)}
+        title={noteEditingExercise ? `${noteEditingExercise.exercise_name} Note` : 'Exercise Note'}
+        keyboardAware
+        actions={
+          <View style={{ flexDirection: 'row', gap: tokens.spacing.sm }}>
+            <Button
+              title="Clear"
+              variant="ghost"
+              style={{ flex: 1 }}
+              onPress={() => {
+                if (!noteEditingExercise) return;
+                updateDayExerciseNote(noteEditingExercise.id, null);
+                setNoteEditorExerciseId(null);
+                setPlanNoteDraft('');
+                load();
+              }}
+            />
+            <Button
+              title="Save"
+              variant="primary"
+              style={{ flex: 1 }}
+              onPress={() => {
+                if (!noteEditingExercise) return;
+                updateDayExerciseNote(noteEditingExercise.id, planNoteDraft);
+                setNoteEditorExerciseId(null);
+                setPlanNoteDraft('');
+                load();
+              }}
+            />
+          </View>
+        }
+        onClose={() => {
+          setNoteEditorExerciseId(null);
+          setPlanNoteDraft('');
+        }}
+      >
+        <Input
+          value={planNoteDraft}
+          onChangeText={(value) => setPlanNoteDraft(value.slice(0, MAX_PLAN_NOTE_LENGTH))}
+          placeholder="Add a Plan Note"
+          maxLength={MAX_PLAN_NOTE_LENGTH}
+          multiline
+          textAlignVertical="top"
+          inputStyle={{ minHeight: 90, paddingVertical: tokens.spacing.sm }}
+          helperText={`${planNoteDraft.length}/${MAX_PLAN_NOTE_LENGTH}`}
+        />
+      </BottomSheetModal>
     </Screen>
   );
 }

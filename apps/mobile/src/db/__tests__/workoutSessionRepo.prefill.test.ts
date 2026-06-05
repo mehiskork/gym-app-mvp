@@ -36,6 +36,7 @@ type Scenario = {
     exerciseId: string;
     exerciseName: string;
     position: number;
+    planNote?: string | null;
     plannedSets: Array<{
       set_index: number;
       target_weight?: number | null;
@@ -59,7 +60,10 @@ function setupScenario(scenario: Scenario) {
         day_exercise_id: exercise.dayExerciseId,
         exercise_id: exercise.exerciseId,
         exercise_name: exercise.exerciseName,
+        exercise_type: 'strength',
+        cardio_profile: null,
         position: exercise.position,
+        plan_note_snapshot: exercise.planNote ?? null,
       }));
     }
     if (sql.includes('FROM planned_set')) {
@@ -130,6 +134,46 @@ describe('createSessionFromPlanDay prefill', () => {
     expect(setInserts[0][1]).toEqual(['set-1', 'wse-1', 1, 60, 8, 105]);
     expect(setInserts[1][1]).toEqual(['set-2', 'wse-1', 2, 60, 8, 110]);
     expect(setInserts[2][1]).toEqual(['set-3', 'wse-1', 3, 55, 10, 120]);
+  });
+
+  it('snapshots the plan exercise note without copying it into the workout note field', () => {
+    setupScenario({
+      exercises: [
+        {
+          dayExerciseId: 'pde-pullup',
+          exerciseId: 'pullup',
+          exerciseName: 'Pull-Up',
+          position: 1,
+          planNote: '2 sets overhand grip, 2 sets underhand grip',
+          plannedSets: [{ set_index: 1, target_reps_min: 8, rest_seconds: 120 }],
+          historicalSets: [],
+        },
+      ],
+    });
+
+    (newId as jest.Mock)
+      .mockReturnValueOnce('ws-1')
+      .mockReturnValueOnce('wse-1')
+      .mockReturnValueOnce('set-1');
+
+    createSessionFromPlanDay({ workoutPlanId: 'plan-1', dayId: 'day-1' });
+
+    const sessionExerciseInsert = (exec as jest.Mock).mock.calls.find((call) =>
+      String(call[0]).includes('INSERT INTO workout_session_exercise'),
+    );
+
+    expect(String(sessionExerciseInsert?.[0])).toContain('plan_note_snapshot');
+    expect(sessionExerciseInsert?.[1]).toEqual([
+      'wse-1',
+      'ws-1',
+      'pde-pullup',
+      'pullup',
+      'Pull-Up',
+      'strength',
+      null,
+      1,
+      '2 sets overhand grip, 2 sets underhand grip',
+    ]);
   });
 
   it('matches by planned exercise identity and ignores row position noise', () => {

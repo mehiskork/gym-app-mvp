@@ -79,6 +79,7 @@ jest.mock('../../db/dayExerciseRepo', () => ({
   listPlannedSetsForDayExercise: jest.fn(),
   renameDay: jest.fn(),
   reorderDayExercises: jest.fn(),
+  updateDayExerciseNote: jest.fn(),
   updatePlannedSetTargets: jest.fn(),
 }));
 
@@ -92,7 +93,7 @@ import React from 'react';
 import { Pressable, TextInput } from 'react-native';
 import DraggableFlatList, { type RenderItemParams } from 'react-native-draggable-flatlist';
 import { Ionicons } from '@expo/vector-icons';
-import { Button, EmptyState, ListRow, Screen, Text } from '../../ui';
+import { BottomSheetModal, Button, EmptyState, Input, ListRow, Screen, Text } from '../../ui';
 import { DayDetailScreen } from '../DayDetailScreen';
 import {
   createSessionFromPlanDay,
@@ -104,6 +105,7 @@ import {
   deletePlannedSet,
   listPlannedSetsForDayExercise,
   reorderDayExercises,
+  updateDayExerciseNote,
   updatePlannedSetTargets,
 } from '../../db/dayExerciseRepo';
 import { tokens } from '../../theme/tokens';
@@ -175,6 +177,7 @@ describe('DayDetailScreen', () => {
     (listPlannedSetsForDayExercise as jest.Mock).mockReset();
     (listPlannedSetsForDayExercise as jest.Mock).mockReturnValue([]);
     (updatePlannedSetTargets as jest.Mock).mockReset();
+    (updateDayExerciseNote as jest.Mock).mockReset();
   });
 
   it('shows empty state and add exercise action when no exercises exist', () => {
@@ -511,6 +514,8 @@ describe('DayDetailScreen', () => {
     useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
     useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
     useStateMock.mockImplementationOnce(() => ['day-ex-1', jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => ['', jest.fn()]);
     useStateMock.mockImplementationOnce(() => [
       {
         'day-ex-1': [
@@ -604,6 +609,8 @@ describe('DayDetailScreen', () => {
     useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
     useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
     useStateMock.mockImplementationOnce(() => ['day-ex-1', jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => ['', jest.fn()]);
     useStateMock.mockImplementationOnce(() => [
       {
         'day-ex-1': [
@@ -667,6 +674,8 @@ describe('DayDetailScreen', () => {
     useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
     useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
     useStateMock.mockImplementationOnce(() => ['day-ex-1', jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => ['', jest.fn()]);
     useStateMock.mockImplementationOnce(() => [
       {
         'day-ex-1': [
@@ -730,6 +739,8 @@ describe('DayDetailScreen', () => {
     useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
     useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
     useStateMock.mockImplementationOnce(() => ['day-ex-1', jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => ['', jest.fn()]);
     useStateMock.mockImplementationOnce(() => [
       {
         'day-ex-1': [
@@ -775,7 +786,7 @@ describe('DayDetailScreen', () => {
     expect(texts.some((text) => text.props.children === 'SET')).toBe(false);
     expect(texts.some((text) => text.props.children === 'WEIGHT')).toBe(false);
     expect(texts.some((text) => text.props.children === 'REPS')).toBe(false);
-    expect(buttons.some((button) => button.props.title === 'Add set')).toBe(false);
+    expect(buttons.some((button) => button.props.title === 'Add Set')).toBe(false);
     expect(findElementsByProp(rowNode, 'plannedSet')).toHaveLength(0);
     expect(plannedSetDeletes).toHaveLength(0);
   });
@@ -799,6 +810,8 @@ describe('DayDetailScreen', () => {
     useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
     useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
     useStateMock.mockImplementationOnce(() => ['day-ex-1', jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => ['', jest.fn()]);
     useStateMock.mockImplementationOnce(() => [
       {
         'day-ex-1': [
@@ -835,9 +848,118 @@ describe('DayDetailScreen', () => {
     });
 
     const buttons = findElementsByType<React.ComponentProps<typeof Button>>(rowNode, Button);
-    buttons.find((button) => button.props.title === 'Add set')?.props.onPress?.({} as never);
+    buttons.find((button) => button.props.title === 'Add Set')?.props.onPress?.({} as never);
 
     expect(addPlannedSetToDayExercise).toHaveBeenCalledWith('day-ex-1');
+  });
+
+  it('renders Add Note/View Note left of Add Set for expanded strength exercises', () => {
+    const items = [
+      {
+        id: 'day-ex-1',
+        program_day_id: 'day-1',
+        exercise_id: 'bench',
+        exercise_name: 'Bench Press',
+        exercise_type: 'strength',
+        position: 1,
+        notes: 'Pause on the first rep',
+      },
+    ];
+    useStateMock.mockImplementationOnce(() => ['Push', jest.fn()]);
+    useStateMock.mockImplementationOnce(() => ['Push', jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [items, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => ['day-ex-1', jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => ['', jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [
+      {
+        'day-ex-1': [
+          {
+            id: 'ps-1',
+            program_day_exercise_id: 'day-ex-1',
+            set_index: 1,
+            target_reps_min: 8,
+            target_reps_max: 8,
+            target_weight: 100,
+          },
+        ],
+      },
+      jest.fn(),
+    ]);
+
+    const navigation: Nav = { navigate: jest.fn(), replace: jest.fn(), setOptions: jest.fn() };
+    const element = DayDetailScreen({
+      navigation,
+      route: { key: 'DayDetail', name: 'DayDetail', params: { dayId: 'day-1' } },
+    } as never);
+    const lists = findElementsByType<React.ComponentProps<typeof DraggableFlatList>>(
+      element,
+      DraggableFlatList,
+    );
+    const renderItem = lists[0]?.props.renderItem as (
+      params: RenderItemParams<(typeof items)[number]>,
+    ) => React.ReactElement;
+    const rowNode = renderItem({
+      item: items[0],
+      drag: jest.fn(),
+      isActive: false,
+      getIndex: () => 0,
+    });
+
+    const buttons = findElementsByType<React.ComponentProps<typeof Button>>(rowNode, Button);
+    expect(buttons.map((button) => button.props.title).slice(-2)).toEqual(['View Note', 'Add Set']);
+  });
+
+  it('saves and clears a plan exercise note from the sheet', () => {
+    const items = [
+      {
+        id: 'day-ex-1',
+        program_day_id: 'day-1',
+        exercise_id: 'bench',
+        exercise_name: 'Bench Press',
+        exercise_type: 'strength',
+        position: 1,
+        notes: null,
+      },
+    ];
+    useStateMock.mockImplementationOnce(() => ['Push', jest.fn()]);
+    useStateMock.mockImplementationOnce(() => ['Push', jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [items, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => ['day-ex-1', jest.fn()]);
+    useStateMock.mockImplementationOnce(() => ['Plan note draft', jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [{}, jest.fn()]);
+
+    const navigation: Nav = { navigate: jest.fn(), replace: jest.fn(), setOptions: jest.fn() };
+    const element = DayDetailScreen({
+      navigation,
+      route: { key: 'DayDetail', name: 'DayDetail', params: { dayId: 'day-1' } },
+    } as never);
+
+    const sheets = findElementsByType<React.ComponentProps<typeof BottomSheetModal>>(
+      element,
+      BottomSheetModal,
+    );
+    expect(sheets[0]?.props.title).toBe('Bench Press Note');
+    const inputs = findElementsByType<React.ComponentProps<typeof Input>>(sheets[0], Input);
+    expect(inputs[0]?.props.maxLength).toBe(200);
+    expect(inputs[0]?.props.helperText).toBe('15/200');
+
+    const buttons = findElementsByType<React.ComponentProps<typeof Button>>(
+      sheets[0]?.props.actions as React.ReactNode,
+      Button,
+    );
+    buttons.find((button) => button.props.title === 'Save')?.props.onPress?.({} as never);
+    expect(updateDayExerciseNote).toHaveBeenCalledWith('day-ex-1', 'Plan note draft');
+
+    buttons.find((button) => button.props.title === 'Clear')?.props.onPress?.({} as never);
+    expect(updateDayExerciseNote).toHaveBeenCalledWith('day-ex-1', null);
   });
 
   it('Delete planned set button calls delete path', () => {
@@ -859,6 +981,8 @@ describe('DayDetailScreen', () => {
     useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
     useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
     useStateMock.mockImplementationOnce(() => ['day-ex-1', jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => ['', jest.fn()]);
     useStateMock.mockImplementationOnce(() => [
       {
         'day-ex-1': [
@@ -932,6 +1056,8 @@ describe('DayDetailScreen', () => {
     useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
     useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
     useStateMock.mockImplementationOnce(() => ['day-ex-1', jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => ['', jest.fn()]);
     useStateMock.mockImplementationOnce(() => [
       {
         'day-ex-1': [

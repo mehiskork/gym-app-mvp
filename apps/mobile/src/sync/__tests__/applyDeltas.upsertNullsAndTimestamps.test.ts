@@ -381,6 +381,32 @@ describe('applyDeltas null upsert + timestamp handling', () => {
     expect((exec as jest.Mock).mock.calls[0][0]).toContain('INSERT INTO workout_session_exercise');
   });
 
+  it('upserts workout_session_exercise plan_note_snapshot from sync payload', () => {
+    (query as jest.Mock).mockReturnValue([]);
+
+    applyDeltas([
+      {
+        entityType: 'workout_session_exercise',
+        entityId: 'wse-plan-note',
+        opType: 'upsert',
+        payload: {
+          id: 'wse-plan-note',
+          workout_session_id: 'session-1',
+          exercise_id: 'exercise-1',
+          exercise_name: 'Pull-Up',
+          position: 1,
+          notes: null,
+          plan_note_snapshot: '2 sets overhand grip, 2 sets underhand grip',
+          updated_at: '2026-05-01 12:00:01',
+        },
+      },
+    ]);
+
+    const [sql, values] = (exec as jest.Mock).mock.calls[0];
+    expect(sql).toContain('plan_note_snapshot');
+    expect(values).toContain('2 sets overhand grip, 2 sets underhand grip');
+  });
+
   it('skips workout_set delta when the entity was sent in the current sync request', () => {
     (query as jest.Mock).mockReturnValue([{ updated_at: '2026-05-01 12:00:00' }]);
 

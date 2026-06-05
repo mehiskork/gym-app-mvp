@@ -413,6 +413,37 @@ class SyncServiceIT {
     }
 
     @Test
+    void workoutSessionExercisePlanNoteSnapshotIsAcceptedAndReturnedInDeltas() {
+        SyncResponse response = syncService.sync(deviceId, guestUserId, "0", List.of(
+                upsertOp("op-plan-note-session", "workout_session", "session-plan-note", Map.of(
+                        "id", "session-plan-note",
+                        "title", "Pull Day",
+                        "status", "in_progress",
+                        "started_at", "2026-03-01T00:00:00Z",
+                        "updated_at", "2026-03-01T00:00:00Z")),
+                upsertOp("op-plan-note-session-ex", "workout_session_exercise",
+                        "session-ex-plan-note", Map.of(
+                                "id", "session-ex-plan-note",
+                                "workout_session_id", "session-plan-note",
+                                "exercise_id", "ex_pull_up",
+                                "exercise_name", "Pull-Up",
+                                "position", 1,
+                                "notes", "Ding dong",
+                                "plan_note_snapshot", "2 sets overhand grip, 2 sets underhand grip",
+                                "updated_at", "2026-03-01T00:00:00Z"))));
+
+        assertThat(response.getAcks()).extracting(SyncAck::status).containsExactly("applied", "applied");
+        assertThat(entityStatePayload("workout_session_exercise", "session-ex-plan-note"))
+                .containsEntry("notes", "Ding dong")
+                .containsEntry("plan_note_snapshot", "2 sets overhand grip, 2 sets underhand grip");
+        assertThat(response.getDeltas())
+                .filteredOn(delta -> "session-ex-plan-note".equals(delta.entityId()))
+                .singleElement()
+                .extracting(delta -> delta.payload().get("plan_note_snapshot"))
+                .isEqualTo("2 sets overhand grip, 2 sets underhand grip");
+    }
+
+    @Test
     void lwwCapsExistingFarFutureUpdatedAtSoEntityIsNotPinnedForever() {
         Instant existingReceivedAt = Instant.now().minus(Duration.ofMinutes(10));
         syncRepository.upsertEntityState(guestUserId, "program", "program-future-pinned", Map.of(
@@ -1029,13 +1060,15 @@ class SyncServiceIT {
                         "session-exercise-after-complete", Map.of(
                                 "id", "session-exercise-after-complete",
                                 "workout_session_id", "session-completed-for-exercise",
-                                "position", 1,
+                                "position", 0,
+                                "plan_note_snapshot", "new plan note",
                                 "updated_at", "2026-03-01T00:01:00Z")))))
                 .isInstanceOf(ConflictException.class)
                 .hasMessageContaining("workout_session_exercise immutable when session completed");
 
         assertThat(entityStatePayload("workout_session_exercise", "session-exercise-after-complete"))
-                .containsEntry("position", 0);
+                .containsEntry("position", 0)
+                .doesNotContainKey("plan_note_snapshot");
         assertThat(countChangeLogRows(guestUserId, "workout_session_exercise", "session-exercise-after-complete"))
                 .isEqualTo(1);
         assertThat(countOpLedgerRows(guestUserId, "op-session-ex-after-complete")).isZero();

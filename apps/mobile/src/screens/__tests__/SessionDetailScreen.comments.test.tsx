@@ -106,7 +106,7 @@ const findElementsByType = <P,>(
   return acc;
 };
 
-describe('SessionDetailScreen comments', () => {
+describe('SessionDetailScreen notes', () => {
   const useStateMock = React.useState as jest.Mock;
 
   beforeEach(() => {
@@ -123,7 +123,7 @@ describe('SessionDetailScreen comments', () => {
     });
   });
 
-  it('shows exercise comment in history details', () => {
+  it('shows workout and plan exercise notes in history details', () => {
     const session = {
       id: 's-1',
       title: 'Push Day',
@@ -138,6 +138,7 @@ describe('SessionDetailScreen comments', () => {
         exercise_name: 'Bench Press',
         position: 1,
         notes: 'Controlled tempo',
+        plan_note_snapshot: 'Use a pause on each rep',
       },
     ];
     const sets: SessionSetRow[] = [];
@@ -153,9 +154,11 @@ describe('SessionDetailScreen comments', () => {
       route: { key: 'SessionDetail', name: 'SessionDetail', params: { sessionId: 's-1' } },
     } as never);
 
-    expect(JSON.stringify(element)).toContain('Comment: ');
+    expect(JSON.stringify(element)).toContain('Plan Note: ');
+    expect(JSON.stringify(element)).toContain('Use a pause on each rep');
+    expect(JSON.stringify(element)).toContain('Workout Note: ');
     expect(JSON.stringify(element)).toContain('Controlled tempo');
-    expect(JSON.stringify(element)).toContain('Workout note: ');
+    expect(JSON.stringify(element)).toContain('Workout Note: ');
     expect(JSON.stringify(element)).toContain('Solid pace');
   });
 

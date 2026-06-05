@@ -18,8 +18,9 @@ type ExerciseCardProps = {
   subtitle?: string | null;
   onAddSet: () => void;
   onCommentPress?: () => void;
-  commentButtonLabel?: 'Add comment' | 'View comment';
+  commentButtonLabel?: 'Add Note' | 'View Note';
   commentDisabled?: boolean;
+  commentHighlighted?: boolean;
   addSetDisabled?: boolean;
   onPressTitle?: () => void;
   onSwap?: () => void;
@@ -35,8 +36,9 @@ export function ExerciseCard({
   subtitle,
   onAddSet,
   onCommentPress,
-  commentButtonLabel = 'Add comment',
+  commentButtonLabel = 'Add Note',
   commentDisabled = false,
+  commentHighlighted = false,
   addSetDisabled = false,
   onPressTitle,
   onSwap,
@@ -205,10 +207,11 @@ export function ExerciseCard({
                 flex: 1,
                 minHeight: tokens.touchTargetMin,
                 borderWidth: 1,
-                borderColor: tokens.colors.border,
+                borderColor: commentHighlighted ? tokens.colors.primary : tokens.colors.border,
                 borderRadius: tokens.radius.md,
                 alignItems: 'center',
                 justifyContent: 'center',
+                backgroundColor: 'transparent',
                 opacity: commentDisabled ? 0.6 : 1,
               },
               pressed && !commentDisabled ? { opacity: 0.85 } : null,

@@ -96,8 +96,8 @@ public class SyncService {
                         "workout_session_exercise", Set.of(
                                         "id", "workout_session_id", "source_program_day_exercise_id",
                                         "exercise_id", "exercise_name", "exercise_type", "cardio_profile",
-                                        "position", "notes", "cardio_duration_minutes", "cardio_distance_km",
-                                        "cardio_speed_kph", "cardio_incline_percent",
+                                        "position", "notes", "plan_note_snapshot", "cardio_duration_minutes",
+                                        "cardio_distance_km", "cardio_speed_kph", "cardio_incline_percent",
                                         "cardio_resistance_level", "cardio_pace_seconds_per_km",
                                         "cardio_floors", "cardio_stair_level", "created_at", "updated_at",
                                         "deleted_at"),

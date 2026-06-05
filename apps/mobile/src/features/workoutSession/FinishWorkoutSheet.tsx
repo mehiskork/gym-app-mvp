@@ -110,10 +110,10 @@ export function FinishWorkoutSheet({
           {StatColumn({ label: 'Duration', value: formatDuration(durationMinutes) })}
         </View>
         <Input
-          label="Workout note (optional)"
+          label="Workout Note (optional)"
           value={workoutNote}
           onChangeText={(value) => onWorkoutNoteChange(value.slice(0, MAX_WORKOUT_NOTE_LENGTH))}
-          placeholder="Add an optional note for this session"
+          placeholder="Add an optional Workout Note"
           maxLength={MAX_WORKOUT_NOTE_LENGTH}
           editable={noteEditable}
           multiline

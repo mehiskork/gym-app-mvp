@@ -117,8 +117,8 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
   const insets = useSafeAreaInsets();
   const { scrollViewRef, handleScroll, handleEditFocus, keyboardOpen, keyboardSpacer } =
     useKeyboardAvoidance({ bottomInset: insets.bottom });
-  const [commentEditorExerciseId, setCommentEditorExerciseId] = useState<string | null>(null);
-  const [commentDraft, setCommentDraft] = useState('');
+  const [noteEditorExerciseId, setNoteEditorExerciseId] = useState<string | null>(null);
+  const [workoutExerciseNoteDraft, setWorkoutExerciseNoteDraft] = useState('');
   const [workoutNoteDraft, setWorkoutNoteDraft] = useState('');
   const [deleteExerciseTarget, setDeleteExerciseTarget] = useState<LoggerExercise | null>(null);
   const [isDeletingExercise, setIsDeletingExercise] = useState(false);
@@ -273,8 +273,8 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
   );
 
   const editingExercise = useMemo(
-    () => exercises.find((exercise) => exercise.id === commentEditorExerciseId) ?? null,
-    [commentEditorExerciseId, exercises],
+    () => exercises.find((exercise) => exercise.id === noteEditorExerciseId) ?? null,
+    [noteEditorExerciseId, exercises],
   );
 
   const handleCloseDeleteExercise = useCallback(() => {
@@ -335,7 +335,7 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
       </Screen>
     );
   }
-  const canEditComment = session.status === 'in_progress';
+  const canEditExerciseNote = session.status === 'in_progress';
   const exerciseLimitReached = exercises.length >= MAX_EXERCISES_PER_SESSION;
   const finishMode = !totals.hasLoggedWork
     ? 'noLoggedWork'
@@ -385,10 +385,13 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
                   key={ex.id}
                   name={getExerciseDisplayName(ex)}
                   subtitle={getExerciseSubtitle(ex)}
-                  commentButtonLabel={ex.notes?.trim() ? 'View comment' : 'Add comment'}
+                  commentButtonLabel={
+                    ex.plan_note_snapshot?.trim() || ex.notes?.trim() ? 'View Note' : 'Add Note'
+                  }
+                  commentHighlighted={Boolean(ex.plan_note_snapshot?.trim())}
                   onCommentPress={() => {
-                    setCommentEditorExerciseId(ex.id);
-                    setCommentDraft(ex.notes ?? '');
+                    setNoteEditorExerciseId(ex.id);
+                    setWorkoutExerciseNoteDraft(ex.notes ?? '');
                   }}
                   onPressTitle={() =>
                     navigation.navigate('ExerciseDetail', { exerciseId: ex.exercise_id })
@@ -553,10 +556,12 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
       />
       <BottomSheetModal
         visible={Boolean(editingExercise)}
-        title={editingExercise ? `${editingExercise.exercise_name} comment` : 'Exercise comment'}
+        title={
+          editingExercise ? `${getExerciseDisplayName(editingExercise)} Note` : 'Exercise Note'
+        }
         keyboardAware
         actions={
-          canEditComment ? (
+          canEditExerciseNote ? (
             <View style={{ flexDirection: 'row', gap: tokens.spacing.sm }}>
               <Button
                 title="Clear"
@@ -566,8 +571,8 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
                   if (!editingExercise) return;
                   updateWorkoutSessionExerciseComment(editingExercise.id, null);
                   load();
-                  setCommentEditorExerciseId(null);
-                  setCommentDraft('');
+                  setNoteEditorExerciseId(null);
+                  setWorkoutExerciseNoteDraft('');
                 }}
               />
               <Button
@@ -576,33 +581,44 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
                 style={{ flex: 1 }}
                 onPress={() => {
                   if (!editingExercise) return;
-                  updateWorkoutSessionExerciseComment(editingExercise.id, commentDraft);
+                  updateWorkoutSessionExerciseComment(editingExercise.id, workoutExerciseNoteDraft);
                   load();
-                  setCommentEditorExerciseId(null);
-                  setCommentDraft('');
+                  setNoteEditorExerciseId(null);
+                  setWorkoutExerciseNoteDraft('');
                 }}
               />
             </View>
           ) : (
-            <Text variant="muted">Comments are read-only after workout completion.</Text>
+            <Text variant="muted">Workout Notes are read-only after workout completion.</Text>
           )
         }
         onClose={() => {
-          setCommentEditorExerciseId(null);
-          setCommentDraft('');
+          setNoteEditorExerciseId(null);
+          setWorkoutExerciseNoteDraft('');
         }}
       >
-        <View>
+        <View style={{ gap: tokens.spacing.md }}>
+          {editingExercise?.plan_note_snapshot?.trim() ? (
+            <View style={{ gap: tokens.spacing.xs }}>
+              <Text variant="label" color={tokens.colors.mutedText}>
+                Plan Note
+              </Text>
+              <Text>{editingExercise.plan_note_snapshot.trim()}</Text>
+            </View>
+          ) : null}
           <Input
-            value={commentDraft}
-            onChangeText={(value) => setCommentDraft(value.slice(0, MAX_EXERCISE_COMMENT_LENGTH))}
-            placeholder="Add an informational comment"
+            label="Workout Note"
+            value={workoutExerciseNoteDraft}
+            onChangeText={(value) =>
+              setWorkoutExerciseNoteDraft(value.slice(0, MAX_EXERCISE_COMMENT_LENGTH))
+            }
+            placeholder="Add a Workout Note"
             maxLength={MAX_EXERCISE_COMMENT_LENGTH}
-            editable={canEditComment}
+            editable={canEditExerciseNote}
             multiline
             textAlignVertical="top"
             inputStyle={{ minHeight: 90, paddingVertical: tokens.spacing.sm }}
-            helperText={`${commentDraft.length}/${MAX_EXERCISE_COMMENT_LENGTH}`}
+            helperText={`${workoutExerciseNoteDraft.length}/${MAX_EXERCISE_COMMENT_LENGTH}`}
           />
         </View>
       </BottomSheetModal>

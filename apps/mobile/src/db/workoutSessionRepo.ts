@@ -37,6 +37,7 @@ export type WorkoutSessionExerciseRow = {
   cardio_profile: CardioProfile | null;
   position: number;
   notes: string | null;
+  plan_note_snapshot: string | null;
 };
 
 type MostRecentCompletedDayForPlanRow = {
@@ -264,7 +265,8 @@ export function listSessionExercises(sessionId: string): WorkoutSessionExerciseR
        exercise_type,
       cardio_profile,
       position,
-      notes
+      notes,
+      plan_note_snapshot
     FROM workout_session_exercise
     WHERE workout_session_id = ? AND deleted_at IS NULL
     ORDER BY position ASC;
@@ -353,6 +355,7 @@ export function createSessionFromPlanDay(input: { workoutPlanId: string; dayId: 
       exercise_type: ExerciseType;
       cardio_profile: CardioProfile | null;
       position: number;
+      plan_note_snapshot: string | null;
     }>(
       `
       SELECT
@@ -361,7 +364,8 @@ export function createSessionFromPlanDay(input: { workoutPlanId: string; dayId: 
         e.name AS exercise_name,
         e.exercise_type AS exercise_type,
         e.cardio_profile AS cardio_profile,
-        pde.position AS position
+        pde.position AS position,
+        pde.notes AS plan_note_snapshot
       FROM program_day_exercise pde
       JOIN exercise e ON e.id = pde.exercise_id
       WHERE pde.program_day_id = ?
@@ -407,11 +411,12 @@ export function createSessionFromPlanDay(input: { workoutPlanId: string; dayId: 
             source_program_day_exercise_id,
           exercise_id,
           exercise_name,
-           exercise_type,
+          exercise_type,
           cardio_profile,
           position,
-          notes
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL);
+          notes,
+          plan_note_snapshot
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?);
       `,
         [
           wseId,
@@ -422,6 +427,7 @@ export function createSessionFromPlanDay(input: { workoutPlanId: string; dayId: 
           row.exercise_type,
           row.cardio_profile,
           row.position,
+          row.plan_note_snapshot,
         ],
       );
 

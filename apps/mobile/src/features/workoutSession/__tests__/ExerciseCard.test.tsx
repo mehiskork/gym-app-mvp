@@ -36,6 +36,7 @@ jest.mock('react-native-safe-area-context', () => {
 import React from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
+import { tokens } from '../../../theme/tokens';
 import { IconButton } from '../../../ui/IconButton';
 import { Text } from '../../../ui/Text';
 import { ExerciseCard } from '../ExerciseCard';
@@ -184,5 +185,45 @@ describe('ExerciseCard set headers', () => {
     expect(addSetButton?.props.disabled).toBe(true);
     expect(texts.some((text) => text.props.children === 'Max 50 sets')).toBe(true);
     expect(onAddSet).not.toHaveBeenCalled();
+  });
+
+  it('highlights the note button with a focused-input border when a plan note snapshot exists', () => {
+    const element = ExerciseCard({
+      name: 'Pull-Up',
+      subtitle: null,
+      onAddSet: jest.fn(),
+      onCommentPress: jest.fn(),
+      commentButtonLabel: 'View Note',
+      commentHighlighted: true,
+      children: <Text>Set row</Text>,
+    });
+
+    const pressables = findElementsByType<{
+      testID?: string;
+      style?: unknown;
+    }>(element, Pressable);
+    const noteButton = pressables.find(
+      (pressable) => pressable.props.testID === 'exercise-card-comment',
+    );
+    const style = StyleSheet.flatten(
+      typeof noteButton?.props.style === 'function'
+        ? noteButton.props.style({ pressed: false })
+        : noteButton?.props.style,
+    ) as {
+      backgroundColor?: string;
+      borderColor?: string;
+      borderRadius?: number;
+      borderWidth?: number;
+    };
+    const noteButtonText = findElementsByType<{ children?: React.ReactNode; color?: string }>(
+      noteButton,
+      Text,
+    ).find((text) => text.props.children === 'View Note');
+
+    expect(style.borderColor).toBe(tokens.colors.primary);
+    expect(style.borderRadius).toBe(tokens.radius.md);
+    expect(style.borderWidth).toBe(1);
+    expect(style.backgroundColor).toBe('transparent');
+    expect(noteButtonText?.props.color).toBe(tokens.colors.mutedText);
   });
 });

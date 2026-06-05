@@ -41,6 +41,13 @@ export type PlannedSetTargetPatch = {
   targetWeight?: number | null;
 };
 
+function normalizeExerciseNote(note: string | null | undefined): string | null {
+  if (typeof note !== 'string') return null;
+  const trimmed = note.trim();
+  if (!trimmed) return null;
+  return trimmed.slice(0, 200);
+}
+
 function enqueueProgramDaySnapshot(dayId: string, opType: 'upsert' | 'delete' = 'upsert') {
   const row = query<Record<string, unknown>>(
     `
@@ -508,6 +515,21 @@ export function updatePlannedSetTargets(plannedSetId: string, patch: PlannedSetT
     );
 
     enqueuePlannedSetSnapshot(plannedSetId);
+  });
+}
+
+export function updateDayExerciseNote(dayExerciseId: string, note: string | null) {
+  inTransaction(() => {
+    exec(
+      `
+      UPDATE program_day_exercise
+      SET notes = ?, updated_at = datetime('now')
+      WHERE id = ? AND deleted_at IS NULL;
+    `,
+      [normalizeExerciseNote(note), dayExerciseId],
+    );
+
+    enqueueProgramDayExerciseSnapshot(dayExerciseId);
   });
 }
 

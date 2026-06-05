@@ -49,6 +49,7 @@ export type LoggerExercise = {
   position: number;
   sets: LoggerSet[];
   notes: string | null;
+  plan_note_snapshot: string | null;
   cardio_summary: CardioSummary;
 };
 
@@ -317,6 +318,7 @@ export function getWorkoutLoggerData(sessionId: string): {
     position: exercise.position,
     sets: exercise.sets,
     notes: exercise.notes,
+    plan_note_snapshot: exercise.plan_note_snapshot,
     cardio_summary: {
       duration_minutes: exercise.cardio_duration_minutes,
       distance_km: exercise.cardio_distance_km,

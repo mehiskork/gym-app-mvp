@@ -1,4 +1,6 @@
 import { migration001_private_beta_baseline } from '../migrations/001_private_beta_baseline';
+import { migration002_workout_exercise_plan_note_snapshot } from '../migrations/002_workout_exercise_plan_note_snapshot';
+import { migrations } from '../migrations';
 
 const baselineSql = migration001_private_beta_baseline.up;
 
@@ -16,6 +18,14 @@ describe('private beta SQLite baseline migration', () => {
   it('uses one reset-only baseline migration', () => {
     expect(migration001_private_beta_baseline.id).toBe(1);
     expect(migration001_private_beta_baseline.name).toBe('private beta baseline');
+    expect(migrations[0]).toBe(migration001_private_beta_baseline);
+  });
+
+  it('adds the workout exercise plan note snapshot in migration 2', () => {
+    expect(migration002_workout_exercise_plan_note_snapshot.id).toBe(2);
+    expect(migration002_workout_exercise_plan_note_snapshot.up).toContain(
+      'ADD COLUMN plan_note_snapshot TEXT NULL',
+    );
   });
 
   it('creates every expected final table', () => {

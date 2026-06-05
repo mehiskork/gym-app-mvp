@@ -20,6 +20,7 @@ import {
   deleteDayExercise,
   deletePlannedSet,
   updatePlannedSetTargets,
+  updateDayExerciseNote,
   renameDay,
   reorderDayExercises,
 } from '../dayExerciseRepo';
@@ -92,6 +93,54 @@ describe('dayExerciseRepo outbound sync enqueue coverage', () => {
         opType: 'upsert',
       }),
     );
+  });
+
+  it('updates a plan exercise note, trims it, caps length, and enqueues a snapshot', () => {
+    const longNote = `  ${'a'.repeat(220)}  `;
+    (query as jest.Mock).mockImplementation((sql: string, params?: unknown[]) => {
+      if (
+        sql.includes('SELECT *') &&
+        sql.includes('FROM program_day_exercise') &&
+        params?.[0] === 'day-ex-1'
+      ) {
+        return [{ id: 'day-ex-1', notes: 'a'.repeat(200), deleted_at: null }];
+      }
+      return [];
+    });
+
+    updateDayExerciseNote('day-ex-1', longNote);
+
+    expect(exec).toHaveBeenCalledWith(expect.stringContaining('UPDATE program_day_exercise'), [
+      'a'.repeat(200),
+      'day-ex-1',
+    ]);
+    expect(enqueueOutboxOp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entityType: 'program_day_exercise',
+        entityId: 'day-ex-1',
+        opType: 'upsert',
+      }),
+    );
+  });
+
+  it('clears a blank plan exercise note to null', () => {
+    (query as jest.Mock).mockImplementation((sql: string, params?: unknown[]) => {
+      if (
+        sql.includes('SELECT *') &&
+        sql.includes('FROM program_day_exercise') &&
+        params?.[0] === 'day-ex-1'
+      ) {
+        return [{ id: 'day-ex-1', notes: null, deleted_at: null }];
+      }
+      return [];
+    });
+
+    updateDayExerciseNote('day-ex-1', '   ');
+
+    expect(exec).toHaveBeenCalledWith(expect.stringContaining('UPDATE program_day_exercise'), [
+      null,
+      'day-ex-1',
+    ]);
   });
 
   it('deleteDayExercise tombstones child planned_set rows and enqueues delete snapshots', () => {
