@@ -38,7 +38,12 @@ const CURATED_EXERCISE_ALIASES: Record<string, string[]> = {
   ex_pec_deck: ['Pec Deck Machine', 'Machine Chest Fly', 'Machine Chest'],
   ex_chest_fly_machine: ['Pec Deck', 'Machine Chest Fly', 'Machine Chest'],
   ex_chest_press_machine: ['Machine Chest', 'Machine Chest Press'],
-  ex_machine_chest_press: ['Machine Chest', 'Machine Chest Press'],
+  ex_machine_chest_press: ['Machine Chest', 'Machine Chest Press', 'Chest Press Machine'],
+  ex_machine_shoulder_press: [
+    'Machine Shoulder',
+    'Machine Shoulder Press',
+    'Shoulder Press Machine',
+  ],
   ex_bb_rdl: ['RDL', 'Romanian Deadlift', 'Barbell Romanian Deadlift', 'BB RDL'],
   ex_romanian_deadlift_dumbbell: [
     'RDL',

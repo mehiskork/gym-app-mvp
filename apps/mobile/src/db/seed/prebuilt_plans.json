@@ -674,7 +674,7 @@
             ]
           },
           {
-            "exercise_id": "ex_shoulder_press_machine",
+            "exercise_id": "ex_machine_shoulder_press",
             "sets": [
               {
                 "reps": 15
@@ -1233,7 +1233,7 @@
         "name": "Session 4 — Shoulders + Chest + Arms + Abs",
         "exercises": [
           {
-            "exercise_id": "ex_shoulder_press_machine",
+            "exercise_id": "ex_machine_shoulder_press",
             "sets": [
               {
                 "reps": 0
@@ -1264,7 +1264,7 @@
             ]
           },
           {
-            "exercise_id": "ex_chest_press_machine",
+            "exercise_id": "ex_machine_chest_press",
             "sets": [
               {
                 "reps": 0
@@ -1539,7 +1539,7 @@
             ]
           },
           {
-            "exercise_id": "ex_shoulder_press_machine",
+            "exercise_id": "ex_machine_shoulder_press",
             "sets": [
               {
                 "reps": 10

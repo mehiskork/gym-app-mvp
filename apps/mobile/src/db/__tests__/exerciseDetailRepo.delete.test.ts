@@ -20,7 +20,11 @@ import { exec, query } from '../db';
 import { getClaimedUserId } from '../appMetaRepo';
 import { enqueueOutboxOp } from '../outboxRepo';
 import { inTransaction } from '../tx';
-import { deleteCustomExerciseIfUnused, getExerciseDeletionState } from '../exerciseDetailRepo';
+import {
+  deleteCustomExerciseIfUnused,
+  getExerciseById,
+  getExerciseDeletionState,
+} from '../exerciseDetailRepo';
 
 describe('exerciseDetailRepo deletion guards', () => {
   beforeEach(() => {
@@ -44,6 +48,35 @@ describe('exerciseDetailRepo deletion guards', () => {
     expect(state.canRequestDelete).toBe(false);
     expect(state.canDelete).toBe(false);
     expect(state.blockReason).toContain('custom exercises');
+  });
+
+  it('still resolves deprecated seeded exercise IDs by id', () => {
+    (query as jest.Mock).mockImplementation((_sql: string, params?: unknown[]) => {
+      if (params?.[0] === 'ex_chest_press_machine') {
+        return [
+          {
+            id: 'ex_chest_press_machine',
+            name: 'Chest Press Machine',
+            is_custom: 0,
+            owner_user_id: null,
+          },
+        ];
+      }
+      if (params?.[0] === 'ex_shoulder_press_machine') {
+        return [
+          {
+            id: 'ex_shoulder_press_machine',
+            name: 'Shoulder Press Machine',
+            is_custom: 0,
+            owner_user_id: null,
+          },
+        ];
+      }
+      return [];
+    });
+
+    expect(getExerciseById('ex_chest_press_machine')?.name).toBe('Chest Press Machine');
+    expect(getExerciseById('ex_shoulder_press_machine')?.name).toBe('Shoulder Press Machine');
   });
 
   it('blocks deletion for used custom exercises', () => {

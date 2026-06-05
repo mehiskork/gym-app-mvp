@@ -43,6 +43,8 @@ const highValueExerciseIds = [
   'ex_hip_abduction_machine',
 ];
 
+const deprecatedCuratedExerciseIds = ['ex_chest_press_machine', 'ex_shoulder_press_machine'];
+
 function duplicates(values: string[]) {
   const seen = new Set<string>();
   const repeated = new Set<string>();
@@ -80,6 +82,16 @@ describe('seed integrity', () => {
     );
 
     expect(referencedIds.filter((id) => !curatedIds.has(id))).toEqual([]);
+  });
+
+  it('keeps deprecated seeded exercise IDs present but out of prebuilt plans', () => {
+    const curatedIds = new Set(curatedExercises.map((exercise) => exercise.id));
+    const referencedIds = prebuiltPlans.flatMap((plan) =>
+      plan.days.flatMap((day) => day.exercises.map((exercise) => exercise.exercise_id)),
+    );
+
+    expect(deprecatedCuratedExerciseIds.filter((id) => !curatedIds.has(id))).toEqual([]);
+    expect(referencedIds.filter((id) => deprecatedCuratedExerciseIds.includes(id))).toEqual([]);
   });
 
   it('uses valid cardio profiles only for cardio exercises', () => {

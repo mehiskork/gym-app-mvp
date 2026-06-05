@@ -54,7 +54,7 @@ jest.mock('@react-navigation/native', () => ({
   useFocusEffect: (cb: () => void) => cb(),
 }));
 
-jest.mock('../../db/exerciseRepo', () => ({ listExercisesForCurrentUser: jest.fn() }));
+jest.mock('../../db/exerciseRepo', () => ({ listSelectableExercisesForCurrentUser: jest.fn() }));
 jest.mock('../../db/dayExerciseRepo', () => ({ addExerciseToDay: jest.fn() }));
 jest.mock('../../db/workoutLoggerRepo', () => ({
   appendWorkoutSessionExercise: jest.fn(),
@@ -65,7 +65,7 @@ import React from 'react';
 import { FlatList, Pressable } from 'react-native';
 import { ExercisePickerScreen } from '../ExercisePickerScreen';
 import { Button } from '../../ui';
-import { listExercisesForCurrentUser } from '../../db/exerciseRepo';
+import { listSelectableExercisesForCurrentUser } from '../../db/exerciseRepo';
 import {
   appendWorkoutSessionExercise,
   swapWorkoutSessionExercise,
@@ -97,7 +97,7 @@ describe('ExercisePickerScreen swap mode', () => {
     useStateMock.mockImplementation((initial: unknown) => [initial, jest.fn()]);
     (swapWorkoutSessionExercise as jest.Mock).mockReset();
     (appendWorkoutSessionExercise as jest.Mock).mockReset();
-    (listExercisesForCurrentUser as jest.Mock).mockReturnValue([
+    (listSelectableExercisesForCurrentUser as jest.Mock).mockReturnValue([
       { id: 'ex-2', name: 'Incline Bench', is_custom: 1 },
     ]);
   });

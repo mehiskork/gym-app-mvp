@@ -28,6 +28,7 @@ import {
   createCustomExercise,
   getCurrentExerciseOwnerUserId,
   listExercisesForCurrentUser,
+  listSelectableExercisesForCurrentUser,
   rewriteCustomExerciseOwnerAfterAccountClaim,
 } from '../exerciseRepo';
 
@@ -91,6 +92,63 @@ describe('exerciseRepo createCustomExercise', () => {
 
     expect(query).toHaveBeenCalledWith(expect.stringContaining('FROM exercise'), [
       'https://securetoken.google.com/gym-app-mvp-1d7f0|firebase-uid',
+    ]);
+  });
+
+  it('excludes deprecated curated exercises from selectable picker results only', () => {
+    (query as jest.Mock).mockReturnValue([
+      {
+        id: 'ex_chest_press_machine',
+        name: 'Chest Press Machine',
+        normalized_name: 'chest press machine',
+        is_custom: 0,
+        owner_user_id: null,
+      },
+      {
+        id: 'ex_machine_chest_press',
+        name: 'Machine Chest Press',
+        normalized_name: 'machine chest press',
+        is_custom: 0,
+        owner_user_id: null,
+      },
+      {
+        id: 'ex_bench_press_barbell',
+        name: 'Barbell Bench Press',
+        normalized_name: 'barbell bench press',
+        is_custom: 0,
+        owner_user_id: null,
+      },
+      {
+        id: 'ex_custom_press',
+        name: 'My Chest Press Machine',
+        normalized_name: 'my chest press machine',
+        is_custom: 1,
+        owner_user_id: 'local-user-1',
+      },
+    ]);
+
+    const selectable = listSelectableExercisesForCurrentUser().map((exercise) => exercise.id);
+
+    expect(selectable).toEqual([
+      'ex_machine_chest_press',
+      'ex_bench_press_barbell',
+      'ex_custom_press',
+    ]);
+  });
+
+  it('keeps deprecated curated exercises available in the general exercise list', () => {
+    (query as jest.Mock).mockReturnValue([
+      {
+        id: 'ex_shoulder_press_machine',
+        name: 'Shoulder Press Machine',
+        normalized_name: 'shoulder press machine',
+        is_custom: 0,
+        owner_user_id: null,
+      },
+    ]);
+
+    expect(listExercisesForCurrentUser().map((exercise) => exercise.id)).toEqual([
+      'ex_shoulder_press_machine',
     ]);
   });
 

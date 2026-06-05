@@ -79,7 +79,10 @@ const searchFixtures: ExerciseRow[] = [
   exercise({ id: 'ex_reverse_pec_deck', name: 'Reverse Pec Deck' }),
   exercise({ id: 'ex_pec_deck', name: 'Pec Deck' }),
   exercise({ id: 'ex_chest_fly_machine', name: 'Chest Fly (Machine)' }),
+  exercise({ id: 'ex_chest_press_machine', name: 'Chest Press Machine' }),
   exercise({ id: 'ex_machine_chest_press', name: 'Machine Chest Press' }),
+  exercise({ id: 'ex_shoulder_press_machine', name: 'Shoulder Press Machine' }),
+  exercise({ id: 'ex_machine_shoulder_press', name: 'Machine Shoulder Press' }),
   exercise({ id: 'ex_custom_db_press', name: 'Garage DB Press', isCustom: true }),
   exercise({
     id: 'ex_custom_bike',
@@ -191,6 +194,38 @@ describe('ExercisePickerScreen filters', () => {
     expect(result).toEqual(
       expect.arrayContaining(['ex_machine_chest_press', 'ex_chest_fly_machine', 'ex_pec_deck']),
     );
+  });
+
+  it('finds canonical machine chest press by canonical and deprecated phrases', () => {
+    const selectableRows = searchFixtures.filter(
+      (exercise) => exercise.id !== 'ex_chest_press_machine',
+    );
+
+    expect(filterExercises(selectableRows, 'Machine Chest Press', null, null)[0]?.id).toBe(
+      'ex_machine_chest_press',
+    );
+    expect(filterExercises(selectableRows, 'Chest Press Machine', null, null)[0]?.id).toBe(
+      'ex_machine_chest_press',
+    );
+    expect(
+      filterExercises(selectableRows, 'Chest Press Machine', null, null).map((x) => x.id),
+    ).not.toContain('ex_chest_press_machine');
+  });
+
+  it('finds canonical machine shoulder press by canonical and deprecated phrases', () => {
+    const selectableRows = searchFixtures.filter(
+      (exercise) => exercise.id !== 'ex_shoulder_press_machine',
+    );
+
+    expect(filterExercises(selectableRows, 'Machine Shoulder Press', null, null)[0]?.id).toBe(
+      'ex_machine_shoulder_press',
+    );
+    expect(filterExercises(selectableRows, 'Shoulder Press Machine', null, null)[0]?.id).toBe(
+      'ex_machine_shoulder_press',
+    );
+    expect(
+      filterExercises(selectableRows, 'Shoulder Press Machine', null, null).map((x) => x.id),
+    ).not.toContain('ex_shoulder_press_machine');
   });
 
   it('matches custom exercise names and prioritizes custom exercises on same-score ties', () => {

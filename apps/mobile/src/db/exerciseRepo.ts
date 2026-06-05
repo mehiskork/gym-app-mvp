@@ -4,6 +4,7 @@ import { getClaimedUserId, getOrCreateLocalUserId } from './appMetaRepo';
 import { inTransaction } from './tx';
 import { EXERCISE_TYPE, type CardioProfile, type ExerciseType } from './exerciseTypes';
 import { enqueueOutboxOp } from './outboxRepo';
+import { DEPRECATED_CURATED_EXERCISE_IDS } from './curatedExerciseDeprecations';
 
 export type ExerciseRow = {
   id: string;
@@ -60,6 +61,13 @@ export function listExercises(ownerUserId: string): ExerciseRow[] {
   );
 }
 
+export function listSelectableExercises(ownerUserId: string): ExerciseRow[] {
+  return listExercises(ownerUserId).filter((exercise) => {
+    if (exercise.is_custom === 1) return true;
+    return !DEPRECATED_CURATED_EXERCISE_IDS.has(exercise.id);
+  });
+}
+
 export function createCustomExercise(name: string): string {
   const trimmed = name.trim();
   if (!trimmed) throw new Error('Exercise name is required');
@@ -86,6 +94,10 @@ export function createCustomExercise(name: string): string {
 
 export function listExercisesForCurrentUser(): ExerciseRow[] {
   return listExercises(getCurrentExerciseOwnerUserId());
+}
+
+export function listSelectableExercisesForCurrentUser(): ExerciseRow[] {
+  return listSelectableExercises(getCurrentExerciseOwnerUserId());
 }
 
 export async function rewriteCustomExerciseOwnerAfterAccountClaim(
