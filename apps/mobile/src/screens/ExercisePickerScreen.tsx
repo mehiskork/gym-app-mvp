@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { FlatList, Pressable, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useFocusEffect } from '@react-navigation/native';
+import { CommonActions, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -18,6 +18,7 @@ import {
 
 import { addExerciseToDay } from '../db/dayExerciseRepo';
 import { appendWorkoutSessionExercise, swapWorkoutSessionExercise } from '../db/workoutLoggerRepo';
+import { createQuickWorkoutSessionWithExercise } from '../db/workoutSessionRepo';
 import { isWorkoutLimitError } from '../db/workoutLimits';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ExercisePicker'>;
@@ -29,9 +30,10 @@ export function ExercisePickerScreen({ route, navigation }: Props) {
   const swapSessionExerciseId = route.params?.swapSessionExerciseId ?? null;
   const swapSessionId = route.params?.swapSessionId ?? null;
   const addToSessionId = route.params?.addToSessionId ?? null;
+  const isQuickWorkoutDraftMode = route.params?.quickWorkoutDraft === true;
   const isSwapMode = !!swapSessionExerciseId && !!swapSessionId;
-  const isAddToSessionMode = !!addToSessionId && !isSwapMode;
-  const isBrowseOnly = !dayId && !isSwapMode && !isAddToSessionMode;
+  const isAddToSessionMode = !!addToSessionId && !isSwapMode && !isQuickWorkoutDraftMode;
+  const isBrowseOnly = !dayId && !isSwapMode && !isAddToSessionMode && !isQuickWorkoutDraftMode;
 
   const [q, setQ] = useState('');
   const [all, setAll] = useState<ExerciseRow[]>([]);
@@ -167,6 +169,23 @@ export function ExercisePickerScreen({ route, navigation }: Props) {
                         exerciseName: item.name,
                       });
                       navigation.goBack();
+                      return;
+                    }
+
+                    if (isQuickWorkoutDraftMode) {
+                      const result = createQuickWorkoutSessionWithExercise({
+                        exerciseId: item.id,
+                        exerciseName: item.name,
+                      });
+                      navigation.dispatch(
+                        CommonActions.reset({
+                          index: 1,
+                          routes: [
+                            { name: 'MainTabs' },
+                            { name: 'WorkoutSession', params: { sessionId: result.sessionId } },
+                          ],
+                        }),
+                      );
                       return;
                     }
 

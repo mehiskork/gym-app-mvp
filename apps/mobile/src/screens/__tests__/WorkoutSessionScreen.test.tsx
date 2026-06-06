@@ -984,6 +984,58 @@ describe('WorkoutSessionScreen', () => {
     expect(getWorkoutLoggerData).toHaveBeenCalledWith('session-remove');
   });
 
+  it('returns Home after removing the last exercise from an active Quick Workout', () => {
+    const session = createSession({
+      source_workout_plan_id: null,
+      source_program_day_id: null,
+      rest_timer_end_at: '2024-01-01T00:01:00Z',
+      rest_timer_seconds: 60,
+      rest_timer_label: 'Bench Press',
+    });
+    const exercise = createExercise();
+    mockScreenState({
+      session,
+      exercises: [exercise],
+      deleteExerciseTarget: exercise,
+    });
+    (deleteWorkoutSessionExercise as jest.Mock).mockReturnValueOnce({
+      deleted: true,
+      discardedSession: true,
+    });
+    (getWorkoutLoggerData as jest.Mock).mockReturnValue({ session, exercises: [] });
+
+    const navigation: Nav = {
+      navigate: jest.fn(),
+      dispatch: jest.fn(),
+      setOptions: jest.fn(),
+      addListener: jest.fn(),
+    };
+    const element = WorkoutSessionScreen({
+      navigation,
+      route: {
+        key: 'WorkoutSession',
+        name: 'WorkoutSession',
+        params: { sessionId: 'session-remove' },
+      },
+    } as never);
+
+    type ConfirmProps = React.ComponentProps<typeof DestructiveConfirmDialog>;
+    const dialogs = findElementsByType(element, DestructiveConfirmDialog) as Array<
+      React.ReactElement<ConfirmProps>
+    >;
+    dialogs[0]?.props.onConfirm();
+
+    expect(clearRestTimer).toHaveBeenCalledWith('session-remove');
+    expect(cancelRestTimerNotification).toHaveBeenCalledTimes(1);
+    expect(navigation.dispatch).toHaveBeenCalledWith({
+      type: 'RESET',
+      payload: {
+        index: 0,
+        routes: [{ name: 'MainTabs', params: { screen: TAB_ROUTES.Home } }],
+      },
+    });
+  });
+
   it('leaves the active workout open with empty state after removing the only exercise', () => {
     const session = createSession();
     mockScreenState({

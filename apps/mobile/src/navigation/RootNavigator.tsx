@@ -7,6 +7,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import type { RootStackParamList } from './types';
 import { MainTabs } from './MainTabs';
 import { WorkoutSessionScreen } from '../screens/WorkoutSessionScreen';
+import { QuickWorkoutDraftScreen } from '../screens/QuickWorkoutDraftScreen';
 import { CreateExerciseScreen } from '../screens/CreateExerciseScreen';
 import { WorkoutPlanDetailScreen } from '../screens/WorkoutPlanDetailScreen';
 import { DayDetailScreen } from '../screens/DayDetailScreen';
@@ -86,6 +87,11 @@ export function RootNavigator() {
           name="WorkoutSession"
           component={WorkoutSessionScreen}
           options={{ presentation: 'modal', title: 'Workout', headerShown: true }}
+        />
+        <Stack.Screen
+          name="QuickWorkoutDraft"
+          component={QuickWorkoutDraftScreen}
+          options={{ presentation: 'modal', title: 'Quick Workout', headerShown: true }}
         />
         <Stack.Screen
           name="StartWorkout"

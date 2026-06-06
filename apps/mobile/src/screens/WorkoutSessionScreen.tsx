@@ -301,11 +301,15 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
       });
 
       const result = deleteWorkoutSessionExercise(sessionId, deleteExerciseTarget.id);
-      if (result.deleted && shouldClearRestTimer) {
+      if (result.deleted && (shouldClearRestTimer || result.discardedSession)) {
         clearRestTimer(sessionId);
         void cancelRestTimerNotification();
       }
       setDeleteExerciseTarget(null);
+      if (result.discardedSession) {
+        resetToHome();
+        return;
+      }
       load();
     } catch (error) {
       submittedDeleteExerciseIdRef.current = null;

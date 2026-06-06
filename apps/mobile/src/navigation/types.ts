@@ -12,6 +12,7 @@ export type RootStackParamList = {
 
   StartWorkout: undefined;
   WorkoutSession: { sessionId: string };
+  QuickWorkoutDraft: undefined;
 
   SessionDetail: { sessionId: string; postFinish?: boolean };
 
@@ -36,6 +37,7 @@ export type RootStackParamList = {
         swapSessionExerciseId?: string;
         swapSessionId?: string;
         addToSessionId?: string;
+        quickWorkoutDraft?: boolean;
       }
     | undefined;
 

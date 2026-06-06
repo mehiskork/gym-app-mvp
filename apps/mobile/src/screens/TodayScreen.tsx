@@ -8,7 +8,7 @@ import { Button, Card, Screen, Snackbar, Text } from '../ui';
 import { tokens } from '../theme/tokens';
 import { TAB_ROUTES } from '../navigation/routes';
 import type { RootStackParamList } from '../navigation/types';
-import { createQuickWorkoutSession, getInProgressSession } from '../db/workoutSessionRepo';
+import { getInProgressSession } from '../db/workoutSessionRepo';
 import { listWorkoutPlans } from '../db/workoutPlanRepo';
 import { getThisWeekSummary } from '../db/weeklyRepo';
 import { listRecentSessionSummaries } from '../db/historyRepo';
@@ -33,12 +33,6 @@ function getFriendlyGuestSignInError(error: unknown): string {
   }
 
   return "Couldn't finish Google sign-in. Check your connection and try again.";
-}
-
-function getInProgressSessionIdFromError(error: unknown): string | null {
-  if (!(error instanceof Error)) return null;
-  const match = /^WORKOUT_IN_PROGRESS:(.+)$/.exec(error.message);
-  return match?.[1] ?? null;
 }
 
 export function TodayScreen() {
@@ -120,17 +114,7 @@ export function TodayScreen() {
       return;
     }
 
-    try {
-      const sessionId = createQuickWorkoutSession();
-      navigation.navigate('WorkoutSession', { sessionId });
-    } catch (error) {
-      const existingSessionId = getInProgressSessionIdFromError(error);
-      if (existingSessionId) {
-        navigation.navigate('WorkoutSession', { sessionId: existingSessionId });
-        return;
-      }
-      setQuickStartError("Couldn't start workout. Try again.");
-    }
+    navigation.navigate('QuickWorkoutDraft');
   }, [navigation]);
 
   const hasMeaningfulLocalData =

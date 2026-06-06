@@ -2,7 +2,11 @@ import { exec, query } from './db';
 import { inTransaction } from './tx';
 import { newId } from '../utils/ids';
 import { enqueueOutboxOp } from './outboxRepo';
-import { DEFAULT_REST_SECONDS, type WorkoutSessionStatus } from './constants';
+import {
+  DEFAULT_REST_SECONDS,
+  WORKOUT_SESSION_STATUS,
+  type WorkoutSessionStatus,
+} from './constants';
 import {
   MAX_EXERCISES_PER_SESSION,
   MAX_SETS_PER_EXERCISE,
@@ -86,6 +90,27 @@ function enqueueWorkoutSessionExerciseSnapshot(
   enqueueOutboxOp({
     entityType: 'workout_session_exercise',
     entityId: wseId,
+    opType,
+    payloadJson: JSON.stringify(row),
+  });
+}
+
+function enqueueWorkoutSessionSnapshot(sessionId: string, opType: 'upsert' | 'delete' = 'upsert') {
+  const row = query<Record<string, unknown>>(
+    `
+    SELECT *
+    FROM workout_session
+    WHERE id = ?
+    LIMIT 1;
+  `,
+    [sessionId],
+  )[0];
+
+  if (!row) return;
+
+  enqueueOutboxOp({
+    entityType: 'workout_session',
+    entityId: sessionId,
     opType,
     payloadJson: JSON.stringify(row),
   });
@@ -590,11 +615,15 @@ export function appendWorkoutSessionExercise(input: {
 export function deleteWorkoutSessionExercise(
   workoutSessionId: string,
   workoutSessionExerciseId: string,
-): { deleted: boolean } {
+): { deleted: boolean; discardedSession?: boolean } {
   return inTransaction(() => {
-    const session = query<{ id: string }>(
+    const session = query<{
+      id: string;
+      source_workout_plan_id: string | null;
+      source_program_day_id: string | null;
+    }>(
       `
-      SELECT id
+      SELECT id, source_workout_plan_id, source_program_day_id
       FROM workout_session
       WHERE id = ?
         AND status = 'in_progress'
@@ -724,7 +753,31 @@ export function deleteWorkoutSessionExercise(
       enqueueWorkoutSessionExerciseSnapshot(siblingId);
     }
 
-    return { deleted: true };
+    const discardedSession =
+      remaining.length === 0 &&
+      session.source_workout_plan_id === null &&
+      session.source_program_day_id === null;
+
+    if (discardedSession) {
+      exec(
+        `
+        UPDATE workout_session
+        SET status = '${WORKOUT_SESSION_STATUS.DISCARDED}',
+            ended_at = datetime('now'),
+            deleted_at = datetime('now'),
+            updated_at = datetime('now')
+        WHERE id = ?
+          AND status = '${WORKOUT_SESSION_STATUS.IN_PROGRESS}'
+          AND deleted_at IS NULL
+          AND source_workout_plan_id IS NULL
+          AND source_program_day_id IS NULL;
+      `,
+        [workoutSessionId],
+      );
+      enqueueWorkoutSessionSnapshot(workoutSessionId, 'delete');
+    }
+
+    return { deleted: true, discardedSession };
   });
 }
 

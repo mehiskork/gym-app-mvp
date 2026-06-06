@@ -51,6 +51,9 @@ jest.mock('react-native-safe-area-context', () => {
 });
 
 jest.mock('@react-navigation/native', () => ({
+  CommonActions: {
+    reset: jest.fn((payload: unknown) => ({ type: 'RESET', payload })),
+  },
   useFocusEffect: (cb: () => void) => cb(),
 }));
 
@@ -60,9 +63,13 @@ jest.mock('../../db/workoutLoggerRepo', () => ({
   appendWorkoutSessionExercise: jest.fn(),
   swapWorkoutSessionExercise: jest.fn(),
 }));
+jest.mock('../../db/workoutSessionRepo', () => ({
+  createQuickWorkoutSessionWithExercise: jest.fn(),
+}));
 
 import React from 'react';
 import { FlatList, Pressable } from 'react-native';
+import { CommonActions } from '@react-navigation/native';
 import { ExercisePickerScreen } from '../ExercisePickerScreen';
 import { Button } from '../../ui';
 import { listSelectableExercisesForCurrentUser } from '../../db/exerciseRepo';
@@ -70,6 +77,7 @@ import {
   appendWorkoutSessionExercise,
   swapWorkoutSessionExercise,
 } from '../../db/workoutLoggerRepo';
+import { createQuickWorkoutSessionWithExercise } from '../../db/workoutSessionRepo';
 import { WorkoutLimitError, WORKOUT_LIMIT_MESSAGES } from '../../db/workoutLimits';
 
 const findByType = (
@@ -97,6 +105,8 @@ describe('ExercisePickerScreen swap mode', () => {
     useStateMock.mockImplementation((initial: unknown) => [initial, jest.fn()]);
     (swapWorkoutSessionExercise as jest.Mock).mockReset();
     (appendWorkoutSessionExercise as jest.Mock).mockReset();
+    (createQuickWorkoutSessionWithExercise as jest.Mock).mockReset();
+    (CommonActions.reset as jest.Mock).mockClear();
     (listSelectableExercisesForCurrentUser as jest.Mock).mockReturnValue([
       { id: 'ex-2', name: 'Incline Bench', is_custom: 1 },
     ]);
@@ -214,5 +224,72 @@ describe('ExercisePickerScreen swap mode', () => {
 
     expect(setFeedback).toHaveBeenCalledWith(WORKOUT_LIMIT_MESSAGES.maxExercisesPerSession);
     expect(navigation.goBack).not.toHaveBeenCalled();
+  });
+
+  it('creates the first Quick Workout exercise from draft mode and replaces the stack', () => {
+    useStateMock.mockImplementationOnce(() => ['', jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [
+      [{ id: 'ex-2', name: 'Incline Bench', is_custom: 1 }],
+      jest.fn(),
+    ]);
+    useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+    (createQuickWorkoutSessionWithExercise as jest.Mock).mockReturnValueOnce({
+      sessionId: 'quick-session-1',
+      focusExerciseId: 'wse-1',
+    });
+
+    const navigation = { dispatch: jest.fn(), goBack: jest.fn(), navigate: jest.fn() };
+    const element = ExercisePickerScreen({
+      navigation,
+      route: {
+        key: 'ExercisePicker',
+        name: 'ExercisePicker',
+        params: { quickWorkoutDraft: true },
+      },
+    } as never);
+
+    const lists = findByType(element, FlatList) as Array<
+      React.ReactElement<{
+        renderItem?: (input: {
+          item: { id: string; name: string; is_custom: number };
+        }) => React.ReactNode;
+      }>
+    >;
+    const renderItem = lists[0]?.props.renderItem as
+      | ((input: { item: { id: string; name: string; is_custom: number } }) => React.ReactNode)
+      | undefined;
+    const row = renderItem?.({ item: { id: 'ex-2', name: 'Incline Bench', is_custom: 1 } });
+    const pressables = findByType(row, Pressable) as Array<
+      React.ReactElement<{ accessibilityLabel?: string; onPress?: () => void }>
+    >;
+    const selectExercise = pressables.find(
+      (pressable) => pressable.props.accessibilityLabel === 'Select Incline Bench',
+    );
+    selectExercise?.props.onPress?.();
+
+    expect(createQuickWorkoutSessionWithExercise).toHaveBeenCalledWith({
+      exerciseId: 'ex-2',
+      exerciseName: 'Incline Bench',
+    });
+    expect(CommonActions.reset).toHaveBeenCalledWith({
+      index: 1,
+      routes: [
+        { name: 'MainTabs' },
+        { name: 'WorkoutSession', params: { sessionId: 'quick-session-1' } },
+      ],
+    });
+    expect(navigation.dispatch).toHaveBeenCalledWith({
+      type: 'RESET',
+      payload: {
+        index: 1,
+        routes: [
+          { name: 'MainTabs' },
+          { name: 'WorkoutSession', params: { sessionId: 'quick-session-1' } },
+        ],
+      },
+    });
+    expect(navigation.goBack).not.toHaveBeenCalled();
+    expect(appendWorkoutSessionExercise).not.toHaveBeenCalled();
   });
 });

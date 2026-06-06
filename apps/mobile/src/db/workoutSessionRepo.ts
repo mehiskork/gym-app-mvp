@@ -55,6 +55,27 @@ type SetSeed = {
   rest_seconds: number;
 };
 
+function getExerciseMeta(exerciseId: string): {
+  exercise_type: ExerciseType;
+  cardio_profile: CardioProfile | null;
+} {
+  const row = query<{ exercise_type: ExerciseType; cardio_profile: CardioProfile | null }>(
+    `
+    SELECT exercise_type, cardio_profile
+    FROM exercise
+    WHERE id = ? AND deleted_at IS NULL
+    LIMIT 1;
+  `,
+    [exerciseId],
+  )[0];
+
+  if (!row) {
+    throw new Error('exercise not found');
+  }
+
+  return row;
+}
+
 function getHistoricalCompletedSetsForPlannedExercise(input: {
   dayId: string;
   programDayExerciseId: string;
@@ -172,6 +193,8 @@ function enqueueWorkoutSetSnapshot(setId: string, opType: 'upsert' | 'delete' = 
 }
 
 export function getInProgressSession(): WorkoutSessionRow | null {
+  cleanupLegacyEmptyActiveQuickWorkouts();
+
   const rows = query<WorkoutSessionRow>(
     `
     SELECT
@@ -184,12 +207,70 @@ export function getInProgressSession(): WorkoutSessionRow | null {
       ended_at,
       workout_note
     FROM workout_session
-    WHERE status = '${WORKOUT_SESSION_STATUS.IN_PROGRESS}' AND deleted_at IS NULL
+    WHERE status = '${WORKOUT_SESSION_STATUS.IN_PROGRESS}'
+      AND deleted_at IS NULL
+      AND (
+        source_workout_plan_id IS NOT NULL
+        OR source_program_day_id IS NOT NULL
+        OR EXISTS (
+          SELECT 1
+          FROM workout_session_exercise wse
+          WHERE wse.workout_session_id = workout_session.id
+            AND wse.deleted_at IS NULL
+        )
+      )
     ORDER BY started_at DESC
     LIMIT 1;
   `,
   );
   return rows[0] ?? null;
+}
+
+function cleanupLegacyEmptyActiveQuickWorkoutsInCurrentTransaction(): string[] {
+  const rows = query<{ id: string }>(
+    `
+      SELECT ws.id
+      FROM workout_session ws
+      WHERE ws.status = '${WORKOUT_SESSION_STATUS.IN_PROGRESS}'
+        AND ws.deleted_at IS NULL
+        AND ws.source_workout_plan_id IS NULL
+        AND ws.source_program_day_id IS NULL
+        AND NOT EXISTS (
+          SELECT 1
+          FROM workout_session_exercise wse
+          WHERE wse.workout_session_id = ws.id
+            AND wse.deleted_at IS NULL
+        );
+  `,
+  );
+
+  const sessionIds = rows.map((row) => row.id);
+  if (sessionIds.length === 0) return [];
+
+  for (const sessionId of sessionIds) {
+    exec(
+      `
+        UPDATE workout_session
+        SET status = '${WORKOUT_SESSION_STATUS.DISCARDED}',
+            ended_at = datetime('now'),
+            deleted_at = datetime('now'),
+            updated_at = datetime('now')
+        WHERE id = ?
+          AND status = '${WORKOUT_SESSION_STATUS.IN_PROGRESS}'
+          AND deleted_at IS NULL
+          AND source_workout_plan_id IS NULL
+          AND source_program_day_id IS NULL;
+      `,
+      [sessionId],
+    );
+    enqueueWorkoutSessionSnapshot(sessionId, 'delete');
+  }
+
+  return sessionIds;
+}
+
+export function cleanupLegacyEmptyActiveQuickWorkouts(): string[] {
+  return inTransaction(cleanupLegacyEmptyActiveQuickWorkoutsInCurrentTransaction);
 }
 
 export function getMostRecentCompletedDayIdForPlan(workoutPlanId: string): string | null {
@@ -275,23 +356,30 @@ export function listSessionExercises(sessionId: string): WorkoutSessionExerciseR
   );
 }
 
-export function createQuickWorkoutSession(): string {
-  const existing = query<{ id: string }>(
-    `
+export function createQuickWorkoutSessionWithExercise(input: {
+  exerciseId: string;
+  exerciseName: string;
+}): { sessionId: string; focusExerciseId: string } {
+  return inTransaction(() => {
+    cleanupLegacyEmptyActiveQuickWorkoutsInCurrentTransaction();
+
+    const existing = query<{ id: string }>(
+      `
   SELECT id
   FROM workout_session
   WHERE status = '${WORKOUT_SESSION_STATUS.IN_PROGRESS}' AND deleted_at IS NULL
   ORDER BY started_at DESC
   LIMIT 1;
 `,
-  )[0];
+    )[0];
 
-  if (existing) {
-    throw new Error(`WORKOUT_IN_PROGRESS:${existing.id}`);
-  }
+    if (existing) {
+      throw new Error(`WORKOUT_IN_PROGRESS:${existing.id}`);
+    }
 
-  return inTransaction(() => {
     const sessionId = newId('ws');
+    const workoutSessionExerciseId = newId('wse');
+    const exerciseMeta = getExerciseMeta(input.exerciseId);
 
     exec(
       `
@@ -308,9 +396,56 @@ export function createQuickWorkoutSession(): string {
       [sessionId, 'Quick Workout'],
     );
 
-    enqueueWorkoutSessionSnapshot(sessionId);
+    exec(
+      `
+      INSERT INTO workout_session_exercise (
+        id,
+        workout_session_id,
+        source_program_day_exercise_id,
+        exercise_id,
+        exercise_name,
+        exercise_type,
+        cardio_profile,
+        position,
+        notes
+       ) VALUES (?, ?, NULL, ?, ?, ?, ?, 1, NULL);
+    `,
+      [
+        workoutSessionExerciseId,
+        sessionId,
+        input.exerciseId,
+        input.exerciseName,
+        exerciseMeta.exercise_type,
+        exerciseMeta.cardio_profile,
+      ],
+    );
 
-    return sessionId;
+    let setId: string | null = null;
+    if (exerciseMeta.exercise_type === EXERCISE_TYPE.STRENGTH) {
+      setId = newId('set');
+      exec(
+        `
+        INSERT INTO workout_set (
+          id,
+          workout_session_exercise_id,
+          set_index,
+          weight,
+          reps,
+          rpe,
+          rest_seconds,
+          notes,
+          is_completed
+        ) VALUES (?, ?, 1, 0, 0, NULL, ?, NULL, 0);
+      `,
+        [setId, workoutSessionExerciseId, DEFAULT_REST_SECONDS],
+      );
+    }
+
+    enqueueWorkoutSessionSnapshot(sessionId);
+    enqueueWorkoutSessionExerciseSnapshot(workoutSessionExerciseId);
+    if (setId) enqueueWorkoutSetSnapshot(setId);
+
+    return { sessionId, focusExerciseId: workoutSessionExerciseId };
   });
 }
 

@@ -83,6 +83,10 @@ jest.mock('../../screens/WorkoutSessionScreen', () => ({
   WorkoutSessionScreen: () => 'WorkoutSessionScreen',
 }));
 
+jest.mock('../../screens/QuickWorkoutDraftScreen', () => ({
+  QuickWorkoutDraftScreen: () => 'QuickWorkoutDraftScreen',
+}));
+
 jest.mock('../../screens/CreateExerciseScreen', () => ({
   CreateExerciseScreen: () => 'CreateExerciseScreen',
 }));
