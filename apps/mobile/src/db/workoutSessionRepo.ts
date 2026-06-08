@@ -55,6 +55,14 @@ type SetSeed = {
   rest_seconds: number;
 };
 
+function getPlannedOrHistoricalWeight(
+  plannedWeight: number | null | undefined,
+  historicalWeight: number | null | undefined,
+): number {
+  if (plannedWeight != null && plannedWeight > 0) return plannedWeight;
+  return historicalWeight ?? 0;
+}
+
 function getExerciseMeta(exerciseId: string): {
   exercise_type: ExerciseType;
   cardio_profile: CardioProfile | null;
@@ -616,7 +624,7 @@ export function createSessionFromPlanDay(input: { workoutPlanId: string; dayId: 
               setId,
               wseId,
               setPosition + 1,
-              plannedSet?.target_weight ?? historicalSet?.weight ?? 0,
+              getPlannedOrHistoricalWeight(plannedSet?.target_weight, historicalSet?.weight),
               historicalSet?.reps ?? plannedSet?.target_reps_min ?? 0,
               historicalSet?.rest_seconds ?? plannedSet?.rest_seconds ?? DEFAULT_REST_SECONDS,
             ],

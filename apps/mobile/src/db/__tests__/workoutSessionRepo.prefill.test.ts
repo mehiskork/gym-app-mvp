@@ -433,6 +433,92 @@ describe('createSessionFromPlanDay prefill', () => {
     expect(setInserts[2][1]).toEqual(['set-3', 'wse-1', 3, 0, 5, 150]);
   });
 
+  it('prefills historical weight when planned target weight is null', () => {
+    setupScenario({
+      exercises: [
+        {
+          dayExerciseId: 'pde-bench',
+          exerciseId: 'bench',
+          exerciseName: 'Bench',
+          position: 1,
+          plannedSets: [
+            { set_index: 1, target_weight: null, target_reps_min: 8, rest_seconds: 120 },
+          ],
+          historicalSets: [{ weight: 82.5, reps: 6, rest_seconds: 100 }],
+        },
+      ],
+    });
+
+    (newId as jest.Mock)
+      .mockReturnValueOnce('ws-1')
+      .mockReturnValueOnce('wse-1')
+      .mockReturnValueOnce('set-1');
+
+    createSessionFromPlanDay({ workoutPlanId: 'plan-1', dayId: 'day-1' });
+
+    const setInsert = (exec as jest.Mock).mock.calls.find((call) =>
+      String(call[0]).includes('INSERT INTO workout_set'),
+    );
+
+    expect(setInsert?.[1]).toEqual(['set-1', 'wse-1', 1, 82.5, 6, 100]);
+  });
+
+  it('prefills historical weight when planned target weight is a legacy zero', () => {
+    setupScenario({
+      exercises: [
+        {
+          dayExerciseId: 'pde-bench',
+          exerciseId: 'bench',
+          exerciseName: 'Bench',
+          position: 1,
+          plannedSets: [{ set_index: 1, target_weight: 0, target_reps_min: 8, rest_seconds: 120 }],
+          historicalSets: [{ weight: 11, reps: 11, rest_seconds: 90 }],
+        },
+      ],
+    });
+
+    (newId as jest.Mock)
+      .mockReturnValueOnce('ws-1')
+      .mockReturnValueOnce('wse-1')
+      .mockReturnValueOnce('set-1');
+
+    createSessionFromPlanDay({ workoutPlanId: 'plan-1', dayId: 'day-1' });
+
+    const setInsert = (exec as jest.Mock).mock.calls.find((call) =>
+      String(call[0]).includes('INSERT INTO workout_set'),
+    );
+
+    expect(setInsert?.[1]).toEqual(['set-1', 'wse-1', 1, 11, 11, 90]);
+  });
+
+  it('keeps bodyweight historical zero weight when planned target is fallback-eligible', () => {
+    setupScenario({
+      exercises: [
+        {
+          dayExerciseId: 'pde-pushup',
+          exerciseId: 'pushup',
+          exerciseName: 'Push-Up',
+          position: 1,
+          plannedSets: [{ set_index: 1, target_weight: 0, target_reps_min: 12, rest_seconds: 60 }],
+          historicalSets: [{ weight: 0, reps: 20, rest_seconds: 45 }],
+        },
+      ],
+    });
+
+    (newId as jest.Mock)
+      .mockReturnValueOnce('ws-1')
+      .mockReturnValueOnce('wse-1')
+      .mockReturnValueOnce('set-1');
+
+    createSessionFromPlanDay({ workoutPlanId: 'plan-1', dayId: 'day-1' });
+
+    const setInsert = (exec as jest.Mock).mock.calls.find((call) =>
+      String(call[0]).includes('INSERT INTO workout_set'),
+    );
+
+    expect(setInsert?.[1]).toEqual(['set-1', 'wse-1', 1, 0, 20, 45]);
+  });
+
   it('falls back to default rest when planned rest is null', () => {
     setupScenario({
       exercises: [

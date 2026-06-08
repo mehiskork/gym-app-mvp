@@ -146,7 +146,7 @@ describe('dayExerciseRepo planned-set management with SQLite', () => {
         set_index: 1,
         target_reps_min: 0,
         target_reps_max: 0,
-        target_weight: 0,
+        target_weight: null,
         target_rpe: null,
         rest_seconds: null,
         deleted_at: null,
@@ -214,6 +214,29 @@ describe('dayExerciseRepo planned-set management with SQLite', () => {
         target_weight: null,
       }),
     );
+  });
+
+  it('defaults target weight to null when adding the first planned set to an exercise', () => {
+    const dayId = migrateSeedAndCreateDay();
+    const dayExerciseId = 'manual-day-exercise';
+    exec(
+      `
+      INSERT INTO program_day_exercise (id, program_day_id, exercise_id, position, notes)
+      VALUES (?, ?, ?, 1, NULL);
+    `,
+      [dayExerciseId, dayId, strengthExerciseId],
+    );
+
+    addPlannedSetToDayExercise(dayExerciseId);
+
+    expect(readActivePlannedSets(dayExerciseId)).toEqual([
+      expect.objectContaining({
+        set_index: 1,
+        target_reps_min: 0,
+        target_reps_max: 0,
+        target_weight: null,
+      }),
+    ]);
   });
 
   it('blocks adding the 51st active planned set', () => {

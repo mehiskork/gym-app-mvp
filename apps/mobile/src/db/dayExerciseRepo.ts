@@ -411,7 +411,7 @@ export function addExerciseToDay(input: { dayId: string; exerciseId: string }): 
           target_rpe,
           target_weight,
           rest_seconds
-        ) VALUES (?, ?, 1, 0, 0, NULL, 0, NULL);
+        ) VALUES (?, ?, 1, 0, 0, NULL, NULL, NULL);
       `,
         [plannedSetId, id],
       );
@@ -476,7 +476,7 @@ export function addPlannedSetToDayExercise(dayExerciseId: string): string {
         nextIndex,
         previous ? previous.target_reps_min : 0,
         previous ? previous.target_reps_max : 0,
-        previous ? previous.target_weight : 0,
+        previous ? previous.target_weight : null,
       ],
     );
 
