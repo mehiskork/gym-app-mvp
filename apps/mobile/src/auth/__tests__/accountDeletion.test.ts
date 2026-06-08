@@ -8,10 +8,11 @@ import {
 } from '../accountDeletion';
 import { deleteMeWithAccountAuth } from '../../api/accountClient';
 import { getSyncPauseReason, pauseSync, resumeSync } from '../../db/appMetaRepo';
+import { listNonAckedOutboxOps, repairStaleInFlightOps } from '../../db/outboxRepo';
 import { resetToGuestBootstrap } from '../identityTransition';
 import { signOutFromGoogle } from '../firebaseGoogleAuthClient';
 import { cancelScheduledSync } from '../../sync/syncScheduler';
-import { waitForInFlightSync } from '../../sync/syncWorker';
+import { syncNow, waitForInFlightSync } from '../../sync/syncWorker';
 import {
   clearAccountDeletionCleanupPending,
   isAccountDeletionCleanupPending,
@@ -48,7 +49,13 @@ jest.mock('../../sync/syncScheduler', () => ({
 }));
 
 jest.mock('../../sync/syncWorker', () => ({
+  syncNow: jest.fn(() => Promise.resolve()),
   waitForInFlightSync: jest.fn(() => Promise.resolve()),
+}));
+
+jest.mock('../../db/outboxRepo', () => ({
+  listNonAckedOutboxOps: jest.fn(() => []),
+  repairStaleInFlightOps: jest.fn(),
 }));
 
 jest.mock('../accountDeletionCleanupMarker', () => ({
@@ -63,7 +70,9 @@ describe('deleteAccountAndResetLocalState', () => {
     (deleteMeWithAccountAuth as jest.Mock).mockResolvedValue(undefined);
     (resetToGuestBootstrap as jest.Mock).mockResolvedValue(undefined);
     (signOutFromGoogle as jest.Mock).mockResolvedValue(undefined);
+    (syncNow as jest.Mock).mockResolvedValue(undefined);
     (waitForInFlightSync as jest.Mock).mockResolvedValue(undefined);
+    (listNonAckedOutboxOps as jest.Mock).mockReturnValue([]);
     (isAccountDeletionCleanupPending as jest.Mock).mockResolvedValue(false);
     (markAccountDeletionCleanupPending as jest.Mock).mockResolvedValue(undefined);
     (clearAccountDeletionCleanupPending as jest.Mock).mockResolvedValue(undefined);
@@ -75,8 +84,10 @@ describe('deleteAccountAndResetLocalState', () => {
     await deleteAccountAndResetLocalState();
 
     expect(pauseSync).toHaveBeenCalledWith('account_deletion');
-    expect(cancelScheduledSync).toHaveBeenCalledTimes(2);
-    expect(waitForInFlightSync).toHaveBeenCalledTimes(1);
+    expect(cancelScheduledSync).toHaveBeenCalledTimes(3);
+    expect(waitForInFlightSync).toHaveBeenCalledTimes(3);
+    expect(syncNow).toHaveBeenCalledWith({ force: true });
+    expect(repairStaleInFlightOps).toHaveBeenCalledTimes(2);
     expect(deleteMeWithAccountAuth).toHaveBeenCalledTimes(1);
     expect(markAccountDeletionCleanupPending).toHaveBeenCalledTimes(1);
     expect(signOutFromGoogle).toHaveBeenCalledTimes(1);
@@ -165,6 +176,9 @@ describe('recoverPendingAccountDeletionCleanup', () => {
     jest.clearAllMocks();
     (resetToGuestBootstrap as jest.Mock).mockResolvedValue(undefined);
     (signOutFromGoogle as jest.Mock).mockResolvedValue(undefined);
+    (syncNow as jest.Mock).mockResolvedValue(undefined);
+    (waitForInFlightSync as jest.Mock).mockResolvedValue(undefined);
+    (listNonAckedOutboxOps as jest.Mock).mockReturnValue([]);
     (isAccountDeletionCleanupPending as jest.Mock).mockResolvedValue(false);
     (clearAccountDeletionCleanupPending as jest.Mock).mockResolvedValue(undefined);
     (getSyncPauseReason as jest.Mock).mockReturnValue(null);
@@ -210,7 +224,9 @@ describe('account deletion startup recovery detection', () => {
     (deleteMeWithAccountAuth as jest.Mock).mockResolvedValue(undefined);
     (resetToGuestBootstrap as jest.Mock).mockResolvedValue(undefined);
     (signOutFromGoogle as jest.Mock).mockResolvedValue(undefined);
+    (syncNow as jest.Mock).mockResolvedValue(undefined);
     (waitForInFlightSync as jest.Mock).mockResolvedValue(undefined);
+    (listNonAckedOutboxOps as jest.Mock).mockReturnValue([]);
     (isAccountDeletionCleanupPending as jest.Mock).mockResolvedValue(false);
     (markAccountDeletionCleanupPending as jest.Mock).mockResolvedValue(undefined);
     (clearAccountDeletionCleanupPending as jest.Mock).mockResolvedValue(undefined);

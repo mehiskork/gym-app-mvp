@@ -200,6 +200,7 @@ public class SyncService {
                                 candidates);
                 Set<SyncRepository.EntityKey> appliedActiveKeys = new HashSet<>();
                 Set<SyncRepository.EntityKey> plannedInactiveKeys = new HashSet<>();
+                Set<SyncRepository.EntityKey> preRequestTombstoneKeys = new HashSet<>();
                 Map<SyncRepository.EntityKey, SyncRepository.EntityStateRecord> plannedStateByKey = new HashMap<>();
 
                 candidates.stream()
@@ -215,6 +216,7 @@ public class SyncService {
                                                 foreignParentKeys,
                                                 appliedActiveKeys,
                                                 plannedInactiveKeys,
+                                                preRequestTombstoneKeys,
                                                 plannedStateByKey,
                                                 preRequestWorkoutCompletionState)));
 
@@ -229,6 +231,7 @@ public class SyncService {
                         Set<SyncRepository.EntityKey> foreignParentKeys,
                         Set<SyncRepository.EntityKey> appliedActiveKeys,
                         Set<SyncRepository.EntityKey> plannedInactiveKeys,
+                        Set<SyncRepository.EntityKey> preRequestTombstoneKeys,
                         Map<SyncRepository.EntityKey, SyncRepository.EntityStateRecord> plannedStateByKey,
                         PreRequestWorkoutCompletionState preRequestWorkoutCompletionState) {
                 SyncOp op = indexed.op();
@@ -243,6 +246,7 @@ public class SyncService {
                                                 op.entityType(),
                                                 op.entityId())
                                 : Optional.of(plannedState);
+                boolean existingFromCurrentRequest = plannedState != null;
 
                 Map<String, Object> existingPayload = existingState
                                 .map(SyncRepository.EntityStateRecord::payload)
@@ -250,6 +254,12 @@ public class SyncService {
                 Instant existingReceivedAt = existingState
                                 .map(SyncRepository.EntityStateRecord::lastReceivedAt)
                                 .orElse(null);
+                boolean preRequestWasTombstoned = existingFromCurrentRequest
+                                ? preRequestTombstoneKeys.contains(key)
+                                : hasTombstone(existingPayload);
+                if (preRequestWasTombstoned && !existingFromCurrentRequest) {
+                        preRequestTombstoneKeys.add(key);
+                }
 
                 ResolutionResult resolution = resolveConflict(
                                 ownerId,
@@ -258,6 +268,8 @@ public class SyncService {
                                 existingPayload,
                                 existingReceivedAt,
                                 receivedAt,
+                                existingFromCurrentRequest,
+                                preRequestWasTombstoned,
                                 preRequestWorkoutCompletionState);
 
                 if ("applied".equals(resolution.status())) {
@@ -659,6 +671,8 @@ public class SyncService {
                         Map<String, Object> existingPayload,
                         Instant existingReceivedAt,
                         Instant incomingReceivedAt,
+                        boolean existingFromCurrentRequest,
+                        boolean preRequestWasTombstoned,
                         PreRequestWorkoutCompletionState preRequestWorkoutCompletionState) {
                 Map<String, Object> incomingPayload = ensureEntityId(op.payload(), op.entityId());
 
@@ -672,10 +686,10 @@ public class SyncService {
                                         incomingUpdatedAt);
                         return resolveDelete(ownerId, op, existingPayload, existingDeletedAt, existingUpdatedAt,
                                         existingReceivedAt,
-                                        incomingReceivedAt, deletePayload);
+                                        incomingReceivedAt, existingFromCurrentRequest, deletePayload);
                 }
 
-                if (existingDeletedAt != null) {
+                if (existingDeletedAt != null && (preRequestWasTombstoned || !existingFromCurrentRequest)) {
                         return new ResolutionResult("noop", "delete wins (no resurrection)", null);
                 }
 
@@ -688,7 +702,7 @@ public class SyncService {
                                 capClientUpdatedAtForLww(existingUpdatedAt, existingReceivedAt),
                                 capClientUpdatedAtForLww(incomingUpdatedAt, incomingReceivedAt),
                                 existingReceivedAt, incomingReceivedAt);
-                if (compare > 0) {
+                if (compare > 0 || (compare == 0 && existingFromCurrentRequest && !preRequestWasTombstoned)) {
                         enforceImmutability(op, existingPayload, incomingPayload, preRequestWorkoutCompletionState);
                         return new ResolutionResult("applied", null, incomingPayload);
                 }
@@ -705,6 +719,7 @@ public class SyncService {
                         Instant existingUpdatedAt,
                         Instant existingReceivedAt,
                         Instant incomingReceivedAt,
+                        boolean existingFromCurrentRequest,
                         Map<String, Object> deletePayload) {
                 if (existingPayload == null) {
                         return new ResolutionResult("applied", null, deletePayload);
@@ -714,7 +729,7 @@ public class SyncService {
                         int compareDelete = compareDelete(existingPayload, deletePayload, existingDeletedAt,
                                         parseInstant(deletePayload, "deleted_at", "deletedAt"), existingReceivedAt,
                                         incomingReceivedAt);
-                        if (compareDelete > 0) {
+                        if (compareDelete > 0 || (compareDelete == 0 && existingFromCurrentRequest)) {
                                 return new ResolutionResult("applied", null,
                                                 mergeDelete(existingPayload, deletePayload));
                         }
@@ -726,7 +741,7 @@ public class SyncService {
                                 capClientUpdatedAtForLww(existingUpdatedAt, existingReceivedAt),
                                 capClientUpdatedAtForLww(incomingUpdatedAt, incomingReceivedAt),
                                 existingReceivedAt, incomingReceivedAt);
-                if (compare <= 0) {
+                if (compare < 0 || (compare == 0 && !existingFromCurrentRequest)) {
                         return new ResolutionResult("noop",
                                         compare == 0 ? "conflict tie resolved to existing" : "stale delete",
                                         null);

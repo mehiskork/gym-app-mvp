@@ -92,6 +92,10 @@ function getFriendlyAccountError(error: unknown, action: AccountAction): string 
     return "TrainFrame couldn't access secure account storage. Restart the app and try again.";
   }
 
+  if (message.includes('sync pending changes') || message.includes('pending changes')) {
+    return "TrainFrame couldn't sync pending changes. Check your connection and try again before signing out.";
+  }
+
   if (
     message.includes('unauthorized') ||
     message.includes('401') ||

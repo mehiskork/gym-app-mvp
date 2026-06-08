@@ -1015,6 +1015,52 @@ class SyncServiceIT {
     }
 
     @Test
+    void sameBatchRepeatedWorkoutSetSnapshotsKeepLatestClientOrderWhenTimestampsTie() {
+        SyncResponse response = syncService.sync(deviceId, guestUserId, "0", List.of(
+                upsertOp("op-set-create-prefill", "workout_set", "set-prefill-overwrite", Map.of(
+                        "id", "set-prefill-overwrite",
+                        "workout_session_exercise_id", "session-ex-prefill-overwrite",
+                        "set_index", 1,
+                        "weight", 80,
+                        "reps", 8,
+                        "is_completed", 0,
+                        "updated_at", "2026-03-01T00:00:03Z")),
+                upsertOp("op-set-toggle-stale", "workout_set", "set-prefill-overwrite", Map.of(
+                        "id", "set-prefill-overwrite",
+                        "workout_session_exercise_id", "session-ex-prefill-overwrite",
+                        "set_index", 1,
+                        "weight", 80,
+                        "reps", 8,
+                        "is_completed", 1,
+                        "updated_at", "2026-03-01T00:00:03Z")),
+                upsertOp("op-set-final-edit", "workout_set", "set-prefill-overwrite", Map.of(
+                        "id", "set-prefill-overwrite",
+                        "workout_session_exercise_id", "session-ex-prefill-overwrite",
+                        "set_index", 1,
+                        "weight", 111,
+                        "reps", 11,
+                        "is_completed", 1,
+                        "updated_at", "2026-03-01T00:00:03Z")),
+                upsertOp("op-session-ex-prefill", "workout_session_exercise",
+                        "session-ex-prefill-overwrite", Map.of(
+                                "id", "session-ex-prefill-overwrite",
+                                "workout_session_id", "session-prefill-overwrite",
+                                "exercise_id", "ex_bench_press_barbell",
+                                "position", 1,
+                                "updated_at", "2026-03-01T00:00:02Z")),
+                upsertOp("op-session-complete-prefill", "workout_session", "session-prefill-overwrite", Map.of(
+                        "id", "session-prefill-overwrite",
+                        "status", "completed",
+                        "updated_at", "2026-03-01T00:00:01Z"))));
+
+        assertThat(response.getAcks()).extracting(SyncAck::status).containsOnly("applied");
+        assertThat(entityStatePayload("workout_set", "set-prefill-overwrite"))
+                .containsEntry("weight", 111)
+                .containsEntry("reps", 11)
+                .containsEntry("is_completed", 1);
+    }
+
+    @Test
     void laterWorkoutSetMutationAfterCompletedSessionFailsWithoutPartialWrites() {
         Instant now = Instant.now();
         upsertEntityStateAndChangeLog("workout_session", "session-completed-for-set", Map.of(

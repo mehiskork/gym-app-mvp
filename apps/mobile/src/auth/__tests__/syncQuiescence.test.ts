@@ -1,10 +1,12 @@
 import {
+  PENDING_SYNC_BEFORE_IDENTITY_RESET_ERROR,
   quiesceSyncBeforeIdentityReset,
   recoverInterruptedIdentityResetPause,
 } from '../syncQuiescence';
 import { getSyncPauseReason, pauseSync, resumeSync } from '../../db/appMetaRepo';
+import { listNonAckedOutboxOps, repairStaleInFlightOps } from '../../db/outboxRepo';
 import { cancelScheduledSync } from '../../sync/syncScheduler';
-import { waitForInFlightSync } from '../../sync/syncWorker';
+import { syncNow, waitForInFlightSync } from '../../sync/syncWorker';
 
 jest.mock('../../db/appMetaRepo', () => ({
   getSyncPauseReason: jest.fn(() => null),
@@ -17,7 +19,13 @@ jest.mock('../../sync/syncScheduler', () => ({
 }));
 
 jest.mock('../../sync/syncWorker', () => ({
+  syncNow: jest.fn(() => Promise.resolve()),
   waitForInFlightSync: jest.fn(() => Promise.resolve()),
+}));
+
+jest.mock('../../db/outboxRepo', () => ({
+  listNonAckedOutboxOps: jest.fn(() => []),
+  repairStaleInFlightOps: jest.fn(),
 }));
 
 describe('sync quiescence', () => {
@@ -25,20 +33,36 @@ describe('sync quiescence', () => {
     jest.clearAllMocks();
     (getSyncPauseReason as jest.Mock).mockReturnValue(null);
     (waitForInFlightSync as jest.Mock).mockResolvedValue(undefined);
+    (syncNow as jest.Mock).mockResolvedValue(undefined);
+    (listNonAckedOutboxOps as jest.Mock).mockReturnValue([]);
   });
 
-  it('pauses, cancels scheduled sync, and waits for in-flight sync before identity reset', async () => {
+  it('drains pending sync, pauses, cancels scheduled sync, and waits before identity reset', async () => {
     await quiesceSyncBeforeIdentityReset();
 
+    expect(syncNow).toHaveBeenCalledWith({ force: true });
+    expect(repairStaleInFlightOps).toHaveBeenCalledTimes(2);
+    expect(listNonAckedOutboxOps).toHaveBeenCalledWith(1);
     expect(pauseSync).toHaveBeenCalledWith('identity_reset');
-    expect(cancelScheduledSync).toHaveBeenCalledTimes(1);
-    expect(waitForInFlightSync).toHaveBeenCalledTimes(1);
+    expect(cancelScheduledSync).toHaveBeenCalledTimes(2);
+    expect(waitForInFlightSync).toHaveBeenCalledTimes(3);
+    expect((syncNow as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
+      (pauseSync as jest.Mock).mock.invocationCallOrder[0],
+    );
     expect((pauseSync as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
-      (cancelScheduledSync as jest.Mock).mock.invocationCallOrder[0],
+      (cancelScheduledSync as jest.Mock).mock.invocationCallOrder[1],
     );
-    expect((cancelScheduledSync as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
-      (waitForInFlightSync as jest.Mock).mock.invocationCallOrder[0],
+  });
+
+  it('blocks identity reset when pending outbox rows remain after forced sync', async () => {
+    (listNonAckedOutboxOps as jest.Mock).mockReturnValue([{ op_id: 'op-1' }]);
+
+    await expect(quiesceSyncBeforeIdentityReset()).rejects.toThrow(
+      PENDING_SYNC_BEFORE_IDENTITY_RESET_ERROR,
     );
+
+    expect(syncNow).toHaveBeenCalledWith({ force: true });
+    expect(pauseSync).not.toHaveBeenCalled();
   });
 
   it('resumes interrupted identity reset pause on startup', () => {
