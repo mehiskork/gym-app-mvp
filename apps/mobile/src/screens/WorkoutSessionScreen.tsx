@@ -125,6 +125,7 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
   const finishingRef = React.useRef(false);
   const deletingExerciseRef = React.useRef(false);
   const submittedDeleteExerciseIdRef = React.useRef<string | null>(null);
+  const pendingPaceDraftsRef = React.useRef<Map<string, string> | null>(new Map());
   const { resetToHome } = useWorkoutSessionNavGuard({ navigation });
   const { timerActive, remainingSeconds, clearRestTimerHandler } = useRestTimer({
     session,
@@ -145,6 +146,11 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
     setExercises(data.exercises);
     setWorkoutNoteDraft(data.session.workout_note ?? '');
   }, [resetToHome, sessionId]);
+
+  const getPendingPaceDrafts = useCallback(() => {
+    pendingPaceDraftsRef.current ??= new Map<string, string>();
+    return pendingPaceDraftsRef.current;
+  }, []);
 
   const setActions = useWorkoutSetActions({
     sessionId,
@@ -215,7 +221,21 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
     setIsFinishing(true);
     setFinishOpen(false);
     try {
-      if (totals.hasLoggedWork) {
+      let flushedPaceAsLoggedWork = false;
+      const pendingPaceDrafts = getPendingPaceDrafts();
+      for (const [exerciseId, value] of pendingPaceDrafts) {
+        const parsed = parseCardioInput('pace_seconds_per_km', value);
+        if (!parsed.ok) continue;
+        updateWorkoutSessionExerciseCardioSummary(exerciseId, {
+          pace_seconds_per_km: parsed.value,
+        });
+        if (parsed.value !== null) {
+          flushedPaceAsLoggedWork = true;
+        }
+      }
+      pendingPaceDrafts.clear();
+
+      if (totals.hasLoggedWork || flushedPaceAsLoggedWork) {
         const completed = completeSession(sessionId, workoutNoteDraft);
         if (!completed) {
           discardSession(sessionId);
@@ -240,6 +260,7 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
       setIsFinishing(false);
     }
   }, [
+    getPendingPaceDrafts,
     isFinishing,
     load,
     navigation,
@@ -430,6 +451,14 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
                         });
                         load();
                         return true;
+                      }}
+                      onPendingPaceDraftChange={(value) => {
+                        const pendingPaceDrafts = getPendingPaceDrafts();
+                        if (value === null) {
+                          pendingPaceDrafts.delete(ex.id);
+                          return;
+                        }
+                        pendingPaceDrafts.set(ex.id, value);
                       }}
                     />
                   ) : (

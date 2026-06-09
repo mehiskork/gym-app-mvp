@@ -11,6 +11,7 @@ type CardioSummaryEditorProps = {
   summary: CardioSummary;
   editable: boolean;
   onFieldEndEditing: (field: keyof CardioSummary, value: string) => boolean;
+  onPendingPaceDraftChange?: (value: string | null) => void;
   onEditFocus?: (metrics: { pageY: number; height: number }) => void;
 };
 
@@ -76,11 +77,14 @@ export function CardioSummaryEditor({
   summary,
   editable,
   onFieldEndEditing,
+  onPendingPaceDraftChange,
   onEditFocus,
 }: CardioSummaryEditorProps) {
   const fields = fieldsForProfile(profile);
   const fieldRefs = React.useRef<Partial<Record<keyof CardioSummary, View | null>>>({});
   const lastPersistedValuesRef = React.useRef<Partial<Record<keyof CardioSummary, string>>>({});
+  const focusedFieldRef = React.useRef<keyof CardioSummary | null>(null);
+  const dirtyFocusedPaceDraftRef = React.useRef<string | null>(null);
   const savedTexts = React.useMemo(
     () =>
       Object.fromEntries(
@@ -94,7 +98,19 @@ export function CardioSummaryEditor({
   const [fieldTexts, setFieldTexts] = React.useState(savedTexts);
 
   React.useEffect(() => {
-    setFieldTexts(savedTexts);
+    if (
+      focusedFieldRef.current === 'pace_seconds_per_km' &&
+      dirtyFocusedPaceDraftRef.current !== null
+    ) {
+      setFieldTexts((current) => {
+        return {
+          ...savedTexts,
+          pace_seconds_per_km: current.pace_seconds_per_km ?? dirtyFocusedPaceDraftRef.current,
+        };
+      });
+    } else {
+      setFieldTexts(savedTexts);
+    }
     lastPersistedValuesRef.current = Object.fromEntries(
       (Object.keys(summary) as Array<keyof CardioSummary>).map((field) => [
         field,
@@ -114,6 +130,7 @@ export function CardioSummaryEditor({
 
   const handleFieldFocus = React.useCallback(
     (field: keyof CardioSummary) => {
+      focusedFieldRef.current = field;
       if (!onEditFocus) return;
       const fieldRef = fieldRefs.current[field];
       if (!fieldRef) return;
@@ -147,14 +164,24 @@ export function CardioSummaryEditor({
     (field: keyof CardioSummary, value: string) => {
       setFieldTexts((current) => ({ ...current, [field]: value }));
       if (!editable) return;
+      if (field === 'pace_seconds_per_km') {
+        dirtyFocusedPaceDraftRef.current = value;
+        onPendingPaceDraftChange?.(value);
+        return;
+      }
       persistParsedValue(field, value);
     },
-    [editable, persistParsedValue],
+    [editable, onPendingPaceDraftChange, persistParsedValue],
   );
 
   const handleEndEditing = React.useCallback(
     (field: keyof CardioSummary, value: string) => {
       const result = persistParsedValue(field, value);
+      if (field === 'pace_seconds_per_km') {
+        focusedFieldRef.current = null;
+        dirtyFocusedPaceDraftRef.current = null;
+        onPendingPaceDraftChange?.(null);
+      }
       if (!result.ok) {
         setFieldTexts((current) => ({ ...current, [field]: savedTexts[field] }));
         return;
@@ -165,7 +192,7 @@ export function CardioSummaryEditor({
         [field]: result.accepted ? formatCardioInputValue(field, result.value) : savedTexts[field],
       }));
     },
-    [persistParsedValue, savedTexts],
+    [onPendingPaceDraftChange, persistParsedValue, savedTexts],
   );
 
   return (

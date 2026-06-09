@@ -741,6 +741,78 @@ describe('WorkoutSessionScreen', () => {
     });
   });
 
+  it('flushes pending pace shorthand before finishing without a separate blur event', () => {
+    const session = createSession({ id: 'session-pace', title: 'Cardio Day' });
+    const exercises = [
+      createExercise({
+        id: 'exercise-pace',
+        exercise_id: 'rowing',
+        exercise_name: 'Rowing Machine',
+        exercise_type: 'cardio',
+        cardio_profile: 'ergometer',
+        cardio_summary: {
+          duration_minutes: null,
+          distance_km: null,
+          speed_kph: null,
+          incline_percent: null,
+          resistance_level: null,
+          pace_seconds_per_km: null,
+          floors: null,
+          stair_level: null,
+        },
+        sets: [],
+      }),
+    ];
+    mockScreenState({ session, exercises, finishOpen: true });
+    (getWorkoutLoggerData as jest.Mock).mockReturnValue({ session, exercises });
+
+    const navigation: Nav = {
+      navigate: jest.fn(),
+      dispatch: jest.fn(),
+      setOptions: jest.fn(),
+      addListener: jest.fn(),
+      replace: jest.fn(),
+    };
+    const element = WorkoutSessionScreen({
+      navigation,
+      route: {
+        key: 'WorkoutSession',
+        name: 'WorkoutSession',
+        params: { sessionId: session.id },
+      },
+    } as never);
+
+    type CardioSummaryEditorProps = React.ComponentProps<typeof CardioSummaryEditor>;
+    const editor = (
+      findElementsByType(element, CardioSummaryEditor) as Array<
+        React.ReactElement<CardioSummaryEditorProps>
+      >
+    )[0];
+
+    editor.props.onPendingPaceDraftChange?.('530');
+
+    type BottomSheetProps = React.ComponentProps<typeof BottomSheetModal>;
+    const sheets = findElementsByType(element, BottomSheetModal) as Array<
+      React.ReactElement<BottomSheetProps>
+    >;
+    type ButtonProps = React.ComponentProps<typeof Button>;
+    const sheetButtons = findElementsByType(sheets[0]?.props.actions, Button) as Array<
+      React.ReactElement<ButtonProps>
+    >;
+    const finishButton = sheetButtons.find((button) => button.props.title === 'End without saving');
+    finishButton?.props.onPress?.({} as never);
+
+    expect(updateWorkoutSessionExerciseCardioSummary).toHaveBeenCalledWith('exercise-pace', {
+      pace_seconds_per_km: 330,
+    });
+    expect(completeSession).toHaveBeenCalledWith('session-pace', '');
+    expect(discardSession).not.toHaveBeenCalled();
+    expect(navigation.replace).toHaveBeenCalledWith('SessionDetail', {
+      sessionId: 'session-pace',
+      postFinish: true,
+    });
+  });
+
   it('saves rowing distance change before finishing without a blur event', () => {
     const session = createSession({ id: 'session-rowing', title: 'Cardio Day' });
     const exercises = [

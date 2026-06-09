@@ -278,6 +278,48 @@ describe('CardioSummaryEditor', () => {
     expect(onFieldEndEditing).toHaveBeenCalledWith('incline_percent', '11');
   });
 
+  it('keeps pace shorthand as a focused draft without saving or reformatting mid-edit', () => {
+    const onFieldEndEditing = jest.fn().mockReturnValue(true);
+    const onPendingPaceDraftChange = jest.fn();
+    const element = CardioSummaryEditor({
+      profile: 'ergometer',
+      summary: {
+        duration_minutes: null,
+        distance_km: null,
+        speed_kph: null,
+        incline_percent: null,
+        resistance_level: null,
+        pace_seconds_per_km: null,
+        floors: null,
+        stair_level: null,
+      },
+      editable: true,
+      onFieldEndEditing,
+      onPendingPaceDraftChange,
+    });
+
+    const inputs = findByLabel<{
+      label?: string;
+      onFocus?: () => void;
+      onChangeText?: (value: string) => void;
+    }>(element);
+    const paceInput = inputs.find((input) => input.props.label === 'Pace (min/km)');
+    const setter = mockUseStateSetters[0];
+
+    paceInput?.props.onFocus?.();
+    paceInput?.props.onChangeText?.('5');
+    paceInput?.props.onChangeText?.('53');
+    paceInput?.props.onChangeText?.('530');
+
+    expect(onFieldEndEditing).not.toHaveBeenCalled();
+    expect(onPendingPaceDraftChange).toHaveBeenNthCalledWith(1, '5');
+    expect(onPendingPaceDraftChange).toHaveBeenNthCalledWith(2, '53');
+    expect(onPendingPaceDraftChange).toHaveBeenNthCalledWith(3, '530');
+    expect(setter.mock.calls.at(-1)?.[0]({ pace_seconds_per_km: '53' })).toEqual({
+      pace_seconds_per_km: '530',
+    });
+  });
+
   it('invalid pasted value does not overwrite the previous saved value on change', () => {
     const onFieldEndEditing = jest.fn();
     const element = CardioSummaryEditor({
@@ -343,6 +385,7 @@ describe('CardioSummaryEditor', () => {
     ['605', '6:05'],
   ])('valid pace edit %p calls save handler and formats as min:sec', (inputText, expectedText) => {
     const onFieldEndEditing = jest.fn().mockReturnValue(true);
+    const onPendingPaceDraftChange = jest.fn();
     const element = CardioSummaryEditor({
       profile: 'ergometer',
       summary: {
@@ -357,6 +400,7 @@ describe('CardioSummaryEditor', () => {
       },
       editable: true,
       onFieldEndEditing,
+      onPendingPaceDraftChange,
     });
 
     const inputs = findByLabel<{
@@ -368,6 +412,7 @@ describe('CardioSummaryEditor', () => {
     inputs[2]?.props.onEndEditing?.({ nativeEvent: { text: inputText } });
 
     expect(onFieldEndEditing).toHaveBeenCalledWith('pace_seconds_per_km', inputText);
+    expect(onPendingPaceDraftChange).toHaveBeenCalledWith(null);
     expect(setter.mock.calls.at(-1)?.[0]({ pace_seconds_per_km: '' })).toEqual({
       pace_seconds_per_km: expectedText,
     });
