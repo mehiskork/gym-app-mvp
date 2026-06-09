@@ -80,6 +80,7 @@ export function CardioSummaryEditor({
 }: CardioSummaryEditorProps) {
   const fields = fieldsForProfile(profile);
   const fieldRefs = React.useRef<Partial<Record<keyof CardioSummary, View | null>>>({});
+  const lastPersistedValuesRef = React.useRef<Partial<Record<keyof CardioSummary, string>>>({});
   const savedTexts = React.useMemo(
     () =>
       Object.fromEntries(
@@ -94,6 +95,12 @@ export function CardioSummaryEditor({
 
   React.useEffect(() => {
     setFieldTexts(savedTexts);
+    lastPersistedValuesRef.current = Object.fromEntries(
+      (Object.keys(summary) as Array<keyof CardioSummary>).map((field) => [
+        field,
+        String(summary[field]),
+      ]),
+    ) as Record<keyof CardioSummary, string>;
   }, [savedTexts]);
   const rows = fields.reduce<Array<Array<{ key: keyof CardioSummary; label: string }>>>(
     (acc, field, index) => {
@@ -117,21 +124,48 @@ export function CardioSummaryEditor({
     [onEditFocus],
   );
 
-  const handleEndEditing = React.useCallback(
+  const persistParsedValue = React.useCallback(
     (field: keyof CardioSummary, value: string) => {
       const parsed = parseCardioInput(field, value);
-      if (!parsed.ok) {
+      if (!parsed.ok) return { ok: false as const, accepted: false as const };
+
+      const persistedValue = String(parsed.value);
+      lastPersistedValuesRef.current ??= {};
+      if (lastPersistedValuesRef.current[field] === persistedValue) {
+        return { ok: true as const, accepted: true as const, value: parsed.value };
+      }
+      const accepted = onFieldEndEditing(field, value);
+      if (accepted) {
+        lastPersistedValuesRef.current[field] = persistedValue;
+      }
+      return { ok: true as const, accepted, value: parsed.value };
+    },
+    [onFieldEndEditing],
+  );
+
+  const handleChangeText = React.useCallback(
+    (field: keyof CardioSummary, value: string) => {
+      setFieldTexts((current) => ({ ...current, [field]: value }));
+      if (!editable) return;
+      persistParsedValue(field, value);
+    },
+    [editable, persistParsedValue],
+  );
+
+  const handleEndEditing = React.useCallback(
+    (field: keyof CardioSummary, value: string) => {
+      const result = persistParsedValue(field, value);
+      if (!result.ok) {
         setFieldTexts((current) => ({ ...current, [field]: savedTexts[field] }));
         return;
       }
 
-      const accepted = onFieldEndEditing(field, value);
       setFieldTexts((current) => ({
         ...current,
-        [field]: accepted ? formatCardioInputValue(field, parsed.value) : savedTexts[field],
+        [field]: result.accepted ? formatCardioInputValue(field, result.value) : savedTexts[field],
       }));
     },
-    [onFieldEndEditing, savedTexts],
+    [persistParsedValue, savedTexts],
   );
 
   return (
@@ -155,9 +189,7 @@ export function CardioSummaryEditor({
                 helperText={field.key === 'pace_seconds_per_km' ? 'Type 530 for 5:30' : undefined}
                 editable={editable}
                 inputStyle={cardioValueInputStyle}
-                onChangeText={(value) =>
-                  setFieldTexts((current) => ({ ...current, [field.key]: value }))
-                }
+                onChangeText={(value) => handleChangeText(field.key, value)}
                 onFocus={() => handleFieldFocus(field.key)}
                 onEndEditing={(event) => handleEndEditing(field.key, event.nativeEvent.text)}
               />

@@ -69,7 +69,18 @@ describe('workoutLoggerRepo cardio', () => {
   it('persists valid cardio boundary values and enqueues a snapshot', () => {
     (query as jest.Mock)
       .mockReturnValueOnce([{ status: 'in_progress', exercise_type: 'cardio' }])
-      .mockReturnValueOnce([{ id: 'wse-1', cardio_duration_minutes: 999 }]);
+      .mockReturnValueOnce([
+        {
+          id: 'wse-1',
+          cardio_duration_minutes: 999,
+          cardio_distance_km: 999.9,
+          cardio_speed_kph: 99.9,
+          cardio_incline_percent: 50,
+          cardio_resistance_level: 999,
+          cardio_floors: 999,
+          cardio_stair_level: 999,
+        },
+      ]);
 
     updateWorkoutSessionExerciseCardioSummary('wse-1', {
       duration_minutes: 999,
@@ -96,6 +107,7 @@ describe('workoutLoggerRepo cardio', () => {
         entityType: 'workout_session_exercise',
         entityId: 'wse-1',
         opType: 'upsert',
+        payloadJson: expect.stringContaining('"cardio_incline_percent":50'),
       }),
     );
   });

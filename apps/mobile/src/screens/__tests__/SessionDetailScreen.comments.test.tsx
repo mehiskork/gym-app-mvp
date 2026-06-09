@@ -252,6 +252,94 @@ describe('SessionDetailScreen notes', () => {
     expect(serialized).not.toContain('355s/km');
   });
 
+  it('shows saved rowing distance in history details', () => {
+    const session = {
+      id: 's-rowing',
+      title: 'Rowing Session',
+      started_at: '2026-01-03T00:00:00Z',
+      ended_at: '2026-01-03T01:00:00Z',
+      workout_note: null,
+    };
+    const exercises = [
+      {
+        id: 'wse-rowing',
+        exercise_id: 'rowing',
+        exercise_name: 'Rowing Machine',
+        exercise_type: 'cardio',
+        cardio_profile: 'ergometer',
+        position: 1,
+        notes: null,
+        cardio_duration_minutes: 11,
+        cardio_distance_km: 11,
+        cardio_speed_kph: null,
+        cardio_incline_percent: null,
+        cardio_resistance_level: null,
+        cardio_pace_seconds_per_km: 355,
+        cardio_floors: null,
+        cardio_stair_level: null,
+      },
+    ];
+    const sets: SessionSetRow[] = [];
+
+    useStateMock.mockImplementationOnce(() => [session, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [exercises, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [sets, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [[], jest.fn()]);
+    (getSessionDetail as jest.Mock).mockReturnValue({ session, exercises, sets });
+
+    const element = SessionDetailScreen({
+      navigation: { setOptions: jest.fn(), navigate: jest.fn() },
+      route: { key: 'SessionDetail', name: 'SessionDetail', params: { sessionId: 's-rowing' } },
+    } as never);
+
+    const serialized = JSON.stringify(element);
+    expect(serialized).toContain('Distance 11 km');
+    expect(serialized).toContain('Pace 5:55 /km');
+  });
+
+  it('shows saved treadmill incline in history details', () => {
+    const session = {
+      id: 's-treadmill',
+      title: 'Treadmill Session',
+      started_at: '2026-01-03T00:00:00Z',
+      ended_at: '2026-01-03T01:00:00Z',
+      workout_note: null,
+    };
+    const exercises = [
+      {
+        id: 'wse-treadmill',
+        exercise_id: 'treadmill',
+        exercise_name: 'Treadmill',
+        exercise_type: 'cardio',
+        cardio_profile: 'treadmill',
+        position: 1,
+        notes: null,
+        cardio_duration_minutes: 11,
+        cardio_distance_km: 11,
+        cardio_speed_kph: 11,
+        cardio_incline_percent: 11,
+        cardio_resistance_level: null,
+        cardio_pace_seconds_per_km: null,
+        cardio_floors: null,
+        cardio_stair_level: null,
+      },
+    ];
+    const sets: SessionSetRow[] = [];
+
+    useStateMock.mockImplementationOnce(() => [session, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [exercises, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [sets, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [[], jest.fn()]);
+    (getSessionDetail as jest.Mock).mockReturnValue({ session, exercises, sets });
+
+    const element = SessionDetailScreen({
+      navigation: { setOptions: jest.fn(), navigate: jest.fn() },
+      route: { key: 'SessionDetail', name: 'SessionDetail', params: { sessionId: 's-treadmill' } },
+    } as never);
+
+    expect(JSON.stringify(element)).toContain('Incline 11%');
+  });
+
   it('does not render pace when cardio pace is null', () => {
     const session = {
       id: 's-4',

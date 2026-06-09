@@ -127,6 +127,7 @@ import {
   DestructiveConfirmDialog,
   EmptyState,
   IconButton,
+  Input,
   Text,
 } from '../../ui';
 import {
@@ -136,7 +137,7 @@ import {
   updateWorkoutSessionExerciseCardioSummary,
   updateWorkoutSet,
 } from '../../db/workoutLoggerRepo';
-import { discardSession } from '../../db/workoutSessionRepo';
+import { completeSession, discardSession } from '../../db/workoutSessionRepo';
 import { getSettings } from '../../db/settingsRepo';
 import { tokens } from '../../theme/tokens';
 import { cancelRestTimerNotification } from '../../utils/restTimerNotifications';
@@ -147,6 +148,7 @@ type Nav = {
   dispatch: jest.Mock;
   setOptions: jest.Mock;
   addListener: jest.Mock;
+  replace?: jest.Mock;
 };
 
 const findElementsByType = <P,>(
@@ -188,6 +190,8 @@ const resolveStyle = (styleProp: unknown) => {
 
 const createSession = (overrides: Record<string, unknown> = {}) => ({
   id: 'session-remove',
+  source_workout_plan_id: null,
+  source_program_day_id: null,
   title: 'Push Day',
   status: 'in_progress',
   started_at: '2024-01-01T00:00:00Z',
@@ -278,6 +282,8 @@ describe('WorkoutSessionScreen', () => {
     (updateWorkoutSet as jest.Mock).mockReset();
     (deleteWorkoutSessionExercise as jest.Mock).mockReset();
     (deleteWorkoutSessionExercise as jest.Mock).mockReturnValue({ deleted: true });
+    (completeSession as jest.Mock).mockReset();
+    (completeSession as jest.Mock).mockReturnValue(true);
     (discardSession as jest.Mock).mockReset();
     (updateWorkoutSessionExerciseCardioSummary as jest.Mock).mockReset();
     (clearRestTimer as jest.Mock).mockReset();
@@ -732,6 +738,156 @@ describe('WorkoutSessionScreen', () => {
     expect(accepted).toBe(true);
     expect(updateWorkoutSessionExerciseCardioSummary).toHaveBeenCalledWith('exercise-1', {
       pace_seconds_per_km: 365,
+    });
+  });
+
+  it('saves rowing distance change before finishing without a blur event', () => {
+    const session = createSession({ id: 'session-rowing', title: 'Cardio Day' });
+    const exercises = [
+      createExercise({
+        id: 'exercise-rowing',
+        exercise_id: 'rowing',
+        exercise_name: 'Rowing Machine',
+        exercise_type: 'cardio',
+        cardio_profile: 'ergometer',
+        cardio_summary: {
+          duration_minutes: 11,
+          distance_km: null,
+          speed_kph: null,
+          incline_percent: null,
+          resistance_level: null,
+          pace_seconds_per_km: null,
+          floors: null,
+          stair_level: null,
+        },
+        sets: [],
+      }),
+    ];
+    mockScreenState({ session, exercises, finishOpen: true });
+    (getWorkoutLoggerData as jest.Mock).mockReturnValue({ session, exercises });
+
+    const navigation: Nav = {
+      navigate: jest.fn(),
+      dispatch: jest.fn(),
+      setOptions: jest.fn(),
+      addListener: jest.fn(),
+      replace: jest.fn(),
+    };
+    const element = WorkoutSessionScreen({
+      navigation,
+      route: {
+        key: 'WorkoutSession',
+        name: 'WorkoutSession',
+        params: { sessionId: session.id },
+      },
+    } as never);
+
+    type CardioSummaryEditorProps = React.ComponentProps<typeof CardioSummaryEditor>;
+    const editor = (
+      findElementsByType(element, CardioSummaryEditor) as Array<
+        React.ReactElement<CardioSummaryEditorProps>
+      >
+    )[0];
+    const editorElement = CardioSummaryEditor(editor.props);
+    const inputs = findElementsByType<React.ComponentProps<typeof Input>>(editorElement, Input);
+    const distanceInput = inputs.find((input) => input.props.label === 'Distance (km)');
+
+    distanceInput?.props.onChangeText?.('11');
+
+    expect(updateWorkoutSessionExerciseCardioSummary).toHaveBeenCalledWith('exercise-rowing', {
+      distance_km: 11,
+    });
+
+    type BottomSheetProps = React.ComponentProps<typeof BottomSheetModal>;
+    const sheets = findElementsByType(element, BottomSheetModal) as Array<
+      React.ReactElement<BottomSheetProps>
+    >;
+    type ButtonProps = React.ComponentProps<typeof Button>;
+    const sheetButtons = findElementsByType(sheets[0]?.props.actions, Button) as Array<
+      React.ReactElement<ButtonProps>
+    >;
+    const finishButton = sheetButtons.find((button) => button.props.title === 'Finish');
+    finishButton?.props.onPress?.({} as never);
+
+    expect(completeSession).toHaveBeenCalledWith('session-rowing', '');
+    expect(navigation.replace).toHaveBeenCalledWith('SessionDetail', {
+      sessionId: 'session-rowing',
+      postFinish: true,
+    });
+  });
+
+  it('saves treadmill incline change before finishing without a blur event', () => {
+    const session = createSession({ id: 'session-treadmill', title: 'Cardio Day' });
+    const exercises = [
+      createExercise({
+        id: 'exercise-treadmill',
+        exercise_id: 'treadmill',
+        exercise_name: 'Treadmill',
+        exercise_type: 'cardio',
+        cardio_profile: 'treadmill',
+        cardio_summary: {
+          duration_minutes: 11,
+          distance_km: 11,
+          speed_kph: 11,
+          incline_percent: null,
+          resistance_level: null,
+          pace_seconds_per_km: null,
+          floors: null,
+          stair_level: null,
+        },
+        sets: [],
+      }),
+    ];
+    mockScreenState({ session, exercises, finishOpen: true });
+    (getWorkoutLoggerData as jest.Mock).mockReturnValue({ session, exercises });
+
+    const navigation: Nav = {
+      navigate: jest.fn(),
+      dispatch: jest.fn(),
+      setOptions: jest.fn(),
+      addListener: jest.fn(),
+      replace: jest.fn(),
+    };
+    const element = WorkoutSessionScreen({
+      navigation,
+      route: {
+        key: 'WorkoutSession',
+        name: 'WorkoutSession',
+        params: { sessionId: session.id },
+      },
+    } as never);
+
+    type CardioSummaryEditorProps = React.ComponentProps<typeof CardioSummaryEditor>;
+    const editor = (
+      findElementsByType(element, CardioSummaryEditor) as Array<
+        React.ReactElement<CardioSummaryEditorProps>
+      >
+    )[0];
+    const editorElement = CardioSummaryEditor(editor.props);
+    const inputs = findElementsByType<React.ComponentProps<typeof Input>>(editorElement, Input);
+    const inclineInput = inputs.find((input) => input.props.label === 'Incline (%)');
+
+    inclineInput?.props.onChangeText?.('11');
+
+    expect(updateWorkoutSessionExerciseCardioSummary).toHaveBeenCalledWith('exercise-treadmill', {
+      incline_percent: 11,
+    });
+
+    type BottomSheetProps = React.ComponentProps<typeof BottomSheetModal>;
+    const sheets = findElementsByType(element, BottomSheetModal) as Array<
+      React.ReactElement<BottomSheetProps>
+    >;
+    type ButtonProps = React.ComponentProps<typeof Button>;
+    const sheetButtons = findElementsByType(sheets[0]?.props.actions, Button) as Array<
+      React.ReactElement<ButtonProps>
+    >;
+    const finishButton = sheetButtons.find((button) => button.props.title === 'Finish');
+    finishButton?.props.onPress?.({} as never);
+
+    expect(completeSession).toHaveBeenCalledWith('session-treadmill', '');
+    expect(navigation.replace).toHaveBeenCalledWith('SessionDetail', {
+      sessionId: 'session-treadmill',
+      postFinish: true,
     });
   });
 

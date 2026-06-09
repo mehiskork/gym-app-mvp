@@ -220,6 +220,123 @@ describe('CardioSummaryEditor', () => {
     expect(setter.mock.calls.at(-1)?.[0]({ distance_km: '' })).toEqual({ distance_km: '12,5' });
   });
 
+  it('valid decimal change saves before blur', () => {
+    const onFieldEndEditing = jest.fn().mockReturnValue(true);
+    const element = CardioSummaryEditor({
+      profile: 'ergometer',
+      summary: {
+        duration_minutes: null,
+        distance_km: null,
+        speed_kph: null,
+        incline_percent: null,
+        resistance_level: null,
+        pace_seconds_per_km: null,
+        floors: null,
+        stair_level: null,
+      },
+      editable: true,
+      onFieldEndEditing,
+    });
+
+    const inputs = findByLabel<{
+      label?: string;
+      onChangeText?: (value: string) => void;
+    }>(element);
+    const setter = mockUseStateSetters[0];
+
+    inputs[1]?.props.onChangeText?.('11');
+
+    expect(onFieldEndEditing).toHaveBeenCalledWith('distance_km', '11');
+    expect(setter).toHaveBeenCalledWith(expect.any(Function));
+  });
+
+  it('valid treadmill incline change saves before blur', () => {
+    const onFieldEndEditing = jest.fn().mockReturnValue(true);
+    const element = CardioSummaryEditor({
+      profile: 'treadmill',
+      summary: {
+        duration_minutes: null,
+        distance_km: null,
+        speed_kph: null,
+        incline_percent: null,
+        resistance_level: null,
+        pace_seconds_per_km: null,
+        floors: null,
+        stair_level: null,
+      },
+      editable: true,
+      onFieldEndEditing,
+    });
+
+    const inputs = findByLabel<{
+      label?: string;
+      onChangeText?: (value: string) => void;
+    }>(element);
+
+    inputs[3]?.props.onChangeText?.('11');
+
+    expect(onFieldEndEditing).toHaveBeenCalledWith('incline_percent', '11');
+  });
+
+  it('invalid pasted value does not overwrite the previous saved value on change', () => {
+    const onFieldEndEditing = jest.fn();
+    const element = CardioSummaryEditor({
+      profile: 'ergometer',
+      summary: {
+        duration_minutes: null,
+        distance_km: 4.5,
+        speed_kph: null,
+        incline_percent: null,
+        resistance_level: null,
+        pace_seconds_per_km: null,
+        floors: null,
+        stair_level: null,
+      },
+      editable: true,
+      onFieldEndEditing,
+    });
+
+    const inputs = findByLabel<{
+      label?: string;
+      onChangeText?: (value: string) => void;
+    }>(element);
+
+    inputs[1]?.props.onChangeText?.('1e3');
+
+    expect(onFieldEndEditing).not.toHaveBeenCalled();
+  });
+
+  it('end editing does not resave a value already saved on change', () => {
+    const onFieldEndEditing = jest.fn().mockReturnValue(true);
+    const element = CardioSummaryEditor({
+      profile: 'ergometer',
+      summary: {
+        duration_minutes: null,
+        distance_km: null,
+        speed_kph: null,
+        incline_percent: null,
+        resistance_level: null,
+        pace_seconds_per_km: null,
+        floors: null,
+        stair_level: null,
+      },
+      editable: true,
+      onFieldEndEditing,
+    });
+
+    const inputs = findByLabel<{
+      label?: string;
+      onChangeText?: (value: string) => void;
+      onEndEditing?: (event: { nativeEvent: { text: string } }) => void;
+    }>(element);
+
+    inputs[1]?.props.onChangeText?.('11');
+    inputs[1]?.props.onEndEditing?.({ nativeEvent: { text: '11' } });
+
+    expect(onFieldEndEditing).toHaveBeenCalledTimes(1);
+    expect(onFieldEndEditing).toHaveBeenCalledWith('distance_km', '11');
+  });
+
   it.each([
     ['6:05', '6:05'],
     ['530', '5:30'],
