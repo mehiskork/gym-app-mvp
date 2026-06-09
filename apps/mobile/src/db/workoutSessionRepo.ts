@@ -9,7 +9,12 @@ import {
   WORKOUT_SESSION_STATUS,
   type WorkoutSessionStatus,
 } from './constants';
-import { EXERCISE_TYPE, type CardioProfile, type ExerciseType } from './exerciseTypes';
+import {
+  EXERCISE_TYPE,
+  type CardioProfile,
+  type CardioSummary,
+  type ExerciseType,
+} from './exerciseTypes';
 import {
   MAX_EXERCISES_PER_SESSION,
   WorkoutLimitError,
@@ -54,6 +59,8 @@ type SetSeed = {
   reps: number;
   rest_seconds: number;
 };
+
+type CardioSeed = CardioSummary;
 
 function getPlannedOrHistoricalWeight(
   plannedWeight: number | null | undefined,
@@ -132,6 +139,58 @@ function getHistoricalCompletedSetsForPlannedExercise(input: {
       programDayExerciseId,
     ],
   );
+}
+
+function getHistoricalCompletedCardioForPlannedExercise(input: {
+  dayId: string;
+  programDayExerciseId: string;
+  plannedExerciseId: string;
+}): CardioSeed | null {
+  const { dayId, programDayExerciseId, plannedExerciseId } = input;
+
+  return (
+    query<CardioSeed>(
+      `
+      SELECT
+        hwse.cardio_duration_minutes AS duration_minutes,
+        hwse.cardio_distance_km AS distance_km,
+        hwse.cardio_speed_kph AS speed_kph,
+        hwse.cardio_incline_percent AS incline_percent,
+        hwse.cardio_resistance_level AS resistance_level,
+        hwse.cardio_pace_seconds_per_km AS pace_seconds_per_km,
+        hwse.cardio_floors AS floors,
+        hwse.cardio_stair_level AS stair_level
+      FROM workout_session_exercise hwse
+      JOIN workout_session hws ON hws.id = hwse.workout_session_id
+      WHERE hws.deleted_at IS NULL
+        AND hws.status = '${WORKOUT_SESSION_STATUS.COMPLETED}'
+        AND hws.source_program_day_id = ?
+        AND hwse.deleted_at IS NULL
+        AND hwse.exercise_id = ?
+        AND hwse.source_program_day_exercise_id = ?
+        AND (
+          hwse.cardio_duration_minutes IS NOT NULL OR
+          hwse.cardio_distance_km IS NOT NULL OR
+          hwse.cardio_speed_kph IS NOT NULL OR
+          hwse.cardio_incline_percent IS NOT NULL OR
+          hwse.cardio_resistance_level IS NOT NULL OR
+          hwse.cardio_pace_seconds_per_km IS NOT NULL OR
+          hwse.cardio_floors IS NOT NULL OR
+          hwse.cardio_stair_level IS NOT NULL
+        )
+      ORDER BY COALESCE(hws.ended_at, hws.started_at) DESC, hws.started_at DESC
+      LIMIT 1;
+    `,
+      [dayId, plannedExerciseId, programDayExerciseId],
+    )[0] ?? null
+  );
+}
+
+function getPlannedOrHistoricalCardioValue(
+  plannedValue: number | null | undefined,
+  historicalValue: number | null | undefined,
+): number | null {
+  return plannedValue != null ? plannedValue : (historicalValue ?? null);
 }
 
 function enqueueWorkoutSessionSnapshot(sessionId: string, opType: 'upsert' | 'delete' = 'upsert') {
@@ -561,6 +620,14 @@ export function createSessionFromPlanDay(input: { workoutPlanId: string; dayId: 
     for (let i = 0; i < exRows.length; i += 1) {
       const row = exRows[i];
       const wseId = newId('wse');
+      const historicalCardio =
+        row.exercise_type === EXERCISE_TYPE.CARDIO
+          ? getHistoricalCompletedCardioForPlannedExercise({
+              dayId,
+              programDayExerciseId: row.day_exercise_id,
+              plannedExerciseId: row.exercise_id,
+            })
+          : null;
 
       exec(
         `
@@ -595,14 +662,35 @@ export function createSessionFromPlanDay(input: { workoutPlanId: string; dayId: 
           row.cardio_profile,
           row.position,
           row.plan_note_snapshot,
-          row.planned_cardio_duration_minutes,
-          row.planned_cardio_distance_km,
-          row.planned_cardio_speed_kph,
-          row.planned_cardio_incline_percent,
-          row.planned_cardio_resistance_level,
-          row.planned_cardio_pace_seconds_per_km,
-          row.planned_cardio_floors,
-          row.planned_cardio_stair_level,
+          getPlannedOrHistoricalCardioValue(
+            row.planned_cardio_duration_minutes,
+            historicalCardio?.duration_minutes,
+          ),
+          getPlannedOrHistoricalCardioValue(
+            row.planned_cardio_distance_km,
+            historicalCardio?.distance_km,
+          ),
+          getPlannedOrHistoricalCardioValue(
+            row.planned_cardio_speed_kph,
+            historicalCardio?.speed_kph,
+          ),
+          getPlannedOrHistoricalCardioValue(
+            row.planned_cardio_incline_percent,
+            historicalCardio?.incline_percent,
+          ),
+          getPlannedOrHistoricalCardioValue(
+            row.planned_cardio_resistance_level,
+            historicalCardio?.resistance_level,
+          ),
+          getPlannedOrHistoricalCardioValue(
+            row.planned_cardio_pace_seconds_per_km,
+            historicalCardio?.pace_seconds_per_km,
+          ),
+          getPlannedOrHistoricalCardioValue(row.planned_cardio_floors, historicalCardio?.floors),
+          getPlannedOrHistoricalCardioValue(
+            row.planned_cardio_stair_level,
+            historicalCardio?.stair_level,
+          ),
         ],
       );
 

@@ -32,6 +32,7 @@ import {
   renameDay,
   reorderDayExercises,
   updateDayExerciseNote,
+  updatePlannedCardioTarget,
   updatePlannedSetTargets,
   type DayExerciseRow,
   type PlannedSetRow,
@@ -47,13 +48,19 @@ import {
   WORKOUT_LIMIT_MESSAGES,
   isWorkoutLimitError,
 } from '../db/workoutLimits';
-import { EXERCISE_TYPE } from '../db/exerciseTypes';
+import { EXERCISE_TYPE, type CardioSummary } from '../db/exerciseTypes';
 import {
   formatRepsInputValue,
   formatWeightInputValue,
   parseRepsInput,
   parseWeightInput,
 } from '../features/workoutSession/setInputParsing';
+import {
+  cardioFieldMaxLengths,
+  fieldsForCardioProfile,
+  formatCardioInputValue,
+  parseCardioInput,
+} from '../features/workoutSession/cardioInputParsing';
 import {
   SET_INPUT_GAP,
   SET_NUMBER_COLUMN_WIDTH,
@@ -72,6 +79,152 @@ type PlannedSetRowEditorProps = {
 };
 
 type PlannedSetInputField = 'weight' | 'reps';
+
+type PlannedCardioTargetEditorProps = {
+  exercise: DayExerciseRow;
+  onCommitField: (exercise: DayExerciseRow, field: keyof CardioSummary, value: string) => boolean;
+};
+
+function getPlannedCardioSummary(exercise: DayExerciseRow): CardioSummary {
+  return {
+    duration_minutes: exercise.planned_cardio_duration_minutes ?? null,
+    distance_km: exercise.planned_cardio_distance_km ?? null,
+    speed_kph: exercise.planned_cardio_speed_kph ?? null,
+    incline_percent: exercise.planned_cardio_incline_percent ?? null,
+    resistance_level: exercise.planned_cardio_resistance_level ?? null,
+    pace_seconds_per_km: exercise.planned_cardio_pace_seconds_per_km ?? null,
+    floors: exercise.planned_cardio_floors ?? null,
+    stair_level: exercise.planned_cardio_stair_level ?? null,
+  };
+}
+
+function PlannedCardioTargetEditor({ exercise, onCommitField }: PlannedCardioTargetEditorProps) {
+  const fields = React.useMemo(
+    () => fieldsForCardioProfile(exercise.cardio_profile),
+    [exercise.cardio_profile],
+  );
+  const savedTexts = React.useMemo(() => {
+    const summary = getPlannedCardioSummary(exercise);
+    return Object.fromEntries(
+      (Object.keys(summary) as Array<keyof CardioSummary>).map((field) => [
+        field,
+        formatCardioInputValue(field, summary[field]),
+      ]),
+    ) as Record<keyof CardioSummary, string>;
+  }, [
+    exercise.planned_cardio_duration_minutes,
+    exercise.planned_cardio_distance_km,
+    exercise.planned_cardio_speed_kph,
+    exercise.planned_cardio_incline_percent,
+    exercise.planned_cardio_resistance_level,
+    exercise.planned_cardio_pace_seconds_per_km,
+    exercise.planned_cardio_floors,
+    exercise.planned_cardio_stair_level,
+  ]);
+  const [fieldTexts, setFieldTexts] = useState(savedTexts);
+  const currentExerciseIdRef = React.useRef(exercise.id);
+  const focusedFieldRef = React.useRef<keyof CardioSummary | null>(null);
+  const dirtyFieldsRef = React.useRef<Set<keyof CardioSummary>>(new Set());
+
+  React.useEffect(() => {
+    setFieldTexts((current) => {
+      currentExerciseIdRef.current ??= exercise.id;
+      const exerciseChanged = currentExerciseIdRef.current !== exercise.id;
+      if (exerciseChanged) {
+        currentExerciseIdRef.current = exercise.id;
+        dirtyFieldsRef.current ??= new Set();
+        dirtyFieldsRef.current.clear();
+        focusedFieldRef.current = null;
+        return savedTexts;
+      }
+
+      let changed = false;
+      const next = { ...current };
+      dirtyFieldsRef.current ??= new Set();
+      for (const field of Object.keys(savedTexts) as Array<keyof CardioSummary>) {
+        if (dirtyFieldsRef.current.has(field) || focusedFieldRef.current === field) continue;
+        if (next[field] === savedTexts[field]) continue;
+        next[field] = savedTexts[field];
+        changed = true;
+      }
+      return changed ? next : current;
+    });
+  }, [exercise.id, savedTexts]);
+
+  const rows = React.useMemo(
+    () =>
+      fields.reduce<Array<Array<{ key: keyof CardioSummary; label: string }>>>(
+        (acc, field, index) => {
+          const rowIndex = Math.floor(index / 2);
+          if (!acc[rowIndex]) acc[rowIndex] = [];
+          acc[rowIndex].push(field);
+          return acc;
+        },
+        [],
+      ),
+    [fields],
+  );
+
+  const handleEndEditing = useCallback(
+    (field: keyof CardioSummary, value: string) => {
+      const parsed = parseCardioInput(field, value);
+      if (!parsed.ok) {
+        dirtyFieldsRef.current ??= new Set();
+        dirtyFieldsRef.current.delete(field);
+        focusedFieldRef.current = null;
+        setFieldTexts((current) => ({ ...current, [field]: savedTexts[field] }));
+        return;
+      }
+
+      const accepted = onCommitField(exercise, field, value);
+      dirtyFieldsRef.current ??= new Set();
+      dirtyFieldsRef.current.delete(field);
+      focusedFieldRef.current = null;
+      setFieldTexts((current) => ({
+        ...current,
+        [field]: accepted ? formatCardioInputValue(field, parsed.value) : savedTexts[field],
+      }));
+    },
+    [exercise, onCommitField, savedTexts],
+  );
+
+  return (
+    <View style={{ gap: tokens.spacing.sm }}>
+      {rows.map((row, rowIndex) => (
+        <View
+          key={`cardio-row-${rowIndex}`}
+          style={{ flexDirection: 'row', gap: tokens.spacing.sm }}
+        >
+          {row.map((field) => (
+            <View key={field.key} style={{ flex: 1 }}>
+              <Input
+                label={field.label}
+                maxLength={cardioFieldMaxLengths[field.key]}
+                value={fieldTexts[field.key]}
+                keyboardType={field.key === 'pace_seconds_per_km' ? 'number-pad' : 'decimal-pad'}
+                placeholder={field.key === 'pace_seconds_per_km' ? '5:30' : undefined}
+                helperText={field.key === 'pace_seconds_per_km' ? 'Type 530 for 5:30' : undefined}
+                inputStyle={plannedCardioStyles.input}
+                onFocus={() => {
+                  focusedFieldRef.current = field.key;
+                }}
+                onChangeText={(value) => {
+                  dirtyFieldsRef.current ??= new Set();
+                  dirtyFieldsRef.current.add(field.key);
+                  setFieldTexts((current) =>
+                    current[field.key] === value ? current : { ...current, [field.key]: value },
+                  );
+                }}
+                onEndEditing={(event) => handleEndEditing(field.key, event.nativeEvent.text)}
+              />
+            </View>
+          ))}
+          {row.length === 1 ? <View style={{ flex: 1 }} /> : null}
+        </View>
+      ))}
+    </View>
+  );
+}
 
 function renderPlannedSetHeader() {
   return (
@@ -432,6 +585,18 @@ export function DayDetailScreen({ route, navigation }: Props) {
     [loadPlannedSets],
   );
 
+  const handlePlannedCardioTargetEndEditing = useCallback(
+    (exercise: DayExerciseRow, field: keyof CardioSummary, value: string) => {
+      const parsed = parseCardioInput(field, value);
+      if (!parsed.ok) return false;
+
+      updatePlannedCardioTarget(exercise.id, { [field]: parsed.value });
+      load();
+      return true;
+    },
+    [load],
+  );
+
   const rowActionButtonStyle = {
     minHeight: tokens.touchTargetMin,
     minWidth: tokens.touchTargetMin,
@@ -530,14 +695,20 @@ export function DayDetailScreen({ route, navigation }: Props) {
               </View>
             </>
           ) : (
-            <Button
-              title={noteButtonTitle}
-              variant="secondary"
-              onPress={() => {
-                setNoteEditorExerciseId(item.id);
-                setPlanNoteDraft(item.notes ?? '');
-              }}
-            />
+            <>
+              <PlannedCardioTargetEditor
+                exercise={item}
+                onCommitField={handlePlannedCardioTargetEndEditing}
+              />
+              <Button
+                title={noteButtonTitle}
+                variant="secondary"
+                onPress={() => {
+                  setNoteEditorExerciseId(item.id);
+                  setPlanNoteDraft(item.notes ?? '');
+                }}
+              />
+            </>
           )}
         </View>
       );
@@ -548,6 +719,7 @@ export function DayDetailScreen({ route, navigation }: Props) {
       handleDeletePlannedSet,
       handlePlannedSetRepsEndEditing,
       handlePlannedSetWeightEndEditing,
+      handlePlannedCardioTargetEndEditing,
       plannedSetsByExerciseId,
     ],
   );
@@ -558,6 +730,7 @@ export function DayDetailScreen({ route, navigation }: Props) {
     ({ item, drag, isActive }: RenderItemParams<DayExerciseRow>) => {
       const isStrengthEditable =
         !isStartSessionMode && item.exercise_type === EXERCISE_TYPE.STRENGTH;
+      const isCardioEditable = !isStartSessionMode && item.exercise_type === EXERCISE_TYPE.CARDIO;
       const expanded = expandedExerciseId === item.id;
 
       return (
@@ -571,7 +744,11 @@ export function DayDetailScreen({ route, navigation }: Props) {
                   ? expanded
                     ? 'Hide planned sets'
                     : 'Edit planned sets'
-                  : 'Tap to view'
+                  : isCardioEditable
+                    ? expanded
+                      ? 'Hide cardio targets'
+                      : 'Edit cardio targets'
+                    : 'Tap to view'
             }
             left={
               <IconChip variant="primarySoft" size={40}>
@@ -906,5 +1083,13 @@ const plannedSetStyles = StyleSheet.create({
     borderColor: tokens.colors.border,
     backgroundColor: tokens.colors.surface,
     flexShrink: 0,
+  },
+});
+
+const plannedCardioStyles = StyleSheet.create({
+  input: {
+    fontSize: tokens.typography.subtitle.fontSize + 2,
+    fontWeight: tokens.typography.subtitle.fontWeight,
+    lineHeight: tokens.typography.subtitle.fontSize + 6,
   },
 });

@@ -15,6 +15,8 @@ jest.mock('react', () => {
   };
 });
 
+const useStateSetters: jest.Mock[] = [];
+
 jest.mock('@react-navigation/native', () => ({
   useFocusEffect: jest.fn((callback: () => void) => callback()),
 }));
@@ -80,6 +82,7 @@ jest.mock('../../db/dayExerciseRepo', () => ({
   renameDay: jest.fn(),
   reorderDayExercises: jest.fn(),
   updateDayExerciseNote: jest.fn(),
+  updatePlannedCardioTarget: jest.fn(),
   updatePlannedSetTargets: jest.fn(),
 }));
 
@@ -106,6 +109,7 @@ import {
   listPlannedSetsForDayExercise,
   reorderDayExercises,
   updateDayExerciseNote,
+  updatePlannedCardioTarget,
   updatePlannedSetTargets,
 } from '../../db/dayExerciseRepo';
 import { tokens } from '../../theme/tokens';
@@ -165,8 +169,13 @@ describe('DayDetailScreen', () => {
   const useStateMock = React.useState as jest.Mock;
 
   beforeEach(() => {
+    useStateSetters.length = 0;
     useStateMock.mockReset();
-    useStateMock.mockImplementation((initial: unknown) => [initial, jest.fn()]);
+    useStateMock.mockImplementation((initial: unknown) => {
+      const setter = jest.fn();
+      useStateSetters.push(setter);
+      return [initial, setter];
+    });
     (createSessionFromPlanDay as jest.Mock).mockReset();
     (getInProgressSession as jest.Mock).mockReset();
     (getInProgressSession as jest.Mock).mockReturnValue(null);
@@ -177,8 +186,46 @@ describe('DayDetailScreen', () => {
     (listPlannedSetsForDayExercise as jest.Mock).mockReset();
     (listPlannedSetsForDayExercise as jest.Mock).mockReturnValue([]);
     (updatePlannedSetTargets as jest.Mock).mockReset();
+    (updatePlannedCardioTarget as jest.Mock).mockReset();
     (updateDayExerciseNote as jest.Mock).mockReset();
   });
+
+  const renderExpandedCardioEditor = (item: Record<string, unknown>) => {
+    useStateMock.mockImplementationOnce(() => ['Conditioning', jest.fn()]);
+    useStateMock.mockImplementationOnce(() => ['Conditioning', jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [[item], jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [item.id, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => ['', jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [{}, jest.fn()]);
+
+    const navigation: Nav = { navigate: jest.fn(), replace: jest.fn(), setOptions: jest.fn() };
+    const element = DayDetailScreen({
+      navigation,
+      route: { key: 'DayDetail', name: 'DayDetail', params: { dayId: 'day-1' } },
+    } as never);
+    const list = findElementsByType<React.ComponentProps<typeof DraggableFlatList>>(
+      element,
+      DraggableFlatList,
+    )[0];
+    const renderItem = list?.props.renderItem as (
+      params: RenderItemParams<Record<string, unknown>>,
+    ) => React.ReactElement;
+    const rowNode = renderItem({
+      item,
+      drag: jest.fn(),
+      isActive: false,
+      getIndex: () => 0,
+    });
+    const editor = findElementsByProp<{ exercise: Record<string, unknown> }>(
+      rowNode,
+      'exercise',
+    )[0];
+    return renderComponentElement(editor);
+  };
 
   it('shows empty state and add exercise action when no exercises exist', () => {
     const navigation: Nav = { navigate: jest.fn(), replace: jest.fn(), setOptions: jest.fn() };
@@ -789,6 +836,202 @@ describe('DayDetailScreen', () => {
     expect(buttons.some((button) => button.props.title === 'Add Set')).toBe(false);
     expect(findElementsByProp(rowNode, 'plannedSet')).toHaveLength(0);
     expect(plannedSetDeletes).toHaveLength(0);
+  });
+
+  it('renders copied treadmill targets in the cardio target editor', () => {
+    const items = [
+      {
+        id: 'day-ex-cardio',
+        program_day_id: 'day-1',
+        exercise_id: 'treadmill',
+        exercise_name: 'Treadmill',
+        exercise_type: 'cardio',
+        cardio_profile: 'treadmill',
+        position: 1,
+        notes: null,
+        planned_cardio_duration_minutes: 20,
+        planned_cardio_distance_km: 3,
+        planned_cardio_speed_kph: 9.5,
+        planned_cardio_incline_percent: 2,
+        planned_cardio_resistance_level: null,
+        planned_cardio_pace_seconds_per_km: null,
+        planned_cardio_floors: null,
+        planned_cardio_stair_level: null,
+      },
+    ];
+    useStateMock.mockImplementationOnce(() => ['Conditioning', jest.fn()]);
+    useStateMock.mockImplementationOnce(() => ['Conditioning', jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [items, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => ['day-ex-cardio', jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => ['', jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [{}, jest.fn()]);
+
+    const navigation: Nav = { navigate: jest.fn(), replace: jest.fn(), setOptions: jest.fn() };
+    const element = DayDetailScreen({
+      navigation,
+      route: { key: 'DayDetail', name: 'DayDetail', params: { dayId: 'day-1' } },
+    } as never);
+    const list = findElementsByType<React.ComponentProps<typeof DraggableFlatList>>(
+      element,
+      DraggableFlatList,
+    )[0];
+    const renderItem = list?.props.renderItem as (
+      params: RenderItemParams<(typeof items)[number]>,
+    ) => React.ReactElement;
+    const rowNode = renderItem({
+      item: items[0],
+      drag: jest.fn(),
+      isActive: false,
+      getIndex: () => 0,
+    });
+    const editor = findElementsByProp<{ exercise: (typeof items)[number] }>(rowNode, 'exercise')[0];
+    const editorNode = renderComponentElement(editor);
+    const inputs = findElementsByType<React.ComponentProps<typeof Input>>(editorNode, Input);
+
+    expect(inputs.map((input) => [input.props.label, input.props.value])).toEqual([
+      ['Duration (min)', '20'],
+      ['Distance (km)', '3'],
+      ['Speed (km/h)', '9,5'],
+      ['Incline (%)', '2'],
+    ]);
+  });
+
+  it('expanding a cardio exercise row does not resync unchanged target text state', () => {
+    const item = {
+      id: 'day-ex-cardio',
+      program_day_id: 'day-1',
+      exercise_id: 'treadmill',
+      exercise_name: 'Treadmill',
+      exercise_type: 'cardio',
+      cardio_profile: 'treadmill',
+      position: 1,
+      notes: null,
+      planned_cardio_duration_minutes: 20,
+      planned_cardio_distance_km: 3,
+      planned_cardio_speed_kph: 9.5,
+      planned_cardio_incline_percent: 2,
+      planned_cardio_resistance_level: null,
+      planned_cardio_pace_seconds_per_km: null,
+      planned_cardio_floors: null,
+      planned_cardio_stair_level: null,
+    };
+
+    renderExpandedCardioEditor(item);
+
+    const cardioTextSetter = useStateSetters.at(-1);
+    const syncUpdater = cardioTextSetter?.mock.calls.at(-1)?.[0];
+    const current = {
+      duration_minutes: '20',
+      distance_km: '3',
+      speed_kph: '9,5',
+      incline_percent: '2',
+      resistance_level: '',
+      pace_seconds_per_km: '',
+      floors: '',
+      stair_level: '',
+    };
+
+    expect(typeof syncUpdater).toBe('function');
+    expect(syncUpdater(current)).toBe(current);
+  });
+
+  it('saving treadmill cardio targets calls the planned-cardio update path', () => {
+    const item = {
+      id: 'day-ex-cardio',
+      program_day_id: 'day-1',
+      exercise_id: 'treadmill',
+      exercise_name: 'Treadmill',
+      exercise_type: 'cardio',
+      cardio_profile: 'treadmill',
+      position: 1,
+      notes: null,
+      planned_cardio_duration_minutes: null,
+      planned_cardio_distance_km: null,
+      planned_cardio_speed_kph: null,
+      planned_cardio_incline_percent: null,
+      planned_cardio_resistance_level: null,
+      planned_cardio_pace_seconds_per_km: null,
+      planned_cardio_floors: null,
+      planned_cardio_stair_level: null,
+    };
+    const editorNode = renderExpandedCardioEditor(item);
+    const inputs = findElementsByType<React.ComponentProps<typeof Input>>(editorNode, Input);
+
+    inputs[0]?.props.onEndEditing?.({ nativeEvent: { text: '20' } } as never);
+    inputs[1]?.props.onEndEditing?.({ nativeEvent: { text: '3' } } as never);
+    inputs[2]?.props.onEndEditing?.({ nativeEvent: { text: '9.5' } } as never);
+    inputs[3]?.props.onEndEditing?.({ nativeEvent: { text: '2' } } as never);
+
+    expect(updatePlannedCardioTarget).toHaveBeenCalledWith('day-ex-cardio', {
+      duration_minutes: 20,
+    });
+    expect(updatePlannedCardioTarget).toHaveBeenCalledWith('day-ex-cardio', { distance_km: 3 });
+    expect(updatePlannedCardioTarget).toHaveBeenCalledWith('day-ex-cardio', { speed_kph: 9.5 });
+    expect(updatePlannedCardioTarget).toHaveBeenCalledWith('day-ex-cardio', {
+      incline_percent: 2,
+    });
+  });
+
+  it('saving ergometer pace shorthand and empty values works through planned-cardio updates', () => {
+    const item = {
+      id: 'day-ex-row',
+      program_day_id: 'day-1',
+      exercise_id: 'row',
+      exercise_name: 'Rowing Machine',
+      exercise_type: 'cardio',
+      cardio_profile: 'ergometer',
+      position: 1,
+      notes: null,
+      planned_cardio_duration_minutes: null,
+      planned_cardio_distance_km: null,
+      planned_cardio_speed_kph: null,
+      planned_cardio_incline_percent: null,
+      planned_cardio_resistance_level: null,
+      planned_cardio_pace_seconds_per_km: null,
+      planned_cardio_floors: null,
+      planned_cardio_stair_level: null,
+    };
+    const editorNode = renderExpandedCardioEditor(item);
+    const inputs = findElementsByType<React.ComponentProps<typeof Input>>(editorNode, Input);
+
+    inputs[2]?.props.onEndEditing?.({ nativeEvent: { text: '530' } } as never);
+    inputs[1]?.props.onEndEditing?.({ nativeEvent: { text: '' } } as never);
+
+    expect(updatePlannedCardioTarget).toHaveBeenCalledWith('day-ex-row', {
+      pace_seconds_per_km: 330,
+    });
+    expect(updatePlannedCardioTarget).toHaveBeenCalledWith('day-ex-row', { distance_km: null });
+  });
+
+  it('invalid planned cardio values are not persisted', () => {
+    const item = {
+      id: 'day-ex-row',
+      program_day_id: 'day-1',
+      exercise_id: 'row',
+      exercise_name: 'Rowing Machine',
+      exercise_type: 'cardio',
+      cardio_profile: 'ergometer',
+      position: 1,
+      notes: null,
+      planned_cardio_duration_minutes: null,
+      planned_cardio_distance_km: null,
+      planned_cardio_speed_kph: null,
+      planned_cardio_incline_percent: null,
+      planned_cardio_resistance_level: null,
+      planned_cardio_pace_seconds_per_km: null,
+      planned_cardio_floors: null,
+      planned_cardio_stair_level: null,
+    };
+    const editorNode = renderExpandedCardioEditor(item);
+    const inputs = findElementsByType<React.ComponentProps<typeof Input>>(editorNode, Input);
+
+    inputs[2]?.props.onEndEditing?.({ nativeEvent: { text: '5:99' } } as never);
+
+    expect(updatePlannedCardioTarget).not.toHaveBeenCalled();
   });
 
   it('Add Set button calls add path', () => {

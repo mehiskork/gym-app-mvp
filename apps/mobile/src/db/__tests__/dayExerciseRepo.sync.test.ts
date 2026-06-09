@@ -20,6 +20,7 @@ import {
   deleteDayExercise,
   deletePlannedSet,
   updatePlannedSetTargets,
+  updatePlannedCardioTarget,
   updateDayExerciseNote,
   renameDay,
   reorderDayExercises,
@@ -141,6 +142,84 @@ describe('dayExerciseRepo outbound sync enqueue coverage', () => {
       null,
       'day-ex-1',
     ]);
+  });
+
+  it('updates planned cardio targets and enqueues a program_day_exercise snapshot', () => {
+    (query as jest.Mock).mockImplementation((sql: string, params?: unknown[]) => {
+      if (
+        sql.includes('SELECT *') &&
+        sql.includes('FROM program_day_exercise') &&
+        params?.[0] === 'day-ex-cardio'
+      ) {
+        return [
+          {
+            id: 'day-ex-cardio',
+            planned_cardio_duration_minutes: 20,
+            planned_cardio_distance_km: 3,
+            planned_cardio_speed_kph: 9.5,
+            planned_cardio_incline_percent: 0,
+            deleted_at: null,
+          },
+        ];
+      }
+      return [];
+    });
+
+    updatePlannedCardioTarget('day-ex-cardio', {
+      duration_minutes: 20,
+      distance_km: 3,
+      speed_kph: 9.5,
+      incline_percent: 0,
+    });
+
+    expect(exec).toHaveBeenCalledWith(expect.stringContaining('UPDATE program_day_exercise'), [
+      20,
+      3,
+      9.5,
+      0,
+      'day-ex-cardio',
+    ]);
+    expect(enqueueOutboxOp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entityType: 'program_day_exercise',
+        entityId: 'day-ex-cardio',
+        opType: 'upsert',
+        payloadJson: expect.stringContaining('"planned_cardio_incline_percent":0'),
+      }),
+    );
+  });
+
+  it('clears planned cardio targets to null', () => {
+    (query as jest.Mock).mockImplementation((sql: string, params?: unknown[]) => {
+      if (
+        sql.includes('SELECT *') &&
+        sql.includes('FROM program_day_exercise') &&
+        params?.[0] === 'day-ex-cardio'
+      ) {
+        return [{ id: 'day-ex-cardio', planned_cardio_pace_seconds_per_km: null }];
+      }
+      return [];
+    });
+
+    updatePlannedCardioTarget('day-ex-cardio', { pace_seconds_per_km: null });
+
+    expect(exec).toHaveBeenCalledWith(expect.stringContaining('UPDATE program_day_exercise'), [
+      null,
+      'day-ex-cardio',
+    ]);
+    expect(enqueueOutboxOp).toHaveBeenCalledWith(
+      expect.objectContaining({ entityType: 'program_day_exercise' }),
+    );
+  });
+
+  it('rejects invalid planned cardio values without writing or enqueueing', () => {
+    updatePlannedCardioTarget('day-ex-cardio', { pace_seconds_per_km: 0 });
+
+    expect(exec).not.toHaveBeenCalledWith(
+      expect.stringContaining('UPDATE program_day_exercise'),
+      expect.anything(),
+    );
+    expect(enqueueOutboxOp).not.toHaveBeenCalled();
   });
 
   it('deleteDayExercise tombstones child planned_set rows and enqueues delete snapshots', () => {

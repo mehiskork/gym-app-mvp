@@ -1,4 +1,5 @@
 import type { CardioSummary } from '../../db/exerciseTypes';
+import type { CardioProfile } from '../../db/exerciseTypes';
 
 export type ParsedCardioInput =
   | {
@@ -24,6 +25,57 @@ export const cardioFieldConfigs: Record<keyof CardioSummary, CardioFieldConfig> 
   floors: { kind: 'integer', max: 999 },
   stair_level: { kind: 'integer', max: 999 },
 };
+
+export const cardioFieldMaxLengths: Record<keyof CardioSummary, number> = {
+  duration_minutes: 3,
+  distance_km: 5,
+  speed_kph: 4,
+  incline_percent: 4,
+  resistance_level: 3,
+  pace_seconds_per_km: 5,
+  floors: 3,
+  stair_level: 3,
+};
+
+export function fieldsForCardioProfile(
+  profile: CardioProfile | null,
+): Array<{ key: keyof CardioSummary; label: string }> {
+  switch (profile) {
+    case 'treadmill':
+      return [
+        { key: 'duration_minutes', label: 'Duration (min)' },
+        { key: 'distance_km', label: 'Distance (km)' },
+        { key: 'speed_kph', label: 'Speed (km/h)' },
+        { key: 'incline_percent', label: 'Incline (%)' },
+      ];
+    case 'bike':
+      return [
+        { key: 'duration_minutes', label: 'Duration (min)' },
+        { key: 'distance_km', label: 'Distance (km)' },
+        { key: 'resistance_level', label: 'Resistance' },
+      ];
+    case 'ergometer':
+      return [
+        { key: 'duration_minutes', label: 'Duration (min)' },
+        { key: 'distance_km', label: 'Distance (km)' },
+        { key: 'pace_seconds_per_km', label: 'Pace (min/km)' },
+      ];
+    case 'stairs':
+      return [
+        { key: 'duration_minutes', label: 'Duration (min)' },
+        { key: 'floors', label: 'Floors' },
+        { key: 'stair_level', label: 'Level' },
+      ];
+    case 'elliptical':
+      return [
+        { key: 'duration_minutes', label: 'Duration (min)' },
+        { key: 'distance_km', label: 'Distance (km)' },
+        { key: 'resistance_level', label: 'Resistance' },
+      ];
+    default:
+      return [{ key: 'duration_minutes', label: 'Duration (min)' }];
+  }
+}
 
 const INTEGER_INPUT_RE = /^[0-9]+$/;
 const DECIMAL_INPUT_RE = /^[0-9]+([.,][0-9])?$/;

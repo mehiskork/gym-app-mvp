@@ -173,6 +173,14 @@ describe('createSessionFromPlanDay prefill', () => {
       null,
       1,
       '2 sets overhand grip, 2 sets underhand grip',
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
     ]);
   });
 

@@ -8,7 +8,16 @@ import {
   WorkoutLimitError,
   WORKOUT_LIMIT_MESSAGES,
 } from './workoutLimits';
-import { EXERCISE_TYPE, type ExerciseType } from './exerciseTypes';
+import {
+  EXERCISE_TYPE,
+  type CardioProfile,
+  type CardioSummary,
+  type ExerciseType,
+} from './exerciseTypes';
+import {
+  isCardioSummaryField,
+  isValidCardioSummaryValue,
+} from '../features/workoutSession/cardioInputParsing';
 
 export type DayRow = {
   id: string;
@@ -23,8 +32,17 @@ export type DayExerciseRow = {
   exercise_id: string;
   exercise_name: string;
   exercise_type: ExerciseType;
+  cardio_profile: CardioProfile | null;
   position: number;
   notes: string | null;
+  planned_cardio_duration_minutes: number | null;
+  planned_cardio_distance_km: number | null;
+  planned_cardio_speed_kph: number | null;
+  planned_cardio_incline_percent: number | null;
+  planned_cardio_resistance_level: number | null;
+  planned_cardio_pace_seconds_per_km: number | null;
+  planned_cardio_floors: number | null;
+  planned_cardio_stair_level: number | null;
 };
 
 export type PlannedSetRow = {
@@ -39,6 +57,19 @@ export type PlannedSetRow = {
 export type PlannedSetTargetPatch = {
   reps?: number | null;
   targetWeight?: number | null;
+};
+
+export type PlannedCardioTargetPatch = Partial<Record<keyof CardioSummary, number | null>>;
+
+const plannedCardioColumns: Record<keyof CardioSummary, string> = {
+  duration_minutes: 'planned_cardio_duration_minutes',
+  distance_km: 'planned_cardio_distance_km',
+  speed_kph: 'planned_cardio_speed_kph',
+  incline_percent: 'planned_cardio_incline_percent',
+  resistance_level: 'planned_cardio_resistance_level',
+  pace_seconds_per_km: 'planned_cardio_pace_seconds_per_km',
+  floors: 'planned_cardio_floors',
+  stair_level: 'planned_cardio_stair_level',
 };
 
 function normalizeExerciseNote(note: string | null | undefined): string | null {
@@ -327,8 +358,17 @@ export function listDayExercises(dayId: string): DayExerciseRow[] {
       pde.exercise_id,
       e.name AS exercise_name,
       e.exercise_type AS exercise_type,
+      e.cardio_profile AS cardio_profile,
       pde.position,
-      pde.notes
+      pde.notes,
+      pde.planned_cardio_duration_minutes,
+      pde.planned_cardio_distance_km,
+      pde.planned_cardio_speed_kph,
+      pde.planned_cardio_incline_percent,
+      pde.planned_cardio_resistance_level,
+      pde.planned_cardio_pace_seconds_per_km,
+      pde.planned_cardio_floors,
+      pde.planned_cardio_stair_level
     FROM program_day_exercise pde
     JOIN exercise e ON e.id = pde.exercise_id
     WHERE pde.program_day_id = ? AND pde.deleted_at IS NULL
@@ -527,6 +567,35 @@ export function updateDayExerciseNote(dayExerciseId: string, note: string | null
       WHERE id = ? AND deleted_at IS NULL;
     `,
       [normalizeExerciseNote(note), dayExerciseId],
+    );
+
+    enqueueProgramDayExerciseSnapshot(dayExerciseId);
+  });
+}
+
+export function updatePlannedCardioTarget(dayExerciseId: string, patch: PlannedCardioTargetPatch) {
+  const updates: Array<[string, number | null]> = [];
+
+  for (const [field, value] of Object.entries(patch)) {
+    if (!isCardioSummaryField(field)) return;
+    const normalizedValue = value ?? null;
+    if (!isValidCardioSummaryValue(field, normalizedValue)) return;
+    updates.push([plannedCardioColumns[field], normalizedValue]);
+  }
+
+  if (updates.length === 0) return;
+
+  const cols = updates.map(([key]) => `${key} = ?`).join(', ');
+  const params = updates.map(([, value]) => value);
+
+  inTransaction(() => {
+    exec(
+      `
+      UPDATE program_day_exercise
+      SET ${cols}, updated_at = datetime('now')
+      WHERE id = ? AND deleted_at IS NULL;
+    `,
+      [...params, dayExerciseId],
     );
 
     enqueueProgramDayExerciseSnapshot(dayExerciseId);
