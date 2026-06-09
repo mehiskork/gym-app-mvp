@@ -1,5 +1,6 @@
 import { migration001_private_beta_baseline } from '../migrations/001_private_beta_baseline';
 import { migration002_workout_exercise_plan_note_snapshot } from '../migrations/002_workout_exercise_plan_note_snapshot';
+import { migration003_program_day_exercise_planned_cardio_targets } from '../migrations/003_program_day_exercise_planned_cardio_targets';
 import { migrations } from '../migrations';
 
 const baselineSql = migration001_private_beta_baseline.up;
@@ -26,6 +27,23 @@ describe('private beta SQLite baseline migration', () => {
     expect(migration002_workout_exercise_plan_note_snapshot.up).toContain(
       'ADD COLUMN plan_note_snapshot TEXT NULL',
     );
+  });
+
+  it('adds planned cardio target columns to program_day_exercise in migration 3', () => {
+    expect(migration003_program_day_exercise_planned_cardio_targets.id).toBe(3);
+    [
+      'planned_cardio_duration_minutes INTEGER NULL',
+      'planned_cardio_distance_km REAL NULL',
+      'planned_cardio_speed_kph REAL NULL',
+      'planned_cardio_incline_percent REAL NULL',
+      'planned_cardio_resistance_level REAL NULL',
+      'planned_cardio_pace_seconds_per_km REAL NULL',
+      'planned_cardio_floors INTEGER NULL',
+      'planned_cardio_stair_level REAL NULL',
+    ].forEach((columnSql) => {
+      expect(migration003_program_day_exercise_planned_cardio_targets.up).toContain(columnSql);
+    });
+    expect(migrations[2]).toBe(migration003_program_day_exercise_planned_cardio_targets);
   });
 
   it('creates every expected final table', () => {

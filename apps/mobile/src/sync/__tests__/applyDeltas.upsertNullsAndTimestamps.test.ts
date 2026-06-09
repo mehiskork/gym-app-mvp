@@ -49,6 +49,40 @@ describe('applyDeltas null upsert + timestamp handling', () => {
     expect(sql).not.toContain('COALESCE(');
   });
 
+  it('writes inbound planned cardio target fields on program_day_exercise', () => {
+    (query as jest.Mock).mockReturnValue([]);
+
+    const delta: SyncDelta = {
+      entityType: 'program_day_exercise',
+      entityId: 'pde-cardio',
+      opType: 'upsert',
+      payload: {
+        id: 'pde-cardio',
+        program_day_id: 'day-1',
+        exercise_id: 'ex_rowing_machine',
+        position: 1,
+        planned_cardio_duration_minutes: 11,
+        planned_cardio_distance_km: 11,
+        planned_cardio_speed_kph: null,
+        planned_cardio_incline_percent: null,
+        planned_cardio_resistance_level: null,
+        planned_cardio_pace_seconds_per_km: null,
+        planned_cardio_floors: null,
+        planned_cardio_stair_level: null,
+        updated_at: '2026-02-13 12:00:00',
+      },
+    };
+
+    applyDeltas([delta]);
+
+    expect(exec).toHaveBeenCalledTimes(1);
+    const [sql, params] = (exec as jest.Mock).mock.calls[0];
+    expect(sql).toContain('planned_cardio_duration_minutes');
+    expect(sql).toContain('planned_cardio_distance_km');
+    expect(sql).toContain('planned_cardio_pace_seconds_per_km');
+    expect(params).toEqual(expect.arrayContaining([11, 11, null]));
+  });
+
   it('SQLite timestamp compare works; stale delta is skipped', () => {
     (query as jest.Mock).mockReturnValue([
       { updated_at: '2026-02-13 12:00:00', version: undefined },

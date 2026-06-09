@@ -416,7 +416,7 @@ describe('SessionDetailScreen notes', () => {
     const serialized = JSON.stringify(element);
     expect(serialized).toContain('Reuse this workout');
     expect(serialized).toContain(
-      'Save exercises, sets, reps, and weights so you can use this workout again.',
+      'Save exercises, sets, reps, weights, and cardio targets so you can use this workout again.',
     );
   });
 
@@ -444,7 +444,7 @@ describe('SessionDetailScreen notes', () => {
     } as never);
 
     expect(JSON.stringify(element)).not.toContain(
-      'Save exercises, sets, reps, and weights so you can use this workout again.',
+      'Save exercises, sets, reps, weights, and cardio targets so you can use this workout again.',
     );
   });
 

@@ -376,6 +376,50 @@ class SyncControllerValidationIT {
         }
 
         @Test
+        void programDayExercisePlannedCardioFieldsAreAcceptedAndStored() throws Exception {
+                String deviceId = "device-planned-cardio";
+                String token = seedDeviceAndToken(deviceId);
+                String parentPayload = """
+                                {"cursor":null,"ops":[
+                                  {"opId":"op-program-cardio","entityType":"program","entityId":"program-cardio","opType":"upsert","payload":{"id":"program-cardio","name":"Cardio Plan","updated_at":"2026-02-13T12:34:56Z"}},
+                                  {"opId":"op-week-cardio","entityType":"program_week","entityId":"week-cardio","opType":"upsert","payload":{"id":"week-cardio","program_id":"program-cardio","week_index":1,"updated_at":"2026-02-13T12:34:56Z"}}
+                                ]}
+                                """;
+                String cardioPayload = """
+                                {"cursor":null,"ops":[
+                                  {"opId":"op-day-cardio","entityType":"program_day","entityId":"day-cardio","opType":"upsert","payload":{"id":"day-cardio","program_week_id":"week-cardio","day_index":1,"updated_at":"2026-02-13T12:34:56Z"}},
+                                  {"opId":"op-pde-cardio","entityType":"program_day_exercise","entityId":"pde-cardio","opType":"upsert","payload":{"id":"pde-cardio","program_day_id":"day-cardio","exercise_id":"ex_rowing_machine","position":1,"planned_cardio_duration_minutes":11,"planned_cardio_distance_km":11,"planned_cardio_speed_kph":12,"planned_cardio_incline_percent":3,"planned_cardio_resistance_level":7,"planned_cardio_pace_seconds_per_km":330,"planned_cardio_floors":20,"planned_cardio_stair_level":5,"ignored_field":"drop-me","updated_at":"2026-02-13T12:34:56Z"}}
+                                ]}
+                                """;
+
+                mockMvc.perform(post("/sync")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .header("Authorization", "Bearer " + token)
+                                .content(parentPayload))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.acks[0].status").value("applied"))
+                                .andExpect(jsonPath("$.acks[1].status").value("applied"));
+
+                mockMvc.perform(post("/sync")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .header("Authorization", "Bearer " + token)
+                                .content(cardioPayload))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.acks[1].opId").value("op-pde-cardio"))
+                                .andExpect(jsonPath("$.acks[1].status").value("applied"));
+
+                String guestUserId = guestUserIdForDevice(deviceId);
+                assertThat(storedPayloadText("entity_state", guestUserId, "program_day_exercise", "pde-cardio",
+                                "planned_cardio_duration_minutes")).isEqualTo("11");
+                assertThat(storedPayloadText("change_log", guestUserId, "program_day_exercise", "pde-cardio",
+                                "planned_cardio_distance_km")).isEqualTo("11");
+                assertThat(storedPayloadText("entity_state", guestUserId, "program_day_exercise", "pde-cardio",
+                                "planned_cardio_pace_seconds_per_km")).isEqualTo("330");
+                assertThat(storedPayloadText("entity_state", guestUserId, "program_day_exercise", "pde-cardio",
+                                "ignored_field")).isNull();
+        }
+
+        @Test
         void validMobileShapedPayloadStillSyncs() throws Exception {
                 String token = seedDeviceAndToken("device-valid-mobile-payload");
                 String payload = """

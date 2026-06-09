@@ -47,7 +47,7 @@ describe('createSessionFromPlanDay cardio behavior', () => {
     });
   });
 
-  it('creates cardio session exercise without prefill/strength set rows', () => {
+  it('creates cardio session exercise with planned prefill and without strength set rows', () => {
     (query as jest.Mock)
       .mockReturnValueOnce([])
       .mockReturnValueOnce([{ day_name: 'Mixed Day', day_index: 1 }])
@@ -59,6 +59,15 @@ describe('createSessionFromPlanDay cardio behavior', () => {
           exercise_type: 'cardio',
           cardio_profile: 'treadmill',
           position: 1,
+          plan_note_snapshot: null,
+          planned_cardio_duration_minutes: 11,
+          planned_cardio_distance_km: 11,
+          planned_cardio_speed_kph: 11,
+          planned_cardio_incline_percent: 11,
+          planned_cardio_resistance_level: null,
+          planned_cardio_pace_seconds_per_km: null,
+          planned_cardio_floors: null,
+          planned_cardio_stair_level: null,
         },
         {
           day_exercise_id: 'pde-2',
@@ -67,6 +76,15 @@ describe('createSessionFromPlanDay cardio behavior', () => {
           exercise_type: 'strength',
           cardio_profile: null,
           position: 2,
+          plan_note_snapshot: null,
+          planned_cardio_duration_minutes: null,
+          planned_cardio_distance_km: null,
+          planned_cardio_speed_kph: null,
+          planned_cardio_incline_percent: null,
+          planned_cardio_resistance_level: null,
+          planned_cardio_pace_seconds_per_km: null,
+          planned_cardio_floors: null,
+          planned_cardio_stair_level: null,
         },
       ])
       .mockReturnValueOnce([{ set_index: 1, target_reps_min: 5, rest_seconds: 120 }])
@@ -81,6 +99,30 @@ describe('createSessionFromPlanDay cardio behavior', () => {
     expect(
       (exec as jest.Mock).mock.calls.some((call) => String(call[0]).includes('exercise_type')),
     ).toBe(true);
+    const cardioInsert = (exec as jest.Mock).mock.calls.find(
+      (call) =>
+        String(call[0]).includes('INSERT INTO workout_session_exercise') &&
+        call[1]?.[0] === 'wse-cardio',
+    );
+    expect(cardioInsert?.[1]).toEqual([
+      'wse-cardio',
+      'ws-1',
+      'pde-1',
+      'ex_treadmill_run',
+      'Treadmill',
+      'cardio',
+      'treadmill',
+      1,
+      null,
+      11,
+      11,
+      11,
+      11,
+      null,
+      null,
+      null,
+      null,
+    ]);
   });
   it('uses Session fallback title when day name is null', () => {
     (query as jest.Mock)

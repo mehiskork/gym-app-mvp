@@ -103,8 +103,12 @@ export function SessionDetailScreen({ route, navigation }: Props) {
 
   const getReuseErrorMessage = useCallback((error: unknown) => {
     if (isWorkoutLimitError(error)) return error.message;
-    if (error instanceof Error && error.message === 'No completed strength sets to reuse.') {
-      return 'This workout has no completed strength sets to reuse.';
+    if (
+      error instanceof Error &&
+      (error.message === 'No completed sets or cardio details to reuse.' ||
+        error.message === 'No completed strength sets to reuse.')
+    ) {
+      return 'This workout has no completed sets or cardio details to reuse.';
     }
     if (error instanceof Error && error.message.trim()) return error.message;
     return "Couldn't reuse this workout. Try again.";
@@ -179,7 +183,8 @@ export function SessionDetailScreen({ route, navigation }: Props) {
             >
               <Text variant="subtitle">Reuse this workout</Text>
               <Text variant="muted">
-                Save exercises, sets, reps, and weights so you can use this workout again.
+                Save exercises, sets, reps, weights, and cardio targets so you can use this workout
+                again.
               </Text>
               <Button
                 title="Reuse this workout"

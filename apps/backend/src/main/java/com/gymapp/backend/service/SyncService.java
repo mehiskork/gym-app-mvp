@@ -82,6 +82,10 @@ public class SyncService {
                                         "version", "last_modified_by_device_id"),
                         "program_day_exercise", Set.of(
                                         "id", "program_day_id", "exercise_id", "position", "notes",
+                                        "planned_cardio_duration_minutes", "planned_cardio_distance_km",
+                                        "planned_cardio_speed_kph", "planned_cardio_incline_percent",
+                                        "planned_cardio_resistance_level", "planned_cardio_pace_seconds_per_km",
+                                        "planned_cardio_floors", "planned_cardio_stair_level",
                                         "created_at", "updated_at", "deleted_at", "version",
                                         "last_modified_by_device_id"),
                         "planned_set", Set.of(

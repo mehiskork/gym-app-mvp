@@ -1419,11 +1419,19 @@ class SyncServiceIT {
     void freshSnapshotRestoresPlanExerciseAndPlannedSetForSeededExerciseReference() {
         Instant now = Instant.now();
         upsertPlanDayGraph(now);
-        upsertEntityStateAndChangeLog("program_day_exercise", "day-exercise-seeded", Map.of(
-                "id", "day-exercise-seeded",
-                "program_day_id", "day-1",
-                "exercise_id", "ex_bench_press_barbell",
-                "position", 0), now);
+        upsertEntityStateAndChangeLog("program_day_exercise", "day-exercise-seeded", Map.ofEntries(
+                Map.entry("id", "day-exercise-seeded"),
+                Map.entry("program_day_id", "day-1"),
+                Map.entry("exercise_id", "ex_bench_press_barbell"),
+                Map.entry("position", 0),
+                Map.entry("planned_cardio_duration_minutes", 11),
+                Map.entry("planned_cardio_distance_km", 11),
+                Map.entry("planned_cardio_speed_kph", 12),
+                Map.entry("planned_cardio_incline_percent", 3),
+                Map.entry("planned_cardio_resistance_level", 7),
+                Map.entry("planned_cardio_pace_seconds_per_km", 330),
+                Map.entry("planned_cardio_floors", 20),
+                Map.entry("planned_cardio_stair_level", 5)), now);
         upsertEntityStateAndChangeLog("planned_set", "set-seeded", Map.of(
                 "id", "set-seeded",
                 "program_day_exercise_id", "day-exercise-seeded",
@@ -1439,6 +1447,13 @@ class SyncServiceIT {
                         "day-1",
                         "day-exercise-seeded",
                         "set-seeded");
+        assertThat(response.getDeltas())
+                .filteredOn(delta -> "day-exercise-seeded".equals(delta.entityId()))
+                .singleElement()
+                .satisfies(delta -> assertThat(delta.payload())
+                        .containsEntry("planned_cardio_duration_minutes", 11)
+                        .containsEntry("planned_cardio_distance_km", 11)
+                        .containsEntry("planned_cardio_pace_seconds_per_km", 330));
     }
 
     @Test

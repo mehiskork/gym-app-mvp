@@ -69,9 +69,23 @@ type PlannedSetRow = {
   target_rpe: number | null;
   rest_seconds: number | null;
 };
+type PlannedCardioTargetRow = {
+  exercise_id: string;
+  position: number;
+  planned_cardio_duration_minutes: number | null;
+  planned_cardio_distance_km: number | null;
+  planned_cardio_speed_kph: number | null;
+  planned_cardio_incline_percent: number | null;
+  planned_cardio_resistance_level: number | null;
+  planned_cardio_pace_seconds_per_km: number | null;
+  planned_cardio_floors: number | null;
+  planned_cardio_stair_level: number | null;
+};
 
 const benchId = 'ex_bench_press_barbell';
 const rowId = 'ex_bent_over_row_barbell';
+const rowingMachineId = 'ex_rowing_machine';
+const treadmillId = 'ex_treadmill_run';
 
 function useDeterministicIds() {
   let next = 1;
@@ -221,6 +235,131 @@ function seedLargeCompletedQuickWorkout(sessionId = 'quick-large') {
   return sessionId;
 }
 
+function seedCompletedCardioQuickWorkout(input: {
+  sessionId?: string;
+  exerciseId: string;
+  exerciseName: string;
+  cardioProfile: string;
+  durationMinutes?: number | null;
+  distanceKm?: number | null;
+  speedKph?: number | null;
+  inclinePercent?: number | null;
+  resistanceLevel?: number | null;
+  paceSecondsPerKm?: number | null;
+  floors?: number | null;
+  stairLevel?: number | null;
+}) {
+  const sessionId = input.sessionId ?? 'quick-cardio';
+  exec(
+    `
+    INSERT INTO workout_session (
+      id,
+      source_workout_plan_id,
+      source_program_day_id,
+      title,
+      status,
+      started_at,
+      ended_at
+    ) VALUES (?, NULL, NULL, 'Quick Workout', 'completed', '2026-01-03T10:00:00Z', '2026-01-03T11:00:00Z');
+  `,
+    [sessionId],
+  );
+
+  exec(
+    `
+    INSERT INTO workout_session_exercise (
+      id,
+      workout_session_id,
+      source_program_day_exercise_id,
+      exercise_id,
+      exercise_name,
+      exercise_type,
+      cardio_profile,
+      position,
+      notes,
+      cardio_duration_minutes,
+      cardio_distance_km,
+      cardio_speed_kph,
+      cardio_incline_percent,
+      cardio_resistance_level,
+      cardio_pace_seconds_per_km,
+      cardio_floors,
+      cardio_stair_level
+    ) VALUES (?, ?, NULL, ?, ?, 'cardio', ?, 1, NULL, ?, ?, ?, ?, ?, ?, ?, ?);
+  `,
+    [
+      `${sessionId}-wse`,
+      sessionId,
+      input.exerciseId,
+      input.exerciseName,
+      input.cardioProfile,
+      input.durationMinutes ?? null,
+      input.distanceKm ?? null,
+      input.speedKph ?? null,
+      input.inclinePercent ?? null,
+      input.resistanceLevel ?? null,
+      input.paceSecondsPerKm ?? null,
+      input.floors ?? null,
+      input.stairLevel ?? null,
+    ],
+  );
+
+  return sessionId;
+}
+
+function seedCompletedMixedQuickWorkout(sessionId = 'quick-mixed') {
+  exec(
+    `
+    INSERT INTO workout_session (
+      id,
+      source_workout_plan_id,
+      source_program_day_id,
+      title,
+      status,
+      started_at,
+      ended_at
+    ) VALUES (?, NULL, NULL, 'Quick Workout', 'completed', '2026-01-04T10:00:00Z', '2026-01-04T11:00:00Z');
+  `,
+    [sessionId],
+  );
+
+  exec(
+    `
+    INSERT INTO workout_session_exercise (
+      id,
+      workout_session_id,
+      source_program_day_exercise_id,
+      exercise_id,
+      exercise_name,
+      exercise_type,
+      cardio_profile,
+      position,
+      notes,
+      cardio_duration_minutes,
+      cardio_distance_km
+    ) VALUES
+      ('wse-mixed-bench', ?, NULL, ?, 'Bench Press', 'strength', NULL, 1, NULL, NULL, NULL),
+      ('wse-mixed-rowing', ?, NULL, ?, 'Rowing Machine', 'cardio', 'ergometer', 2, NULL, 11, 11);
+  `,
+    [sessionId, benchId, sessionId, rowingMachineId],
+  );
+
+  exec(
+    `
+    INSERT INTO workout_set (
+      id,
+      workout_session_exercise_id,
+      set_index,
+      weight,
+      reps,
+      is_completed
+    ) VALUES ('set-mixed-bench', 'wse-mixed-bench', 1, 80, 8, 1);
+  `,
+  );
+
+  return sessionId;
+}
+
 function readOutboxRows(limit?: number): OutboxRow[] {
   if (limit !== undefined) {
     return query<OutboxRow>(
@@ -342,6 +481,189 @@ describe('saveCompletedQuickWorkoutAsPlan', () => {
         target_reps_min: 10,
         target_reps_max: 10,
         target_weight: 90,
+        target_rpe: null,
+        rest_seconds: null,
+      },
+    ]);
+  });
+
+  it('converts a rowing cardio-only Quick Workout into planned cardio targets', async () => {
+    const sessionId = seedCompletedCardioQuickWorkout({
+      sessionId: 'quick-rowing',
+      exerciseId: rowingMachineId,
+      exerciseName: 'Rowing Machine',
+      cardioProfile: 'ergometer',
+      durationMinutes: 11,
+      distanceKm: 11,
+    });
+    exec('DELETE FROM outbox_op;');
+
+    const result = await saveCompletedQuickWorkoutAsPlan({
+      sessionId,
+      target: { kind: 'newPlan', name: 'Rowing Plan' },
+    });
+
+    const targets = query<PlannedCardioTargetRow>(
+      `
+      SELECT
+        exercise_id,
+        position,
+        planned_cardio_duration_minutes,
+        planned_cardio_distance_km,
+        planned_cardio_speed_kph,
+        planned_cardio_incline_percent,
+        planned_cardio_resistance_level,
+        planned_cardio_pace_seconds_per_km,
+        planned_cardio_floors,
+        planned_cardio_stair_level
+      FROM program_day_exercise
+      WHERE program_day_id = ?
+      ORDER BY position ASC;
+    `,
+      [result.programDayId],
+    );
+    expect(targets).toEqual([
+      {
+        exercise_id: rowingMachineId,
+        position: 1,
+        planned_cardio_duration_minutes: 11,
+        planned_cardio_distance_km: 11,
+        planned_cardio_speed_kph: null,
+        planned_cardio_incline_percent: null,
+        planned_cardio_resistance_level: null,
+        planned_cardio_pace_seconds_per_km: null,
+        planned_cardio_floors: null,
+        planned_cardio_stair_level: null,
+      },
+    ]);
+    expect(count('SELECT COUNT(*) AS n FROM planned_set;')).toBe(0);
+
+    const dayExercisePayload = readOutboxRows()
+      .filter((row) => row.entity_type === 'program_day_exercise')
+      .map((row) => JSON.parse(row.payload_json))[0];
+    expect(dayExercisePayload).toMatchObject({
+      planned_cardio_duration_minutes: 11,
+      planned_cardio_distance_km: 11,
+      planned_cardio_speed_kph: null,
+    });
+  });
+
+  it('copies treadmill cardio duration distance speed and incline targets', async () => {
+    const sessionId = seedCompletedCardioQuickWorkout({
+      sessionId: 'quick-treadmill',
+      exerciseId: treadmillId,
+      exerciseName: 'Treadmill',
+      cardioProfile: 'treadmill',
+      durationMinutes: 11,
+      distanceKm: 11,
+      speedKph: 11,
+      inclinePercent: 11,
+    });
+
+    const result = await saveCompletedQuickWorkoutAsPlan({
+      sessionId,
+      target: { kind: 'newPlan', name: 'Treadmill Plan' },
+    });
+
+    const target = query<PlannedCardioTargetRow>(
+      `
+      SELECT
+        exercise_id,
+        position,
+        planned_cardio_duration_minutes,
+        planned_cardio_distance_km,
+        planned_cardio_speed_kph,
+        planned_cardio_incline_percent,
+        planned_cardio_resistance_level,
+        planned_cardio_pace_seconds_per_km,
+        planned_cardio_floors,
+        planned_cardio_stair_level
+      FROM program_day_exercise
+      WHERE program_day_id = ?
+      LIMIT 1;
+    `,
+      [result.programDayId],
+    )[0];
+    expect(target).toMatchObject({
+      exercise_id: treadmillId,
+      position: 1,
+      planned_cardio_duration_minutes: 11,
+      planned_cardio_distance_km: 11,
+      planned_cardio_speed_kph: 11,
+      planned_cardio_incline_percent: 11,
+    });
+  });
+
+  it('reuses mixed strength and cardio work in performed order', async () => {
+    const sessionId = seedCompletedMixedQuickWorkout();
+
+    const result = await saveCompletedQuickWorkoutAsPlan({
+      sessionId,
+      target: { kind: 'newPlan', name: 'Mixed Plan' },
+    });
+
+    const dayExercises = query<PlannedCardioTargetRow>(
+      `
+      SELECT
+        exercise_id,
+        position,
+        planned_cardio_duration_minutes,
+        planned_cardio_distance_km,
+        planned_cardio_speed_kph,
+        planned_cardio_incline_percent,
+        planned_cardio_resistance_level,
+        planned_cardio_pace_seconds_per_km,
+        planned_cardio_floors,
+        planned_cardio_stair_level
+      FROM program_day_exercise
+      WHERE program_day_id = ?
+      ORDER BY position ASC;
+    `,
+      [result.programDayId],
+    );
+    expect(dayExercises).toEqual([
+      {
+        exercise_id: benchId,
+        position: 1,
+        planned_cardio_duration_minutes: null,
+        planned_cardio_distance_km: null,
+        planned_cardio_speed_kph: null,
+        planned_cardio_incline_percent: null,
+        planned_cardio_resistance_level: null,
+        planned_cardio_pace_seconds_per_km: null,
+        planned_cardio_floors: null,
+        planned_cardio_stair_level: null,
+      },
+      {
+        exercise_id: rowingMachineId,
+        position: 2,
+        planned_cardio_duration_minutes: 11,
+        planned_cardio_distance_km: 11,
+        planned_cardio_speed_kph: null,
+        planned_cardio_incline_percent: null,
+        planned_cardio_resistance_level: null,
+        planned_cardio_pace_seconds_per_km: null,
+        planned_cardio_floors: null,
+        planned_cardio_stair_level: null,
+      },
+    ]);
+
+    const plannedSets = query<PlannedSetRow>(
+      `
+      SELECT ps.set_index, ps.target_reps_min, ps.target_reps_max, ps.target_weight, ps.target_rpe, ps.rest_seconds
+      FROM planned_set ps
+      JOIN program_day_exercise pde ON pde.id = ps.program_day_exercise_id
+      WHERE pde.program_day_id = ?
+      ORDER BY pde.position ASC, ps.set_index ASC;
+    `,
+      [result.programDayId],
+    );
+    expect(plannedSets).toEqual([
+      {
+        set_index: 1,
+        target_reps_min: 8,
+        target_reps_max: 8,
+        target_weight: 80,
         target_rpe: null,
         rest_seconds: null,
       },
@@ -541,15 +863,31 @@ describe('saveCompletedQuickWorkoutAsPlan', () => {
     ).rejects.toThrow('Only completed Quick Workouts can be reused.');
   });
 
-  it('rejects completed Quick Workouts with no completed strength sets', async () => {
+  it('skips empty cardio exercises and rejects workouts with no reusable work', async () => {
     const sessionId = seedCompletedQuickWorkout();
     exec('UPDATE workout_set SET is_completed = 0;');
+    exec(
+      `
+      INSERT INTO workout_session_exercise (
+        id,
+        workout_session_id,
+        source_program_day_exercise_id,
+        exercise_id,
+        exercise_name,
+        exercise_type,
+        cardio_profile,
+        position,
+        notes
+      ) VALUES ('wse-empty-cardio', ?, NULL, ?, 'Rowing Machine', 'cardio', 'ergometer', 4, NULL);
+    `,
+      [sessionId, rowingMachineId],
+    );
 
     await expect(
       saveCompletedQuickWorkoutAsPlan({
         sessionId,
         target: { kind: 'newPlan', name: 'No Sets' },
       }),
-    ).rejects.toThrow('No completed strength sets to reuse.');
+    ).rejects.toThrow('No completed sets or cardio details to reuse.');
   });
 });

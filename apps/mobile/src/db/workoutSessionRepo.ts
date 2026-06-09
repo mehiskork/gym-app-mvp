@@ -499,16 +499,32 @@ export function createSessionFromPlanDay(input: { workoutPlanId: string; dayId: 
       cardio_profile: CardioProfile | null;
       position: number;
       plan_note_snapshot: string | null;
+      planned_cardio_duration_minutes: number | null;
+      planned_cardio_distance_km: number | null;
+      planned_cardio_speed_kph: number | null;
+      planned_cardio_incline_percent: number | null;
+      planned_cardio_resistance_level: number | null;
+      planned_cardio_pace_seconds_per_km: number | null;
+      planned_cardio_floors: number | null;
+      planned_cardio_stair_level: number | null;
     }>(
       `
       SELECT
-      pde.id AS day_exercise_id,
-      pde.exercise_id AS exercise_id,
+        pde.id AS day_exercise_id,
+        pde.exercise_id AS exercise_id,
         e.name AS exercise_name,
         e.exercise_type AS exercise_type,
         e.cardio_profile AS cardio_profile,
         pde.position AS position,
-        pde.notes AS plan_note_snapshot
+        pde.notes AS plan_note_snapshot,
+        pde.planned_cardio_duration_minutes AS planned_cardio_duration_minutes,
+        pde.planned_cardio_distance_km AS planned_cardio_distance_km,
+        pde.planned_cardio_speed_kph AS planned_cardio_speed_kph,
+        pde.planned_cardio_incline_percent AS planned_cardio_incline_percent,
+        pde.planned_cardio_resistance_level AS planned_cardio_resistance_level,
+        pde.planned_cardio_pace_seconds_per_km AS planned_cardio_pace_seconds_per_km,
+        pde.planned_cardio_floors AS planned_cardio_floors,
+        pde.planned_cardio_stair_level AS planned_cardio_stair_level
       FROM program_day_exercise pde
       JOIN exercise e ON e.id = pde.exercise_id
       WHERE pde.program_day_id = ?
@@ -558,8 +574,16 @@ export function createSessionFromPlanDay(input: { workoutPlanId: string; dayId: 
           cardio_profile,
           position,
           notes,
-          plan_note_snapshot
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?);
+          plan_note_snapshot,
+          cardio_duration_minutes,
+          cardio_distance_km,
+          cardio_speed_kph,
+          cardio_incline_percent,
+          cardio_resistance_level,
+          cardio_pace_seconds_per_km,
+          cardio_floors,
+          cardio_stair_level
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?);
       `,
         [
           wseId,
@@ -571,6 +595,14 @@ export function createSessionFromPlanDay(input: { workoutPlanId: string; dayId: 
           row.cardio_profile,
           row.position,
           row.plan_note_snapshot,
+          row.planned_cardio_duration_minutes,
+          row.planned_cardio_distance_km,
+          row.planned_cardio_speed_kph,
+          row.planned_cardio_incline_percent,
+          row.planned_cardio_resistance_level,
+          row.planned_cardio_pace_seconds_per_km,
+          row.planned_cardio_floors,
+          row.planned_cardio_stair_level,
         ],
       );
 

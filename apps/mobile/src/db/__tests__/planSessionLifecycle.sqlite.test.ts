@@ -78,6 +78,8 @@ type OutboxRow = {
 };
 
 const exerciseId = 'ex_bench_press_barbell';
+const rowingMachineId = 'ex_rowing_machine';
+const treadmillId = 'ex_treadmill_run';
 
 function count(sql: string, params: Array<string | number | null> = []): number {
   return query<CountRow>(sql, params)[0]?.n ?? 0;
@@ -184,6 +186,147 @@ describe('plan session lifecycle with SQLite', () => {
         sessionId,
       ]),
     ).toBe(MAX_EXERCISES_PER_SESSION);
+  });
+
+  it('starts a reused rowing plan with duration and distance prefilled', () => {
+    const planId = createWorkoutPlan({ name: 'Rowing Plan' });
+    const dayId = listDaysForWorkoutPlan(planId)[0]?.id;
+    if (!dayId) throw new Error('Expected a plan day.');
+    exec(
+      `
+      INSERT INTO program_day_exercise (
+        id,
+        program_day_id,
+        exercise_id,
+        position,
+        notes,
+        planned_cardio_duration_minutes,
+        planned_cardio_distance_km
+      ) VALUES ('pde-rowing', ?, ?, 1, NULL, 11, 11);
+    `,
+      [dayId, rowingMachineId],
+    );
+
+    const sessionId = createSessionFromPlanDay({ workoutPlanId: planId, dayId });
+
+    const cardio = query<{
+      cardio_duration_minutes: number | null;
+      cardio_distance_km: number | null;
+      cardio_speed_kph: number | null;
+      cardio_incline_percent: number | null;
+    }>(
+      `
+      SELECT
+        cardio_duration_minutes,
+        cardio_distance_km,
+        cardio_speed_kph,
+        cardio_incline_percent
+      FROM workout_session_exercise
+      WHERE workout_session_id = ? AND exercise_id = ?;
+    `,
+      [sessionId, rowingMachineId],
+    )[0];
+    expect(cardio).toEqual({
+      cardio_duration_minutes: 11,
+      cardio_distance_km: 11,
+      cardio_speed_kph: null,
+      cardio_incline_percent: null,
+    });
+    expect(
+      count(
+        `
+        SELECT COUNT(*) AS n
+        FROM workout_set ws
+        JOIN workout_session_exercise wse ON wse.id = ws.workout_session_exercise_id
+        WHERE wse.workout_session_id = ?;
+      `,
+        [sessionId],
+      ),
+    ).toBe(0);
+  });
+
+  it('starts a reused treadmill plan with duration distance speed and incline prefilled', () => {
+    const planId = createWorkoutPlan({ name: 'Treadmill Plan' });
+    const dayId = listDaysForWorkoutPlan(planId)[0]?.id;
+    if (!dayId) throw new Error('Expected a plan day.');
+    exec(
+      `
+      INSERT INTO program_day_exercise (
+        id,
+        program_day_id,
+        exercise_id,
+        position,
+        notes,
+        planned_cardio_duration_minutes,
+        planned_cardio_distance_km,
+        planned_cardio_speed_kph,
+        planned_cardio_incline_percent
+      ) VALUES ('pde-treadmill', ?, ?, 1, NULL, 11, 11, 11, 11);
+    `,
+      [dayId, treadmillId],
+    );
+
+    const sessionId = createSessionFromPlanDay({ workoutPlanId: planId, dayId });
+
+    const cardio = query<{
+      cardio_duration_minutes: number | null;
+      cardio_distance_km: number | null;
+      cardio_speed_kph: number | null;
+      cardio_incline_percent: number | null;
+    }>(
+      `
+      SELECT
+        cardio_duration_minutes,
+        cardio_distance_km,
+        cardio_speed_kph,
+        cardio_incline_percent
+      FROM workout_session_exercise
+      WHERE workout_session_id = ? AND exercise_id = ?;
+    `,
+      [sessionId, treadmillId],
+    )[0];
+    expect(cardio).toEqual({
+      cardio_duration_minutes: 11,
+      cardio_distance_km: 11,
+      cardio_speed_kph: 11,
+      cardio_incline_percent: 11,
+    });
+  });
+
+  it('starts existing cardio plans with null planned targets as empty cardio summaries', () => {
+    const planId = createWorkoutPlan({ name: 'Empty Cardio Plan' });
+    const dayId = listDaysForWorkoutPlan(planId)[0]?.id;
+    if (!dayId) throw new Error('Expected a plan day.');
+    exec(
+      `
+      INSERT INTO program_day_exercise (id, program_day_id, exercise_id, position, notes)
+      VALUES ('pde-empty-cardio', ?, ?, 1, NULL);
+    `,
+      [dayId, rowingMachineId],
+    );
+
+    const sessionId = createSessionFromPlanDay({ workoutPlanId: planId, dayId });
+
+    const cardio = query<{
+      cardio_duration_minutes: number | null;
+      cardio_distance_km: number | null;
+      cardio_pace_seconds_per_km: number | null;
+    }>(
+      `
+      SELECT
+        cardio_duration_minutes,
+        cardio_distance_km,
+        cardio_pace_seconds_per_km
+      FROM workout_session_exercise
+      WHERE workout_session_id = ? AND exercise_id = ?;
+    `,
+      [sessionId, rowingMachineId],
+    )[0];
+    expect(cardio).toEqual({
+      cardio_duration_minutes: null,
+      cardio_distance_km: null,
+      cardio_pace_seconds_per_km: null,
+    });
   });
 
   it('rejects 51 day exercises before creating a partial planned session', () => {

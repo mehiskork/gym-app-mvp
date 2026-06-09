@@ -47,7 +47,16 @@ type ReusableSessionRow = {
 type CopyableExerciseRow = {
   id: string;
   exercise_id: string;
+  exercise_type: 'strength' | 'cardio';
   position: number;
+  cardio_duration_minutes: number | null;
+  cardio_distance_km: number | null;
+  cardio_speed_kph: number | null;
+  cardio_incline_percent: number | null;
+  cardio_resistance_level: number | null;
+  cardio_pace_seconds_per_km: number | null;
+  cardio_floors: number | null;
+  cardio_stair_level: number | null;
 };
 
 type CopyableSetRow = {
@@ -298,23 +307,49 @@ function createReusablePlanSessionDay(input: {
   return dayId;
 }
 
-function listCopyableStrengthExercises(sessionId: string): CopyableExerciseRow[] {
+function listCopyableWorkoutExercises(sessionId: string): CopyableExerciseRow[] {
   return query<CopyableExerciseRow>(
     `
     SELECT
       wse.id,
       wse.exercise_id,
-      wse.position
+      wse.exercise_type,
+      wse.position,
+      wse.cardio_duration_minutes,
+      wse.cardio_distance_km,
+      wse.cardio_speed_kph,
+      wse.cardio_incline_percent,
+      wse.cardio_resistance_level,
+      wse.cardio_pace_seconds_per_km,
+      wse.cardio_floors,
+      wse.cardio_stair_level
     FROM workout_session_exercise wse
     WHERE wse.workout_session_id = ?
       AND wse.deleted_at IS NULL
-      AND wse.exercise_type = 'strength'
-      AND EXISTS (
-        SELECT 1
-        FROM workout_set ws
-        WHERE ws.workout_session_exercise_id = wse.id
-          AND ws.deleted_at IS NULL
-          AND ws.is_completed = 1
+      AND (
+        (
+          wse.exercise_type = 'strength'
+          AND EXISTS (
+            SELECT 1
+            FROM workout_set ws
+            WHERE ws.workout_session_exercise_id = wse.id
+              AND ws.deleted_at IS NULL
+              AND ws.is_completed = 1
+          )
+        )
+        OR (
+          wse.exercise_type = 'cardio'
+          AND (
+            wse.cardio_duration_minutes IS NOT NULL OR
+            wse.cardio_distance_km IS NOT NULL OR
+            wse.cardio_speed_kph IS NOT NULL OR
+            wse.cardio_incline_percent IS NOT NULL OR
+            wse.cardio_resistance_level IS NOT NULL OR
+            wse.cardio_pace_seconds_per_km IS NOT NULL OR
+            wse.cardio_floors IS NOT NULL OR
+            wse.cardio_stair_level IS NOT NULL
+          )
+        )
       )
     ORDER BY wse.position ASC;
   `,
@@ -344,12 +379,12 @@ function copyWorkoutExercisesIntoProgramDay(input: {
   sourceSessionId: string;
   programDayId: string;
 }): void {
-  const exercises = listCopyableStrengthExercises(input.sourceSessionId);
+  const exercises = listCopyableWorkoutExercises(input.sourceSessionId);
   const dayExerciseIds: string[] = [];
   const plannedSetIds: string[] = [];
 
   if (exercises.length === 0) {
-    throw new Error('No completed strength sets to reuse.');
+    throw new Error('No completed sets or cardio details to reuse.');
   }
 
   if (exercises.length > MAX_EXERCISES_PER_SESSION) {
@@ -361,12 +396,40 @@ function copyWorkoutExercisesIntoProgramDay(input: {
     const dayExerciseId = newId('day_ex');
     exec(
       `
-      INSERT INTO program_day_exercise (id, program_day_id, exercise_id, position, notes)
-      VALUES (?, ?, ?, ?, NULL);
+      INSERT INTO program_day_exercise (
+        id,
+        program_day_id,
+        exercise_id,
+        position,
+        notes,
+        planned_cardio_duration_minutes,
+        planned_cardio_distance_km,
+        planned_cardio_speed_kph,
+        planned_cardio_incline_percent,
+        planned_cardio_resistance_level,
+        planned_cardio_pace_seconds_per_km,
+        planned_cardio_floors,
+        planned_cardio_stair_level
+      ) VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?);
     `,
-      [dayExerciseId, input.programDayId, exercise.exercise_id, exerciseIndex + 1],
+      [
+        dayExerciseId,
+        input.programDayId,
+        exercise.exercise_id,
+        exerciseIndex + 1,
+        exercise.cardio_duration_minutes,
+        exercise.cardio_distance_km,
+        exercise.cardio_speed_kph,
+        exercise.cardio_incline_percent,
+        exercise.cardio_resistance_level,
+        exercise.cardio_pace_seconds_per_km,
+        exercise.cardio_floors,
+        exercise.cardio_stair_level,
+      ],
     );
     dayExerciseIds.push(dayExerciseId);
+
+    if (exercise.exercise_type !== 'strength') continue;
 
     const sets = listCompletedStrengthSets(exercise.id);
     for (let setIndex = 0; setIndex < sets.length; setIndex += 1) {
