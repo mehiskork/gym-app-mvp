@@ -58,6 +58,7 @@ import {
   getWorkoutPlanById,
   listDaysForWorkoutPlan,
   listWorkoutPlansWithSessionCounts,
+  saveCompletedQuickWorkoutAsPlan,
 } from '../workoutPlanRepo';
 import { completeSession, createSessionFromPlanDay } from '../workoutSessionRepo';
 import {
@@ -136,6 +137,79 @@ function readOutboxRows(): OutboxRow[] {
     FROM outbox_op
     ORDER BY created_at, id;
   `,
+  );
+}
+
+function readCardioSessionExercise(sessionId: string, exerciseId: string) {
+  return query<{
+    id: string;
+    cardio_duration_minutes: number | null;
+    cardio_distance_km: number | null;
+    cardio_speed_kph: number | null;
+    cardio_incline_percent: number | null;
+  }>(
+    `
+    SELECT
+      id,
+      cardio_duration_minutes,
+      cardio_distance_km,
+      cardio_speed_kph,
+      cardio_incline_percent
+    FROM workout_session_exercise
+    WHERE workout_session_id = ? AND exercise_id = ?;
+  `,
+    [sessionId, exerciseId],
+  )[0];
+}
+
+function seedCompletedCardioQuickWorkout(input: {
+  sessionId: string;
+  exerciseId: string;
+  exerciseName: string;
+  cardioProfile: string;
+  durationMinutes: number | null;
+  distanceKm: number | null;
+}) {
+  exec(
+    `
+    INSERT INTO workout_session (
+      id,
+      source_workout_plan_id,
+      source_program_day_id,
+      title,
+      status,
+      started_at,
+      ended_at
+    ) VALUES (?, NULL, NULL, 'Quick Workout', 'completed', '2026-01-03T10:00:00Z', '2026-01-03T11:00:00Z');
+  `,
+    [input.sessionId],
+  );
+
+  exec(
+    `
+    INSERT INTO workout_session_exercise (
+      id,
+      workout_session_id,
+      source_program_day_exercise_id,
+      exercise_id,
+      exercise_name,
+      exercise_type,
+      cardio_profile,
+      position,
+      notes,
+      cardio_duration_minutes,
+      cardio_distance_km
+    ) VALUES (?, ?, NULL, ?, ?, 'cardio', ?, 1, NULL, ?, ?);
+  `,
+    [
+      `${input.sessionId}-wse`,
+      input.sessionId,
+      input.exerciseId,
+      input.exerciseName,
+      input.cardioProfile,
+      input.durationMinutes,
+      input.distanceKm,
+    ],
   );
 }
 
@@ -243,6 +317,73 @@ describe('plan session lifecycle with SQLite', () => {
         [sessionId],
       ),
     ).toBe(0);
+  });
+
+  it('starts reused cardio quick workout plans from copied targets first, then latest actual values', async () => {
+    seedCompletedCardioQuickWorkout({
+      sessionId: 'quick-rowing',
+      exerciseId: rowingMachineId,
+      exerciseName: 'Rowing Machine',
+      cardioProfile: 'ergometer',
+      durationMinutes: 10,
+      distanceKm: 2,
+    });
+
+    const result = await saveCompletedQuickWorkoutAsPlan({
+      sessionId: 'quick-rowing',
+      target: { kind: 'newPlan', name: 'Rowing Reuse Plan' },
+    });
+
+    const firstPlannedSessionId = createSessionFromPlanDay({
+      workoutPlanId: result.workoutPlanId,
+      dayId: result.programDayId,
+    });
+    const firstCardio = readCardioSessionExercise(firstPlannedSessionId, rowingMachineId);
+    expect(firstCardio).toMatchObject({
+      cardio_duration_minutes: 10,
+      cardio_distance_km: 2,
+      cardio_speed_kph: null,
+      cardio_incline_percent: null,
+    });
+
+    exec(
+      `
+      UPDATE workout_session_exercise
+      SET cardio_duration_minutes = 12,
+          cardio_distance_km = 2.5
+      WHERE id = ?;
+    `,
+      [firstCardio.id],
+    );
+    completeSession(firstPlannedSessionId, null);
+
+    const secondPlannedSessionId = createSessionFromPlanDay({
+      workoutPlanId: result.workoutPlanId,
+      dayId: result.programDayId,
+    });
+    const secondCardio = readCardioSessionExercise(secondPlannedSessionId, rowingMachineId);
+    expect(secondCardio).toMatchObject({
+      cardio_duration_minutes: 12,
+      cardio_distance_km: 2.5,
+      cardio_speed_kph: null,
+      cardio_incline_percent: null,
+    });
+
+    const savedPlanTargets = query<{
+      planned_cardio_duration_minutes: number | null;
+      planned_cardio_distance_km: number | null;
+    }>(
+      `
+      SELECT planned_cardio_duration_minutes, planned_cardio_distance_km
+      FROM program_day_exercise
+      WHERE program_day_id = ? AND exercise_id = ?;
+    `,
+      [result.programDayId, rowingMachineId],
+    )[0];
+    expect(savedPlanTargets).toEqual({
+      planned_cardio_duration_minutes: 10,
+      planned_cardio_distance_km: 2,
+    });
   });
 
   it('starts a reused treadmill plan with duration distance speed and incline prefilled', () => {

@@ -524,11 +524,11 @@ function getHistoricalCompletedCardioForPlannedExercise(input: {
   );
 }
 
-function getPlannedOrHistoricalCardioValue(
+function getHistoricalOrPlannedCardioValue(
   plannedValue: number | null | undefined,
   historicalValue: number | null | undefined,
 ): number | null {
-  return plannedValue != null ? plannedValue : (historicalValue ?? null);
+  return historicalValue ?? plannedValue ?? null;
 }
 
 function enqueueWorkoutSessionSnapshot(sessionId: string, opType: 'upsert' | 'delete' = 'upsert') {
@@ -1097,32 +1097,32 @@ export function createSessionFromPlanDay(input: { workoutPlanId: string; dayId: 
           row.cardio_profile,
           row.position,
           row.plan_note_snapshot,
-          getPlannedOrHistoricalCardioValue(
+          getHistoricalOrPlannedCardioValue(
             row.planned_cardio_duration_minutes,
             historicalCardio?.duration_minutes,
           ),
-          getPlannedOrHistoricalCardioValue(
+          getHistoricalOrPlannedCardioValue(
             row.planned_cardio_distance_km,
             historicalCardio?.distance_km,
           ),
-          getPlannedOrHistoricalCardioValue(
+          getHistoricalOrPlannedCardioValue(
             row.planned_cardio_speed_kph,
             historicalCardio?.speed_kph,
           ),
-          getPlannedOrHistoricalCardioValue(
+          getHistoricalOrPlannedCardioValue(
             row.planned_cardio_incline_percent,
             historicalCardio?.incline_percent,
           ),
-          getPlannedOrHistoricalCardioValue(
+          getHistoricalOrPlannedCardioValue(
             row.planned_cardio_resistance_level,
             historicalCardio?.resistance_level,
           ),
-          getPlannedOrHistoricalCardioValue(
+          getHistoricalOrPlannedCardioValue(
             row.planned_cardio_pace_seconds_per_km,
             historicalCardio?.pace_seconds_per_km,
           ),
-          getPlannedOrHistoricalCardioValue(row.planned_cardio_floors, historicalCardio?.floors),
-          getPlannedOrHistoricalCardioValue(
+          getHistoricalOrPlannedCardioValue(row.planned_cardio_floors, historicalCardio?.floors),
+          getHistoricalOrPlannedCardioValue(
             row.planned_cardio_stair_level,
             historicalCardio?.stair_level,
           ),
