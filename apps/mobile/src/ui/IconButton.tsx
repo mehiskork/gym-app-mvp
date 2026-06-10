@@ -11,6 +11,7 @@ type IconButtonProps = {
   icon: ReactNode;
   onPress?: () => void;
   variant?: IconButtonVariant;
+  iconColor?: string;
   size?: number;
   accessibilityLabel: string;
   disabled?: boolean;
@@ -50,13 +51,16 @@ export function IconButton({
   hitSlop,
   testID,
   variant = 'default',
+  iconColor,
   size = tokens.touchTargetMin,
   accessibilityLabel,
   disabled = false,
 }: IconButtonProps) {
   const styles = variantStyles[variant];
   const iconNode = isValidElement(icon)
-    ? cloneElement(icon as React.ReactElement<{ color?: string }>, { color: styles.iconColor })
+    ? cloneElement(icon as React.ReactElement<{ color?: string }>, {
+        color: iconColor ?? styles.iconColor,
+      })
     : icon;
 
   return (

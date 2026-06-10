@@ -846,6 +846,173 @@ class SyncServiceIT {
     }
 
     @Test
+    void syncAcceptsBuiltInExerciseFavoriteWithoutExerciseState() {
+        String exerciseId = "ex_favorite_builtin_" + System.currentTimeMillis();
+        String favoriteId = "exfav_" + exerciseId;
+        SyncResponse response = syncService.sync(deviceId, guestUserId, "0", List.of(
+                upsertOp("op-favorite-built-in", "exercise_favorite", favoriteId, Map.of(
+                        "id", favoriteId,
+                        "exercise_id", exerciseId,
+                        "created_at", "2026-06-10T10:00:00Z",
+                        "updated_at", "2026-06-10T10:00:00Z",
+                        "version", 1,
+                        "unsupported_field", "stripped"))));
+
+        assertThat(response.getAcks()).extracting(SyncAck::status).containsExactly("applied");
+        assertThat(entityStatePayload("exercise_favorite", favoriteId))
+                .containsEntry("id", favoriteId)
+                .containsEntry("exercise_id", exerciseId)
+                .doesNotContainKey("unsupported_field");
+    }
+
+    @Test
+    void syncAcceptsExerciseFavoriteWithEncodedDeterministicId() {
+        String exerciseId = "ex_favorite_encoded " + System.currentTimeMillis() + "/1";
+        String favoriteId = "exfav_" + exerciseId.replace(" ", "%20").replace("/", "%2F");
+        SyncResponse response = syncService.sync(deviceId, guestUserId, "0", List.of(
+                upsertOp("op-favorite-encoded-id", "exercise_favorite", favoriteId, Map.of(
+                        "id", favoriteId,
+                        "exercise_id", exerciseId,
+                        "updated_at", "2026-06-10T10:00:00Z",
+                        "version", 1))));
+
+        assertThat(response.getAcks()).extracting(SyncAck::status).containsExactly("applied");
+        assertThat(entityStatePayload("exercise_favorite", favoriteId))
+                .containsEntry("id", favoriteId)
+                .containsEntry("exercise_id", exerciseId);
+    }
+
+    @Test
+    void syncRejectsExerciseFavoriteWithMismatchedDeterministicId() {
+        String exerciseId = "ex_favorite_mismatch_" + System.currentTimeMillis();
+        String favoriteId = "exfav_wrong_" + exerciseId;
+        SyncOp op = upsertOp("op-favorite-mismatched-id", "exercise_favorite", favoriteId, Map.of(
+                "id", favoriteId,
+                "exercise_id", exerciseId,
+                "updated_at", "2026-06-10T10:00:00Z"));
+
+        assertThatThrownBy(() -> syncService.sync(deviceId, guestUserId, "0", List.of(op)))
+                .isInstanceOf(ValidationException.class);
+
+        assertThat(countEntityStateRows(guestUserId, "exercise_favorite", favoriteId)).isZero();
+        assertThat(countOpLedgerRows(guestUserId, "op-favorite-mismatched-id")).isZero();
+    }
+
+    @Test
+    void syncPreventsDuplicateFavoriteIdsForSameExerciseByRejectingMismatchedId() {
+        String exerciseId = "ex_favorite_duplicate_" + System.currentTimeMillis();
+        String favoriteId = "exfav_" + exerciseId;
+        String duplicateFavoriteId = "exfav_duplicate_" + exerciseId;
+        SyncResponse createResponse = syncService.sync(deviceId, guestUserId, "0", List.of(
+                upsertOp("op-favorite-duplicate-create", "exercise_favorite", favoriteId, Map.of(
+                        "id", favoriteId,
+                        "exercise_id", exerciseId,
+                        "updated_at", "2026-06-10T10:00:00Z"))));
+        SyncOp duplicateOp = upsertOp("op-favorite-duplicate-mismatch", "exercise_favorite", duplicateFavoriteId,
+                Map.of(
+                        "id", duplicateFavoriteId,
+                        "exercise_id", exerciseId,
+                        "updated_at", "2026-06-10T10:01:00Z"));
+
+        assertThat(createResponse.getAcks()).extracting(SyncAck::status).containsExactly("applied");
+        assertThatThrownBy(() -> syncService.sync(deviceId, guestUserId, createResponse.getCursor(),
+                List.of(duplicateOp))).isInstanceOf(ValidationException.class);
+
+        assertThat(countEntityStateRows(guestUserId, "exercise_favorite", favoriteId)).isEqualTo(1);
+        assertThat(countEntityStateRows(guestUserId, "exercise_favorite", duplicateFavoriteId)).isZero();
+        assertThat(countOpLedgerRows(guestUserId, "op-favorite-duplicate-mismatch")).isZero();
+    }
+
+    @Test
+    void syncRequiresCustomExerciseFavoriteReferenceToExistOrApplyInSameRequest() {
+        String suffix = String.valueOf(System.currentTimeMillis());
+        String missingExerciseId = "ex_custom_missing_" + suffix;
+        String missingFavoriteId = "exfav_" + missingExerciseId;
+        String customExerciseId = "ex_custom_favorite_" + suffix;
+        String customFavoriteId = "exfav_" + customExerciseId;
+        SyncOp op = upsertOp("op-favorite-custom-missing", "exercise_favorite", missingFavoriteId, Map.of(
+                "id", missingFavoriteId,
+                "exercise_id", missingExerciseId,
+                "updated_at", "2026-06-10T10:00:00Z"));
+
+        assertThatThrownBy(() -> syncService.sync(deviceId, guestUserId, "0", List.of(op)))
+                .isInstanceOf(ValidationException.class);
+
+        assertThat(countEntityStateRows(guestUserId, "exercise_favorite", missingFavoriteId)).isZero();
+        assertThat(countOpLedgerRows(guestUserId, "op-favorite-custom-missing")).isZero();
+
+        SyncResponse response = syncService.sync(deviceId, guestUserId, "0", List.of(
+                upsertOp("op-custom-exercise-for-favorite", "exercise", customExerciseId, Map.of(
+                        "id", customExerciseId,
+                        "name", "Custom Favorite",
+                        "is_custom", 1,
+                        "updated_at", "2026-06-10T10:00:00Z")),
+                upsertOp("op-custom-favorite", "exercise_favorite", customFavoriteId, Map.of(
+                        "id", customFavoriteId,
+                        "exercise_id", customExerciseId,
+                        "updated_at", "2026-06-10T10:01:00Z"))));
+
+        assertThat(response.getAcks()).extracting(SyncAck::status)
+                .containsExactly("applied", "applied");
+        assertThat(countEntityStateRows(guestUserId, "exercise_favorite", customFavoriteId)).isEqualTo(1);
+    }
+
+    @Test
+    void syncBlocksCrossOwnerExerciseFavoriteMutation() {
+        String otherGuestUserId = "guest-favorite-owner-" + System.currentTimeMillis();
+        String exerciseId = "ex_favorite_foreign_" + System.currentTimeMillis();
+        String favoriteId = "exfav_" + exerciseId;
+        syncRepository.upsertEntityState(otherGuestUserId, "exercise_favorite", favoriteId,
+                Map.of(
+                        "id", favoriteId,
+                        "exercise_id", exerciseId,
+                        "updated_at", "2026-06-10T10:00:00Z"),
+                Instant.now());
+
+        SyncOp op = upsertOp("op-favorite-foreign-owner", "exercise_favorite", favoriteId,
+                Map.of(
+                        "id", favoriteId,
+                        "exercise_id", exerciseId,
+                        "updated_at", "2026-06-10T10:01:00Z"));
+
+        assertThatThrownBy(() -> syncService.sync(deviceId, guestUserId, "0", List.of(op)))
+                .isInstanceOf(ForbiddenException.class);
+
+        assertThat(countEntityStateRows(guestUserId, "exercise_favorite", favoriteId)).isZero();
+        assertThat(countOpLedgerRows(guestUserId, "op-favorite-foreign-owner")).isZero();
+    }
+
+    @Test
+    void syncAppliesExerciseFavoriteDeleteTombstone() {
+        String exerciseId = "ex_favorite_delete_" + System.currentTimeMillis();
+        String favoriteId = "exfav_" + exerciseId;
+        SyncResponse createResponse = syncService.sync(deviceId, guestUserId, "0", List.of(
+                upsertOp("op-favorite-create", "exercise_favorite", favoriteId, Map.of(
+                        "id", favoriteId,
+                        "exercise_id", exerciseId,
+                        "updated_at", "2026-06-10T10:00:00Z"))));
+        SyncResponse deleteResponse = syncService.sync(deviceId, guestUserId, createResponse.getCursor(), List.of(
+                new SyncOp(
+                        "op-favorite-delete",
+                        "exercise_favorite",
+                        favoriteId,
+                        "delete",
+                        Map.of(
+                                "id", favoriteId,
+                                "exercise_id", exerciseId,
+                                "deleted_at", "2026-06-10T10:01:00Z",
+                                "updated_at", "2026-06-10T10:01:00Z"),
+                        null)));
+
+        assertThat(deleteResponse.getAcks()).extracting(SyncAck::status).containsExactly("applied");
+        assertThat(entityStatePayload("exercise_favorite", favoriteId))
+                .containsEntry("deleted_at", "2026-06-10T10:01:00Z");
+        assertThat(syncService.sync(deviceId, guestUserId, "0", List.of()).getDeltas())
+                .extracting(SyncDelta::entityId)
+                .doesNotContain(favoriteId);
+    }
+
+    @Test
     void syncSkipsParentValidationForDeleteOpsAndTombstonePayloads() {
         SyncResponse deleteResponse = syncService.sync(deviceId, guestUserId, "0", List.of(new SyncOp(
                 "op-delete-missing-parent",
@@ -1480,6 +1647,64 @@ class SyncServiceIT {
                         "day-1",
                         "ex_custom_owned",
                         "day-exercise-custom-owned");
+    }
+
+    @Test
+    void freshSnapshotRestoresExerciseFavoritesWithValidExerciseReferences() {
+        Instant now = Instant.now();
+        String suffix = String.valueOf(System.currentTimeMillis());
+        String builtInExerciseId = "ex_favorite_snapshot_" + suffix;
+        String builtInFavoriteId = "exfav_" + builtInExerciseId;
+        String customExerciseId = "ex_custom_owned_" + suffix;
+        String customFavoriteId = "exfav_" + customExerciseId;
+        upsertEntityStateAndChangeLog("exercise_favorite", builtInFavoriteId, Map.of(
+                "id", builtInFavoriteId,
+                "exercise_id", builtInExerciseId,
+                "updated_at", "2026-06-10T10:00:00Z"), now);
+        upsertEntityStateAndChangeLog("exercise", customExerciseId, Map.of(
+                "id", customExerciseId,
+                "name", "Custom Lift",
+                "is_custom", 1), now);
+        upsertEntityStateAndChangeLog("exercise_favorite", customFavoriteId, Map.of(
+                "id", customFavoriteId,
+                "exercise_id", customExerciseId,
+                "updated_at", "2026-06-10T10:01:00Z"), now);
+
+        SyncResponse response = syncService.sync(deviceId, guestUserId, "0", List.of());
+
+        assertThat(response.getDeltas())
+                .extracting(SyncDelta::entityId)
+                .containsExactly(
+                        customExerciseId,
+                        customFavoriteId,
+                        builtInFavoriteId);
+    }
+
+    @Test
+    void freshSnapshotOmitsCustomExerciseFavoriteWhenExerciseStateIsMissingOrTombstoned() {
+        Instant now = Instant.now();
+        String suffix = String.valueOf(System.currentTimeMillis());
+        String deletedExerciseId = "ex_custom_deleted_" + suffix;
+        String missingExerciseId = "ex_custom_missing_" + suffix;
+        upsertEntityStateAndChangeLog("exercise", deletedExerciseId, Map.of(
+                "id", deletedExerciseId,
+                "name", "Deleted Custom Lift",
+                "is_custom", 1,
+                "deleted_at", "2026-06-10T10:00:00Z"), now);
+        upsertEntityStateAndChangeLog("exercise_favorite", "exfav_" + missingExerciseId, Map.of(
+                "id", "exfav_" + missingExerciseId,
+                "exercise_id", missingExerciseId,
+                "updated_at", "2026-06-10T10:01:00Z"), now);
+        upsertEntityStateAndChangeLog("exercise_favorite", "exfav_" + deletedExerciseId, Map.of(
+                "id", "exfav_" + deletedExerciseId,
+                "exercise_id", deletedExerciseId,
+                "updated_at", "2026-06-10T10:02:00Z"), now);
+
+        SyncResponse response = syncService.sync(deviceId, guestUserId, "0", List.of());
+
+        assertThat(response.getDeltas())
+                .extracting(SyncDelta::entityId)
+                .isEmpty();
     }
 
     @Test

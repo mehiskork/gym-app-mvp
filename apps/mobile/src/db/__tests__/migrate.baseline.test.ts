@@ -2,6 +2,7 @@ import { migration001_private_beta_baseline } from '../migrations/001_private_be
 import { migration002_workout_exercise_plan_note_snapshot } from '../migrations/002_workout_exercise_plan_note_snapshot';
 import { migration003_program_day_exercise_planned_cardio_targets } from '../migrations/003_program_day_exercise_planned_cardio_targets';
 import { migration004_workout_session_initial_snapshot } from '../migrations/004_workout_session_initial_snapshot';
+import { migration005_exercise_favorites } from '../migrations/005_exercise_favorites';
 import { migrations } from '../migrations';
 
 const baselineSql = migration001_private_beta_baseline.up;
@@ -56,6 +57,17 @@ describe('private beta SQLite baseline migration', () => {
       'snapshot_json TEXT NOT NULL',
     );
     expect(migrations[3]).toBe(migration004_workout_session_initial_snapshot);
+  });
+
+  it('adds synced exercise favorites in migration 5', () => {
+    expect(migration005_exercise_favorites.id).toBe(5);
+    expect(migration005_exercise_favorites.up).toContain(
+      'CREATE TABLE IF NOT EXISTS exercise_favorite',
+    );
+    expect(migration005_exercise_favorites.up).toContain('UNIQUE(exercise_id)');
+    expect(migration005_exercise_favorites.up).toContain('idx_exercise_favorite_exercise_id');
+    expect(migration005_exercise_favorites.up).toContain('idx_exercise_favorite_deleted_at');
+    expect(migrations[4]).toBe(migration005_exercise_favorites);
   });
 
   it('creates every expected final table', () => {

@@ -52,4 +52,19 @@ describe('IconButton', () => {
 
     expect(element.props.children.props.color).toBe(tokens.colors.destructive);
   });
+
+  it('allows an explicit icon color override', () => {
+    const element = IconButton({
+      onPress: jest.fn(),
+      accessibilityLabel: 'Favorite item',
+      iconColor: '#f58a2a',
+      icon: React.createElement('Ionicons', {
+        name: 'star',
+        size: 20,
+        color: '#ffffff',
+      }),
+    });
+
+    expect(element.props.children.props.color).toBe('#f58a2a');
+  });
 });

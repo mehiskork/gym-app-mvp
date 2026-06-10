@@ -128,6 +128,22 @@ const tableConfigs: Record<string, TableConfig> = {
     hasVersion: true,
     order: 40,
   },
+  exercise_favorite: {
+    tableName: 'exercise_favorite',
+    primaryKey: 'id',
+    columns: [
+      'id',
+      'exercise_id',
+      'created_at',
+      'updated_at',
+      'deleted_at',
+      'version',
+      'last_modified_by_device_id',
+    ],
+    hasDeletedAt: true,
+    hasVersion: true,
+    order: 45,
+  },
   program_day_exercise: {
     tableName: 'program_day_exercise',
     primaryKey: 'id',

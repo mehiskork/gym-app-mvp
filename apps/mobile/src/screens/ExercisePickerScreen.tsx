@@ -9,7 +9,9 @@ import type { RootStackParamList } from '../navigation/types';
 import { Button, IconButton, Input, Screen, Snackbar, Text } from '../ui';
 import { tokens } from '../theme/tokens';
 import { listSelectableExercisesForCurrentUser, type ExerciseRow } from '../db/exerciseRepo';
+import { toggleExerciseFavorite } from '../db/exerciseFavoriteRepo';
 import { EXERCISE_TYPE, type ExerciseType } from '../db/exerciseTypes';
+import { useAppTheme } from '../theme/theme';
 import {
   filterExercises,
   type ExerciseSourceFilter,
@@ -41,6 +43,7 @@ export function ExercisePickerScreen({ route, navigation }: Props) {
   const [sourceFilter, setSourceFilter] = useState<ExerciseSourceFilter>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const insets = useSafeAreaInsets();
+  const { colors } = useAppTheme();
 
   const load = useCallback(() => {
     setAll(listSelectableExercisesForCurrentUser());
@@ -141,6 +144,7 @@ export function ExercisePickerScreen({ route, navigation }: Props) {
                 borderRadius: tokens.radius.md,
                 borderWidth: 1,
                 borderColor: tokens.colors.border,
+                minHeight: tokens.touchTargetMin + tokens.spacing.md * 2,
               }}
             >
               <Pressable
@@ -200,17 +204,36 @@ export function ExercisePickerScreen({ route, navigation }: Props) {
                     );
                   }
                 }}
-                style={({ pressed }) => [{ flex: 1 }, pressed ? { opacity: 0.85 } : null]}
+                style={({ pressed }) => [
+                  { flex: 1, minWidth: 0 },
+                  pressed ? { opacity: 0.85 } : null,
+                ]}
                 accessibilityLabel={`${isBrowseOnly ? 'View details for' : 'Select'} ${item.name}`}
               >
                 <Text variant="subtitle">{item.name}</Text>
               </Pressable>
 
-              <IconButton
-                onPress={() => navigation.navigate('ExerciseDetail', { exerciseId: item.id })}
-                accessibilityLabel={`Open details for ${item.name}`}
-                icon={<Ionicons name="information-circle-outline" size={20} />}
-              />
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.xs }}>
+                <IconButton
+                  onPress={() => {
+                    toggleExerciseFavorite(item.id);
+                    load();
+                  }}
+                  accessibilityLabel={
+                    item.is_favorite === 1 ? 'Remove from favorites' : 'Add to favorites'
+                  }
+                  icon={
+                    <Ionicons name={item.is_favorite === 1 ? 'star' : 'star-outline'} size={20} />
+                  }
+                  iconColor={item.is_favorite === 1 ? colors.primary : tokens.colors.mutedText}
+                />
+
+                <IconButton
+                  onPress={() => navigation.navigate('ExerciseDetail', { exerciseId: item.id })}
+                  accessibilityLabel={`Open details for ${item.name}`}
+                  icon={<Ionicons name="information-circle-outline" size={20} />}
+                />
+              </View>
             </View>
           )}
           ListEmptyComponent={

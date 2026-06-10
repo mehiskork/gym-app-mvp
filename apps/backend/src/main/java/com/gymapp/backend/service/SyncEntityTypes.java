@@ -9,6 +9,7 @@ public final class SyncEntityTypes {
             "program_week",
             "program_day",
             "exercise",
+            "exercise_favorite",
             "program_day_exercise",
             "planned_set",
             "workout_session",

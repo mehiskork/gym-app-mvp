@@ -660,6 +660,20 @@ public class SyncRepository {
                                                         SELECT * FROM active_state
                                                         WHERE entity_type = 'exercise'
                                                 ),
+                                                snapshot_exercise_favorite AS (
+                                                        SELECT favorite.*
+                                                        FROM active_state favorite
+                                                        LEFT JOIN snapshot_exercise exercise
+                                                          ON exercise.entity_id = favorite.row_json ->> 'exercise_id'
+                                                        WHERE favorite.entity_type = 'exercise_favorite'
+                                                          AND (
+                                                            exercise.entity_id IS NOT NULL
+                                                            OR (
+                                                              LEFT(COALESCE(favorite.row_json ->> 'exercise_id', ''), 3) = 'ex_'
+                                                              AND LEFT(COALESCE(favorite.row_json ->> 'exercise_id', ''), 10) <> 'ex_custom_'
+                                                            )
+                                                          )
+                                                ),
                                                 snapshot_program_day_exercise AS (
                                                         SELECT day_exercise.*
                                                         FROM active_state day_exercise
@@ -706,6 +720,7 @@ public class SyncRepository {
                                                         UNION ALL SELECT * FROM snapshot_program_week
                                                         UNION ALL SELECT * FROM snapshot_program_day
                                                         UNION ALL SELECT * FROM snapshot_exercise
+                                                        UNION ALL SELECT * FROM snapshot_exercise_favorite
                                                         UNION ALL SELECT * FROM snapshot_program_day_exercise
                                                         UNION ALL SELECT * FROM snapshot_planned_set
                                                         UNION ALL SELECT * FROM snapshot_workout_session
@@ -825,6 +840,20 @@ public class SyncRepository {
                                                         SELECT * FROM active_state
                                                         WHERE entity_type = 'exercise'
                                                 ),
+                                                snapshot_exercise_favorite AS (
+                                                        SELECT favorite.*
+                                                        FROM active_state favorite
+                                                        LEFT JOIN snapshot_exercise exercise
+                                                          ON exercise.entity_id = favorite.row_json ->> 'exercise_id'
+                                                        WHERE favorite.entity_type = 'exercise_favorite'
+                                                          AND (
+                                                            exercise.entity_id IS NOT NULL
+                                                            OR (
+                                                              LEFT(COALESCE(favorite.row_json ->> 'exercise_id', ''), 3) = 'ex_'
+                                                              AND LEFT(COALESCE(favorite.row_json ->> 'exercise_id', ''), 10) <> 'ex_custom_'
+                                                            )
+                                                          )
+                                                ),
                                                 snapshot_program_day_exercise AS (
                                                         SELECT day_exercise.*
                                                         FROM active_state day_exercise
@@ -871,6 +900,7 @@ public class SyncRepository {
                                                         UNION ALL SELECT * FROM snapshot_program_week
                                                         UNION ALL SELECT * FROM snapshot_program_day
                                                         UNION ALL SELECT * FROM snapshot_exercise
+                                                        UNION ALL SELECT * FROM snapshot_exercise_favorite
                                                         UNION ALL SELECT * FROM snapshot_program_day_exercise
                                                         UNION ALL SELECT * FROM snapshot_planned_set
                                                         UNION ALL SELECT * FROM snapshot_workout_session

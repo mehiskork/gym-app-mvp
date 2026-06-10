@@ -58,6 +58,7 @@ jest.mock('@react-navigation/native', () => ({
 }));
 
 jest.mock('../../db/exerciseRepo', () => ({ listSelectableExercisesForCurrentUser: jest.fn() }));
+jest.mock('../../db/exerciseFavoriteRepo', () => ({ toggleExerciseFavorite: jest.fn() }));
 jest.mock('../../db/dayExerciseRepo', () => ({ addExerciseToDay: jest.fn() }));
 jest.mock('../../db/workoutLoggerRepo', () => ({
   appendWorkoutSessionExercise: jest.fn(),
@@ -66,13 +67,21 @@ jest.mock('../../db/workoutLoggerRepo', () => ({
 jest.mock('../../db/workoutSessionRepo', () => ({
   createQuickWorkoutSessionWithExercise: jest.fn(),
 }));
+jest.mock('../../theme/theme', () => ({
+  useAppTheme: () => ({
+    colors: {
+      primary: '#f58a2a',
+    },
+  }),
+}));
 
 import React from 'react';
 import { FlatList, Pressable } from 'react-native';
 import { CommonActions } from '@react-navigation/native';
 import { ExercisePickerScreen } from '../ExercisePickerScreen';
-import { Button } from '../../ui';
+import { Button, IconButton } from '../../ui';
 import { listSelectableExercisesForCurrentUser } from '../../db/exerciseRepo';
+import { toggleExerciseFavorite } from '../../db/exerciseFavoriteRepo';
 import {
   appendWorkoutSessionExercise,
   swapWorkoutSessionExercise,
@@ -106,9 +115,10 @@ describe('ExercisePickerScreen swap mode', () => {
     (swapWorkoutSessionExercise as jest.Mock).mockReset();
     (appendWorkoutSessionExercise as jest.Mock).mockReset();
     (createQuickWorkoutSessionWithExercise as jest.Mock).mockReset();
+    (toggleExerciseFavorite as jest.Mock).mockReset();
     (CommonActions.reset as jest.Mock).mockClear();
     (listSelectableExercisesForCurrentUser as jest.Mock).mockReturnValue([
-      { id: 'ex-2', name: 'Incline Bench', is_custom: 1 },
+      { id: 'ex-2', name: 'Incline Bench', is_custom: 1, is_favorite: 0 },
     ]);
   });
 
@@ -291,5 +301,95 @@ describe('ExercisePickerScreen swap mode', () => {
     });
     expect(navigation.goBack).not.toHaveBeenCalled();
     expect(appendWorkoutSessionExercise).not.toHaveBeenCalled();
+  });
+
+  it('toggles favorite from the star without selecting the exercise', () => {
+    const setAll = jest.fn();
+    useStateMock.mockImplementationOnce(() => ['', jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [
+      [{ id: 'ex-2', name: 'Incline Bench', is_custom: 1, is_favorite: 0 }],
+      setAll,
+    ]);
+    useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+
+    const navigation = { dispatch: jest.fn(), goBack: jest.fn(), navigate: jest.fn() };
+    const element = ExercisePickerScreen({
+      navigation,
+      route: {
+        key: 'ExercisePicker',
+        name: 'ExercisePicker',
+        params: { quickWorkoutDraft: true },
+      },
+    } as never);
+
+    const lists = findByType(element, FlatList) as Array<
+      React.ReactElement<{
+        renderItem?: (input: {
+          item: { id: string; name: string; is_custom: number; is_favorite: number };
+        }) => React.ReactNode;
+      }>
+    >;
+    const renderItem = lists[0]?.props.renderItem;
+    const row = renderItem?.({
+      item: { id: 'ex-2', name: 'Incline Bench', is_custom: 1, is_favorite: 0 },
+    });
+    const iconButtons = findByType(row, IconButton) as Array<
+      React.ReactElement<{ accessibilityLabel?: string; onPress?: () => void }>
+    >;
+    const star = iconButtons.find(
+      (iconButton) => iconButton.props.accessibilityLabel === 'Add to favorites',
+    );
+    star?.props.onPress?.();
+
+    expect(toggleExerciseFavorite).toHaveBeenCalledWith('ex-2');
+    expect(createQuickWorkoutSessionWithExercise).not.toHaveBeenCalled();
+    expect(navigation.dispatch).not.toHaveBeenCalled();
+    expect(navigation.goBack).not.toHaveBeenCalled();
+  });
+
+  it('opens details from the info icon without selecting the exercise', () => {
+    useStateMock.mockImplementationOnce(() => ['', jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [
+      [{ id: 'ex-2', name: 'Incline Bench', is_custom: 1, is_favorite: 0 }],
+      jest.fn(),
+    ]);
+    useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+
+    const navigation = { dispatch: jest.fn(), goBack: jest.fn(), navigate: jest.fn() };
+    const element = ExercisePickerScreen({
+      navigation,
+      route: {
+        key: 'ExercisePicker',
+        name: 'ExercisePicker',
+        params: { quickWorkoutDraft: true },
+      },
+    } as never);
+
+    const lists = findByType(element, FlatList) as Array<
+      React.ReactElement<{
+        renderItem?: (input: {
+          item: { id: string; name: string; is_custom: number; is_favorite: number };
+        }) => React.ReactNode;
+      }>
+    >;
+    const renderItem = lists[0]?.props.renderItem;
+    const row = renderItem?.({
+      item: { id: 'ex-2', name: 'Incline Bench', is_custom: 1, is_favorite: 0 },
+    });
+    const iconButtons = findByType(row, IconButton) as Array<
+      React.ReactElement<{ accessibilityLabel?: string; onPress?: () => void }>
+    >;
+    const info = iconButtons.find(
+      (iconButton) => iconButton.props.accessibilityLabel === 'Open details for Incline Bench',
+    );
+    info?.props.onPress?.();
+
+    expect(navigation.navigate).toHaveBeenCalledWith('ExerciseDetail', { exerciseId: 'ex-2' });
+    expect(createQuickWorkoutSessionWithExercise).not.toHaveBeenCalled();
+    expect(navigation.dispatch).not.toHaveBeenCalled();
+    expect(navigation.goBack).not.toHaveBeenCalled();
+    expect(toggleExerciseFavorite).not.toHaveBeenCalled();
   });
 });

@@ -54,6 +54,7 @@ public class SyncService {
         private static final Map<String, List<ParentReference>> REQUIRED_PARENT_REFERENCES = Map.of(
                         "program_week", List.of(new ParentReference("program_id", "program", false)),
                         "program_day", List.of(new ParentReference("program_week_id", "program_week", false)),
+                        "exercise_favorite", List.of(new ParentReference("exercise_id", "exercise", true)),
                         "program_day_exercise", List.of(
                                         new ParentReference("program_day_id", "program_day", false),
                                         new ParentReference("exercise_id", "exercise", true)),
@@ -79,6 +80,9 @@ public class SyncService {
                                         "id", "name", "normalized_name", "is_custom", "owner_user_id",
                                         "equipment", "primary_muscle", "notes", "exercise_type",
                                         "cardio_profile", "created_at", "updated_at", "deleted_at",
+                                        "version", "last_modified_by_device_id"),
+                        "exercise_favorite", Set.of(
+                                        "id", "exercise_id", "created_at", "updated_at", "deleted_at",
                                         "version", "last_modified_by_device_id"),
                         "program_day_exercise", Set.of(
                                         "id", "program_day_id", "exercise_id", "position", "notes",
@@ -482,6 +486,41 @@ public class SyncService {
         private boolean isBuiltInExerciseReference(String id) {
                 // Seeded catalog exercise ids are shared constants, while ex_custom_* is owner data.
                 return id != null && id.startsWith("ex_") && !id.startsWith("ex_custom_");
+        }
+
+        private String exerciseFavoriteIdForExercise(String exerciseId) {
+                StringBuilder encoded = new StringBuilder();
+                exerciseId.codePoints().forEach(codePoint -> {
+                        if (isEncodeURIComponentAllowed(codePoint)) {
+                                encoded.appendCodePoint(codePoint);
+                                return;
+                        }
+                        byte[] bytes = new String(Character.toChars(codePoint)).getBytes(StandardCharsets.UTF_8);
+                        for (byte b : bytes) {
+                                encoded.append('%');
+                                String hex = Integer.toHexString(b & 0xff).toUpperCase();
+                                if (hex.length() == 1) {
+                                        encoded.append('0');
+                                }
+                                encoded.append(hex);
+                        }
+                });
+                return "exfav_" + encoded;
+        }
+
+        private boolean isEncodeURIComponentAllowed(int codePoint) {
+                return (codePoint >= 'A' && codePoint <= 'Z')
+                                || (codePoint >= 'a' && codePoint <= 'z')
+                                || (codePoint >= '0' && codePoint <= '9')
+                                || codePoint == '-'
+                                || codePoint == '_'
+                                || codePoint == '.'
+                                || codePoint == '!'
+                                || codePoint == '~'
+                                || codePoint == '*'
+                                || codePoint == '\''
+                                || codePoint == '('
+                                || codePoint == ')';
         }
 
         private int entityTypeOrder(String entityType) {
@@ -1174,6 +1213,7 @@ public class SyncService {
                         validateDeletePayload(canonicalOp);
                 } else {
                         validateUpsertPayload(canonicalOp);
+                        validateExerciseFavoriteId(canonicalOp);
                 }
                 return canonicalOp;
         }
@@ -1338,6 +1378,25 @@ public class SyncService {
                                         "Invalid sync operation",
                                         buildDetails(op, "deleted_at",
                                                         "deleted_at must be an ISO-8601 or SQLite timestamp"));
+                }
+        }
+
+        private void validateExerciseFavoriteId(SyncOp op) {
+                if (!"exercise_favorite".equals(op.entityType()) || hasTombstone(op.payload())) {
+                        return;
+                }
+
+                String exerciseId = getText(op.payload(), "exercise_id");
+                if (exerciseId == null) {
+                        return;
+                }
+
+                String expectedId = exerciseFavoriteIdForExercise(exerciseId);
+                if (!expectedId.equals(op.entityId())) {
+                        throw new ValidationException(
+                                        "Invalid sync operation",
+                                        buildDetails(op, "entity_id",
+                                                        "exercise_favorite id must match exercise_id"));
                 }
         }
 

@@ -14,6 +14,7 @@ export type ExerciseRow = {
   owner_user_id: string | null;
   exercise_type: ExerciseType;
   cardio_profile: CardioProfile | null;
+  is_favorite: number;
 };
 
 function normalizeName(name: string) {
@@ -48,14 +49,25 @@ function enqueueExerciseSnapshot(exerciseId: string, opType: 'upsert' | 'delete'
 export function listExercises(ownerUserId: string): ExerciseRow[] {
   return query<ExerciseRow>(
     `
-    SELECT id, name, normalized_name, is_custom, owner_user_id, exercise_type, cardio_profile
+    SELECT
+      exercise.id,
+      exercise.name,
+      exercise.normalized_name,
+      exercise.is_custom,
+      exercise.owner_user_id,
+      exercise.exercise_type,
+      exercise.cardio_profile,
+      CASE WHEN ef.id IS NULL THEN 0 ELSE 1 END AS is_favorite
     FROM exercise
-    WHERE deleted_at IS NULL
+    LEFT JOIN exercise_favorite ef
+      ON ef.exercise_id = exercise.id
+     AND ef.deleted_at IS NULL
+    WHERE exercise.deleted_at IS NULL
       AND (
-        is_custom = 0
-        OR owner_user_id = ?
+        exercise.is_custom = 0
+        OR exercise.owner_user_id = ?
       )
-    ORDER BY is_custom ASC, name ASC;
+    ORDER BY exercise.is_custom ASC, exercise.name ASC;
   `,
     [ownerUserId],
   );

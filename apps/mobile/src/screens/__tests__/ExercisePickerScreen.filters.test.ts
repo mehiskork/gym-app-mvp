@@ -18,6 +18,7 @@ function exercise(input: {
     owner_user_id: input.ownerUserId ?? (input.isCustom ? 'u1' : null),
     exercise_type: input.type ?? EXERCISE_TYPE.STRENGTH,
     cardio_profile: input.cardioProfile ?? null,
+    is_favorite: 0,
   };
 }
 
@@ -30,6 +31,7 @@ const fixtures: ExerciseRow[] = [
     owner_user_id: null,
     exercise_type: EXERCISE_TYPE.STRENGTH,
     cardio_profile: null,
+    is_favorite: 0,
   },
   {
     id: 'ex-2',
@@ -39,6 +41,7 @@ const fixtures: ExerciseRow[] = [
     owner_user_id: 'u1',
     exercise_type: EXERCISE_TYPE.STRENGTH,
     cardio_profile: null,
+    is_favorite: 0,
   },
   {
     id: 'ex-3',
@@ -48,6 +51,7 @@ const fixtures: ExerciseRow[] = [
     owner_user_id: null,
     exercise_type: EXERCISE_TYPE.CARDIO,
     cardio_profile: 'treadmill',
+    is_favorite: 0,
   },
   {
     id: 'ex-4',
@@ -57,6 +61,7 @@ const fixtures: ExerciseRow[] = [
     owner_user_id: 'u1',
     exercise_type: EXERCISE_TYPE.CARDIO,
     cardio_profile: 'bike',
+    is_favorite: 0,
   },
 ];
 
@@ -129,6 +134,39 @@ describe('ExercisePickerScreen filters', () => {
   it('keeps empty query ordering while applying filters', () => {
     const result = filterExercises(searchFixtures, '', null, null);
     expect(result.map((x) => x.id)).toEqual(searchFixtures.map((x) => x.id));
+  });
+
+  it('sorts favorites first for empty query while preserving order inside groups', () => {
+    const rows = [
+      exercise({ id: 'ex-a', name: 'A' }),
+      { ...exercise({ id: 'ex-b', name: 'B' }), is_favorite: 1 },
+      exercise({ id: 'ex-c', name: 'C' }),
+      { ...exercise({ id: 'ex-d', name: 'D' }), is_favorite: 1 },
+    ];
+
+    expect(filterExercises(rows, '', null, null).map((x) => x.id)).toEqual([
+      'ex-b',
+      'ex-d',
+      'ex-a',
+      'ex-c',
+    ]);
+  });
+
+  it('promotes favorites only within equal search scores', () => {
+    const rows = [
+      {
+        ...exercise({ id: 'ex-custom-exact', name: 'Garage Press', isCustom: true }),
+        is_favorite: 0,
+      },
+      { ...exercise({ id: 'ex-favorite-prefix', name: 'Garage Press Machine' }), is_favorite: 1 },
+      { ...exercise({ id: 'ex-favorite-exact', name: 'Garage Press' }), is_favorite: 1 },
+    ];
+
+    expect(filterExercises(rows, 'garage press', null, null).map((x) => x.id)).toEqual([
+      'ex-favorite-exact',
+      'ex-custom-exact',
+      'ex-favorite-prefix',
+    ]);
   });
 
   it('finds overhead press entries by OHP alias', () => {

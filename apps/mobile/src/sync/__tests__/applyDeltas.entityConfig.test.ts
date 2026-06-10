@@ -17,6 +17,7 @@ describe('sync apply entity inventory', () => {
     'program_week',
     'program_day',
     'exercise',
+    'exercise_favorite',
     'program_day_exercise',
     'planned_set',
     'workout_session',
@@ -96,6 +97,33 @@ describe('sync apply entity inventory', () => {
       'sync',
       'Skipped delta with unknown entity type',
       expect.objectContaining({ entityType: 'app_meta', entityId: 'claimed_user_id' }),
+    );
+  });
+
+  it('upserts exercise_favorite deltas', () => {
+    (query as jest.Mock).mockReturnValue([]);
+
+    const result = applyDeltas([
+      {
+        entityType: 'exercise_favorite',
+        entityId: 'exfav_ex_bench_press_barbell',
+        opType: 'upsert',
+        payload: {
+          id: 'exfav_ex_bench_press_barbell',
+          exercise_id: 'ex_bench_press_barbell',
+          created_at: '2026-06-10 10:00:00',
+          updated_at: '2026-06-10 10:00:00',
+          deleted_at: null,
+          version: 1,
+          last_modified_by_device_id: 'dev-1',
+        },
+      },
+    ]);
+
+    expect(result).toEqual({ applied: 1, skipped: 0, total: 1 });
+    expect(exec).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO exercise_favorite'),
+      expect.arrayContaining(['exfav_ex_bench_press_barbell', 'ex_bench_press_barbell']),
     );
   });
 });

@@ -171,7 +171,14 @@ export function filterExercises(
   });
 
   if (normalizedQuery.phrase.length === 0) {
-    return filtered;
+    return filtered
+      .map((exercise, index) => ({ exercise, index }))
+      .sort((a, b) => {
+        const favoriteCompare = (b.exercise.is_favorite ?? 0) - (a.exercise.is_favorite ?? 0);
+        if (favoriteCompare !== 0) return favoriteCompare;
+        return a.index - b.index;
+      })
+      .map((result) => result.exercise);
   }
 
   return filtered
@@ -185,6 +192,8 @@ export function filterExercises(
     })
     .sort((a, b) => {
       if (a.score !== b.score) return a.score - b.score;
+      const favoriteCompare = (b.exercise.is_favorite ?? 0) - (a.exercise.is_favorite ?? 0);
+      if (favoriteCompare !== 0) return favoriteCompare;
       if (a.exercise.is_custom !== b.exercise.is_custom) {
         return b.exercise.is_custom - a.exercise.is_custom;
       }
