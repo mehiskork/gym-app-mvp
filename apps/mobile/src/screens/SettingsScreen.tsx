@@ -54,6 +54,7 @@ import { getAccountDeletionUrl, getPrivacyPolicyUrl } from '../api/config';
 import { getInProgressSession } from '../db/workoutSessionRepo';
 import { isDebugScreenEnabled } from '../config/env';
 import { resumeSync } from '../db/appMetaRepo';
+import { exportWorkoutHistoryCsv } from '../features/export/workoutHistoryCsv';
 
 const REST_TIME_OPTIONS = [
   { label: '0:30', seconds: 30 },
@@ -145,7 +146,13 @@ export function SettingsScreen() {
   );
   const [unfinishedReminderMessage, setUnfinishedReminderMessage] = useState<string | null>(null);
   const [privacyPolicyLinkError, setPrivacyPolicyLinkError] = useState<string | null>(null);
+  const [isExportingWorkoutHistory, setIsExportingWorkoutHistory] = useState(false);
+  const [workoutHistoryExportFeedback, setWorkoutHistoryExportFeedback] = useState<{
+    message: string;
+    variant: 'info' | 'success' | 'error';
+  } | null>(null);
   const logoutConfirmInFlightRef = useRef(false);
+  const isExportingWorkoutHistoryRef = useRef(false);
 
   const refreshAccountState = useCallback(async () => {
     const state = await resolveLocalAccountState();
@@ -417,6 +424,46 @@ export function SettingsScreen() {
     }
   }, [accountBusy, deleteAccountConfirmText, refreshAccountState]);
 
+  const handleExportWorkoutHistoryCsv = useCallback(() => {
+    if (isExportingWorkoutHistoryRef.current) return;
+
+    isExportingWorkoutHistoryRef.current = true;
+    setIsExportingWorkoutHistory(true);
+    setWorkoutHistoryExportFeedback(null);
+
+    void (async () => {
+      try {
+        const result = await exportWorkoutHistoryCsv();
+
+        if (result.status === 'noData') {
+          setWorkoutHistoryExportFeedback({
+            message: 'No completed workouts to export yet.',
+            variant: 'info',
+          });
+          return;
+        }
+
+        if (result.status === 'sharingUnavailable') {
+          setWorkoutHistoryExportFeedback({
+            message: 'CSV was created, but sharing is not available on this device.',
+            variant: 'error',
+          });
+          return;
+        }
+
+        if (result.status === 'error') {
+          setWorkoutHistoryExportFeedback({
+            message: "Couldn't export workout history. Try again.",
+            variant: 'error',
+          });
+        }
+      } finally {
+        isExportingWorkoutHistoryRef.current = false;
+        setIsExportingWorkoutHistory(false);
+      }
+    })();
+  }, []);
+
   return (
     <Screen
       scroll
@@ -664,6 +711,36 @@ export function SettingsScreen() {
               loading={accountBusy}
             />
           </>
+        ) : null}
+      </View>
+
+      <View
+        style={{
+          backgroundColor: colors.surface,
+          borderColor: colors.border,
+          borderWidth: 1,
+          borderRadius: tokens.radius.lg,
+          padding: tokens.spacing.lg,
+        }}
+      >
+        <Text variant="subtitle" style={{ marginBottom: tokens.spacing.md }}>
+          Data
+        </Text>
+
+        <ListRow
+          title="Export workout history CSV"
+          showChevron={!isExportingWorkoutHistory}
+          variant="flat"
+          right={isExportingWorkoutHistory ? <Text variant="muted">Exporting...</Text> : undefined}
+          onPress={handleExportWorkoutHistoryCsv}
+        />
+        {workoutHistoryExportFeedback ? (
+          <Snackbar
+            visible
+            message={workoutHistoryExportFeedback.message}
+            variant={workoutHistoryExportFeedback.variant}
+            minHeight={44}
+          />
         ) : null}
       </View>
 

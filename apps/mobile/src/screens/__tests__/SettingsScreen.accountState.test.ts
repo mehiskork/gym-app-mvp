@@ -215,6 +215,16 @@ jest.mock('../../config/env', () => ({
   },
 }));
 
+jest.mock('../../features/export/workoutHistoryCsv', () => ({
+  exportWorkoutHistoryCsv: jest.fn(() =>
+    Promise.resolve({
+      status: 'shared',
+      path: 'file:///cache/trainframe-workout-history-2026-06-10.csv',
+      rowCount: 1,
+    }),
+  ),
+}));
+
 import React from 'react';
 import { Alert, Linking } from 'react-native';
 import * as Notifications from 'expo-notifications';
@@ -240,6 +250,7 @@ import {
 } from '../../utils/unfinishedWorkoutReminderNotifications';
 import { getInProgressSession } from '../../db/workoutSessionRepo';
 import { resumeSync } from '../../db/appMetaRepo';
+import { exportWorkoutHistoryCsv } from '../../features/export/workoutHistoryCsv';
 import { Button } from '../../ui';
 import { SettingsScreen } from '../SettingsScreen';
 import { getSettingsAccountUiState } from '../settingsAccountUiState';
@@ -290,6 +301,7 @@ type StateConfig = {
 };
 
 const useStateMock = React.useState as jest.Mock;
+const useRefMock = React.useRef as jest.Mock;
 
 function renderSettingsScreen({ accountSession = null, accountState }: StateConfig) {
   useStateMock.mockReset();
@@ -308,6 +320,62 @@ function renderSettingsScreen({ accountSession = null, accountState }: StateConf
     .mockImplementationOnce((initial: unknown) => [initial, jest.fn()])
     .mockImplementationOnce(() => [false, jest.fn()])
     .mockImplementationOnce(() => [null, jest.fn()]);
+
+  return SettingsScreen();
+}
+
+function renderExportingSettingsScreen() {
+  useStateMock.mockReset();
+  useStateMock.mockImplementation((initial: unknown) => [initial, jest.fn()]);
+  useStateMock
+    .mockImplementationOnce(() => [false, jest.fn()])
+    .mockImplementationOnce(() => ['guest', jest.fn()])
+    .mockImplementationOnce(() => [null, jest.fn()])
+    .mockImplementationOnce(() => [false, jest.fn()])
+    .mockImplementationOnce(() => [null, jest.fn()])
+    .mockImplementationOnce(() => [false, jest.fn()])
+    .mockImplementationOnce(() => ['review', jest.fn()])
+    .mockImplementationOnce(() => ['', jest.fn()])
+    .mockImplementationOnce(() => [false, jest.fn()])
+    .mockImplementationOnce(() => [null, jest.fn()])
+    .mockImplementationOnce((initial: unknown) => [initial, jest.fn()])
+    .mockImplementationOnce(() => [false, jest.fn()])
+    .mockImplementationOnce(() => [null, jest.fn()])
+    .mockImplementationOnce(() => [true, jest.fn()])
+    .mockImplementationOnce(() => [null, jest.fn()])
+    .mockImplementationOnce(() => [null, jest.fn()])
+    .mockImplementationOnce(() => [true, jest.fn()])
+    .mockImplementationOnce(() => [null, jest.fn()]);
+
+  useRefMock
+    .mockImplementationOnce((initial: unknown) => ({ current: initial }))
+    .mockImplementationOnce(() => ({ current: true }));
+
+  return SettingsScreen();
+}
+
+function renderSettingsScreenCapturingExportFeedback(setExportFeedback: jest.Mock) {
+  useStateMock.mockReset();
+  useStateMock.mockImplementation((initial: unknown) => [initial, jest.fn()]);
+  useStateMock
+    .mockImplementationOnce(() => [false, jest.fn()])
+    .mockImplementationOnce(() => ['guest', jest.fn()])
+    .mockImplementationOnce(() => [null, jest.fn()])
+    .mockImplementationOnce(() => [false, jest.fn()])
+    .mockImplementationOnce(() => [null, jest.fn()])
+    .mockImplementationOnce(() => [false, jest.fn()])
+    .mockImplementationOnce(() => ['review', jest.fn()])
+    .mockImplementationOnce(() => ['', jest.fn()])
+    .mockImplementationOnce(() => [false, jest.fn()])
+    .mockImplementationOnce(() => [null, jest.fn()])
+    .mockImplementationOnce((initial: unknown) => [initial, jest.fn()])
+    .mockImplementationOnce(() => [false, jest.fn()])
+    .mockImplementationOnce(() => [null, jest.fn()])
+    .mockImplementationOnce(() => [true, jest.fn()])
+    .mockImplementationOnce(() => [null, jest.fn()])
+    .mockImplementationOnce(() => [null, jest.fn()])
+    .mockImplementationOnce(() => [false, jest.fn()])
+    .mockImplementationOnce(() => [null, setExportFeedback]);
 
   return SettingsScreen();
 }
@@ -371,6 +439,10 @@ function toggleRows(node: React.ReactNode) {
   return findElements(node, (element) => element.type === 'ToggleRow');
 }
 
+function listRows(node: React.ReactNode) {
+  return findElements(node, (element) => element.type === 'ListRow');
+}
+
 function pressables(node: React.ReactNode) {
   return findElements(node, (element) => element.type === 'Pressable');
 }
@@ -386,6 +458,7 @@ function latestAlertButtons() {
 describe('SettingsScreen account interactions', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    useRefMock.mockImplementation((initial: unknown) => ({ current: initial }));
     (useFocusEffect as jest.Mock).mockImplementation(jest.fn());
     (resolveLocalAccountState as jest.Mock).mockResolvedValue({
       status: 'linked_reauth_required',
@@ -1167,6 +1240,94 @@ describe('SettingsScreen account interactions', () => {
     expect(linkedButtonTitles).toContain('Sign out');
     expect(linkedButtonTitles).toContain('Delete account');
     expect(linkedButtonTitles).not.toContain('Sign in with Google');
+  });
+
+  it('renders Data between Account and About with the exact export row title', () => {
+    const tree = expandTree(renderSettingsScreen({ accountState: 'guest' }));
+    const text = textContent(tree);
+    const accountIndex = text.indexOf('Account');
+    const dataIndex = text.indexOf('Data');
+    const aboutIndex = text.indexOf('About');
+    const exportRows = listRows(tree).filter(
+      (row) => row.props.title === 'Export workout history CSV',
+    );
+
+    expect(accountIndex).toBeGreaterThanOrEqual(0);
+    expect(dataIndex).toBeGreaterThan(accountIndex);
+    expect(aboutIndex).toBeGreaterThan(dataIndex);
+    expect(exportRows).toHaveLength(1);
+    expect(exportRows[0].props.subtitle).toBeUndefined();
+  });
+
+  it('starts the workout history CSV export when the Data row is tapped', async () => {
+    const tree = expandTree(renderSettingsScreen({ accountState: 'guest' }));
+    const row = listRows(tree).find((item) => item.props.title === 'Export workout history CSV');
+
+    row?.props.onPress();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(exportWorkoutHistoryCsv).toHaveBeenCalledTimes(1);
+  });
+
+  it('guards against two immediate export taps before React re-renders', async () => {
+    (exportWorkoutHistoryCsv as jest.Mock).mockImplementationOnce(
+      () => new Promise((resolve) => setTimeout(() => resolve({ status: 'noData' }), 0)),
+    );
+    const tree = expandTree(renderSettingsScreen({ accountState: 'guest' }));
+    const row = listRows(tree).find((item) => item.props.title === 'Export workout history CSV');
+
+    row?.props.onPress();
+    row?.props.onPress();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(exportWorkoutHistoryCsv).toHaveBeenCalledTimes(1);
+  });
+
+  it('guards against tapping export while an export is already in progress', () => {
+    const tree = expandTree(renderExportingSettingsScreen());
+    const row = listRows(tree).find((item) => item.props.title === 'Export workout history CSV');
+
+    expect(row?.props.right).toBeDefined();
+    row?.props.onPress();
+
+    expect(exportWorkoutHistoryCsv).not.toHaveBeenCalled();
+  });
+
+  it('surfaces no-data export feedback', async () => {
+    (exportWorkoutHistoryCsv as jest.Mock).mockResolvedValueOnce({ status: 'noData' });
+    const setExportFeedback = jest.fn();
+    const tree = expandTree(renderSettingsScreenCapturingExportFeedback(setExportFeedback));
+    const row = listRows(tree).find((item) => item.props.title === 'Export workout history CSV');
+
+    row?.props.onPress();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(setExportFeedback).toHaveBeenCalledWith({
+      message: 'No completed workouts to export yet.',
+      variant: 'info',
+    });
+  });
+
+  it('surfaces export errors', async () => {
+    (exportWorkoutHistoryCsv as jest.Mock).mockResolvedValueOnce({
+      status: 'error',
+      error: new Error('share failed'),
+    });
+    const setExportFeedback = jest.fn();
+    const tree = expandTree(renderSettingsScreenCapturingExportFeedback(setExportFeedback));
+    const row = listRows(tree).find((item) => item.props.title === 'Export workout history CSV');
+
+    row?.props.onPress();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(setExportFeedback).toHaveBeenCalledWith({
+      message: "Couldn't export workout history. Try again.",
+      variant: 'error',
+    });
   });
 
   it('uses the existing guest-to-account migration flow from guest Settings sign-in', async () => {
