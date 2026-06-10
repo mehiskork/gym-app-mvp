@@ -25,8 +25,12 @@ describe('workoutSessionRepo workout note', () => {
 
     completeSession('ws-1', '  Great session  ');
 
-    expect(exec).toHaveBeenCalledTimes(1);
+    expect(exec).toHaveBeenCalledTimes(2);
     expect((exec as jest.Mock).mock.calls[0][1]).toEqual(['Great session', 'ws-1']);
+    expect(exec).toHaveBeenCalledWith(
+      'DELETE FROM workout_session_initial_snapshot WHERE workout_session_id = ?;',
+      ['ws-1'],
+    );
     expect(detectAndStorePrsForSession).toHaveBeenCalledWith('ws-1');
   });
 

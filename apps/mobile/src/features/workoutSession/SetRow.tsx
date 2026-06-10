@@ -26,6 +26,11 @@ type SetRowProps = {
 
   onWeightEndEditing: (value: string) => boolean;
   onRepsEndEditing: (value: string) => boolean;
+  onPendingStrengthDraftChange?: (
+    setId: string,
+    field: StrengthInputField,
+    value: string | null,
+  ) => void;
   onToggleComplete: () => void;
   onDelete: () => void;
   onEditFocus?: (metrics: { pageY: number; height: number }) => void;
@@ -35,6 +40,7 @@ export function SetRow({
   set,
   onWeightEndEditing,
   onRepsEndEditing,
+  onPendingStrengthDraftChange,
   onToggleComplete,
   onDelete,
   onEditFocus,
@@ -83,6 +89,7 @@ export function SetRow({
 
   const handleWeightEndEditing = React.useCallback(
     (value: string) => {
+      onPendingStrengthDraftChange?.(set.id, 'weight', null);
       const parsed = parseWeightInput(value);
       if (!parsed.ok) {
         setWeightText(savedWeightText);
@@ -92,11 +99,12 @@ export function SetRow({
       const accepted = onWeightEndEditing(value);
       setWeightText(accepted ? formatWeightInputValue(parsed.value) : savedWeightText);
     },
-    [onWeightEndEditing, savedWeightText],
+    [onPendingStrengthDraftChange, onWeightEndEditing, savedWeightText, set.id],
   );
 
   const handleRepsEndEditing = React.useCallback(
     (value: string) => {
+      onPendingStrengthDraftChange?.(set.id, 'reps', null);
       const parsed = parseRepsInput(value);
       if (!parsed.ok) {
         setRepsText(savedRepsText);
@@ -106,7 +114,7 @@ export function SetRow({
       const accepted = onRepsEndEditing(value);
       setRepsText(accepted ? formatRepsInputValue(parsed.value) : savedRepsText);
     },
-    [onRepsEndEditing, savedRepsText],
+    [onPendingStrengthDraftChange, onRepsEndEditing, savedRepsText, set.id],
   );
 
   return (
@@ -140,7 +148,10 @@ export function SetRow({
                 focusedField === 'weight' ? { borderColor: colors.primary } : null,
                 { paddingHorizontal: inputPadding },
               ]}
-              onChangeText={setWeightText}
+              onChangeText={(value) => {
+                setWeightText(value);
+                onPendingStrengthDraftChange?.(set.id, 'weight', value);
+              }}
               onEndEditing={(e) => handleWeightEndEditing(e.nativeEvent.text)}
               onFocus={() => handleInputFocus('weight')}
               onBlur={handleInputBlur}
@@ -164,7 +175,10 @@ export function SetRow({
                 focusedField === 'reps' ? { borderColor: colors.primary } : null,
                 { paddingHorizontal: inputPadding },
               ]}
-              onChangeText={setRepsText}
+              onChangeText={(value) => {
+                setRepsText(value);
+                onPendingStrengthDraftChange?.(set.id, 'reps', value);
+              }}
               onEndEditing={(e) => handleRepsEndEditing(e.nativeEvent.text)}
               onFocus={() => handleInputFocus('reps')}
               onBlur={handleInputBlur}

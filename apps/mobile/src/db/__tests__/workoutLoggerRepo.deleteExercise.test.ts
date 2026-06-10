@@ -264,6 +264,10 @@ describe('deleteWorkoutSessionExercise', () => {
     expect(exec).toHaveBeenCalledWith(expect.stringContaining('UPDATE workout_session'), [
       'session-1',
     ]);
+    expect(exec).toHaveBeenCalledWith(
+      'DELETE FROM workout_session_initial_snapshot WHERE workout_session_id = ?;',
+      ['session-1'],
+    );
     expect(enqueueOutboxOp).toHaveBeenCalledWith(
       expect.objectContaining({
         entityType: 'workout_session',

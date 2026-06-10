@@ -89,6 +89,7 @@ jest.mock('../../db/workoutLoggerRepo', () => ({
 
 jest.mock('../../db/workoutSessionRepo', () => ({
   completeSession: jest.fn(),
+  discardSessionIfNoMeaningfulActivity: jest.fn(),
   discardSession: jest.fn(),
   updateWorkoutSessionNote: jest.fn(),
 }));
@@ -137,7 +138,11 @@ import {
   updateWorkoutSessionExerciseCardioSummary,
   updateWorkoutSet,
 } from '../../db/workoutLoggerRepo';
-import { completeSession, discardSession } from '../../db/workoutSessionRepo';
+import {
+  completeSession,
+  discardSession,
+  discardSessionIfNoMeaningfulActivity,
+} from '../../db/workoutSessionRepo';
 import { getSettings } from '../../db/settingsRepo';
 import { tokens } from '../../theme/tokens';
 import { cancelRestTimerNotification } from '../../utils/restTimerNotifications';
@@ -285,6 +290,8 @@ describe('WorkoutSessionScreen', () => {
     (completeSession as jest.Mock).mockReset();
     (completeSession as jest.Mock).mockReturnValue(true);
     (discardSession as jest.Mock).mockReset();
+    (discardSessionIfNoMeaningfulActivity as jest.Mock).mockReset();
+    (discardSessionIfNoMeaningfulActivity as jest.Mock).mockReturnValue(false);
     (updateWorkoutSessionExerciseCardioSummary as jest.Mock).mockReset();
     (clearRestTimer as jest.Mock).mockReset();
     (Keyboard.dismiss as jest.Mock).mockReset();
@@ -2039,6 +2046,7 @@ describe('WorkoutSessionScreen', () => {
     beforeRemoveHandler?.({ data: { action: { type: 'GO_BACK' } }, preventDefault });
 
     expect(preventDefault).toHaveBeenCalled();
+    expect(discardSessionIfNoMeaningfulActivity).toHaveBeenCalledWith('session-5');
     expect(CommonActions.reset).toHaveBeenCalledWith({
       index: 0,
       routes: [{ name: 'MainTabs', params: { screen: TAB_ROUTES.Home } }],
@@ -2050,6 +2058,127 @@ describe('WorkoutSessionScreen', () => {
         routes: [{ name: 'MainTabs', params: { screen: TAB_ROUTES.Home } }],
       },
     });
+  });
+
+  it('flushes a pending focused strength weight draft before Back auto-discard detection', () => {
+    const session = createSession({ id: 'session-strength', title: 'Strength Day' });
+    const exercises = [
+      createExercise({
+        id: 'exercise-strength',
+        sets: [
+          {
+            id: 'set-strength',
+            workout_session_exercise_id: 'exercise-strength',
+            set_index: 1,
+            weight: 80,
+            reps: 8,
+            rpe: null,
+            rest_seconds: 120,
+            notes: null,
+            is_completed: 0,
+          },
+        ],
+      }),
+    ];
+    mockScreenState({ session, exercises });
+    (getWorkoutLoggerData as jest.Mock).mockReturnValue({ session, exercises });
+
+    let beforeRemoveHandler:
+      | ((event: { data: { action: { type: string } }; preventDefault: () => void }) => void)
+      | undefined;
+    const navigation: Nav = {
+      navigate: jest.fn(),
+      dispatch: jest.fn(),
+      setOptions: jest.fn(),
+      addListener: jest.fn((event: string, handler: typeof beforeRemoveHandler) => {
+        if (event === 'beforeRemove') {
+          beforeRemoveHandler = handler ?? undefined;
+        }
+        return jest.fn();
+      }),
+    };
+    const element = WorkoutSessionScreen({
+      navigation,
+      route: {
+        key: 'WorkoutSession',
+        name: 'WorkoutSession',
+        params: { sessionId: session.id as string },
+      },
+    } as never);
+
+    type SetRowProps = React.ComponentProps<typeof SetRow>;
+    const setRow = (
+      findElementsByType(element, SetRow) as Array<React.ReactElement<SetRowProps>>
+    )[0];
+    setRow?.props.onPendingStrengthDraftChange?.('set-strength', 'weight', '85');
+
+    const preventDefault = jest.fn();
+    beforeRemoveHandler?.({ data: { action: { type: 'GO_BACK' } }, preventDefault });
+
+    expect(updateWorkoutSet).toHaveBeenCalledWith('set-strength', { weight: 85 });
+    expect(discardSessionIfNoMeaningfulActivity).toHaveBeenCalledWith('session-strength');
+    expect((updateWorkoutSet as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
+      (discardSessionIfNoMeaningfulActivity as jest.Mock).mock.invocationCallOrder[0],
+    );
+  });
+
+  it('ignores an invalid pending focused strength draft before Back auto-discard detection', () => {
+    const session = createSession({ id: 'session-invalid-strength', title: 'Strength Day' });
+    const exercises = [
+      createExercise({
+        id: 'exercise-strength',
+        sets: [
+          {
+            id: 'set-strength',
+            workout_session_exercise_id: 'exercise-strength',
+            set_index: 1,
+            weight: 80,
+            reps: 8,
+            rpe: null,
+            rest_seconds: 120,
+            notes: null,
+            is_completed: 0,
+          },
+        ],
+      }),
+    ];
+    mockScreenState({ session, exercises });
+    (getWorkoutLoggerData as jest.Mock).mockReturnValue({ session, exercises });
+
+    let beforeRemoveHandler:
+      | ((event: { data: { action: { type: string } }; preventDefault: () => void }) => void)
+      | undefined;
+    const navigation: Nav = {
+      navigate: jest.fn(),
+      dispatch: jest.fn(),
+      setOptions: jest.fn(),
+      addListener: jest.fn((event: string, handler: typeof beforeRemoveHandler) => {
+        if (event === 'beforeRemove') {
+          beforeRemoveHandler = handler ?? undefined;
+        }
+        return jest.fn();
+      }),
+    };
+    const element = WorkoutSessionScreen({
+      navigation,
+      route: {
+        key: 'WorkoutSession',
+        name: 'WorkoutSession',
+        params: { sessionId: session.id as string },
+      },
+    } as never);
+
+    type SetRowProps = React.ComponentProps<typeof SetRow>;
+    const setRow = (
+      findElementsByType(element, SetRow) as Array<React.ReactElement<SetRowProps>>
+    )[0];
+    setRow?.props.onPendingStrengthDraftChange?.('set-strength', 'weight', '1e9');
+
+    const preventDefault = jest.fn();
+    beforeRemoveHandler?.({ data: { action: { type: 'GO_BACK' } }, preventDefault });
+
+    expect(updateWorkoutSet).not.toHaveBeenCalled();
+    expect(discardSessionIfNoMeaningfulActivity).toHaveBeenCalledWith('session-invalid-strength');
   });
 
   it('silently resets to Home when session detail is missing', () => {

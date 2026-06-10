@@ -52,7 +52,7 @@ describe('discardSession sync wiring', () => {
 
     discardSession('session-1');
 
-    expect(exec).toHaveBeenCalledTimes(3);
+    expect(exec).toHaveBeenCalledTimes(4);
     expect(exec).toHaveBeenNthCalledWith(1, expect.stringContaining('UPDATE workout_set'), [
       'session-1',
     ]);
@@ -64,6 +64,11 @@ describe('discardSession sync wiring', () => {
     expect(exec).toHaveBeenNthCalledWith(3, expect.stringContaining('UPDATE workout_session'), [
       'session-1',
     ]);
+    expect(exec).toHaveBeenNthCalledWith(
+      4,
+      'DELETE FROM workout_session_initial_snapshot WHERE workout_session_id = ?;',
+      ['session-1'],
+    );
 
     expect(enqueueOutboxOp).toHaveBeenCalledTimes(4);
     expect(enqueueOutboxOp).toHaveBeenCalledWith(

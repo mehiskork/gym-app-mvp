@@ -28,6 +28,11 @@ import {
   isCardioSummaryField,
   isValidCardioSummaryValue,
 } from '../features/workoutSession/cardioInputParsing';
+import {
+  addExerciseToWorkoutSessionInitialSnapshot,
+  addSetToWorkoutSessionInitialSnapshot,
+  deleteWorkoutSessionInitialSnapshot,
+} from './workoutSessionRepo';
 
 const EXERCISE_POSITION_SHIFT_OFFSET = 1_000_000;
 
@@ -503,6 +508,7 @@ export function swapWorkoutSessionExercise(input: {
     enqueueWorkoutSessionExerciseSnapshot(insertedId);
     enqueueWorkoutSessionExerciseSnapshot(workoutSessionExerciseId, 'delete');
     if (setId) enqueueWorkoutSetSnapshot(setId);
+    addExerciseToWorkoutSessionInitialSnapshot(insertedId, 'user_added');
 
     return { focusExerciseId: insertedId };
   });
@@ -607,6 +613,7 @@ export function appendWorkoutSessionExercise(input: {
 
     enqueueWorkoutSessionExerciseSnapshot(insertedId);
     if (setId) enqueueWorkoutSetSnapshot(setId);
+    addExerciseToWorkoutSessionInitialSnapshot(insertedId, 'user_added');
 
     return { focusExerciseId: insertedId };
   });
@@ -775,6 +782,7 @@ export function deleteWorkoutSessionExercise(
         [workoutSessionId],
       );
       enqueueWorkoutSessionSnapshot(workoutSessionId, 'delete');
+      deleteWorkoutSessionInitialSnapshot(workoutSessionId);
     }
 
     return { deleted: true, discardedSession };
@@ -854,6 +862,7 @@ export function addWorkoutSet(wseId: string): string {
       enqueueWorkoutSetSnapshot(setId);
     }
     enqueueWorkoutSetSnapshot(id);
+    addSetToWorkoutSessionInitialSnapshot(id, 'user_added');
 
     return id;
   });

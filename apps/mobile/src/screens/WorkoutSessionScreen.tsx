@@ -23,6 +23,7 @@ import { useAppTheme } from '../theme/theme';
 import { tokens } from '../theme/tokens';
 import {
   completeSession,
+  discardSessionIfNoMeaningfulActivity,
   discardSession,
   updateWorkoutSessionNote,
 } from '../db/workoutSessionRepo';
@@ -31,6 +32,7 @@ import {
   clearRestTimer,
   deleteWorkoutSessionExercise,
   getWorkoutLoggerData,
+  updateWorkoutSet,
   updateWorkoutSessionExerciseComment,
   updateWorkoutSessionExerciseCardioSummary,
   type LoggerExercise,
@@ -51,6 +53,7 @@ import { useWorkoutSessionNavGuard } from '../features/workoutSession/useWorkout
 import { getSettings } from '../db/settingsRepo';
 import { cancelRestTimerNotification } from '../utils/restTimerNotifications';
 import { parseCardioInput } from '../features/workoutSession/cardioInputParsing';
+import { parseRepsInput, parseWeightInput } from '../features/workoutSession/setInputParsing';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'WorkoutSession'>;
 
@@ -61,6 +64,7 @@ const CTA_HEIGHT = tokens.touchTargetMin + tokens.spacing.sm;
 const CTA_STACK_GAP = tokens.spacing.sm;
 const MAX_EXERCISE_COMMENT_LENGTH = 200;
 const MAX_WORKOUT_NOTE_LENGTH = 200;
+type PendingStrengthDrafts = Map<string, { weight?: string; reps?: string }>;
 
 function getExerciseSubtitle(exercise: LoggerExercise): string | null {
   if (exercise.exercise_type === EXERCISE_TYPE.CARDIO) return null;
@@ -126,7 +130,57 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
   const deletingExerciseRef = React.useRef(false);
   const submittedDeleteExerciseIdRef = React.useRef<string | null>(null);
   const pendingPaceDraftsRef = React.useRef<Map<string, string> | null>(new Map());
-  const { resetToHome } = useWorkoutSessionNavGuard({ navigation });
+  const pendingStrengthDraftsRef = React.useRef<PendingStrengthDrafts | null>(new Map());
+  const flushPendingPaceDrafts = useCallback(() => {
+    let flushedPaceAsLoggedWork = false;
+    const pendingPaceDrafts = pendingPaceDraftsRef.current;
+    if (!pendingPaceDrafts) return flushedPaceAsLoggedWork;
+
+    for (const [exerciseId, value] of pendingPaceDrafts) {
+      const parsed = parseCardioInput('pace_seconds_per_km', value);
+      if (!parsed.ok) continue;
+      updateWorkoutSessionExerciseCardioSummary(exerciseId, {
+        pace_seconds_per_km: parsed.value,
+      });
+      if (parsed.value !== null) {
+        flushedPaceAsLoggedWork = true;
+      }
+    }
+    pendingPaceDrafts.clear();
+    return flushedPaceAsLoggedWork;
+  }, []);
+  const flushPendingStrengthDrafts = useCallback(() => {
+    const pendingStrengthDrafts = pendingStrengthDraftsRef.current;
+    if (!pendingStrengthDrafts) return;
+
+    for (const [setId, draft] of pendingStrengthDrafts) {
+      if (draft.weight !== undefined) {
+        const parsed = parseWeightInput(draft.weight);
+        if (parsed.ok) {
+          updateWorkoutSet(setId, { weight: parsed.value });
+        }
+      }
+      if (draft.reps !== undefined) {
+        const parsed = parseRepsInput(draft.reps);
+        if (parsed.ok) {
+          updateWorkoutSet(setId, { reps: parsed.value });
+        }
+      }
+    }
+    pendingStrengthDrafts.clear();
+  }, []);
+  const handleBeforeSessionExit = useCallback(() => {
+    flushPendingStrengthDrafts();
+    flushPendingPaceDrafts();
+    const discarded = discardSessionIfNoMeaningfulActivity(sessionId);
+    if (!discarded) return;
+    clearRestTimer(sessionId);
+    void cancelRestTimerNotification();
+  }, [flushPendingPaceDrafts, flushPendingStrengthDrafts, sessionId]);
+  const { resetToHome } = useWorkoutSessionNavGuard({
+    navigation,
+    onBeforeExit: handleBeforeSessionExit,
+  });
   const { timerActive, remainingSeconds, clearRestTimerHandler } = useRestTimer({
     session,
     sessionId,
@@ -151,6 +205,30 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
     pendingPaceDraftsRef.current ??= new Map<string, string>();
     return pendingPaceDraftsRef.current;
   }, []);
+
+  const getPendingStrengthDrafts = useCallback(() => {
+    pendingStrengthDraftsRef.current ??= new Map<string, { weight?: string; reps?: string }>();
+    return pendingStrengthDraftsRef.current;
+  }, []);
+
+  const handlePendingStrengthDraftChange = useCallback(
+    (setId: string, field: 'weight' | 'reps', value: string | null) => {
+      const pendingStrengthDrafts = getPendingStrengthDrafts();
+      const current = pendingStrengthDrafts.get(setId) ?? {};
+      if (value === null) {
+        delete current[field];
+      } else {
+        current[field] = value;
+      }
+
+      if (current.weight === undefined && current.reps === undefined) {
+        pendingStrengthDrafts.delete(setId);
+        return;
+      }
+      pendingStrengthDrafts.set(setId, current);
+    },
+    [getPendingStrengthDrafts],
+  );
 
   const setActions = useWorkoutSetActions({
     sessionId,
@@ -221,19 +299,7 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
     setIsFinishing(true);
     setFinishOpen(false);
     try {
-      let flushedPaceAsLoggedWork = false;
-      const pendingPaceDrafts = getPendingPaceDrafts();
-      for (const [exerciseId, value] of pendingPaceDrafts) {
-        const parsed = parseCardioInput('pace_seconds_per_km', value);
-        if (!parsed.ok) continue;
-        updateWorkoutSessionExerciseCardioSummary(exerciseId, {
-          pace_seconds_per_km: parsed.value,
-        });
-        if (parsed.value !== null) {
-          flushedPaceAsLoggedWork = true;
-        }
-      }
-      pendingPaceDrafts.clear();
+      const flushedPaceAsLoggedWork = flushPendingPaceDrafts();
 
       if (totals.hasLoggedWork || flushedPaceAsLoggedWork) {
         const completed = completeSession(sessionId, workoutNoteDraft);
@@ -260,7 +326,7 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
       setIsFinishing(false);
     }
   }, [
-    getPendingPaceDrafts,
+    flushPendingPaceDrafts,
     isFinishing,
     load,
     navigation,
@@ -470,6 +536,7 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
                           setActions.handleWeightEndEditing(set, value)
                         }
                         onRepsEndEditing={(value) => setActions.handleRepsEndEditing(set, value)}
+                        onPendingStrengthDraftChange={handlePendingStrengthDraftChange}
                         onToggleComplete={() => {
                           Keyboard.dismiss();
                           setActions.handleToggleComplete(ex, set);

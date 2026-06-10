@@ -1,6 +1,7 @@
 import { migration001_private_beta_baseline } from '../migrations/001_private_beta_baseline';
 import { migration002_workout_exercise_plan_note_snapshot } from '../migrations/002_workout_exercise_plan_note_snapshot';
 import { migration003_program_day_exercise_planned_cardio_targets } from '../migrations/003_program_day_exercise_planned_cardio_targets';
+import { migration004_workout_session_initial_snapshot } from '../migrations/004_workout_session_initial_snapshot';
 import { migrations } from '../migrations';
 
 const baselineSql = migration001_private_beta_baseline.up;
@@ -44,6 +45,17 @@ describe('private beta SQLite baseline migration', () => {
       expect(migration003_program_day_exercise_planned_cardio_targets.up).toContain(columnSql);
     });
     expect(migrations[2]).toBe(migration003_program_day_exercise_planned_cardio_targets);
+  });
+
+  it('adds local-only workout session initial snapshots in migration 4', () => {
+    expect(migration004_workout_session_initial_snapshot.id).toBe(4);
+    expect(migration004_workout_session_initial_snapshot.up).toContain(
+      'CREATE TABLE IF NOT EXISTS workout_session_initial_snapshot',
+    );
+    expect(migration004_workout_session_initial_snapshot.up).toContain(
+      'snapshot_json TEXT NOT NULL',
+    );
+    expect(migrations[3]).toBe(migration004_workout_session_initial_snapshot);
   });
 
   it('creates every expected final table', () => {

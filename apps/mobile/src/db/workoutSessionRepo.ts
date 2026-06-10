@@ -62,6 +62,344 @@ type SetSeed = {
 
 type CardioSeed = CardioSummary;
 
+const CARDIO_SUMMARY_FIELDS: Array<keyof CardioSummary> = [
+  'duration_minutes',
+  'distance_km',
+  'speed_kph',
+  'incline_percent',
+  'resistance_level',
+  'pace_seconds_per_km',
+  'floors',
+  'stair_level',
+];
+
+type InitialSnapshotSource = 'baseline' | 'user_added';
+
+type InitialSnapshotExercise = {
+  id: string;
+  source: InitialSnapshotSource;
+  exercise_id: string;
+  exercise_type: ExerciseType;
+  notes: string | null;
+  cardio_summary: CardioSummary;
+};
+
+type InitialSnapshotSet = {
+  id: string;
+  workout_session_exercise_id: string;
+  source: InitialSnapshotSource;
+  weight: number | null;
+  reps: number | null;
+};
+
+type WorkoutInitialSnapshot = {
+  version: 1;
+  workout_session_id: string;
+  source_workout_plan_id: string | null;
+  source_program_day_id: string | null;
+  workout_note: string | null;
+  exercises: Record<string, InitialSnapshotExercise>;
+  sets: Record<string, InitialSnapshotSet>;
+};
+
+type SnapshotSessionRow = {
+  id: string;
+  source_workout_plan_id: string | null;
+  source_program_day_id: string | null;
+  status: WorkoutSessionStatus;
+  workout_note: string | null;
+  deleted_at: string | null;
+};
+
+type SnapshotExerciseRow = {
+  id: string;
+  exercise_id: string;
+  exercise_type: ExerciseType;
+  notes: string | null;
+  cardio_duration_minutes: number | null;
+  cardio_distance_km: number | null;
+  cardio_speed_kph: number | null;
+  cardio_incline_percent: number | null;
+  cardio_resistance_level: number | null;
+  cardio_pace_seconds_per_km: number | null;
+  cardio_floors: number | null;
+  cardio_stair_level: number | null;
+  deleted_at: string | null;
+};
+
+type SnapshotSetRow = {
+  id: string;
+  workout_session_exercise_id: string;
+  weight: number | null;
+  reps: number | null;
+  is_completed: number;
+  deleted_at: string | null;
+};
+
+function normalizeMeaningfulNote(note: string | null | undefined): string | null {
+  if (typeof note !== 'string') return null;
+  const trimmed = note.trim();
+  return trimmed.length > 0 ? trimmed.slice(0, 200) : null;
+}
+
+function cardioSummaryFromRow(row: SnapshotExerciseRow): CardioSummary {
+  return {
+    duration_minutes: row.cardio_duration_minutes,
+    distance_km: row.cardio_distance_km,
+    speed_kph: row.cardio_speed_kph,
+    incline_percent: row.cardio_incline_percent,
+    resistance_level: row.cardio_resistance_level,
+    pace_seconds_per_km: row.cardio_pace_seconds_per_km,
+    floors: row.cardio_floors,
+    stair_level: row.cardio_stair_level,
+  };
+}
+
+function cardioSummariesDiffer(current: CardioSummary, initial: CardioSummary): boolean {
+  return CARDIO_SUMMARY_FIELDS.some((field) => current[field] !== initial[field]);
+}
+
+function parseInitialSnapshot(payload: string): WorkoutInitialSnapshot | null {
+  try {
+    const parsed = JSON.parse(payload) as WorkoutInitialSnapshot;
+    if (parsed.version !== 1 || typeof parsed.workout_session_id !== 'string') return null;
+    if (!parsed.exercises || !parsed.sets) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function getInitialSnapshot(sessionId: string): WorkoutInitialSnapshot | null {
+  const row = query<{ snapshot_json: string }>(
+    `
+    SELECT snapshot_json
+    FROM workout_session_initial_snapshot
+    WHERE workout_session_id = ?
+    LIMIT 1;
+  `,
+    [sessionId],
+  )?.[0];
+
+  return row ? parseInitialSnapshot(row.snapshot_json) : null;
+}
+
+function readSnapshotSession(sessionId: string): SnapshotSessionRow | null {
+  return (
+    query<SnapshotSessionRow>(
+      `
+      SELECT id, source_workout_plan_id, source_program_day_id, status, workout_note, deleted_at
+      FROM workout_session
+      WHERE id = ?
+      LIMIT 1;
+    `,
+      [sessionId],
+    )[0] ?? null
+  );
+}
+
+function readSnapshotExercises(sessionId: string): SnapshotExerciseRow[] {
+  return (
+    query<SnapshotExerciseRow>(
+      `
+    SELECT
+      id,
+      exercise_id,
+      exercise_type,
+      notes,
+      cardio_duration_minutes,
+      cardio_distance_km,
+      cardio_speed_kph,
+      cardio_incline_percent,
+      cardio_resistance_level,
+      cardio_pace_seconds_per_km,
+      cardio_floors,
+      cardio_stair_level,
+      deleted_at
+    FROM workout_session_exercise
+    WHERE workout_session_id = ?;
+  `,
+      [sessionId],
+    ) ?? []
+  );
+}
+
+function readSnapshotSets(sessionId: string): SnapshotSetRow[] {
+  return (
+    query<SnapshotSetRow>(
+      `
+    SELECT ws.id, ws.workout_session_exercise_id, ws.weight, ws.reps, ws.is_completed, ws.deleted_at
+    FROM workout_set ws
+    JOIN workout_session_exercise wse ON wse.id = ws.workout_session_exercise_id
+    WHERE wse.workout_session_id = ?;
+  `,
+      [sessionId],
+    ) ?? []
+  );
+}
+
+function buildInitialSnapshot(
+  sessionId: string,
+  defaultSource: InitialSnapshotSource,
+): WorkoutInitialSnapshot | null {
+  const session = readSnapshotSession(sessionId);
+  if (!session) return null;
+
+  const exercises = readSnapshotExercises(sessionId).reduce<
+    Record<string, InitialSnapshotExercise>
+  >((acc, row) => {
+    acc[row.id] = {
+      id: row.id,
+      source: defaultSource,
+      exercise_id: row.exercise_id,
+      exercise_type: row.exercise_type,
+      notes: normalizeMeaningfulNote(row.notes),
+      cardio_summary: cardioSummaryFromRow(row),
+    };
+    return acc;
+  }, {});
+
+  const sets = readSnapshotSets(sessionId).reduce<Record<string, InitialSnapshotSet>>(
+    (acc, row) => {
+      acc[row.id] = {
+        id: row.id,
+        workout_session_exercise_id: row.workout_session_exercise_id,
+        source: defaultSource,
+        weight: row.weight,
+        reps: row.reps,
+      };
+      return acc;
+    },
+    {},
+  );
+
+  return {
+    version: 1,
+    workout_session_id: session.id,
+    source_workout_plan_id: session.source_workout_plan_id,
+    source_program_day_id: session.source_program_day_id,
+    workout_note: normalizeMeaningfulNote(session.workout_note),
+    exercises,
+    sets,
+  };
+}
+
+function upsertInitialSnapshot(snapshot: WorkoutInitialSnapshot): void {
+  exec(
+    `
+    INSERT INTO workout_session_initial_snapshot (
+      workout_session_id,
+      snapshot_json,
+      created_at,
+      updated_at
+    ) VALUES (?, ?, datetime('now'), datetime('now'))
+    ON CONFLICT(workout_session_id) DO UPDATE SET
+      snapshot_json = excluded.snapshot_json,
+      updated_at = datetime('now');
+  `,
+    [snapshot.workout_session_id, JSON.stringify(snapshot)],
+  );
+}
+
+export function deleteWorkoutSessionInitialSnapshot(sessionId: string): void {
+  exec('DELETE FROM workout_session_initial_snapshot WHERE workout_session_id = ?;', [sessionId]);
+}
+
+export function createWorkoutSessionInitialSnapshot(
+  sessionId: string,
+  defaultSource: InitialSnapshotSource,
+): void {
+  const snapshot = buildInitialSnapshot(sessionId, defaultSource);
+  if (!snapshot) return;
+  upsertInitialSnapshot(snapshot);
+}
+
+export function addExerciseToWorkoutSessionInitialSnapshot(
+  workoutSessionExerciseId: string,
+  source: InitialSnapshotSource,
+): void {
+  const row = query<{ workout_session_id: string }>(
+    `
+    SELECT workout_session_id
+    FROM workout_session_exercise
+    WHERE id = ?
+    LIMIT 1;
+  `,
+    [workoutSessionExerciseId],
+  )?.[0];
+  if (!row) return;
+
+  const snapshot = getInitialSnapshot(row.workout_session_id);
+  if (!snapshot) return;
+
+  const exercise = readSnapshotExercises(row.workout_session_id).find(
+    (item) => item.id === workoutSessionExerciseId,
+  );
+  if (!exercise) return;
+
+  snapshot.exercises[exercise.id] = {
+    id: exercise.id,
+    source,
+    exercise_id: exercise.exercise_id,
+    exercise_type: exercise.exercise_type,
+    notes: normalizeMeaningfulNote(exercise.notes),
+    cardio_summary: cardioSummaryFromRow(exercise),
+  };
+
+  for (const set of readSnapshotSets(row.workout_session_id).filter(
+    (item) => item.workout_session_exercise_id === workoutSessionExerciseId,
+  )) {
+    snapshot.sets[set.id] = {
+      id: set.id,
+      workout_session_exercise_id: set.workout_session_exercise_id,
+      source,
+      weight: set.weight,
+      reps: set.reps,
+    };
+  }
+
+  upsertInitialSnapshot(snapshot);
+}
+
+export function addSetToWorkoutSessionInitialSnapshot(
+  workoutSetId: string,
+  source: InitialSnapshotSource,
+): void {
+  const row = query<{
+    workout_session_id: string;
+    workout_session_exercise_id: string;
+    weight: number | null;
+    reps: number | null;
+  }>(
+    `
+    SELECT
+      wse.workout_session_id,
+      ws.workout_session_exercise_id,
+      ws.weight,
+      ws.reps
+    FROM workout_set ws
+    JOIN workout_session_exercise wse ON wse.id = ws.workout_session_exercise_id
+    WHERE ws.id = ?
+    LIMIT 1;
+  `,
+    [workoutSetId],
+  )?.[0];
+  if (!row) return;
+
+  const snapshot = getInitialSnapshot(row.workout_session_id);
+  if (!snapshot) return;
+
+  snapshot.sets[workoutSetId] = {
+    id: workoutSetId,
+    workout_session_exercise_id: row.workout_session_exercise_id,
+    source,
+    weight: row.weight,
+    reps: row.reps,
+  };
+
+  upsertInitialSnapshot(snapshot);
+}
+
 function getPlannedOrHistoricalWeight(
   plannedWeight: number | null | undefined,
   historicalWeight: number | null | undefined,
@@ -261,6 +599,7 @@ function enqueueWorkoutSetSnapshot(setId: string, opType: 'upsert' | 'delete' = 
 
 export function getInProgressSession(): WorkoutSessionRow | null {
   cleanupLegacyEmptyActiveQuickWorkouts();
+  cleanupEmptyActiveWorkoutSnapshots();
 
   const rows = query<WorkoutSessionRow>(
     `
@@ -331,6 +670,7 @@ function cleanupLegacyEmptyActiveQuickWorkoutsInCurrentTransaction(): string[] {
       [sessionId],
     );
     enqueueWorkoutSessionSnapshot(sessionId, 'delete');
+    deleteWorkoutSessionInitialSnapshot(sessionId);
   }
 
   return sessionIds;
@@ -338,6 +678,100 @@ function cleanupLegacyEmptyActiveQuickWorkoutsInCurrentTransaction(): string[] {
 
 export function cleanupLegacyEmptyActiveQuickWorkouts(): string[] {
   return inTransaction(cleanupLegacyEmptyActiveQuickWorkoutsInCurrentTransaction);
+}
+
+export function hasMeaningfulWorkoutActivity(sessionId: string): boolean {
+  const snapshot = getInitialSnapshot(sessionId);
+  if (!snapshot) return true;
+
+  const session = readSnapshotSession(sessionId);
+  if (
+    !session ||
+    session.deleted_at !== null ||
+    session.status !== WORKOUT_SESSION_STATUS.IN_PROGRESS
+  ) {
+    return true;
+  }
+
+  if (normalizeMeaningfulNote(session.workout_note) !== snapshot.workout_note) {
+    return true;
+  }
+
+  const currentExercises = readSnapshotExercises(sessionId);
+  const currentSets = readSnapshotSets(sessionId);
+  const activeExercises = currentExercises.filter((row) => row.deleted_at === null);
+  const activeSets = currentSets.filter((row) => row.deleted_at === null);
+
+  if (activeSets.some((set) => set.is_completed === 1)) {
+    return true;
+  }
+
+  const activeExerciseIds = new Set(activeExercises.map((exercise) => exercise.id));
+  const activeSetIds = new Set(activeSets.map((set) => set.id));
+
+  for (const [exerciseId, initial] of Object.entries(snapshot.exercises)) {
+    if (!activeExerciseIds.has(exerciseId) && initial.source === 'baseline') {
+      return true;
+    }
+  }
+
+  for (const [setId, initial] of Object.entries(snapshot.sets)) {
+    if (!activeSetIds.has(setId) && initial.source === 'baseline') {
+      return true;
+    }
+  }
+
+  for (const exercise of activeExercises) {
+    const initial = snapshot.exercises[exercise.id];
+    if (!initial) return true;
+    if (initial.source === 'user_added') return true;
+    if (exercise.exercise_id !== initial.exercise_id) return true;
+    if (exercise.exercise_type !== initial.exercise_type) return true;
+    if (normalizeMeaningfulNote(exercise.notes) !== initial.notes) return true;
+    if (cardioSummariesDiffer(cardioSummaryFromRow(exercise), initial.cardio_summary)) return true;
+  }
+
+  for (const set of activeSets) {
+    const initial = snapshot.sets[set.id];
+    if (!initial) return true;
+    if (initial.source === 'user_added') return true;
+    if (set.weight !== initial.weight) return true;
+    if (set.reps !== initial.reps) return true;
+  }
+
+  return false;
+}
+
+export function discardSessionIfNoMeaningfulActivity(sessionId: string): boolean {
+  if (hasMeaningfulWorkoutActivity(sessionId)) return false;
+  discardSession(sessionId);
+  return true;
+}
+
+function cleanupEmptyActiveWorkoutSnapshotsInCurrentTransaction(): string[] {
+  const rows = query<{ id: string }>(
+    `
+    SELECT ws.id
+    FROM workout_session ws
+    JOIN workout_session_initial_snapshot snapshot
+      ON snapshot.workout_session_id = ws.id
+    WHERE ws.status = '${WORKOUT_SESSION_STATUS.IN_PROGRESS}'
+      AND ws.deleted_at IS NULL;
+  `,
+  );
+
+  const discardedIds: string[] = [];
+  for (const row of rows) {
+    if (hasMeaningfulWorkoutActivity(row.id)) continue;
+    discardSessionInCurrentTransaction(row.id);
+    discardedIds.push(row.id);
+  }
+
+  return discardedIds;
+}
+
+export function cleanupEmptyActiveWorkoutSnapshots(): string[] {
+  return inTransaction(cleanupEmptyActiveWorkoutSnapshotsInCurrentTransaction);
 }
 
 export function getMostRecentCompletedDayIdForPlan(workoutPlanId: string): string | null {
@@ -511,6 +945,7 @@ export function createQuickWorkoutSessionWithExercise(input: {
     enqueueWorkoutSessionSnapshot(sessionId);
     enqueueWorkoutSessionExerciseSnapshot(workoutSessionExerciseId);
     if (setId) enqueueWorkoutSetSnapshot(setId);
+    createWorkoutSessionInitialSnapshot(sessionId, 'user_added');
 
     return { sessionId, focusExerciseId: workoutSessionExerciseId };
   });
@@ -773,6 +1208,8 @@ export function createSessionFromPlanDay(input: { workoutPlanId: string; dayId: 
       }
     }
 
+    createWorkoutSessionInitialSnapshot(sessionId, 'baseline');
+
     return sessionId;
   });
 }
@@ -855,6 +1292,7 @@ export function completeSession(sessionId: string, workoutNote: string | null = 
       [normalizeWorkoutNote(workoutNote), sessionId],
     );
     enqueueWorkoutSessionSnapshot(sessionId);
+    deleteWorkoutSessionInitialSnapshot(sessionId);
 
     // Run PR detection AFTER marking completed
     detectAndStorePrsForSession(sessionId);
@@ -870,8 +1308,14 @@ export function completeSession(sessionId: string, workoutNote: string | null = 
 
 export function discardSession(sessionId: string) {
   inTransaction(() => {
-    const setIds = query<{ id: string }>(
-      `
+    discardSessionInCurrentTransaction(sessionId);
+  });
+  void cancelUnfinishedWorkoutReminder().catch(() => undefined);
+}
+
+function discardSessionInCurrentTransaction(sessionId: string) {
+  const setIds = query<{ id: string }>(
+    `
       SELECT ws.id AS id
       FROM workout_set ws
       JOIN workout_session_exercise wse ON wse.id = ws.workout_session_exercise_id
@@ -879,31 +1323,31 @@ export function discardSession(sessionId: string) {
         AND ws.deleted_at IS NULL
         AND wse.deleted_at IS NULL;
     `,
-      [sessionId],
-    ).map((row) => row.id);
+    [sessionId],
+  ).map((row) => row.id);
 
-    const sessionExerciseIds = query<{ id: string }>(
-      `
+  const sessionExerciseIds = query<{ id: string }>(
+    `
       SELECT id
       FROM workout_session_exercise
       WHERE workout_session_id = ?
         AND deleted_at IS NULL;
     `,
-      [sessionId],
-    ).map((row) => row.id);
+    [sessionId],
+  ).map((row) => row.id);
 
-    const sessionIds = query<{ id: string }>(
-      `
+  const sessionIds = query<{ id: string }>(
+    `
       SELECT id
       FROM workout_session
       WHERE id = ?
         AND deleted_at IS NULL;
     `,
-      [sessionId],
-    ).map((row) => row.id);
+    [sessionId],
+  ).map((row) => row.id);
 
-    exec(
-      `
+  exec(
+    `
       UPDATE workout_set
       SET deleted_at = datetime('now'), updated_at = datetime('now')
       WHERE deleted_at IS NULL
@@ -912,36 +1356,35 @@ export function discardSession(sessionId: string) {
           WHERE workout_session_id = ?
         );
     `,
-      [sessionId],
-    );
+    [sessionId],
+  );
 
-    exec(
-      `
+  exec(
+    `
       UPDATE workout_session_exercise
       SET deleted_at = datetime('now'), updated_at = datetime('now')
       WHERE workout_session_id = ?
         AND deleted_at IS NULL;
     `,
-      [sessionId],
-    );
-    exec(
-      `
+    [sessionId],
+  );
+  exec(
+    `
       UPDATE workout_session
       SET status = '${WORKOUT_SESSION_STATUS.DISCARDED}', ended_at = datetime('now'), deleted_at = datetime('now'), updated_at = datetime('now')
       WHERE id = ? AND deleted_at IS NULL;
     `,
-      [sessionId],
-    );
+    [sessionId],
+  );
 
-    for (const setId of setIds) {
-      enqueueWorkoutSetSnapshot(setId, 'delete');
-    }
-    for (const sessionExerciseId of sessionExerciseIds) {
-      enqueueWorkoutSessionExerciseSnapshot(sessionExerciseId, 'delete');
-    }
-    for (const id of sessionIds) {
-      enqueueWorkoutSessionSnapshot(id, 'delete');
-    }
-  });
-  void cancelUnfinishedWorkoutReminder().catch(() => undefined);
+  for (const setId of setIds) {
+    enqueueWorkoutSetSnapshot(setId, 'delete');
+  }
+  for (const sessionExerciseId of sessionExerciseIds) {
+    enqueueWorkoutSessionExerciseSnapshot(sessionExerciseId, 'delete');
+  }
+  for (const id of sessionIds) {
+    enqueueWorkoutSessionSnapshot(id, 'delete');
+  }
+  deleteWorkoutSessionInitialSnapshot(sessionId);
 }

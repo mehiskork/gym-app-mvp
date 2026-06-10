@@ -303,10 +303,12 @@ describe('SetRow input focus behavior', () => {
 
   it('formats dot decimal weight with comma after accepted end editing', () => {
     const onWeightEndEditing = jest.fn(() => true);
+    const onPendingStrengthDraftChange = jest.fn();
     const element = SetRow({
       set: createSet({ weight: 82 }),
       onWeightEndEditing,
       onRepsEndEditing: jest.fn(() => true),
+      onPendingStrengthDraftChange,
       onToggleComplete: jest.fn(),
       onDelete: jest.fn(),
     });
@@ -318,6 +320,7 @@ describe('SetRow input focus behavior', () => {
 
     weightInput?.props.onEndEditing?.({ nativeEvent: { text: '82.5' } });
 
+    expect(onPendingStrengthDraftChange).toHaveBeenCalledWith('set-1', 'weight', null);
     expect(onWeightEndEditing).toHaveBeenCalledWith('82.5');
     expect(weightSetter).toHaveBeenCalledWith('82,5');
   });
@@ -345,10 +348,12 @@ describe('SetRow input focus behavior', () => {
 
   it('resets invalid weight to the previous saved value without calling the save handler', () => {
     const onWeightEndEditing = jest.fn(() => true);
+    const onPendingStrengthDraftChange = jest.fn();
     const element = SetRow({
       set: createSet({ weight: 82.5 }),
       onWeightEndEditing,
       onRepsEndEditing: jest.fn(() => true),
+      onPendingStrengthDraftChange,
       onToggleComplete: jest.fn(),
       onDelete: jest.fn(),
     });
@@ -360,16 +365,19 @@ describe('SetRow input focus behavior', () => {
 
     weightInput?.props.onEndEditing?.({ nativeEvent: { text: '1e9' } });
 
+    expect(onPendingStrengthDraftChange).toHaveBeenCalledWith('set-1', 'weight', null);
     expect(onWeightEndEditing).not.toHaveBeenCalled();
     expect(weightSetter).toHaveBeenCalledWith('82,5');
   });
 
   it('resets invalid reps to the previous saved value without calling the save handler', () => {
     const onRepsEndEditing = jest.fn(() => true);
+    const onPendingStrengthDraftChange = jest.fn();
     const element = SetRow({
       set: createSet({ reps: 8 }),
       onWeightEndEditing: jest.fn(() => true),
       onRepsEndEditing,
+      onPendingStrengthDraftChange,
       onToggleComplete: jest.fn(),
       onDelete: jest.fn(),
     });
@@ -381,8 +389,33 @@ describe('SetRow input focus behavior', () => {
 
     repsInput?.props.onEndEditing?.({ nativeEvent: { text: '10.5' } });
 
+    expect(onPendingStrengthDraftChange).toHaveBeenCalledWith('set-1', 'reps', null);
     expect(onRepsEndEditing).not.toHaveBeenCalled();
     expect(repsSetter).toHaveBeenCalledWith('8');
+  });
+
+  it('reports pending weight and reps drafts as text changes before end editing', () => {
+    const onPendingStrengthDraftChange = jest.fn();
+    const element = SetRow({
+      set: createSet(),
+      onWeightEndEditing: jest.fn(() => true),
+      onRepsEndEditing: jest.fn(() => true),
+      onPendingStrengthDraftChange,
+      onToggleComplete: jest.fn(),
+      onDelete: jest.fn(),
+    });
+    const weightInput = findElementByTestId<{
+      onChangeText?: (value: string) => void;
+    }>(element, 'weight-input');
+    const repsInput = findElementByTestId<{
+      onChangeText?: (value: string) => void;
+    }>(element, 'reps-input');
+
+    weightInput?.props.onChangeText?.('85');
+    repsInput?.props.onChangeText?.('9');
+
+    expect(onPendingStrengthDraftChange).toHaveBeenCalledWith('set-1', 'weight', '85');
+    expect(onPendingStrengthDraftChange).toHaveBeenCalledWith('set-1', 'reps', '9');
   });
 
   it('allows max-length weight examples through the input layer', () => {

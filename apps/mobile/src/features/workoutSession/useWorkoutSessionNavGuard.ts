@@ -14,8 +14,10 @@ const BACK_ACTION_TYPES = ['GO_BACK', 'POP', 'POP_TO_TOP'];
 
 export function useWorkoutSessionNavGuard({
   navigation,
+  onBeforeExit,
 }: {
   navigation: WorkoutSessionNavGuardNavigation;
+  onBeforeExit?: () => void;
 }): { resetToHome: () => void } {
   const isExitingToHomeRef = useRef(false);
 
@@ -35,10 +37,11 @@ export function useWorkoutSessionNavGuard({
       const unsubscribe = navigation.addListener('beforeRemove', (e) => {
         if (!BACK_ACTION_TYPES.includes(e.data.action.type)) return;
         e.preventDefault();
+        onBeforeExit?.();
         resetToHome();
       });
       return unsubscribe;
-    }, [navigation, resetToHome]),
+    }, [navigation, onBeforeExit, resetToHome]),
   );
 
   return { resetToHome };
