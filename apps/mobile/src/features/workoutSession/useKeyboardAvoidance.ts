@@ -7,6 +7,7 @@ import {
   type NativeSyntheticEvent,
   type ScrollView,
 } from 'react-native';
+import type { FlatList as GestureFlatList } from 'react-native-gesture-handler';
 
 import { tokens } from '../../theme/tokens';
 
@@ -31,8 +32,9 @@ export function getKeyboardAvoidanceScrollTarget(input: {
   return Math.max(0, currentScrollOffset + neededOffset);
 }
 
-export function useKeyboardAvoidance({ bottomInset }: { bottomInset: number }) {
+export function useKeyboardAvoidance<ItemT = unknown>({ bottomInset }: { bottomInset: number }) {
   const scrollViewRef = useRef<ScrollView | null>(null);
+  const flatListRef = useRef<GestureFlatList<ItemT> | null>(null);
   const scrollOffsetYRef = useRef(0);
   const activeRowMetricsRef = useRef<EditFocusMetrics | null>(null);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
@@ -60,6 +62,10 @@ export function useKeyboardAvoidance({ bottomInset }: { bottomInset: number }) {
     scrollOffsetYRef.current = event.nativeEvent.contentOffset.y;
   }, []);
 
+  const handleScrollOffsetChange = useCallback((offset: number) => {
+    scrollOffsetYRef.current = offset;
+  }, []);
+
   const handleEditFocus = useCallback(
     (metrics: EditFocusMetrics) => {
       activeRowMetricsRef.current = metrics;
@@ -73,8 +79,15 @@ export function useKeyboardAvoidance({ bottomInset }: { bottomInset: number }) {
         platformOS: Platform.OS,
       });
       if (targetY === null) return;
-      scrollViewRef.current?.scrollTo({
-        y: targetY,
+      if (scrollViewRef.current) {
+        scrollViewRef.current.scrollTo({
+          y: targetY,
+          animated: true,
+        });
+        return;
+      }
+      flatListRef.current?.scrollToOffset({
+        offset: targetY,
         animated: true,
       });
     },
@@ -88,7 +101,9 @@ export function useKeyboardAvoidance({ bottomInset }: { bottomInset: number }) {
 
   return {
     scrollViewRef,
+    flatListRef,
     handleScroll,
+    handleScrollOffsetChange,
     handleEditFocus,
     keyboardOpen,
     keyboardSpacer,

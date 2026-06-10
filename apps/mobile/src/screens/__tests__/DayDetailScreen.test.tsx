@@ -38,7 +38,13 @@ jest.mock('react-native', () => {
   const React = require('react');
   return {
     Alert: { alert: jest.fn() },
-    Keyboard: { dismiss: jest.fn() },
+    Dimensions: { get: jest.fn(() => ({ height: 800 })) },
+    Keyboard: {
+      addListener: jest.fn(() => ({ remove: jest.fn() })),
+      dismiss: jest.fn(),
+    },
+    KeyboardAvoidingView: ({ children, ...props }: { children?: React.ReactNode }) =>
+      React.createElement('KeyboardAvoidingView', props, children),
     Pressable: ({ children, ...props }: { children?: React.ReactNode }) =>
       React.createElement('Pressable', props, children),
     Text: ({ children, ...props }: { children?: React.ReactNode }) =>
@@ -51,7 +57,7 @@ jest.mock('react-native', () => {
       create: (styles: unknown) => styles,
       flatten: (styles: unknown) => styles,
     },
-    Platform: { select: () => 'monospace' },
+    Platform: { OS: 'android', select: () => 'monospace' },
   };
 });
 
@@ -93,7 +99,7 @@ jest.mock('../../db/workoutSessionRepo', () => ({
 }));
 
 import React from 'react';
-import { Pressable, TextInput } from 'react-native';
+import { KeyboardAvoidingView, Pressable, TextInput } from 'react-native';
 import DraggableFlatList, { type RenderItemParams } from 'react-native-draggable-flatlist';
 import { Ionicons } from '@expo/vector-icons';
 import { BottomSheetModal, Button, EmptyState, Input, ListRow, Screen, Text } from '../../ui';
@@ -285,6 +291,48 @@ describe('DayDetailScreen', () => {
     const row = findElementsByType<React.ComponentProps<typeof ListRow>>(rowNode, ListRow)[0];
 
     expect(row.props.title).toBe('Bench Press');
+  });
+
+  it('uses keyboard-safe list wiring for workout plan editing', () => {
+    const items = [
+      {
+        id: 'day-ex-1',
+        program_day_id: 'day-1',
+        exercise_id: 'bench',
+        exercise_name: 'Bench Press',
+        exercise_type: 'strength',
+        position: 1,
+        notes: null,
+      },
+    ];
+    useStateMock.mockImplementationOnce(() => ['Push', jest.fn()]);
+    useStateMock.mockImplementationOnce(() => ['Push', jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [items, jest.fn()]);
+
+    const navigation: Nav = { navigate: jest.fn(), replace: jest.fn(), setOptions: jest.fn() };
+    const element = DayDetailScreen({
+      navigation,
+      route: { key: 'DayDetail', name: 'DayDetail', params: { dayId: 'day-1' } },
+    } as never);
+
+    const keyboardViews = findElementsByType<{ behavior?: string; style?: unknown }>(
+      element,
+      KeyboardAvoidingView,
+    );
+    expect(keyboardViews).toHaveLength(1);
+    expect(keyboardViews[0]?.props.behavior).toBeUndefined();
+
+    const lists = findElementsByType<
+      React.ComponentProps<typeof DraggableFlatList> & {
+        onScrollOffsetChange?: (offset: number) => void;
+      }
+    >(element, DraggableFlatList);
+    expect(lists[0]?.props.keyboardShouldPersistTaps).toBe('handled');
+    expect(typeof lists[0]?.props.onScrollOffsetChange).toBe('function');
+    expect(lists[0]?.props.contentContainerStyle).toEqual({
+      padding: tokens.spacing.lg,
+      paddingBottom: tokens.spacing.xl,
+    });
   });
 
   it('disables Add exercise and blocks picker navigation at 50 planned exercises', () => {
@@ -619,8 +667,10 @@ describe('DayDetailScreen', () => {
 
     const plannedSetRows = findElementsByProp<{
       plannedSet: { id: string };
+      onEditFocus?: (metrics: { pageY: number; height: number }) => void;
     }>(rowNode, 'plannedSet');
     expect(plannedSetRows).toHaveLength(2);
+    expect(typeof plannedSetRows[0]?.props.onEditFocus).toBe('function');
 
     const renderedRows = renderPlannedSetRows(rowNode);
     const weightInputs = renderedRows.flatMap((row) =>
@@ -635,6 +685,8 @@ describe('DayDetailScreen', () => {
     );
     expect(weightInputs).toHaveLength(2);
     expect(repsInputs).toHaveLength(2);
+    expect(typeof weightInputs[0]?.props.onFocus).toBe('function');
+    expect(typeof repsInputs[0]?.props.onFocus).toBe('function');
   });
 
   it('editing planned-set reps calls update path', () => {
@@ -888,7 +940,11 @@ describe('DayDetailScreen', () => {
       isActive: false,
       getIndex: () => 0,
     });
-    const editor = findElementsByProp<{ exercise: (typeof items)[number] }>(rowNode, 'exercise')[0];
+    const editor = findElementsByProp<{
+      exercise: (typeof items)[number];
+      onEditFocus?: (metrics: { pageY: number; height: number }) => void;
+    }>(rowNode, 'exercise')[0];
+    expect(typeof editor?.props.onEditFocus).toBe('function');
     const editorNode = renderComponentElement(editor);
     const inputs = findElementsByType<React.ComponentProps<typeof Input>>(editorNode, Input);
 
@@ -898,6 +954,7 @@ describe('DayDetailScreen', () => {
       ['Speed (km/h)', '9,5'],
       ['Incline (%)', '2'],
     ]);
+    expect(inputs.every((input) => typeof input.props.onFocus === 'function')).toBe(true);
   });
 
   it('expanding a cardio exercise row does not resync unchanged target text state', () => {

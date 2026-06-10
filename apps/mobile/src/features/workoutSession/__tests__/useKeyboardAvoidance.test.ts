@@ -233,4 +233,28 @@ describe('useKeyboardAvoidance', () => {
       animated: true,
     });
   });
+
+  it('supports FlatList-style offset tracking and scrolling', () => {
+    const rnMock = getReactNativeMock();
+    mockStateValues = [200];
+    const hook = useKeyboardAvoidance({ bottomInset: 12 });
+    const scrollToOffset = jest.fn();
+    hook.flatListRef.current = { scrollToOffset } as never;
+
+    hook.handleScrollOffsetChange(30);
+    hook.handleEditFocus({ pageY: 350, height: 100 });
+
+    expect(rnMock.dimensionsGet).toHaveBeenCalledWith('window');
+    expect(scrollToOffset).toHaveBeenCalledWith({
+      offset: getKeyboardAvoidanceScrollTarget({
+        metrics: { pageY: 350, height: 100 },
+        currentScrollOffset: 30,
+        keyboardHeight: 200,
+        bottomInset: 12,
+        windowHeight: 600,
+        platformOS: 'ios',
+      }),
+      animated: true,
+    });
+  });
 });

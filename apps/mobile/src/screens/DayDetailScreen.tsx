@@ -1,10 +1,19 @@
 import React, { useCallback, useState } from 'react';
-import { Keyboard, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import {
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  StyleSheet,
+  TextInput,
+  View,
+} from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
 import DraggableFlatList, { type RenderItemParams } from 'react-native-draggable-flatlist';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { RootStackParamList } from '../navigation/types';
 import {
@@ -66,6 +75,7 @@ import {
   SET_NUMBER_COLUMN_WIDTH,
   SET_ROW_GAP,
 } from '../features/workoutSession/setRowLayout';
+import { useKeyboardAvoidance } from '../features/workoutSession/useKeyboardAvoidance';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'DayDetail'>;
 const MAX_PLAN_NOTE_LENGTH = 200;
@@ -76,6 +86,7 @@ type PlannedSetRowEditorProps = {
   onCommitReps: (plannedSet: PlannedSetRow, value: string) => boolean;
   onCommitTargetWeight: (plannedSet: PlannedSetRow, value: string) => boolean;
   onDelete: (plannedSet: PlannedSetRow) => void;
+  onEditFocus?: (metrics: { pageY: number; height: number }) => void;
 };
 
 type PlannedSetInputField = 'weight' | 'reps';
@@ -83,6 +94,7 @@ type PlannedSetInputField = 'weight' | 'reps';
 type PlannedCardioTargetEditorProps = {
   exercise: DayExerciseRow;
   onCommitField: (exercise: DayExerciseRow, field: keyof CardioSummary, value: string) => boolean;
+  onEditFocus?: (metrics: { pageY: number; height: number }) => void;
 };
 
 function getPlannedCardioSummary(exercise: DayExerciseRow): CardioSummary {
@@ -98,11 +110,16 @@ function getPlannedCardioSummary(exercise: DayExerciseRow): CardioSummary {
   };
 }
 
-function PlannedCardioTargetEditor({ exercise, onCommitField }: PlannedCardioTargetEditorProps) {
+function PlannedCardioTargetEditor({
+  exercise,
+  onCommitField,
+  onEditFocus,
+}: PlannedCardioTargetEditorProps) {
   const fields = React.useMemo(
     () => fieldsForCardioProfile(exercise.cardio_profile),
     [exercise.cardio_profile],
   );
+  const fieldRefs = React.useRef<Partial<Record<keyof CardioSummary, View | null>>>({});
   const savedTexts = React.useMemo(() => {
     const summary = getPlannedCardioSummary(exercise);
     return Object.fromEntries(
@@ -188,6 +205,19 @@ function PlannedCardioTargetEditor({ exercise, onCommitField }: PlannedCardioTar
     [exercise, onCommitField, savedTexts],
   );
 
+  const handleFieldFocus = useCallback(
+    (field: keyof CardioSummary) => {
+      focusedFieldRef.current = field;
+      if (!onEditFocus) return;
+      const fieldRef = fieldRefs.current[field];
+      if (!fieldRef) return;
+      fieldRef.measureInWindow((_x, pageY, _width, height) => {
+        onEditFocus({ pageY, height });
+      });
+    },
+    [onEditFocus],
+  );
+
   return (
     <View style={{ gap: tokens.spacing.sm }}>
       {rows.map((row, rowIndex) => (
@@ -196,7 +226,13 @@ function PlannedCardioTargetEditor({ exercise, onCommitField }: PlannedCardioTar
           style={{ flexDirection: 'row', gap: tokens.spacing.sm }}
         >
           {row.map((field) => (
-            <View key={field.key} style={{ flex: 1 }}>
+            <View
+              key={field.key}
+              ref={(node) => {
+                fieldRefs.current[field.key] = node;
+              }}
+              style={{ flex: 1 }}
+            >
               <Input
                 label={field.label}
                 maxLength={cardioFieldMaxLengths[field.key]}
@@ -205,9 +241,7 @@ function PlannedCardioTargetEditor({ exercise, onCommitField }: PlannedCardioTar
                 placeholder={field.key === 'pace_seconds_per_km' ? '5:30' : undefined}
                 helperText={field.key === 'pace_seconds_per_km' ? 'Type 530 for 5:30' : undefined}
                 inputStyle={plannedCardioStyles.input}
-                onFocus={() => {
-                  focusedFieldRef.current = field.key;
-                }}
+                onFocus={() => handleFieldFocus(field.key)}
                 onChangeText={(value) => {
                   dirtyFieldsRef.current ??= new Set();
                   dirtyFieldsRef.current.add(field.key);
@@ -280,7 +314,9 @@ function PlannedSetRowEditor({
   onCommitReps,
   onCommitTargetWeight,
   onDelete,
+  onEditFocus,
 }: PlannedSetRowEditorProps) {
+  const rowRef = React.useRef<View | null>(null);
   const repsInputRef = React.useRef<TextInput | null>(null);
   const { colors } = useAppTheme();
   const savedWeightText = formatWeightInputValue(plannedSet.target_weight);
@@ -325,8 +361,23 @@ function PlannedSetRowEditor({
     [onCommitReps, plannedSet, savedRepsText],
   );
 
+  const handleEditFocus = React.useCallback(() => {
+    if (!onEditFocus || !rowRef.current) return;
+    rowRef.current.measureInWindow((_x, pageY, _width, height) => {
+      onEditFocus({ pageY, height });
+    });
+  }, [onEditFocus]);
+
+  const handleInputFocus = React.useCallback(
+    (field: PlannedSetInputField) => {
+      setFocusedField(field);
+      handleEditFocus();
+    },
+    [handleEditFocus],
+  );
+
   return (
-    <View style={plannedSetStyles.row}>
+    <View ref={rowRef} style={plannedSetStyles.row}>
       <View style={[plannedSetStyles.leftCluster, { gap: SET_INPUT_GAP }]}>
         <View style={[plannedSetStyles.setColumn, { width: SET_NUMBER_COLUMN_WIDTH }]}>
           <Text
@@ -347,7 +398,7 @@ function PlannedSetRowEditor({
               value={weightText}
               onChangeText={setWeightText}
               onEndEditing={(event) => commitWeight(event.nativeEvent.text)}
-              onFocus={() => setFocusedField('weight')}
+              onFocus={() => handleInputFocus('weight')}
               onBlur={() => setFocusedField(null)}
               onSubmitEditing={() => repsInputRef.current?.focus()}
               keyboardType="decimal-pad"
@@ -369,7 +420,7 @@ function PlannedSetRowEditor({
               value={repsText}
               onChangeText={setRepsText}
               onEndEditing={(event) => commitReps(event.nativeEvent.text)}
-              onFocus={() => setFocusedField('reps')}
+              onFocus={() => handleInputFocus('reps')}
               onBlur={() => setFocusedField(null)}
               onSubmitEditing={Keyboard.dismiss}
               keyboardType="number-pad"
@@ -421,6 +472,9 @@ export function DayDetailScreen({ route, navigation }: Props) {
     Record<string, PlannedSetRow[]>
   >({});
   const { colors } = useAppTheme();
+  const insets = useSafeAreaInsets();
+  const { flatListRef, handleScrollOffsetChange, handleEditFocus, keyboardSpacer } =
+    useKeyboardAvoidance<DayExerciseRow>({ bottomInset: insets.bottom });
 
   const loadPlannedSets = useCallback((dayExerciseId: string) => {
     setPlannedSetsByExerciseId((prev) => ({
@@ -672,6 +726,7 @@ export function DayDetailScreen({ route, navigation }: Props) {
                   onCommitReps={handlePlannedSetRepsEndEditing}
                   onCommitTargetWeight={handlePlannedSetWeightEndEditing}
                   onDelete={handleDeletePlannedSet}
+                  onEditFocus={handleEditFocus}
                 />
               ))}
 
@@ -699,6 +754,7 @@ export function DayDetailScreen({ route, navigation }: Props) {
               <PlannedCardioTargetEditor
                 exercise={item}
                 onCommitField={handlePlannedCardioTargetEndEditing}
+                onEditFocus={handleEditFocus}
               />
               <Button
                 title={noteButtonTitle}
@@ -899,44 +955,51 @@ export function DayDetailScreen({ route, navigation }: Props) {
 
   return (
     <Screen padded={false} bottomInset="none" style={{ flex: 1 }}>
-      <DraggableFlatList
-        data={items}
-        keyExtractor={(x) => x.id}
-        renderItem={renderItem}
-        renderPlaceholder={renderPlaceholder}
-        ListHeaderComponent={header}
-        ItemSeparatorComponent={() => <View style={{ height: tokens.spacing.sm }} />}
-        contentContainerStyle={{
-          padding: tokens.spacing.lg,
-          paddingBottom: tokens.spacing.xl,
-        }}
-        animationConfig={{
-          damping: 30,
-          mass: 0.35,
-          stiffness: 220,
-          overshootClamping: true,
-          energyThreshold: 1e-8,
-        }}
-        onDragBegin={
-          isStartSessionMode
-            ? undefined
-            : () => {
-                void Haptics.selectionAsync();
-              }
-        }
-        onDragEnd={
-          isStartSessionMode
-            ? undefined
-            : ({ data }) => {
-                setItems(data);
-                reorderDayExercises(
-                  dayId,
-                  data.map((x) => x.id),
-                );
-              }
-        }
-        keyboardShouldPersistTaps="handled"
-      />
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={{ flex: 1 }}
+      >
+        <DraggableFlatList
+          ref={flatListRef}
+          data={items}
+          keyExtractor={(x) => x.id}
+          renderItem={renderItem}
+          renderPlaceholder={renderPlaceholder}
+          ListHeaderComponent={header}
+          ItemSeparatorComponent={() => <View style={{ height: tokens.spacing.sm }} />}
+          contentContainerStyle={{
+            padding: tokens.spacing.lg,
+            paddingBottom: tokens.spacing.xl + keyboardSpacer,
+          }}
+          animationConfig={{
+            damping: 30,
+            mass: 0.35,
+            stiffness: 220,
+            overshootClamping: true,
+            energyThreshold: 1e-8,
+          }}
+          onScrollOffsetChange={handleScrollOffsetChange}
+          onDragBegin={
+            isStartSessionMode
+              ? undefined
+              : () => {
+                  void Haptics.selectionAsync();
+                }
+          }
+          onDragEnd={
+            isStartSessionMode
+              ? undefined
+              : ({ data }) => {
+                  setItems(data);
+                  reorderDayExercises(
+                    dayId,
+                    data.map((x) => x.id),
+                  );
+                }
+          }
+          keyboardShouldPersistTaps="handled"
+        />
+      </KeyboardAvoidingView>
       <DestructiveConfirmDialog
         visible={deleteExerciseTarget !== null}
         title="Delete exercise?"
