@@ -47,6 +47,12 @@ jest.mock('react-native', () => {
       addListener: jest.fn(() => ({ remove: jest.fn() })),
       dismiss: jest.fn(),
     },
+    InteractionManager: {
+      runAfterInteractions: jest.fn((callback: () => void) => {
+        callback();
+        return { cancel: jest.fn() };
+      }),
+    },
     KeyboardAvoidingView: ({ children, ...props }: { children?: React.ReactNode }) =>
       React.createElement('KeyboardAvoidingView', props, children),
     Pressable: ({ children, ...props }: { children?: React.ReactNode }) =>
@@ -411,10 +417,16 @@ describe('WorkoutSessionScreen', () => {
     expect(setRows[1]?.props.set.is_completed).toBe(1);
 
     const scrollViews = findElementsByType(element, ScrollView) as Array<
-      React.ReactElement<{ keyboardShouldPersistTaps?: string; onScroll?: unknown; ref?: unknown }>
+      React.ReactElement<{
+        keyboardShouldPersistTaps?: string;
+        onScroll?: unknown;
+        onScrollBeginDrag?: unknown;
+        ref?: unknown;
+      }>
     >;
     expect(scrollViews[0]?.props.keyboardShouldPersistTaps).toBe('handled');
     expect(typeof scrollViews[0]?.props.onScroll).toBe('function');
+    expect(typeof scrollViews[0]?.props.onScrollBeginDrag).toBe('function');
     expect(
       scrollViews[0]?.props.ref ?? (scrollViews[0] as { ref?: unknown } | undefined)?.ref,
     ).toBeDefined();

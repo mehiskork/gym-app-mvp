@@ -59,6 +59,7 @@ import {
   createSessionFromPlanDay,
   discardSessionIfNoMeaningfulActivity,
   getInProgressSession,
+  getWorkoutSessionExerciseCardioProgressIds,
   hasMeaningfulWorkoutActivity,
 } from '../workoutSessionRepo';
 import {
@@ -229,6 +230,27 @@ describe('empty active workout auto-discard', () => {
 
     expect(discardSessionIfNoMeaningfulActivity(sessionId)).toBe(false);
     expect(getInProgressSession()?.id).toBe(sessionId);
+  });
+
+  it('does not count unchanged planned cardio prefill as resume progress', () => {
+    const { planId, dayId } = createPlanDayWithBenchAndRowing();
+    const sessionId = createSessionFromPlanDay({ workoutPlanId: planId, dayId });
+
+    expect(getWorkoutSessionExerciseCardioProgressIds(sessionId)).toEqual(new Set());
+  });
+
+  it('counts planned cardio changed from the initial snapshot as resume progress', () => {
+    const { planId, dayId } = createPlanDayWithBenchAndRowing();
+    const sessionId = createSessionFromPlanDay({ workoutPlanId: planId, dayId });
+    const cardioExerciseId = exerciseIdFor(sessionId, rowingId);
+
+    updateWorkoutSessionExerciseCardioSummary(cardioExerciseId, {
+      distance_km: 2.5,
+    });
+
+    expect(getWorkoutSessionExerciseCardioProgressIds(sessionId)).toEqual(
+      new Set([cardioExerciseId]),
+    );
   });
 
   it('keeps a planned workout when a workout or exercise note changes', () => {

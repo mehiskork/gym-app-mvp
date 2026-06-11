@@ -2,8 +2,11 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Animated,
   Easing,
+  InteractionManager,
   Keyboard,
   KeyboardAvoidingView,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
   Platform,
   ScrollView,
   View,
@@ -74,6 +77,7 @@ const MAX_EXERCISE_COMMENT_LENGTH = 200;
 const MAX_WORKOUT_NOTE_LENGTH = 200;
 const REST_TIMER_FINISHED_PULSE_DURATION_MS = 1400;
 const REST_TIMER_FINISHED_PULSE_MAX_OPACITY = 0.34;
+const RESUME_AUTO_SCROLL_SKIP_THRESHOLD = 32;
 type PendingStrengthDrafts = Map<string, { weight?: string; reps?: string }>;
 
 const cardioDisplayNames: Record<CardioProfile, string> = {
@@ -134,6 +138,37 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
   const submittedDeleteExerciseIdRef = React.useRef<string | null>(null);
   const pendingPaceDraftsRef = React.useRef<Map<string, string> | null>(new Map());
   const pendingStrengthDraftsRef = React.useRef<PendingStrengthDrafts | null>(new Map());
+  const resumeAutoScrollAttemptedRef = React.useRef(false);
+  const resumeAutoScrollCancelledRef = React.useRef(false);
+  const exerciseLayoutYByIdRef = React.useRef<Map<string, number>>(new Map());
+  const scrollOffsetYRef = React.useRef(0);
+  const resumeProgressTargetExerciseIdRef = React.useRef<string | null>(null);
+  const resumeScrollInteractionRef = React.useRef<{ cancel?: () => void } | null>(null);
+  const resumeScrollAnimationFrameRef = React.useRef<number | null>(null);
+
+  if (exerciseLayoutYByIdRef.current === null) {
+    exerciseLayoutYByIdRef.current = new Map();
+  }
+
+  const cancelScheduledResumeAutoScroll = useCallback(() => {
+    resumeScrollInteractionRef.current?.cancel?.();
+    resumeScrollInteractionRef.current = null;
+    if (resumeScrollAnimationFrameRef.current !== null) {
+      cancelAnimationFrame(resumeScrollAnimationFrameRef.current);
+      resumeScrollAnimationFrameRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    resumeAutoScrollAttemptedRef.current = false;
+    resumeAutoScrollCancelledRef.current = false;
+    exerciseLayoutYByIdRef.current.clear();
+    scrollOffsetYRef.current = 0;
+    resumeProgressTargetExerciseIdRef.current = null;
+    cancelScheduledResumeAutoScroll();
+
+    return cancelScheduledResumeAutoScroll;
+  }, [cancelScheduledResumeAutoScroll, sessionId]);
   const flushPendingPaceDrafts = useCallback(() => {
     let flushedPaceAsLoggedWork = false;
     const pendingPaceDrafts = pendingPaceDraftsRef.current;
@@ -240,11 +275,13 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
     if (!data) {
       setSession(null);
       setExercises([]);
+      resumeProgressTargetExerciseIdRef.current = null;
       resetToHome();
       return;
     }
     setSession(data.session);
     setExercises(data.exercises);
+    resumeProgressTargetExerciseIdRef.current = data.resumeProgressTargetExerciseId;
     setWorkoutNoteDraft(data.session.workout_note ?? '');
   }, [resetToHome, sessionId]);
 
@@ -406,6 +443,19 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
     [session?.status, sessionId],
   );
 
+  const handleWorkoutScroll = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      handleScroll(event);
+      scrollOffsetYRef.current = event.nativeEvent.contentOffset.y;
+    },
+    [handleScroll],
+  );
+
+  const handleScrollBeginDrag = useCallback(() => {
+    resumeAutoScrollCancelledRef.current = true;
+    cancelScheduledResumeAutoScroll();
+  }, [cancelScheduledResumeAutoScroll]);
+
   const editingExercise = useMemo(
     () => exercises.find((exercise) => exercise.id === noteEditorExerciseId) ?? null,
     [noteEditorExerciseId, exercises],
@@ -466,6 +516,49 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
     ? REST_TIMER_TOP_OFFSET + REST_TIMER_HEIGHT + REST_TIMER_CONTENT_GAP
     : baseScrollPaddingTop;
   const restTimerTop = REST_TIMER_TOP_OFFSET;
+
+  const attemptResumeAutoScroll = useCallback(() => {
+    if (resumeAutoScrollAttemptedRef.current) return;
+    if (resumeAutoScrollCancelledRef.current) return;
+    if (!session || session.status !== 'in_progress') return;
+
+    const resumeProgressTargetExerciseId = resumeProgressTargetExerciseIdRef.current;
+    if (!resumeProgressTargetExerciseId) {
+      resumeAutoScrollAttemptedRef.current = true;
+      return;
+    }
+
+    const exerciseLayoutY = exerciseLayoutYByIdRef.current.get(resumeProgressTargetExerciseId);
+    if (exerciseLayoutY === undefined) return;
+    if (keyboardOpen) return;
+
+    cancelScheduledResumeAutoScroll();
+    const interaction = InteractionManager.runAfterInteractions(() => {
+      resumeScrollInteractionRef.current = null;
+      resumeScrollAnimationFrameRef.current = requestAnimationFrame(() => {
+        resumeScrollAnimationFrameRef.current = null;
+        if (resumeAutoScrollAttemptedRef.current) return;
+        resumeAutoScrollAttemptedRef.current = true;
+        if (resumeAutoScrollCancelledRef.current) return;
+        if (keyboardOpen) return;
+        const latestLayoutY = exerciseLayoutYByIdRef.current.get(resumeProgressTargetExerciseId);
+        if (latestLayoutY === undefined) return;
+        if (!scrollViewRef.current) return;
+
+        const targetY = Math.max(0, latestLayoutY - scrollPaddingTop - tokens.spacing.sm);
+        if (Math.abs(targetY - scrollOffsetYRef.current) <= RESUME_AUTO_SCROLL_SKIP_THRESHOLD) {
+          return;
+        }
+        scrollViewRef.current.scrollTo({ y: targetY, animated: true });
+      });
+    });
+    resumeScrollInteractionRef.current = interaction;
+  }, [cancelScheduledResumeAutoScroll, keyboardOpen, scrollPaddingTop, scrollViewRef, session]);
+
+  useEffect(() => {
+    attemptResumeAutoScroll();
+  }, [attemptResumeAutoScroll]);
+
   if (!session) {
     return (
       <Screen style={{ justifyContent: 'center' }}>
@@ -489,7 +582,8 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
       >
         <ScrollView
           ref={scrollViewRef}
-          onScroll={handleScroll}
+          onScroll={handleWorkoutScroll}
+          onScrollBeginDrag={handleScrollBeginDrag}
           scrollEventThrottle={16}
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={{
@@ -519,80 +613,87 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
           ) : (
             exercises.map((ex) => {
               return (
-                <ExerciseCard
+                <View
                   key={ex.id}
-                  name={getExerciseDisplayName(ex)}
-                  commentButtonLabel={
-                    ex.plan_note_snapshot?.trim() || ex.notes?.trim() ? 'View Note' : 'Add Note'
-                  }
-                  commentHighlighted={Boolean(ex.plan_note_snapshot?.trim())}
-                  onCommentPress={() => {
-                    setNoteEditorExerciseId(ex.id);
-                    setWorkoutExerciseNoteDraft(ex.notes ?? '');
+                  onLayout={(event) => {
+                    exerciseLayoutYByIdRef.current.set(ex.id, event.nativeEvent.layout.y);
+                    attemptResumeAutoScroll();
                   }}
-                  onPressTitle={() =>
-                    navigation.navigate('ExerciseDetail', { exerciseId: ex.exercise_id })
-                  }
-                  showAddSet={ex.exercise_type === EXERCISE_TYPE.STRENGTH}
-                  addSetDisabled={ex.sets.length >= MAX_SETS_PER_EXERCISE}
-                  showSetHeaders={ex.exercise_type === EXERCISE_TYPE.STRENGTH}
-                  onAddSet={() => {
-                    if (ex.exercise_type !== EXERCISE_TYPE.STRENGTH) return;
-                    setActions.handleAddSet(ex);
-                  }}
-                  onSwap={() =>
-                    navigation.navigate('ExercisePicker', {
-                      swapSessionExerciseId: ex.id,
-                      swapSessionId: sessionId,
-                    })
-                  }
-                  onRemove={() => setDeleteExerciseTarget(ex)}
-                  removeDisabled={isDeletingExercise}
                 >
-                  {ex.exercise_type === EXERCISE_TYPE.CARDIO ? (
-                    <CardioSummaryEditor
-                      profile={ex.cardio_profile}
-                      summary={ex.cardio_summary}
-                      editable={session.status === 'in_progress'}
-                      onEditFocus={handleEditFocus}
-                      onFieldEndEditing={(field, value) => {
-                        const parsed = parseCardioInput(field, value);
-                        if (!parsed.ok) return false;
-                        updateWorkoutSessionExerciseCardioSummary(ex.id, {
-                          [field]: parsed.value,
-                        });
-                        load();
-                        return true;
-                      }}
-                      onPendingPaceDraftChange={(value) => {
-                        const pendingPaceDrafts = getPendingPaceDrafts();
-                        if (value === null) {
-                          pendingPaceDrafts.delete(ex.id);
-                          return;
-                        }
-                        pendingPaceDrafts.set(ex.id, value);
-                      }}
-                    />
-                  ) : (
-                    ex.sets.map((set) => (
-                      <SetRow
-                        key={set.id}
-                        set={set}
-                        onWeightEndEditing={(value) =>
-                          setActions.handleWeightEndEditing(set, value)
-                        }
-                        onRepsEndEditing={(value) => setActions.handleRepsEndEditing(set, value)}
-                        onPendingStrengthDraftChange={handlePendingStrengthDraftChange}
-                        onToggleComplete={() => {
-                          Keyboard.dismiss();
-                          setActions.handleToggleComplete(ex, set);
-                        }}
-                        onDelete={() => setActions.handleDeleteSet(set)}
+                  <ExerciseCard
+                    name={getExerciseDisplayName(ex)}
+                    commentButtonLabel={
+                      ex.plan_note_snapshot?.trim() || ex.notes?.trim() ? 'View Note' : 'Add Note'
+                    }
+                    commentHighlighted={Boolean(ex.plan_note_snapshot?.trim())}
+                    onCommentPress={() => {
+                      setNoteEditorExerciseId(ex.id);
+                      setWorkoutExerciseNoteDraft(ex.notes ?? '');
+                    }}
+                    onPressTitle={() =>
+                      navigation.navigate('ExerciseDetail', { exerciseId: ex.exercise_id })
+                    }
+                    showAddSet={ex.exercise_type === EXERCISE_TYPE.STRENGTH}
+                    addSetDisabled={ex.sets.length >= MAX_SETS_PER_EXERCISE}
+                    showSetHeaders={ex.exercise_type === EXERCISE_TYPE.STRENGTH}
+                    onAddSet={() => {
+                      if (ex.exercise_type !== EXERCISE_TYPE.STRENGTH) return;
+                      setActions.handleAddSet(ex);
+                    }}
+                    onSwap={() =>
+                      navigation.navigate('ExercisePicker', {
+                        swapSessionExerciseId: ex.id,
+                        swapSessionId: sessionId,
+                      })
+                    }
+                    onRemove={() => setDeleteExerciseTarget(ex)}
+                    removeDisabled={isDeletingExercise}
+                  >
+                    {ex.exercise_type === EXERCISE_TYPE.CARDIO ? (
+                      <CardioSummaryEditor
+                        profile={ex.cardio_profile}
+                        summary={ex.cardio_summary}
+                        editable={session.status === 'in_progress'}
                         onEditFocus={handleEditFocus}
+                        onFieldEndEditing={(field, value) => {
+                          const parsed = parseCardioInput(field, value);
+                          if (!parsed.ok) return false;
+                          updateWorkoutSessionExerciseCardioSummary(ex.id, {
+                            [field]: parsed.value,
+                          });
+                          load();
+                          return true;
+                        }}
+                        onPendingPaceDraftChange={(value) => {
+                          const pendingPaceDrafts = getPendingPaceDrafts();
+                          if (value === null) {
+                            pendingPaceDrafts.delete(ex.id);
+                            return;
+                          }
+                          pendingPaceDrafts.set(ex.id, value);
+                        }}
                       />
-                    ))
-                  )}
-                </ExerciseCard>
+                    ) : (
+                      ex.sets.map((set) => (
+                        <SetRow
+                          key={set.id}
+                          set={set}
+                          onWeightEndEditing={(value) =>
+                            setActions.handleWeightEndEditing(set, value)
+                          }
+                          onRepsEndEditing={(value) => setActions.handleRepsEndEditing(set, value)}
+                          onPendingStrengthDraftChange={handlePendingStrengthDraftChange}
+                          onToggleComplete={() => {
+                            Keyboard.dismiss();
+                            setActions.handleToggleComplete(ex, set);
+                          }}
+                          onDelete={() => setActions.handleDeleteSet(set)}
+                          onEditFocus={handleEditFocus}
+                        />
+                      ))
+                    )}
+                  </ExerciseCard>
+                </View>
               );
             })
           )}

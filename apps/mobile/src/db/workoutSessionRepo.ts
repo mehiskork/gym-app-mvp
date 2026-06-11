@@ -159,6 +159,10 @@ function cardioSummariesDiffer(current: CardioSummary, initial: CardioSummary): 
   return CARDIO_SUMMARY_FIELDS.some((field) => current[field] !== initial[field]);
 }
 
+function hasCardioSummaryValue(summary: CardioSummary): boolean {
+  return CARDIO_SUMMARY_FIELDS.some((field) => summary[field] !== null);
+}
+
 function parseInitialSnapshot(payload: string): WorkoutInitialSnapshot | null {
   try {
     const parsed = JSON.parse(payload) as WorkoutInitialSnapshot;
@@ -746,6 +750,28 @@ export function discardSessionIfNoMeaningfulActivity(sessionId: string): boolean
   if (hasMeaningfulWorkoutActivity(sessionId)) return false;
   discardSession(sessionId);
   return true;
+}
+
+export function getWorkoutSessionExerciseCardioProgressIds(sessionId: string): Set<string> {
+  const activeCardioExercises = readSnapshotExercises(sessionId).filter(
+    (row) => row.deleted_at === null && row.exercise_type === EXERCISE_TYPE.CARDIO,
+  );
+  const snapshot = getInitialSnapshot(sessionId);
+  const progressIds = new Set<string>();
+
+  for (const exercise of activeCardioExercises) {
+    const currentSummary = cardioSummaryFromRow(exercise);
+    const initial = snapshot?.exercises[exercise.id];
+    const hasProgress = initial
+      ? cardioSummariesDiffer(currentSummary, initial.cardio_summary)
+      : hasCardioSummaryValue(currentSummary);
+
+    if (hasProgress) {
+      progressIds.add(exercise.id);
+    }
+  }
+
+  return progressIds;
 }
 
 function cleanupEmptyActiveWorkoutSnapshotsInCurrentTransaction(): string[] {

@@ -32,6 +32,7 @@ import {
   addExerciseToWorkoutSessionInitialSnapshot,
   addSetToWorkoutSessionInitialSnapshot,
   deleteWorkoutSessionInitialSnapshot,
+  getWorkoutSessionExerciseCardioProgressIds,
 } from './workoutSessionRepo';
 
 const EXERCISE_POSITION_SHIFT_OFFSET = 1_000_000;
@@ -75,6 +76,48 @@ export type LoggerSet = {
 };
 
 export type RestoreWorkoutSetInput = LoggerSet;
+
+export function getResumeProgressTargetExerciseId(input: {
+  exercises: LoggerExercise[];
+  cardioProgressExerciseIds?: Set<string>;
+}): string | null {
+  const { exercises, cardioProgressExerciseIds } = input;
+  let strengthTarget: { exerciseId: string; exercisePosition: number; setIndex: number } | null =
+    null;
+  let cardioTarget: { exerciseId: string; exercisePosition: number } | null = null;
+
+  for (const exercise of exercises) {
+    if (exercise.exercise_type === EXERCISE_TYPE.STRENGTH) {
+      for (const set of exercise.sets) {
+        if (set.is_completed !== 1) continue;
+        if (
+          !strengthTarget ||
+          exercise.position > strengthTarget.exercisePosition ||
+          (exercise.position === strengthTarget.exercisePosition &&
+            set.set_index > strengthTarget.setIndex)
+        ) {
+          strengthTarget = {
+            exerciseId: exercise.id,
+            exercisePosition: exercise.position,
+            setIndex: set.set_index,
+          };
+        }
+      }
+      continue;
+    }
+
+    if (exercise.exercise_type !== EXERCISE_TYPE.CARDIO) continue;
+    if (!cardioProgressExerciseIds?.has(exercise.id)) continue;
+    if (!cardioTarget || exercise.position > cardioTarget.exercisePosition) {
+      cardioTarget = {
+        exerciseId: exercise.id,
+        exercisePosition: exercise.position,
+      };
+    }
+  }
+
+  return strengthTarget?.exerciseId ?? cardioTarget?.exerciseId ?? null;
+}
 
 function enqueueWorkoutSessionExerciseSnapshot(
   wseId: string,
@@ -322,6 +365,7 @@ function isValidWorkoutSetPatchEntry(key: string, value: unknown): boolean {
 export function getWorkoutLoggerData(sessionId: string): {
   session: LoggerSession;
   exercises: LoggerExercise[];
+  resumeProgressTargetExerciseId: string | null;
 } | null {
   const detail = fetchSessionDetail(sessionId);
   if (!detail) return null;
@@ -361,7 +405,12 @@ export function getWorkoutLoggerData(sessionId: string): {
     },
   }));
 
-  return { session, exercises };
+  const resumeProgressTargetExerciseId = getResumeProgressTargetExerciseId({
+    exercises,
+    cardioProgressExerciseIds: getWorkoutSessionExerciseCardioProgressIds(sessionId),
+  });
+
+  return { session, exercises, resumeProgressTargetExerciseId };
 }
 
 export function swapWorkoutSessionExercise(input: {
