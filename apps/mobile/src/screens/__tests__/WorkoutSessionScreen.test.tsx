@@ -6,7 +6,7 @@ jest.mock('react', () => {
     useCallback: (fn: () => unknown) => fn,
     useMemo: (fn: () => unknown) => fn(),
     useEffect: jest.fn(),
-    useRef: () => ({ current: null }),
+    useRef: jest.fn((initial: unknown) => ({ current: initial })),
   };
 });
 
@@ -300,11 +300,18 @@ function mockScreenState(input: {
 describe('WorkoutSessionScreen', () => {
   const useStateMock = React.useState as jest.Mock;
   const useEffectMock = React.useEffect as jest.Mock;
+  const useRefMock = React.useRef as jest.Mock;
 
   beforeEach(() => {
     useStateMock.mockReset();
     useStateMock.mockImplementation((initial: unknown) => [initial, jest.fn()]);
     useEffectMock.mockReset();
+    useRefMock.mockReset();
+    useRefMock.mockImplementation((initial: unknown) => ({ current: initial }));
+    (Animated.Value as unknown as jest.Mock).mockClear();
+    (Animated.timing as jest.Mock).mockClear();
+    (Animated.sequence as jest.Mock).mockClear();
+    (Animated.loop as jest.Mock).mockClear();
     (updateWorkoutSet as jest.Mock).mockReset();
     (deleteWorkoutSessionExercise as jest.Mock).mockReset();
     (deleteWorkoutSessionExercise as jest.Mock).mockReturnValue({ deleted: true });
@@ -329,6 +336,50 @@ describe('WorkoutSessionScreen', () => {
     (useFocusEffect as jest.Mock).mockImplementation((callback: () => void) => callback());
     (CommonActions.reset as jest.Mock).mockClear();
   });
+
+  const renderWorkoutSessionWithSession = (
+    session: ReturnType<typeof createSession>,
+    options: {
+      exercises?: Array<unknown>;
+      settings?: Partial<ReturnType<typeof getSettings>>;
+      navigation?: Nav;
+    } = {},
+  ) => {
+    const exercises = options.exercises ?? [];
+    const settings = {
+      defaultRestSeconds: 120,
+      autoStartRestTimer: true,
+      restTimerVibration: true,
+      keepScreenOn: true,
+      restTimerNotifications: false,
+      ...options.settings,
+    };
+
+    useStateMock.mockImplementationOnce(() => [session, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [exercises, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [0, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [settings, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [false, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [false, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [{ visible: false, payload: null }, jest.fn()]);
+    (getWorkoutLoggerData as jest.Mock).mockReturnValue({ session, exercises });
+
+    const navigation = options.navigation ?? {
+      navigate: jest.fn(),
+      dispatch: jest.fn(),
+      setOptions: jest.fn(),
+      addListener: jest.fn(),
+    };
+
+    return WorkoutSessionScreen({
+      navigation,
+      route: {
+        key: 'WorkoutSession',
+        name: 'WorkoutSession',
+        params: { sessionId: String(session.id) },
+      },
+    } as never);
+  };
 
   it('renders the exercise and toggles a set', () => {
     const session = {
@@ -1759,6 +1810,9 @@ describe('WorkoutSessionScreen', () => {
   });
 
   it('renders the rest timer overlay outside the scroll view when active', () => {
+    const nowSpy = jest
+      .spyOn(Date, 'now')
+      .mockReturnValue(new Date('2024-01-04T00:00:00Z').getTime());
     const session = {
       id: 'session-4',
       title: 'Conditioning',
@@ -1839,6 +1893,32 @@ describe('WorkoutSessionScreen', () => {
     );
     expect(clearRestTimerButton?.props.variant).toBe('danger');
     expect(Animated.loop).not.toHaveBeenCalled();
+    nowSpy.mockRestore();
+  });
+
+  it('does not render the finished pulse overlay for a running rest timer', () => {
+    const nowSpy = jest
+      .spyOn(Date, 'now')
+      .mockReturnValue(new Date('2024-01-04T00:00:00Z').getTime());
+    const element = renderWorkoutSessionWithSession(
+      createSession({
+        id: 'session-4',
+        title: 'Conditioning',
+        started_at: '2024-01-04T00:00:00Z',
+        rest_timer_end_at: '2024-01-04T00:01:00Z',
+        rest_timer_seconds: 60,
+        rest_timer_label: 'Row',
+      }),
+    );
+
+    const pulseOverlays = findElementsByType(element, Animated.View) as Array<
+      React.ReactElement<{ testID?: string }>
+    >;
+    expect(
+      pulseOverlays.some((overlay) => overlay.props.testID === 'rest-timer-finished-pulse'),
+    ).toBe(false);
+    expect(Animated.loop).not.toHaveBeenCalled();
+    nowSpy.mockRestore();
   });
 
   it('renders the rest timer finished pulse when the active timer is expired', () => {
@@ -1914,6 +1994,146 @@ describe('WorkoutSessionScreen', () => {
       }),
     );
 
+    nowSpy.mockRestore();
+  });
+
+  it('removes the finished pulse overlay and resets animation when a rest timer restarts', () => {
+    const nowSpy = jest
+      .spyOn(Date, 'now')
+      .mockReturnValue(new Date('2024-01-04T00:01:00Z').getTime());
+    const refs: Array<{ current: unknown }> = [];
+    let refIndex = 0;
+    useRefMock.mockImplementation((initial: unknown) => {
+      const existing = refs[refIndex];
+      if (existing) {
+        refIndex += 1;
+        return existing;
+      }
+      const next = { current: initial };
+      refs.push(next);
+      refIndex += 1;
+      return next;
+    });
+    const effectCleanups: Array<() => void> = [];
+    useEffectMock.mockImplementation((callback: () => void | (() => void)) => {
+      const cleanup = callback();
+      if (typeof cleanup === 'function') effectCleanups.push(cleanup);
+    });
+
+    const finishedElement = renderWorkoutSessionWithSession(
+      createSession({
+        id: 'session-4',
+        title: 'Conditioning',
+        started_at: '2024-01-04T00:00:00Z',
+        rest_timer_end_at: '2024-01-04T00:01:00Z',
+        rest_timer_seconds: 60,
+        rest_timer_label: 'Row',
+      }),
+    );
+    const finishedPulseOverlays = findElementsByType(finishedElement, Animated.View) as Array<
+      React.ReactElement<{ testID?: string }>
+    >;
+    expect(
+      finishedPulseOverlays.some((overlay) => overlay.props.testID === 'rest-timer-finished-pulse'),
+    ).toBe(true);
+    const pulseLoop = (Animated.loop as jest.Mock).mock.results[0]?.value as
+      | { start: jest.Mock; stop: jest.Mock }
+      | undefined;
+    const pulseOpacity = (Animated.Value as unknown as jest.Mock).mock.results[0]?.value as
+      | { setValue: jest.Mock }
+      | undefined;
+    expect(pulseLoop?.start).toHaveBeenCalledTimes(1);
+
+    refIndex = 0;
+    nowSpy.mockReturnValue(new Date('2024-01-04T00:01:05Z').getTime());
+    const restartedElement = renderWorkoutSessionWithSession(
+      createSession({
+        id: 'session-4',
+        title: 'Conditioning',
+        started_at: '2024-01-04T00:00:00Z',
+        rest_timer_end_at: '2024-01-04T00:03:00Z',
+        rest_timer_seconds: 120,
+        rest_timer_label: 'Row',
+      }),
+    );
+
+    const restartedPulseOverlays = findElementsByType(restartedElement, Animated.View) as Array<
+      React.ReactElement<{ testID?: string }>
+    >;
+    expect(
+      restartedPulseOverlays.some(
+        (overlay) => overlay.props.testID === 'rest-timer-finished-pulse',
+      ),
+    ).toBe(false);
+    expect(pulseLoop?.stop).toHaveBeenCalledTimes(1);
+    expect(pulseOpacity?.setValue).toHaveBeenCalledWith(0);
+
+    effectCleanups.forEach((cleanup) => cleanup());
+    nowSpy.mockRestore();
+  });
+
+  it('stops and resets the finished pulse when the rest timer is cleared', () => {
+    const nowSpy = jest
+      .spyOn(Date, 'now')
+      .mockReturnValue(new Date('2024-01-04T00:01:00Z').getTime());
+    const refs: Array<{ current: unknown }> = [];
+    let refIndex = 0;
+    useRefMock.mockImplementation((initial: unknown) => {
+      const existing = refs[refIndex];
+      if (existing) {
+        refIndex += 1;
+        return existing;
+      }
+      const next = { current: initial };
+      refs.push(next);
+      refIndex += 1;
+      return next;
+    });
+    const effectCleanups: Array<() => void> = [];
+    useEffectMock.mockImplementation((callback: () => void | (() => void)) => {
+      const cleanup = callback();
+      if (typeof cleanup === 'function') effectCleanups.push(cleanup);
+    });
+
+    renderWorkoutSessionWithSession(
+      createSession({
+        id: 'session-4',
+        title: 'Conditioning',
+        started_at: '2024-01-04T00:00:00Z',
+        rest_timer_end_at: '2024-01-04T00:01:00Z',
+        rest_timer_seconds: 60,
+        rest_timer_label: 'Row',
+      }),
+    );
+    const pulseLoop = (Animated.loop as jest.Mock).mock.results[0]?.value as
+      | { start: jest.Mock; stop: jest.Mock }
+      | undefined;
+    const pulseOpacity = (Animated.Value as unknown as jest.Mock).mock.results[0]?.value as
+      | { setValue: jest.Mock }
+      | undefined;
+
+    refIndex = 0;
+    const clearedElement = renderWorkoutSessionWithSession(
+      createSession({
+        id: 'session-4',
+        title: 'Conditioning',
+        started_at: '2024-01-04T00:00:00Z',
+        rest_timer_end_at: null,
+        rest_timer_seconds: null,
+        rest_timer_label: null,
+      }),
+    );
+
+    const clearedPulseOverlays = findElementsByType(clearedElement, Animated.View) as Array<
+      React.ReactElement<{ testID?: string }>
+    >;
+    expect(
+      clearedPulseOverlays.some((overlay) => overlay.props.testID === 'rest-timer-finished-pulse'),
+    ).toBe(false);
+    expect(pulseLoop?.stop).toHaveBeenCalledTimes(1);
+    expect(pulseOpacity?.setValue).toHaveBeenCalledWith(0);
+
+    effectCleanups.forEach((cleanup) => cleanup());
     nowSpy.mockRestore();
   });
 

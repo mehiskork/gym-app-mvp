@@ -715,19 +715,21 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
             borderColor: timerFinished ? colors.primaryBorder : tokens.colors.border,
           }}
         >
-          <Animated.View
-            pointerEvents="none"
-            testID="rest-timer-finished-pulse"
-            style={{
-              position: 'absolute',
-              top: 0,
-              right: 0,
-              bottom: 0,
-              left: 0,
-              backgroundColor: colors.primary,
-              opacity: timerPulseOpacity,
-            }}
-          />
+          {timerFinished ? (
+            <Animated.View
+              pointerEvents="none"
+              testID="rest-timer-finished-pulse"
+              style={{
+                position: 'absolute',
+                top: 0,
+                right: 0,
+                bottom: 0,
+                left: 0,
+                backgroundColor: colors.primary,
+                opacity: timerPulseOpacity,
+              }}
+            />
+          ) : null}
           <View
             style={{
               flexDirection: 'row',
