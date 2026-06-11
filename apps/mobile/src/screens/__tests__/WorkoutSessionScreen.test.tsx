@@ -362,7 +362,7 @@ describe('WorkoutSessionScreen', () => {
             rpe: null,
             rest_seconds: 90,
             notes: null,
-            is_completed: 0,
+            is_completed: 1,
           },
         ],
       },
@@ -402,11 +402,13 @@ describe('WorkoutSessionScreen', () => {
       React.ReactElement<ExerciseCardProps>
     >;
     expect(exerciseCards[0]?.props.name).toBe('Bench Press');
+    expect(exerciseCards[0]?.props.subtitle).toBeUndefined();
 
     type SetRowProps = React.ComponentProps<typeof SetRow>;
     const setRows = findElementsByType(element, SetRow) as Array<React.ReactElement<SetRowProps>>;
     expect(setRows).toHaveLength(2);
     expect(typeof setRows[0]?.props.onEditFocus).toBe('function');
+    expect(setRows[1]?.props.set.is_completed).toBe(1);
 
     const scrollViews = findElementsByType(element, ScrollView) as Array<
       React.ReactElement<{ keyboardShouldPersistTaps?: string; onScroll?: unknown; ref?: unknown }>

@@ -76,13 +76,6 @@ const REST_TIMER_FINISHED_PULSE_DURATION_MS = 1400;
 const REST_TIMER_FINISHED_PULSE_MAX_OPACITY = 0.34;
 type PendingStrengthDrafts = Map<string, { weight?: string; reps?: string }>;
 
-function getExerciseSubtitle(exercise: LoggerExercise): string | null {
-  if (exercise.exercise_type === EXERCISE_TYPE.CARDIO) return null;
-  if (exercise.sets.length === 0) return null;
-  const completed = exercise.sets.filter((set) => set.is_completed === 1).length;
-  return `${completed}/${exercise.sets.length} sets complete`;
-}
-
 const cardioDisplayNames: Record<CardioProfile, string> = {
   treadmill: 'Treadmill',
   bike: 'Bike',
@@ -529,7 +522,6 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
                 <ExerciseCard
                   key={ex.id}
                   name={getExerciseDisplayName(ex)}
-                  subtitle={getExerciseSubtitle(ex)}
                   commentButtonLabel={
                     ex.plan_note_snapshot?.trim() || ex.notes?.trim() ? 'View Note' : 'Add Note'
                   }
