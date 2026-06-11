@@ -1,5 +1,13 @@
-import React, { useCallback, useMemo, useState } from 'react';
-import { Keyboard, KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  Animated,
+  Easing,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  View,
+} from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -64,6 +72,8 @@ const CTA_HEIGHT = tokens.touchTargetMin + tokens.spacing.sm;
 const CTA_STACK_GAP = tokens.spacing.sm;
 const MAX_EXERCISE_COMMENT_LENGTH = 200;
 const MAX_WORKOUT_NOTE_LENGTH = 200;
+const REST_TIMER_FINISHED_PULSE_DURATION_MS = 1400;
+const REST_TIMER_FINISHED_PULSE_MAX_OPACITY = 0.34;
 type PendingStrengthDrafts = Map<string, { weight?: string; reps?: string }>;
 
 function getExerciseSubtitle(exercise: LoggerExercise): string | null {
@@ -188,6 +198,50 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
     vibrationEnabled: settings.restTimerVibration,
     setSession,
   });
+  const timerFinished = timerActive && remainingSeconds <= 0;
+  const timerPulseOpacityRef = React.useRef<Animated.Value | null>(null);
+  const timerPulseLoopRef = React.useRef<Animated.CompositeAnimation | null>(null);
+
+  if (timerPulseOpacityRef.current === null) {
+    timerPulseOpacityRef.current = new Animated.Value(0);
+  }
+
+  const timerPulseOpacity = timerPulseOpacityRef.current;
+
+  useEffect(() => {
+    timerPulseLoopRef.current?.stop();
+    timerPulseLoopRef.current = null;
+
+    if (!timerFinished) {
+      timerPulseOpacity.setValue(0);
+      return;
+    }
+
+    const pulseLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(timerPulseOpacity, {
+          toValue: REST_TIMER_FINISHED_PULSE_MAX_OPACITY,
+          duration: REST_TIMER_FINISHED_PULSE_DURATION_MS,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(timerPulseOpacity, {
+          toValue: 0,
+          duration: REST_TIMER_FINISHED_PULSE_DURATION_MS,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    timerPulseLoopRef.current = pulseLoop;
+    pulseLoop.start();
+
+    return () => {
+      pulseLoop.stop();
+      timerPulseLoopRef.current = null;
+      timerPulseOpacity.setValue(0);
+    };
+  }, [timerFinished, timerPulseOpacity]);
   const load = useCallback(() => {
     const data = getWorkoutLoggerData(sessionId);
     if (!data) {
@@ -564,11 +618,33 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
             elevation: 50,
             paddingVertical: tokens.spacing.sm,
             paddingHorizontal: tokens.spacing.md,
+            overflow: 'hidden',
+            borderColor: timerFinished ? colors.primaryBorder : tokens.colors.border,
           }}
         >
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.md }}>
+          <Animated.View
+            pointerEvents="none"
+            testID="rest-timer-finished-pulse"
+            style={{
+              position: 'absolute',
+              top: 0,
+              right: 0,
+              bottom: 0,
+              left: 0,
+              backgroundColor: colors.primary,
+              opacity: timerPulseOpacity,
+            }}
+          />
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: tokens.spacing.md,
+              zIndex: 1,
+            }}
+          >
             <IconChip variant="primarySoft" size={40}>
-              <Ionicons name="timer-outline" size={20} color={tokens.colors.primary} />
+              <Ionicons name="timer-outline" size={20} color={colors.primary} />
             </IconChip>
             <View style={{ flex: 1 }}>
               <Text

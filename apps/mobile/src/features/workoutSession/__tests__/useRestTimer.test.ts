@@ -1,10 +1,21 @@
-const mockRestHapticsRef = { current: false };
+const mockRefs: Array<{ current: unknown }> = [];
+let mockRefIndex = 0;
 
 jest.mock('react', () => ({
   useCallback: (fn: unknown) => fn,
   useEffect: jest.fn((callback: () => void) => callback()),
   useMemo: (fn: () => unknown) => fn(),
-  useRef: jest.fn(() => mockRestHapticsRef),
+  useRef: jest.fn((initial: unknown) => {
+    const existing = mockRefs[mockRefIndex];
+    if (existing) {
+      mockRefIndex += 1;
+      return existing;
+    }
+    const next = { current: initial };
+    mockRefs.push(next);
+    mockRefIndex += 1;
+    return next;
+  }),
 }));
 
 jest.mock('../../../db/workoutLoggerRepo', () => ({
@@ -41,7 +52,8 @@ function createSession(overrides?: Partial<LoggerSession>): LoggerSession {
 
 describe('useRestTimer', () => {
   beforeEach(() => {
-    mockRestHapticsRef.current = false;
+    mockRefs.length = 0;
+    mockRefIndex = 0;
     (clearRestTimer as jest.Mock).mockReset();
     (maybeTriggerRestTimerHaptics as jest.Mock).mockReset();
     (cancelRestTimerNotification as jest.Mock).mockReset();
@@ -66,7 +78,7 @@ describe('useRestTimer', () => {
   });
 
   it('returns inactive timer state when rest_timer_end_at is absent', () => {
-    mockRestHapticsRef.current = true;
+    mockRefs.push({ current: true }, { current: 30 });
 
     const result = useRestTimer({
       session: createSession({ rest_timer_end_at: null }),
@@ -78,7 +90,8 @@ describe('useRestTimer', () => {
 
     expect(result.timerActive).toBe(false);
     expect(result.remainingSeconds).toBe(0);
-    expect(mockRestHapticsRef.current).toBe(false);
+    expect(mockRefs[0]?.current).toBe(false);
+    expect(mockRefs[1]?.current).toBe(null);
     expect(maybeTriggerRestTimerHaptics).not.toHaveBeenCalled();
   });
 
@@ -95,7 +108,7 @@ describe('useRestTimer', () => {
     expect(result.remainingSeconds).toBe(0);
   });
 
-  it('passes completed timer state to haptic utility when vibration is enabled', () => {
+  it('does not trigger haptics when mounting an already-completed timer', () => {
     useRestTimer({
       session: createSession({ rest_timer_end_at: '2024-01-01T00:00:00Z' }),
       sessionId: 'session-1',
@@ -104,10 +117,42 @@ describe('useRestTimer', () => {
       setSession: jest.fn(),
     });
 
-    expect(maybeTriggerRestTimerHaptics).toHaveBeenCalledWith(0, true, mockRestHapticsRef);
+    expect(maybeTriggerRestTimerHaptics).not.toHaveBeenCalled();
   });
 
-  it('passes disabled vibration setting to the haptic utility', () => {
+  it('passes completed timer state to haptic utility after crossing from positive remaining time', () => {
+    useRestTimer({
+      session: createSession({ rest_timer_end_at: '2024-01-01T00:00:10Z' }),
+      sessionId: 'session-1',
+      tick: 0,
+      vibrationEnabled: true,
+      setSession: jest.fn(),
+    });
+    mockRefIndex = 0;
+    jest.spyOn(Date, 'now').mockReturnValue(new Date('2024-01-01T00:00:10Z').getTime());
+
+    useRestTimer({
+      session: createSession({ rest_timer_end_at: '2024-01-01T00:00:00Z' }),
+      sessionId: 'session-1',
+      tick: 0,
+      vibrationEnabled: true,
+      setSession: jest.fn(),
+    });
+
+    expect(maybeTriggerRestTimerHaptics).toHaveBeenLastCalledWith(0, true, mockRefs[0]);
+  });
+
+  it('passes disabled vibration setting after crossing from positive remaining time', () => {
+    useRestTimer({
+      session: createSession({ rest_timer_end_at: '2024-01-01T00:00:10Z' }),
+      sessionId: 'session-1',
+      tick: 0,
+      vibrationEnabled: false,
+      setSession: jest.fn(),
+    });
+    mockRefIndex = 0;
+    jest.spyOn(Date, 'now').mockReturnValue(new Date('2024-01-01T00:00:10Z').getTime());
+
     useRestTimer({
       session: createSession({ rest_timer_end_at: '2024-01-01T00:00:00Z' }),
       sessionId: 'session-1',
@@ -116,7 +161,7 @@ describe('useRestTimer', () => {
       setSession: jest.fn(),
     });
 
-    expect(maybeTriggerRestTimerHaptics).toHaveBeenCalledWith(0, false, mockRestHapticsRef);
+    expect(maybeTriggerRestTimerHaptics).toHaveBeenLastCalledWith(0, false, mockRefs[0]);
   });
 
   it('clearRestTimerHandler optimistically clears rest timer fields and preserves session fields', () => {

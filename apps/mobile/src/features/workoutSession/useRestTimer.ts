@@ -24,6 +24,7 @@ export function useRestTimer({
   clearRestTimerHandler: () => void;
 } {
   const restHapticsRef = useRef(false);
+  const previousRemainingSecondsRef = useRef<number | null>(null);
 
   const remainingSeconds = useMemo(
     () => getRemainingSeconds(session?.rest_timer_end_at ?? null),
@@ -35,9 +36,21 @@ export function useRestTimer({
   useEffect(() => {
     if (!timerActive) {
       restHapticsRef.current = false;
+      previousRemainingSecondsRef.current = null;
       return;
     }
-    void maybeTriggerRestTimerHaptics(remainingSeconds, vibrationEnabled, restHapticsRef);
+
+    const previousRemainingSeconds = previousRemainingSecondsRef.current;
+    previousRemainingSecondsRef.current = remainingSeconds;
+
+    if (remainingSeconds > 0) {
+      void maybeTriggerRestTimerHaptics(remainingSeconds, vibrationEnabled, restHapticsRef);
+      return;
+    }
+
+    if (previousRemainingSeconds !== null && previousRemainingSeconds > 0) {
+      void maybeTriggerRestTimerHaptics(remainingSeconds, vibrationEnabled, restHapticsRef);
+    }
   }, [remainingSeconds, vibrationEnabled, timerActive]);
 
   const clearRestTimerHandler = useCallback(() => {

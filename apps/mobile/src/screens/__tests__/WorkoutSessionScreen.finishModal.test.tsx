@@ -34,7 +34,20 @@ jest.mock('expo-keep-awake', () => ({
 
 jest.mock('react-native', () => {
   const React = require('react');
+  const createAnimation = () => ({ start: jest.fn(), stop: jest.fn() });
   return {
+    Animated: {
+      Value: jest.fn(() => ({ setValue: jest.fn() })),
+      View: ({ children, ...props }: { children?: React.ReactNode }) =>
+        React.createElement('Animated.View', props, children),
+      timing: jest.fn(() => createAnimation()),
+      sequence: jest.fn(() => createAnimation()),
+      loop: jest.fn(() => createAnimation()),
+    },
+    Easing: {
+      ease: jest.fn(),
+      inOut: jest.fn((easing: unknown) => easing),
+    },
     KeyboardAvoidingView: ({ children, ...props }: { children?: React.ReactNode }) =>
       React.createElement('KeyboardAvoidingView', props, children),
     Pressable: ({ children, ...props }: { children?: React.ReactNode }) =>

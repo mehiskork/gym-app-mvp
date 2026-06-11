@@ -29,7 +29,20 @@ jest.mock('expo-keep-awake', () => ({
 
 jest.mock('react-native', () => {
   const React = require('react');
+  const createAnimation = () => ({ start: jest.fn(), stop: jest.fn() });
   return {
+    Animated: {
+      Value: jest.fn(() => ({ setValue: jest.fn() })),
+      View: ({ children, ...props }: { children?: React.ReactNode }) =>
+        React.createElement('Animated.View', props, children),
+      timing: jest.fn(() => createAnimation()),
+      sequence: jest.fn(() => createAnimation()),
+      loop: jest.fn(() => createAnimation()),
+    },
+    Easing: {
+      ease: jest.fn(),
+      inOut: jest.fn((easing: unknown) => easing),
+    },
     Keyboard: {
       addListener: jest.fn(() => ({ remove: jest.fn() })),
       dismiss: jest.fn(),
@@ -108,12 +121,14 @@ jest.mock('../../utils/restTimer', () => ({
 }));
 
 jest.mock('../../theme/theme', () => ({
-  useAppTheme: () => ({ colors: { primary: '#000' } }),
+  useAppTheme: () => ({
+    colors: { primary: '#f58a2a', primaryBorder: 'rgba(245, 138, 42, 0.45)' },
+  }),
 }));
 
 import React from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
-import { Keyboard, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Animated, Keyboard, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { CommonActions, useFocusEffect } from '@react-navigation/native';
 
 import { WorkoutSessionScreen } from '../WorkoutSessionScreen';
@@ -1809,6 +1824,83 @@ describe('WorkoutSessionScreen', () => {
       (button) => button.props.accessibilityLabel === 'Clear rest timer',
     );
     expect(clearRestTimerButton?.props.variant).toBe('danger');
+    expect(Animated.loop).not.toHaveBeenCalled();
+  });
+
+  it('renders the rest timer finished pulse when the active timer is expired', () => {
+    const nowSpy = jest
+      .spyOn(Date, 'now')
+      .mockReturnValue(new Date('2024-01-04T00:01:00Z').getTime());
+    useEffectMock.mockImplementation((callback: () => void | (() => void)) => {
+      const cleanup = callback();
+      if (typeof cleanup === 'function') cleanup();
+    });
+    const session = {
+      id: 'session-4',
+      title: 'Conditioning',
+      status: 'in_progress',
+      started_at: '2024-01-04T00:00:00Z',
+      rest_timer_end_at: '2024-01-04T00:01:00Z',
+      rest_timer_seconds: 60,
+      rest_timer_label: 'Row',
+    };
+
+    const exercises: Array<unknown> = [];
+
+    useStateMock.mockImplementationOnce(() => [session, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [exercises, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [0, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [
+      {
+        defaultRestSeconds: 120,
+        autoStartRestTimer: true,
+        restTimerVibration: true,
+        keepScreenOn: true,
+        restTimerNotifications: false,
+      },
+      jest.fn(),
+    ]);
+    useStateMock.mockImplementationOnce(() => [false, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [false, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [{ visible: false, payload: null }, jest.fn()]);
+    (getWorkoutLoggerData as jest.Mock).mockReturnValue({ session, exercises });
+
+    const navigation: Nav = {
+      navigate: jest.fn(),
+      dispatch: jest.fn(),
+      setOptions: jest.fn(),
+      addListener: jest.fn(),
+    };
+    const element = WorkoutSessionScreen({
+      navigation,
+      route: { key: 'WorkoutSession', name: 'WorkoutSession', params: { sessionId: 'session-4' } },
+    } as never);
+
+    const pulseOverlays = findElementsByType(element, Animated.View) as Array<
+      React.ReactElement<{ testID?: string }>
+    >;
+    expect(
+      pulseOverlays.some((overlay) => overlay.props.testID === 'rest-timer-finished-pulse'),
+    ).toBe(true);
+    expect(Animated.loop).toHaveBeenCalledTimes(1);
+    expect(Animated.timing).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        toValue: 0.34,
+        duration: 1400,
+        useNativeDriver: true,
+      }),
+    );
+    expect(Animated.timing).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        toValue: 0,
+        duration: 1400,
+        useNativeDriver: true,
+      }),
+    );
+
+    nowSpy.mockRestore();
   });
 
   it('clears the rest timer optimistically and preserves unrelated session fields', () => {
@@ -1883,7 +1975,7 @@ describe('WorkoutSessionScreen', () => {
     expect(cancelRestTimerNotification).toHaveBeenCalledTimes(1);
   });
 
-  it('passes completed rest timer state to haptics when vibration is enabled', () => {
+  it('does not pass completed rest timer state to haptics when mounting an already expired timer', () => {
     const nowSpy = jest
       .spyOn(Date, 'now')
       .mockReturnValue(new Date('2024-01-04T00:01:00Z').getTime());
@@ -1932,11 +2024,11 @@ describe('WorkoutSessionScreen', () => {
       route: { key: 'WorkoutSession', name: 'WorkoutSession', params: { sessionId: 'session-4' } },
     } as never);
 
-    expect(maybeTriggerRestTimerHaptics).toHaveBeenCalledWith(0, true, expect.any(Object));
+    expect(maybeTriggerRestTimerHaptics).not.toHaveBeenCalledWith(0, true, expect.any(Object));
     nowSpy.mockRestore();
   });
 
-  it('passes vibration disabled to haptics when the setting is off', () => {
+  it('does not pass completed rest timer state to haptics on mount when vibration is off', () => {
     const nowSpy = jest
       .spyOn(Date, 'now')
       .mockReturnValue(new Date('2024-01-04T00:01:00Z').getTime());
@@ -1985,7 +2077,7 @@ describe('WorkoutSessionScreen', () => {
       route: { key: 'WorkoutSession', name: 'WorkoutSession', params: { sessionId: 'session-4' } },
     } as never);
 
-    expect(maybeTriggerRestTimerHaptics).toHaveBeenCalledWith(0, false, expect.any(Object));
+    expect(maybeTriggerRestTimerHaptics).not.toHaveBeenCalledWith(0, false, expect.any(Object));
     nowSpy.mockRestore();
   });
 
