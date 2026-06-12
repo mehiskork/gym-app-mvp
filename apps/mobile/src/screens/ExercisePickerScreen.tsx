@@ -42,6 +42,7 @@ export function ExercisePickerScreen({ route, navigation }: Props) {
   const [exerciseTypeFilter, setExerciseTypeFilter] = useState<ExerciseType | null>(null);
   const [sourceFilter, setSourceFilter] = useState<ExerciseSourceFilter>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const selectInFlightRef = React.useRef(false);
   const insets = useSafeAreaInsets();
   const { colors } = useAppTheme();
 
@@ -58,6 +59,92 @@ export function ExercisePickerScreen({ route, navigation }: Props) {
   const filtered = useMemo(() => {
     return filterExercises(all, q, exerciseTypeFilter, sourceFilter);
   }, [all, q, exerciseTypeFilter, sourceFilter]);
+
+  const releaseSelectGuardAfterCurrentTap = useCallback(() => {
+    setTimeout(() => {
+      selectInFlightRef.current = false;
+    }, 0);
+  }, []);
+
+  const handleSelectExercise = useCallback(
+    (item: ExerciseRow) => {
+      if (isBrowseOnly) {
+        navigation.navigate('ExerciseDetail', { exerciseId: item.id });
+        return;
+      }
+
+      if (selectInFlightRef.current) return;
+      selectInFlightRef.current = true;
+
+      try {
+        if (isSwapMode && swapSessionExerciseId && swapSessionId) {
+          swapWorkoutSessionExercise({
+            workoutSessionId: swapSessionId,
+            workoutSessionExerciseId: swapSessionExerciseId,
+            replacementExerciseId: item.id,
+            replacementExerciseName: item.name,
+          });
+          navigation.goBack();
+          releaseSelectGuardAfterCurrentTap();
+          return;
+        }
+
+        if (isAddToSessionMode && addToSessionId) {
+          appendWorkoutSessionExercise({
+            workoutSessionId: addToSessionId,
+            exerciseId: item.id,
+            exerciseName: item.name,
+          });
+          navigation.goBack();
+          releaseSelectGuardAfterCurrentTap();
+          return;
+        }
+
+        if (isQuickWorkoutDraftMode) {
+          const result = createQuickWorkoutSessionWithExercise({
+            exerciseId: item.id,
+            exerciseName: item.name,
+          });
+          navigation.dispatch(
+            CommonActions.reset({
+              index: 1,
+              routes: [
+                { name: 'MainTabs' },
+                { name: 'WorkoutSession', params: { sessionId: result.sessionId } },
+              ],
+            }),
+          );
+          releaseSelectGuardAfterCurrentTap();
+          return;
+        }
+
+        if (!dayId) {
+          selectInFlightRef.current = false;
+          return;
+        }
+        addExerciseToDay({ dayId, exerciseId: item.id });
+        navigation.goBack();
+        releaseSelectGuardAfterCurrentTap();
+      } catch (error) {
+        selectInFlightRef.current = false;
+        setFeedback(
+          isWorkoutLimitError(error) ? error.message : "Couldn't complete that action. Try again.",
+        );
+      }
+    },
+    [
+      addToSessionId,
+      dayId,
+      isAddToSessionMode,
+      isBrowseOnly,
+      isQuickWorkoutDraftMode,
+      isSwapMode,
+      navigation,
+      releaseSelectGuardAfterCurrentTap,
+      swapSessionExerciseId,
+      swapSessionId,
+    ],
+  );
 
   return (
     <Screen
@@ -148,62 +235,7 @@ export function ExercisePickerScreen({ route, navigation }: Props) {
               }}
             >
               <Pressable
-                onPress={() => {
-                  if (isBrowseOnly) {
-                    navigation.navigate('ExerciseDetail', { exerciseId: item.id });
-                    return;
-                  }
-
-                  try {
-                    if (isSwapMode && swapSessionExerciseId && swapSessionId) {
-                      swapWorkoutSessionExercise({
-                        workoutSessionId: swapSessionId,
-                        workoutSessionExerciseId: swapSessionExerciseId,
-                        replacementExerciseId: item.id,
-                        replacementExerciseName: item.name,
-                      });
-                      navigation.goBack();
-                      return;
-                    }
-
-                    if (isAddToSessionMode && addToSessionId) {
-                      appendWorkoutSessionExercise({
-                        workoutSessionId: addToSessionId,
-                        exerciseId: item.id,
-                        exerciseName: item.name,
-                      });
-                      navigation.goBack();
-                      return;
-                    }
-
-                    if (isQuickWorkoutDraftMode) {
-                      const result = createQuickWorkoutSessionWithExercise({
-                        exerciseId: item.id,
-                        exerciseName: item.name,
-                      });
-                      navigation.dispatch(
-                        CommonActions.reset({
-                          index: 1,
-                          routes: [
-                            { name: 'MainTabs' },
-                            { name: 'WorkoutSession', params: { sessionId: result.sessionId } },
-                          ],
-                        }),
-                      );
-                      return;
-                    }
-
-                    if (!dayId) return;
-                    addExerciseToDay({ dayId, exerciseId: item.id });
-                    navigation.goBack();
-                  } catch (error) {
-                    setFeedback(
-                      isWorkoutLimitError(error)
-                        ? error.message
-                        : "Couldn't complete that action. Try again.",
-                    );
-                  }
-                }}
+                onPress={() => handleSelectExercise(item)}
                 style={({ pressed }) => [
                   { flex: 1, minWidth: 0 },
                   pressed ? { opacity: 0.85 } : null,

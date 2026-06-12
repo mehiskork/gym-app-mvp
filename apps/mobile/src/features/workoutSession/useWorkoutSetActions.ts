@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import * as Haptics from 'expo-haptics';
 
 import {
@@ -38,19 +38,43 @@ export function useWorkoutSetActions({
       load();
     },
   });
+  const addSetInFlightByExerciseIdRef = useRef<Set<string> | null>(new Set());
+
+  const getAddSetInFlightByExerciseId = useCallback(() => {
+    addSetInFlightByExerciseIdRef.current ??= new Set<string>();
+    return addSetInFlightByExerciseIdRef.current;
+  }, []);
+
+  const releaseAddSetGuardAfterCurrentTap = useCallback((exerciseId: string) => {
+    setTimeout(() => {
+      addSetInFlightByExerciseIdRef.current?.delete(exerciseId);
+    }, 0);
+  }, []);
 
   const handleAddSet = useCallback(
     (exercise: LoggerExercise) => {
+      const inFlight = getAddSetInFlightByExerciseId();
+      if (inFlight.has(exercise.id)) return;
+      inFlight.add(exercise.id);
+
+      let didAddSet = false;
       try {
         addWorkoutSet(exercise.id);
+        didAddSet = true;
+        void Haptics.selectionAsync();
+        load();
       } catch (error) {
         if (isWorkoutLimitError(error)) return;
         throw error;
+      } finally {
+        if (didAddSet) {
+          releaseAddSetGuardAfterCurrentTap(exercise.id);
+        } else {
+          inFlight.delete(exercise.id);
+        }
       }
-      void Haptics.selectionAsync();
-      load();
     },
-    [load],
+    [getAddSetInFlightByExerciseId, load, releaseAddSetGuardAfterCurrentTap],
   );
 
   const handleWeightEndEditing = useCallback(

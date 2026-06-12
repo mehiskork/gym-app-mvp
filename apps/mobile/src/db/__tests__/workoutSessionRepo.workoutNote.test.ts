@@ -22,7 +22,10 @@ describe('workoutSessionRepo workout note', () => {
   });
 
   it('completes workout with trimmed note and triggers PR detection', () => {
-    (query as jest.Mock).mockReturnValueOnce([{ n: 1 }]).mockReturnValue([{ id: 'ws-1' }]);
+    (query as jest.Mock)
+      .mockReturnValueOnce([{ n: 1 }])
+      .mockReturnValueOnce([{ status: 'in_progress' }])
+      .mockReturnValue([{ id: 'ws-1' }]);
 
     completeSession('ws-1', '  Great session  ');
 
@@ -38,6 +41,7 @@ describe('workoutSessionRepo workout note', () => {
   it('completes workout with final title in the completion update and outbox snapshot', () => {
     (query as jest.Mock)
       .mockReturnValueOnce([{ n: 1 }])
+      .mockReturnValueOnce([{ status: 'in_progress' }])
       .mockReturnValueOnce([{ id: 'ws-1', title: 'Pull', status: 'completed' }]);
 
     completeSession('ws-1', '  Great session  ', '  Pull  ');
@@ -65,5 +69,50 @@ describe('workoutSessionRepo workout note', () => {
     expect(exec).not.toHaveBeenCalled();
     expect(enqueueOutboxOp).not.toHaveBeenCalled();
     expect(detectAndStorePrsForSession).not.toHaveBeenCalled();
+  });
+
+  it('returns false without mutating when completing an already completed workout', () => {
+    (query as jest.Mock)
+      .mockReturnValueOnce([{ n: 1 }])
+      .mockReturnValueOnce([{ status: 'completed' }]);
+
+    const completed = completeSession('ws-1', 'Changed note', 'Changed title');
+
+    expect(completed).toBe(false);
+    expect(exec).not.toHaveBeenCalled();
+    expect(enqueueOutboxOp).not.toHaveBeenCalled();
+    expect(detectAndStorePrsForSession).not.toHaveBeenCalled();
+  });
+
+  it('does not enqueue or rerun completion work on a second completeSession call', () => {
+    (query as jest.Mock)
+      .mockReturnValueOnce([{ n: 1 }])
+      .mockReturnValueOnce([{ status: 'in_progress' }])
+      .mockReturnValueOnce([
+        {
+          id: 'ws-1',
+          title: 'First title',
+          workout_note: 'First note',
+          status: 'completed',
+          ended_at: '2026-06-12 10:00:00',
+          updated_at: '2026-06-12 10:00:00',
+        },
+      ])
+      .mockReturnValueOnce([{ n: 1 }])
+      .mockReturnValueOnce([{ status: 'completed' }]);
+
+    const first = completeSession('ws-1', 'First note', 'First title');
+    const execCallsAfterFirst = (exec as jest.Mock).mock.calls.length;
+    const outboxCallsAfterFirst = (enqueueOutboxOp as jest.Mock).mock.calls.length;
+    const prCallsAfterFirst = (detectAndStorePrsForSession as jest.Mock).mock.calls.length;
+
+    const second = completeSession('ws-1', 'Second note', 'Second title');
+
+    expect(first).toBe(true);
+    expect(second).toBe(false);
+    expect((exec as jest.Mock).mock.calls).toHaveLength(execCallsAfterFirst);
+    expect((enqueueOutboxOp as jest.Mock).mock.calls).toHaveLength(outboxCallsAfterFirst);
+    expect((detectAndStorePrsForSession as jest.Mock).mock.calls).toHaveLength(prCallsAfterFirst);
+    expect(String((exec as jest.Mock).mock.calls[0][0])).toContain("status = 'in_progress'");
   });
 });

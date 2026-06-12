@@ -1153,6 +1153,80 @@ describe('DayDetailScreen', () => {
     expect(addPlannedSetToDayExercise).toHaveBeenCalledWith('day-ex-1');
   });
 
+  it('guards duplicate planned Add Set taps for the same exercise', () => {
+    jest.useFakeTimers();
+    const items = [
+      {
+        id: 'day-ex-1',
+        program_day_id: 'day-1',
+        exercise_id: 'bench',
+        exercise_name: 'Bench Press',
+        exercise_type: 'strength',
+        position: 1,
+        notes: null,
+      },
+    ];
+    useStateMock.mockImplementationOnce(() => ['Push', jest.fn()]);
+    useStateMock.mockImplementationOnce(() => ['Push', jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [items, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => ['day-ex-1', jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => ['', jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [
+      {
+        'day-ex-1': [
+          {
+            id: 'ps-1',
+            program_day_exercise_id: 'day-ex-1',
+            set_index: 1,
+            target_reps_min: 8,
+            target_reps_max: 8,
+            target_weight: 100,
+          },
+        ],
+      },
+      jest.fn(),
+    ]);
+
+    try {
+      const navigation: Nav = { navigate: jest.fn(), replace: jest.fn(), setOptions: jest.fn() };
+      const element = DayDetailScreen({
+        navigation,
+        route: { key: 'DayDetail', name: 'DayDetail', params: { dayId: 'day-1' } },
+      } as never);
+      const lists = findElementsByType<React.ComponentProps<typeof DraggableFlatList>>(
+        element,
+        DraggableFlatList,
+      );
+      const renderItem = lists[0]?.props.renderItem as (
+        params: RenderItemParams<(typeof items)[number]>,
+      ) => React.ReactElement;
+      const rowNode = renderItem({
+        item: items[0],
+        drag: jest.fn(),
+        isActive: false,
+        getIndex: () => 0,
+      });
+
+      const buttons = findElementsByType<React.ComponentProps<typeof Button>>(rowNode, Button);
+      const addSetButton = buttons.find((button) => button.props.title === 'Add Set');
+      addSetButton?.props.onPress?.({} as never);
+      addSetButton?.props.onPress?.({} as never);
+
+      expect(addPlannedSetToDayExercise).toHaveBeenCalledTimes(1);
+
+      jest.runOnlyPendingTimers();
+      addSetButton?.props.onPress?.({} as never);
+
+      expect(addPlannedSetToDayExercise).toHaveBeenCalledTimes(2);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it('renders Add Note/View Note left of Add Set for expanded strength exercises', () => {
     const items = [
       {

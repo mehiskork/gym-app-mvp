@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
@@ -57,6 +57,7 @@ export function SessionDetailScreen({ route, navigation }: Props) {
   const [planName, setPlanName] = useState('Quick Workout Plan');
   const [plans, setPlans] = useState<WorkoutPlanWithSessionCountRow[]>([]);
   const [isSavingReuse, setIsSavingReuse] = useState(false);
+  const savingReuseRef = useRef(false);
   const [feedback, setFeedback] = useState<{
     message: string;
     variant: 'success' | 'error';
@@ -118,7 +119,8 @@ export function SessionDetailScreen({ route, navigation }: Props) {
     async (
       target: { kind: 'newPlan'; name: string } | { kind: 'existingPlan'; workoutPlanId: string },
     ) => {
-      if (isSavingReuse) return;
+      if (savingReuseRef.current) return;
+      savingReuseRef.current = true;
       setIsSavingReuse(true);
       setFeedback(null);
 
@@ -130,10 +132,11 @@ export function SessionDetailScreen({ route, navigation }: Props) {
       } catch (error) {
         setFeedback({ message: getReuseErrorMessage(error), variant: 'error' });
       } finally {
+        savingReuseRef.current = false;
         setIsSavingReuse(false);
       }
     },
-    [getReuseErrorMessage, isSavingReuse, navigation, sessionId],
+    [getReuseErrorMessage, navigation, sessionId],
   );
 
   if (!session) {

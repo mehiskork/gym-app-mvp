@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import {
   Keyboard,
   KeyboardAvoidingView,
@@ -471,6 +471,7 @@ export function DayDetailScreen({ route, navigation }: Props) {
   const [plannedSetsByExerciseId, setPlannedSetsByExerciseId] = useState<
     Record<string, PlannedSetRow[]>
   >({});
+  const addPlannedSetInFlightByExerciseIdRef = useRef<Set<string> | null>(new Set());
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
   const { flatListRef, handleScrollOffsetChange, handleEditFocus, keyboardSpacer } =
@@ -501,6 +502,11 @@ export function DayDetailScreen({ route, navigation }: Props) {
     setItems(listDayExercises(dayId));
     if (expandedExerciseId) loadPlannedSets(expandedExerciseId);
   }, [dayId, expandedExerciseId, loadPlannedSets]);
+
+  const getAddPlannedSetInFlightByExerciseId = useCallback(() => {
+    addPlannedSetInFlightByExerciseIdRef.current ??= new Set<string>();
+    return addPlannedSetInFlightByExerciseIdRef.current;
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -591,16 +597,25 @@ export function DayDetailScreen({ route, navigation }: Props) {
 
   const handleAddPlannedSet = useCallback(
     (dayExerciseId: string) => {
+      const inFlight = getAddPlannedSetInFlightByExerciseId();
+      if (inFlight.has(dayExerciseId)) return;
+      inFlight.add(dayExerciseId);
+
       try {
         addPlannedSetToDayExercise(dayExerciseId);
         loadPlannedSets(dayExerciseId);
       } catch (error) {
+        inFlight.delete(dayExerciseId);
         setFeedback(
           isWorkoutLimitError(error) ? error.message : "Couldn't complete that action. Try again.",
         );
+        return;
       }
+      setTimeout(() => {
+        addPlannedSetInFlightByExerciseIdRef.current?.delete(dayExerciseId);
+      }, 0);
     },
-    [loadPlannedSets],
+    [getAddPlannedSetInFlightByExerciseId, loadPlannedSets],
   );
 
   const handleDeletePlannedSet = useCallback(

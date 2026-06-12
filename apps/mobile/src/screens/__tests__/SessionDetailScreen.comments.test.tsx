@@ -5,6 +5,7 @@ jest.mock('react', () => {
     useState: jest.fn(),
     useCallback: (fn: () => unknown) => fn,
     useMemo: (fn: () => unknown) => fn(),
+    useRef: jest.fn((initial: unknown) => ({ current: initial })),
   };
 });
 
@@ -420,6 +421,95 @@ describe('SessionDetailScreen notes', () => {
     );
   });
 
+  it('guards save-as-plan against two immediate presses before re-render', async () => {
+    const session = {
+      id: 's-7',
+      title: 'Quick Workout',
+      started_at: '2026-01-01T10:00:00Z',
+      ended_at: '2026-01-01T10:45:00Z',
+      workout_note: null,
+      can_reuse_as_plan: 1,
+    };
+    let resolveSave: (value: unknown) => void = () => undefined;
+    (saveCompletedQuickWorkoutAsPlan as jest.Mock).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveSave = resolve;
+        }),
+    );
+
+    useStateMock.mockImplementationOnce(() => [session, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [[], jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [[], jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [[], jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [true, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => ['Quick Workout Plan', jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [[], jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [false, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+    (getSessionDetail as jest.Mock).mockReturnValue({ session, exercises: [], sets: [] });
+
+    const navigation = { navigate: jest.fn(), setOptions: jest.fn() };
+    const element = SessionDetailScreen({
+      navigation,
+      route: { key: 'SessionDetail', name: 'SessionDetail', params: { sessionId: 's-7' } },
+    } as never);
+
+    const buttons = findElementsByType(element, Button) as Array<
+      React.ReactElement<React.ComponentProps<typeof Button>>
+    >;
+    const createButton = buttons.find((button) => button.props.title === 'Create new plan');
+
+    createButton?.props.onPress?.({} as never);
+    createButton?.props.onPress?.({} as never);
+
+    expect(saveCompletedQuickWorkoutAsPlan).toHaveBeenCalledTimes(1);
+    resolveSave({ workoutPlanId: 'plan-1', programDayId: 'day-1', createdPlan: true });
+    await Promise.resolve();
+  });
+
+  it('resets the save-as-plan guard after an error', async () => {
+    const session = {
+      id: 's-7',
+      title: 'Quick Workout',
+      started_at: '2026-01-01T10:00:00Z',
+      ended_at: '2026-01-01T10:45:00Z',
+      workout_note: null,
+      can_reuse_as_plan: 1,
+    };
+    (saveCompletedQuickWorkoutAsPlan as jest.Mock)
+      .mockRejectedValueOnce(new Error('save failed'))
+      .mockResolvedValueOnce({ workoutPlanId: 'plan-1', programDayId: 'day-1', createdPlan: true });
+
+    useStateMock.mockImplementationOnce(() => [session, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [[], jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [[], jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [[], jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [true, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => ['Quick Workout Plan', jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [[], jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [false, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+    (getSessionDetail as jest.Mock).mockReturnValue({ session, exercises: [], sets: [] });
+
+    const navigation = { navigate: jest.fn(), setOptions: jest.fn() };
+    const element = SessionDetailScreen({
+      navigation,
+      route: { key: 'SessionDetail', name: 'SessionDetail', params: { sessionId: 's-7' } },
+    } as never);
+
+    const buttons = findElementsByType(element, Button) as Array<
+      React.ReactElement<React.ComponentProps<typeof Button>>
+    >;
+    const createButton = buttons.find((button) => button.props.title === 'Create new plan');
+
+    createButton?.props.onPress?.({} as never);
+    await Promise.resolve();
+    createButton?.props.onPress?.({} as never);
+
+    expect(saveCompletedQuickWorkoutAsPlan).toHaveBeenCalledTimes(2);
+  });
+
   it('hides reuse action for planned workouts', () => {
     const session = {
       id: 's-6',
@@ -448,7 +538,7 @@ describe('SessionDetailScreen notes', () => {
     );
   });
 
-  it('save sheet can call new-plan and existing-plan saves while full plans are disabled', () => {
+  it('save sheet can call new-plan and existing-plan saves while full plans are disabled', async () => {
     const navigation = { setOptions: jest.fn(), navigate: jest.fn() };
     const session = {
       id: 's-7',
@@ -500,13 +590,13 @@ describe('SessionDetailScreen notes', () => {
     const addButton = buttons.find((button) => button.props.title === 'Add');
     const fullButton = buttons.find((button) => button.props.title === 'Plan is full');
 
-    createButton?.props.onPress?.({} as never);
+    await createButton?.props.onPress?.({} as never);
     expect(saveCompletedQuickWorkoutAsPlan).toHaveBeenCalledWith({
       sessionId: 's-7',
       target: { kind: 'newPlan', name: 'Quick Workout Plan' },
     });
 
-    addButton?.props.onPress?.({} as never);
+    await addButton?.props.onPress?.({} as never);
     expect(saveCompletedQuickWorkoutAsPlan).toHaveBeenCalledWith({
       sessionId: 's-7',
       target: { kind: 'existingPlan', workoutPlanId: 'plan-open' },

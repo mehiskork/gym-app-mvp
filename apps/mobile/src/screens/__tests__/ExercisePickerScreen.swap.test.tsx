@@ -38,6 +38,7 @@ jest.mock('react', () => {
     useState: jest.fn(),
     useMemo: (fn: () => unknown) => fn(),
     useCallback: (fn: () => unknown) => fn,
+    useRef: jest.fn((initial: unknown) => ({ current: initial })),
   };
 });
 
@@ -104,6 +105,28 @@ const findByType = (
     findByType((node.props as { children?: React.ReactNode }).children, type, acc);
   }
   return acc;
+};
+
+const findSelectPressable = (node: React.ReactNode, exerciseName = 'Incline Bench') => {
+  const pressables = findByType(node, Pressable) as Array<
+    React.ReactElement<{ accessibilityLabel?: string; onPress?: () => void }>
+  >;
+  return pressables.find(
+    (pressable) => pressable.props.accessibilityLabel === `Select ${exerciseName}`,
+  );
+};
+
+const renderExerciseRow = (
+  element: React.ReactNode,
+  item = { id: 'ex-2', name: 'Incline Bench', is_custom: 1, is_favorite: 0 },
+) => {
+  const lists = findByType(element, FlatList) as Array<
+    React.ReactElement<{
+      renderItem?: (input: { item: typeof item }) => React.ReactNode;
+    }>
+  >;
+  const renderItem = lists[0]?.props.renderItem;
+  return renderItem?.({ item });
 };
 
 describe('ExercisePickerScreen swap mode', () => {
@@ -301,6 +324,102 @@ describe('ExercisePickerScreen swap mode', () => {
     });
     expect(navigation.goBack).not.toHaveBeenCalled();
     expect(appendWorkoutSessionExercise).not.toHaveBeenCalled();
+  });
+
+  it('guards Quick Workout first exercise creation against double select', () => {
+    useStateMock.mockImplementationOnce(() => ['', jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [
+      [{ id: 'ex-2', name: 'Incline Bench', is_custom: 1 }],
+      jest.fn(),
+    ]);
+    useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+    (createQuickWorkoutSessionWithExercise as jest.Mock).mockReturnValue({
+      sessionId: 'quick-session-1',
+      focusExerciseId: 'wse-1',
+    });
+
+    const navigation = { dispatch: jest.fn(), goBack: jest.fn(), navigate: jest.fn() };
+    const element = ExercisePickerScreen({
+      navigation,
+      route: {
+        key: 'ExercisePicker',
+        name: 'ExercisePicker',
+        params: { quickWorkoutDraft: true },
+      },
+    } as never);
+
+    const selectExercise = findSelectPressable(renderExerciseRow(element));
+    selectExercise?.props.onPress?.();
+    selectExercise?.props.onPress?.();
+
+    expect(createQuickWorkoutSessionWithExercise).toHaveBeenCalledTimes(1);
+    expect(navigation.dispatch).toHaveBeenCalledTimes(1);
+  });
+
+  it('guards active workout add exercise against double select', () => {
+    useStateMock.mockImplementationOnce(() => ['', jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [
+      [{ id: 'ex-2', name: 'Incline Bench', is_custom: 1 }],
+      jest.fn(),
+    ]);
+    useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+
+    const navigation = { dispatch: jest.fn(), goBack: jest.fn(), navigate: jest.fn() };
+    const element = ExercisePickerScreen({
+      navigation,
+      route: {
+        key: 'ExercisePicker',
+        name: 'ExercisePicker',
+        params: { addToSessionId: 'session-1' },
+      },
+    } as never);
+
+    const selectExercise = findSelectPressable(renderExerciseRow(element));
+    selectExercise?.props.onPress?.();
+    selectExercise?.props.onPress?.();
+
+    expect(appendWorkoutSessionExercise).toHaveBeenCalledTimes(1);
+    expect(appendWorkoutSessionExercise).toHaveBeenCalledWith({
+      workoutSessionId: 'session-1',
+      exerciseId: 'ex-2',
+      exerciseName: 'Incline Bench',
+    });
+    expect(navigation.goBack).toHaveBeenCalledTimes(1);
+  });
+
+  it('guards swap mode against double select', () => {
+    useStateMock.mockImplementationOnce(() => ['', jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [
+      [{ id: 'ex-2', name: 'Incline Bench', is_custom: 1 }],
+      jest.fn(),
+    ]);
+    useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+
+    const navigation = { dispatch: jest.fn(), goBack: jest.fn(), navigate: jest.fn() };
+    const element = ExercisePickerScreen({
+      navigation,
+      route: {
+        key: 'ExercisePicker',
+        name: 'ExercisePicker',
+        params: { swapSessionId: 's1', swapSessionExerciseId: 'wse-1' },
+      },
+    } as never);
+
+    const selectExercise = findSelectPressable(renderExerciseRow(element));
+    selectExercise?.props.onPress?.();
+    selectExercise?.props.onPress?.();
+
+    expect(swapWorkoutSessionExercise).toHaveBeenCalledTimes(1);
+    expect(swapWorkoutSessionExercise).toHaveBeenCalledWith({
+      workoutSessionId: 's1',
+      workoutSessionExerciseId: 'wse-1',
+      replacementExerciseId: 'ex-2',
+      replacementExerciseName: 'Incline Bench',
+    });
+    expect(navigation.goBack).toHaveBeenCalledTimes(1);
   });
 
   it('toggles favorite from the star without selecting the exercise', () => {

@@ -1320,13 +1320,27 @@ export function completeSession(
   const completed = inTransaction(() => {
     if (!sessionHasLoggedWork(sessionId)) return false;
 
+    const session = query<{ status: WorkoutSessionStatus }>(
+      `
+      SELECT status
+      FROM workout_session
+      WHERE id = ? AND deleted_at IS NULL
+      LIMIT 1;
+    `,
+      [sessionId],
+    )[0];
+
+    if (session?.status !== WORKOUT_SESSION_STATUS.IN_PROGRESS) return false;
+
     const normalizedTitle = normalizeWorkoutTitle(finalWorkoutTitle);
     if (normalizedTitle) {
       exec(
         `
         UPDATE workout_session
          SET title = ?, status = '${WORKOUT_SESSION_STATUS.COMPLETED}', ended_at = datetime('now'), workout_note = ?, updated_at = datetime('now')
-        WHERE id = ? AND deleted_at IS NULL;
+        WHERE id = ?
+          AND status = '${WORKOUT_SESSION_STATUS.IN_PROGRESS}'
+          AND deleted_at IS NULL;
       `,
         [normalizedTitle, normalizeWorkoutNote(workoutNote), sessionId],
       );
@@ -1335,7 +1349,9 @@ export function completeSession(
         `
         UPDATE workout_session
          SET status = '${WORKOUT_SESSION_STATUS.COMPLETED}', ended_at = datetime('now'), workout_note = ?, updated_at = datetime('now')
-        WHERE id = ? AND deleted_at IS NULL;
+        WHERE id = ?
+          AND status = '${WORKOUT_SESSION_STATUS.IN_PROGRESS}'
+          AND deleted_at IS NULL;
       `,
         [normalizeWorkoutNote(workoutNote), sessionId],
       );

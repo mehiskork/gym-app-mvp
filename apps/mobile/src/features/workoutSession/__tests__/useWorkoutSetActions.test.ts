@@ -138,6 +138,51 @@ describe('useWorkoutSetActions', () => {
     );
   });
 
+  it('guards duplicate add-set taps for the same exercise before re-render', () => {
+    const { handleAddSet, load } = setup();
+    const exercise = createExercise();
+
+    handleAddSet(exercise);
+    handleAddSet(exercise);
+
+    expect(addWorkoutSet).toHaveBeenCalledTimes(1);
+    expect(load).toHaveBeenCalledTimes(1);
+
+    jest.runOnlyPendingTimers();
+    handleAddSet(exercise);
+
+    expect(addWorkoutSet).toHaveBeenCalledTimes(2);
+    expect(load).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not block add-set for different exercises', () => {
+    const { handleAddSet } = setup();
+
+    handleAddSet(createExercise({ id: 'exercise-1' }));
+    handleAddSet(createExercise({ id: 'exercise-2' }));
+
+    expect(addWorkoutSet).toHaveBeenCalledTimes(2);
+    expect(addWorkoutSet).toHaveBeenNthCalledWith(1, 'exercise-1');
+    expect(addWorkoutSet).toHaveBeenNthCalledWith(2, 'exercise-2');
+  });
+
+  it('releases the add-set guard when reload throws after adding a set', () => {
+    const { handleAddSet, load } = setup();
+    const exercise = createExercise();
+    load.mockImplementationOnce(() => {
+      throw new Error('reload failed');
+    });
+
+    expect(() => handleAddSet(exercise)).toThrow('reload failed');
+    expect(addWorkoutSet).toHaveBeenCalledTimes(1);
+
+    jest.runOnlyPendingTimers();
+    handleAddSet(exercise);
+
+    expect(addWorkoutSet).toHaveBeenCalledTimes(2);
+    expect(load).toHaveBeenCalledTimes(2);
+  });
+
   it('handles set limit errors without success haptics or reload', () => {
     const { handleAddSet, load } = setup();
     (addWorkoutSet as jest.Mock).mockImplementationOnce(() => {
