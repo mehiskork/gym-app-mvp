@@ -133,6 +133,7 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
   const [workoutNoteDraft, setWorkoutNoteDraft] = useState('');
   const [deleteExerciseTarget, setDeleteExerciseTarget] = useState<LoggerExercise | null>(null);
   const [isDeletingExercise, setIsDeletingExercise] = useState(false);
+  const [workoutNameDraft, setWorkoutNameDraft] = useState('');
   const finishingRef = React.useRef(false);
   const deletingExerciseRef = React.useRef(false);
   const submittedDeleteExerciseIdRef = React.useRef<string | null>(null);
@@ -283,6 +284,7 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
     setExercises(data.exercises);
     resumeProgressTargetExerciseIdRef.current = data.resumeProgressTargetExerciseId;
     setWorkoutNoteDraft(data.session.workout_note ?? '');
+    setWorkoutNameDraft(data.session.title);
   }, [resetToHome, sessionId]);
 
   const getPendingPaceDrafts = useCallback(() => {
@@ -375,6 +377,8 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
       hasLoggedWork,
     };
   }, [exercises]);
+  const isQuickWorkout =
+    session?.source_workout_plan_id === null && session.source_program_day_id === null;
 
   const handleFinish = useCallback(() => {
     if (isFinishing || finishingRef.current) return;
@@ -386,13 +390,17 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
       const flushedPaceAsLoggedWork = flushPendingPaceDrafts();
 
       if (totals.hasLoggedWork || flushedPaceAsLoggedWork) {
-        const completed = completeSession(sessionId, workoutNoteDraft);
+        const normalizedWorkoutNameDraft =
+          typeof workoutNameDraft === 'string' ? workoutNameDraft.trim() : '';
+        const finalWorkoutTitle = isQuickWorkout
+          ? normalizedWorkoutNameDraft || session.title
+          : undefined;
+        const completed = isQuickWorkout
+          ? completeSession(sessionId, workoutNoteDraft, finalWorkoutTitle)
+          : completeSession(sessionId, workoutNoteDraft);
         if (!completed) {
           discardSession(sessionId);
-        } else if (
-          session.source_workout_plan_id === null &&
-          session.source_program_day_id === null
-        ) {
+        } else if (isQuickWorkout) {
           clearRestTimer(sessionId);
           void cancelRestTimerNotification();
           navigation.replace('SessionDetail', { sessionId, postFinish: true });
@@ -412,12 +420,14 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
   }, [
     flushPendingPaceDrafts,
     isFinishing,
+    isQuickWorkout,
     load,
     navigation,
     resetToHome,
     session,
     sessionId,
     totals.hasLoggedWork,
+    workoutNameDraft,
     workoutNoteDraft,
   ]);
 
@@ -811,6 +821,9 @@ export function WorkoutSessionScreen({ route, navigation }: Props) {
         totalSets: totals.totalSets,
         durationMinutes,
         isFinishing,
+        showWorkoutNameInput: isQuickWorkout,
+        workoutNameValue: isQuickWorkout ? workoutNameDraft : undefined,
+        onWorkoutNameChange: isQuickWorkout ? setWorkoutNameDraft : undefined,
         workoutNote: workoutNoteDraft,
         onWorkoutNoteChange: handleWorkoutNoteChange,
         noteEditable: session.status === 'in_progress',

@@ -606,6 +606,212 @@ describe('WorkoutSessionScreen finish modal', () => {
     expect(discardSession).not.toHaveBeenCalled();
   });
 
+  it('shows Workout name for Quick Workouts and completes with the edited title', () => {
+    const { session, exercises } = setupBaseState({
+      session: {
+        id: 'session-quick',
+        title: 'Quick Workout',
+        status: 'in_progress',
+        started_at: '2024-01-01T00:00:00Z',
+        workout_note: null,
+        source_workout_plan_id: null,
+        source_program_day_id: null,
+      } as never,
+      exercises: [
+        {
+          id: 'exercise-1',
+          exercise_id: 'bench-press',
+          exercise_name: 'Bench Press',
+          exercise_type: EXERCISE_TYPE.STRENGTH,
+          position: 1,
+          sets: [
+            {
+              id: 'set-1',
+              workout_session_exercise_id: 'exercise-1',
+              set_index: 1,
+              weight: 100,
+              reps: 5,
+              rpe: null,
+              rest_seconds: 90,
+              notes: null,
+              is_completed: 1,
+            },
+          ],
+        },
+      ],
+    });
+
+    useStateMock.mockImplementationOnce(() => [session, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [exercises, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [0, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [
+      {
+        defaultRestSeconds: 120,
+        autoStartRestTimer: true,
+        restTimerVibration: true,
+        keepScreenOn: true,
+        restTimerNotifications: false,
+      },
+      jest.fn(),
+    ]);
+    useStateMock.mockImplementationOnce(() => [true, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [false, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [0, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => ['', jest.fn()]);
+    useStateMock.mockImplementationOnce(() => ['', jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [false, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => ['Pull', jest.fn()]);
+
+    (getWorkoutLoggerData as jest.Mock).mockReturnValue({ session, exercises });
+
+    const navigation = {
+      navigate: jest.fn(),
+      dispatch: jest.fn(),
+      setOptions: jest.fn(),
+      replace: jest.fn(),
+    };
+    const element = WorkoutSessionScreen({
+      navigation,
+      route: { key: 'WorkoutSession', name: 'WorkoutSession', params: { sessionId: session.id } },
+    } as never);
+
+    const inputs = findElementsByType(element, Input) as Array<
+      React.ReactElement<{ label?: string; value?: string }>
+    >;
+    expect(inputs.find((input) => input.props.label === 'Workout name')?.props.value).toBe('Pull');
+
+    const buttons = findElementsByType(element, Button) as Array<
+      React.ReactElement<React.ComponentProps<typeof Button>>
+    >;
+    buttons.find((button) => button.props.title === 'Finish')?.props.onPress?.({} as never);
+
+    expect(completeSession).toHaveBeenCalledWith(session.id, '', 'Pull');
+  });
+
+  it('falls back to the current Quick Workout title for whitespace names', () => {
+    const { session, exercises } = setupBaseState({
+      session: {
+        id: 'session-quick',
+        title: 'Quick Workout',
+        status: 'in_progress',
+        started_at: '2024-01-01T00:00:00Z',
+        workout_note: null,
+        source_workout_plan_id: null,
+        source_program_day_id: null,
+      } as never,
+      exercises: [
+        {
+          id: 'exercise-1',
+          exercise_id: 'bench-press',
+          exercise_name: 'Bench Press',
+          exercise_type: EXERCISE_TYPE.STRENGTH,
+          position: 1,
+          sets: [
+            {
+              id: 'set-1',
+              workout_session_exercise_id: 'exercise-1',
+              set_index: 1,
+              weight: 100,
+              reps: 5,
+              rpe: null,
+              rest_seconds: 90,
+              notes: null,
+              is_completed: 1,
+            },
+          ],
+        },
+      ],
+    });
+
+    useStateMock.mockImplementationOnce(() => [session, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [exercises, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [0, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [
+      {
+        defaultRestSeconds: 120,
+        autoStartRestTimer: true,
+        restTimerVibration: true,
+        keepScreenOn: true,
+        restTimerNotifications: false,
+      },
+      jest.fn(),
+    ]);
+    useStateMock.mockImplementationOnce(() => [true, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [false, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [0, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => ['', jest.fn()]);
+    useStateMock.mockImplementationOnce(() => ['', jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [false, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => ['   ', jest.fn()]);
+
+    (getWorkoutLoggerData as jest.Mock).mockReturnValue({ session, exercises });
+
+    const navigation = {
+      navigate: jest.fn(),
+      dispatch: jest.fn(),
+      setOptions: jest.fn(),
+      replace: jest.fn(),
+    };
+    const element = WorkoutSessionScreen({
+      navigation,
+      route: { key: 'WorkoutSession', name: 'WorkoutSession', params: { sessionId: session.id } },
+    } as never);
+
+    const buttons = findElementsByType(element, Button) as Array<
+      React.ReactElement<React.ComponentProps<typeof Button>>
+    >;
+    buttons.find((button) => button.props.title === 'Finish')?.props.onPress?.({} as never);
+
+    expect(completeSession).toHaveBeenCalledWith(session.id, '', 'Quick Workout');
+  });
+
+  it('does not show Workout name for Planned Workouts', () => {
+    const { session, exercises } = setupBaseState({
+      session: {
+        id: 'session-planned',
+        title: 'Push Day',
+        status: 'in_progress',
+        started_at: '2024-01-01T00:00:00Z',
+        workout_note: null,
+        source_workout_plan_id: 'plan-1',
+        source_program_day_id: 'day-1',
+      } as never,
+    });
+
+    useStateMock.mockImplementationOnce(() => [session, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [exercises, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [0, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [
+      {
+        defaultRestSeconds: 120,
+        autoStartRestTimer: true,
+        restTimerVibration: true,
+        keepScreenOn: true,
+        restTimerNotifications: false,
+      },
+      jest.fn(),
+    ]);
+    useStateMock.mockImplementationOnce(() => [true, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [false, jest.fn()]);
+
+    (getWorkoutLoggerData as jest.Mock).mockReturnValue({ session, exercises });
+
+    const navigation: Nav = { navigate: jest.fn(), dispatch: jest.fn(), setOptions: jest.fn() };
+    const element = WorkoutSessionScreen({
+      navigation,
+      route: { key: 'WorkoutSession', name: 'WorkoutSession', params: { sessionId: session.id } },
+    } as never);
+
+    const inputs = findElementsByType(element, Input) as Array<
+      React.ReactElement<{ label?: string }>
+    >;
+    expect(inputs.some((input) => input.props.label === 'Workout name')).toBe(false);
+  });
+
   it('counts cardio with a non-null summary field as logged work', () => {
     const { session, exercises } = setupBaseState({
       exercises: [
@@ -882,7 +1088,7 @@ describe('WorkoutSessionScreen finish modal', () => {
 
     finishButton?.props.onPress?.({} as never);
 
-    expect(completeSession).toHaveBeenCalledWith(session.id, '');
+    expect(completeSession).toHaveBeenCalledWith(session.id, '', 'Quick Workout');
     expect(clearRestTimer).toHaveBeenCalledWith(session.id);
     expect(cancelRestTimerNotification).toHaveBeenCalledTimes(1);
     expect(navigation.replace).toHaveBeenCalledWith('SessionDetail', {

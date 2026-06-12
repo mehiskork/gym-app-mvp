@@ -14,12 +14,16 @@ type FinishWorkoutSheetProps = {
   totalSets: number;
   durationMinutes: number;
   isFinishing?: boolean;
+  showWorkoutNameInput?: boolean;
+  workoutNameValue?: string;
+  onWorkoutNameChange?: (value: string) => void;
   workoutNote: string;
   onWorkoutNoteChange: (value: string) => void;
   noteEditable?: boolean;
 };
 
 const MAX_WORKOUT_NOTE_LENGTH = 200;
+const MAX_WORKOUT_NAME_LENGTH = 50;
 
 const formatDuration = (minutes: number) => {
   const rounded = Math.max(0, Math.round(minutes));
@@ -49,6 +53,9 @@ export function FinishWorkoutSheet({
   totalSets,
   durationMinutes,
   isFinishing = false,
+  showWorkoutNameInput = false,
+  workoutNameValue = '',
+  onWorkoutNameChange,
   workoutNote,
   onWorkoutNoteChange,
   noteEditable = true,
@@ -109,6 +116,17 @@ export function FinishWorkoutSheet({
           <View style={{ height: 48, width: 1, backgroundColor: tokens.colors.border }} />
           {StatColumn({ label: 'Duration', value: formatDuration(durationMinutes) })}
         </View>
+        {showWorkoutNameInput ? (
+          <Input
+            label="Workout name"
+            value={workoutNameValue}
+            onChangeText={(value) => onWorkoutNameChange?.(value.slice(0, MAX_WORKOUT_NAME_LENGTH))}
+            placeholder="Quick Workout"
+            maxLength={MAX_WORKOUT_NAME_LENGTH}
+            editable={!isFinishing}
+            selectTextOnFocus
+          />
+        ) : null}
         <Input
           label="Workout Note (optional)"
           value={workoutNote}

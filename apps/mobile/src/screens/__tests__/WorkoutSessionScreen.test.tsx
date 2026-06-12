@@ -892,7 +892,7 @@ describe('WorkoutSessionScreen', () => {
     expect(updateWorkoutSessionExerciseCardioSummary).toHaveBeenCalledWith('exercise-pace', {
       pace_seconds_per_km: 330,
     });
-    expect(completeSession).toHaveBeenCalledWith('session-pace', '');
+    expect(completeSession).toHaveBeenCalledWith('session-pace', '', 'Cardio Day');
     expect(discardSession).not.toHaveBeenCalled();
     expect(navigation.replace).toHaveBeenCalledWith('SessionDetail', {
       sessionId: 'session-pace',
@@ -968,7 +968,7 @@ describe('WorkoutSessionScreen', () => {
     const finishButton = sheetButtons.find((button) => button.props.title === 'Finish');
     finishButton?.props.onPress?.({} as never);
 
-    expect(completeSession).toHaveBeenCalledWith('session-rowing', '');
+    expect(completeSession).toHaveBeenCalledWith('session-rowing', '', 'Cardio Day');
     expect(navigation.replace).toHaveBeenCalledWith('SessionDetail', {
       sessionId: 'session-rowing',
       postFinish: true,
@@ -1043,7 +1043,7 @@ describe('WorkoutSessionScreen', () => {
     const finishButton = sheetButtons.find((button) => button.props.title === 'Finish');
     finishButton?.props.onPress?.({} as never);
 
-    expect(completeSession).toHaveBeenCalledWith('session-treadmill', '');
+    expect(completeSession).toHaveBeenCalledWith('session-treadmill', '', 'Cardio Day');
     expect(navigation.replace).toHaveBeenCalledWith('SessionDetail', {
       sessionId: 'session-treadmill',
       postFinish: true,

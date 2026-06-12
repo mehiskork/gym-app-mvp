@@ -1247,6 +1247,13 @@ function normalizeWorkoutNote(note: string | null | undefined): string | null {
   return trimmed.slice(0, 200);
 }
 
+function normalizeWorkoutTitle(title: string | null | undefined): string | null {
+  if (typeof title !== 'string') return null;
+  const trimmed = title.trim();
+  if (!trimmed) return null;
+  return trimmed.slice(0, 50);
+}
+
 function sessionHasLoggedWork(sessionId: string): boolean {
   const row = query<{ n: number }>(
     `
@@ -1305,18 +1312,34 @@ export function updateWorkoutSessionNote(sessionId: string, note: string | null)
   });
 }
 
-export function completeSession(sessionId: string, workoutNote: string | null = null): boolean {
+export function completeSession(
+  sessionId: string,
+  workoutNote: string | null = null,
+  finalWorkoutTitle?: string,
+): boolean {
   const completed = inTransaction(() => {
     if (!sessionHasLoggedWork(sessionId)) return false;
 
-    exec(
-      `
-      UPDATE workout_session
-       SET status = '${WORKOUT_SESSION_STATUS.COMPLETED}', ended_at = datetime('now'), workout_note = ?, updated_at = datetime('now')
-      WHERE id = ? AND deleted_at IS NULL;
-    `,
-      [normalizeWorkoutNote(workoutNote), sessionId],
-    );
+    const normalizedTitle = normalizeWorkoutTitle(finalWorkoutTitle);
+    if (normalizedTitle) {
+      exec(
+        `
+        UPDATE workout_session
+         SET title = ?, status = '${WORKOUT_SESSION_STATUS.COMPLETED}', ended_at = datetime('now'), workout_note = ?, updated_at = datetime('now')
+        WHERE id = ? AND deleted_at IS NULL;
+      `,
+        [normalizedTitle, normalizeWorkoutNote(workoutNote), sessionId],
+      );
+    } else {
+      exec(
+        `
+        UPDATE workout_session
+         SET status = '${WORKOUT_SESSION_STATUS.COMPLETED}', ended_at = datetime('now'), workout_note = ?, updated_at = datetime('now')
+        WHERE id = ? AND deleted_at IS NULL;
+      `,
+        [normalizeWorkoutNote(workoutNote), sessionId],
+      );
+    }
     enqueueWorkoutSessionSnapshot(sessionId);
     deleteWorkoutSessionInitialSnapshot(sessionId);
 

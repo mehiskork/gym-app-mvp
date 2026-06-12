@@ -1,7 +1,7 @@
 import React from 'react';
 
 import { FinishWorkoutSheet } from '../FinishWorkoutSheet';
-import { Button, BottomSheetModal, Text } from '../../../ui';
+import { Button, BottomSheetModal, Input, Text } from '../../../ui';
 
 type ElementWithChildren = React.ReactElement<{ children?: React.ReactNode }>;
 
@@ -113,5 +113,54 @@ describe('FinishWorkoutSheet', () => {
           'No workout data was logged. End this workout without saving it to history?',
       ),
     ).toBe(true);
+  });
+
+  it('renders Workout name input only when requested', () => {
+    const onWorkoutNameChange = jest.fn();
+    const quickElement = FinishWorkoutSheet({
+      visible: true,
+      onClose: jest.fn(),
+      onFinish: jest.fn(),
+      completedSets: 1,
+      totalSets: 1,
+      durationMinutes: 10,
+      showWorkoutNameInput: true,
+      workoutNameValue: 'Quick Workout',
+      onWorkoutNameChange,
+      workoutNote: '',
+      onWorkoutNoteChange: jest.fn(),
+    });
+
+    const quickInputs = findElementsByType(quickElement, Input) as Array<
+      React.ReactElement<{
+        label?: string;
+        value?: string;
+        maxLength?: number;
+        onChangeText?: (value: string) => void;
+      }>
+    >;
+    const nameInput = quickInputs.find((input) => input.props.label === 'Workout name');
+
+    expect(nameInput).toBeDefined();
+    expect(nameInput?.props.value).toBe('Quick Workout');
+    expect(nameInput?.props.maxLength).toBe(50);
+
+    nameInput?.props.onChangeText?.('x'.repeat(60));
+    expect(onWorkoutNameChange).toHaveBeenCalledWith('x'.repeat(50));
+
+    const plannedElement = FinishWorkoutSheet({
+      visible: true,
+      onClose: jest.fn(),
+      onFinish: jest.fn(),
+      completedSets: 1,
+      totalSets: 1,
+      durationMinutes: 10,
+      workoutNote: '',
+      onWorkoutNoteChange: jest.fn(),
+    });
+    const plannedInputs = findElementsByType(plannedElement, Input) as Array<
+      React.ReactElement<{ label?: string }>
+    >;
+    expect(plannedInputs.some((input) => input.props.label === 'Workout name')).toBe(false);
   });
 });
