@@ -20,6 +20,14 @@ import {
   WorkoutLimitError,
   WORKOUT_LIMIT_MESSAGES,
 } from './workoutLimits';
+import {
+  listReusableWorkoutExercises,
+  listReusableWorkoutSets,
+  validateReusableWorkoutSource,
+} from './workoutReuseRepo';
+
+export const ACTIVE_WORKOUT_REUSE_CONFLICT_MESSAGE =
+  'You already have an active workout. Finish or discard it before starting this workout.';
 
 export type WorkoutSessionRow = {
   id: string;
@@ -1235,6 +1243,158 @@ export function createSessionFromPlanDay(input: { workoutPlanId: string; dayId: 
     }
 
     createWorkoutSessionInitialSnapshot(sessionId, 'baseline');
+
+    return sessionId;
+  });
+}
+
+export function startCompletedWorkoutAsQuickWorkout(sourceSessionId: string): string {
+  const existing = query<{ id: string }>(
+    `
+    SELECT id
+    FROM workout_session
+    WHERE status = '${WORKOUT_SESSION_STATUS.IN_PROGRESS}' AND deleted_at IS NULL
+    ORDER BY started_at DESC
+    LIMIT 1;
+  `,
+  )[0];
+
+  if (existing) {
+    throw new Error(ACTIVE_WORKOUT_REUSE_CONFLICT_MESSAGE);
+  }
+
+  return inTransaction(() => {
+    const active = query<{ id: string }>(
+      `
+      SELECT id
+      FROM workout_session
+      WHERE status = '${WORKOUT_SESSION_STATUS.IN_PROGRESS}' AND deleted_at IS NULL
+      ORDER BY started_at DESC
+      LIMIT 1;
+    `,
+    )[0];
+
+    if (active) {
+      throw new Error(ACTIVE_WORKOUT_REUSE_CONFLICT_MESSAGE);
+    }
+
+    const source = validateReusableWorkoutSource(sourceSessionId);
+    const sourceExercises = listReusableWorkoutExercises(sourceSessionId);
+
+    if (sourceExercises.length > MAX_EXERCISES_PER_SESSION) {
+      throw new WorkoutLimitError(WORKOUT_LIMIT_MESSAGES.maxExercisesPerSession);
+    }
+
+    const sessionId = newId('ws');
+    const createdExerciseIds: string[] = [];
+    const createdSetIds: string[] = [];
+
+    exec(
+      `
+      INSERT INTO workout_session (
+        id,
+        source_workout_plan_id,
+        source_program_day_id,
+        title,
+        status,
+        started_at,
+        ended_at,
+        workout_note,
+        rest_timer_end_at,
+        rest_timer_seconds,
+        rest_timer_label
+      ) VALUES (?, NULL, NULL, ?, '${WORKOUT_SESSION_STATUS.IN_PROGRESS}', datetime('now'), NULL, NULL, NULL, NULL, NULL);
+    `,
+      [sessionId, source.title],
+    );
+
+    for (let exerciseIndex = 0; exerciseIndex < sourceExercises.length; exerciseIndex += 1) {
+      const exercise = sourceExercises[exerciseIndex];
+      const wseId = newId('wse');
+      createdExerciseIds.push(wseId);
+      exec(
+        `
+        INSERT INTO workout_session_exercise (
+          id,
+          workout_session_id,
+          source_program_day_exercise_id,
+          exercise_id,
+          exercise_name,
+          exercise_type,
+          cardio_profile,
+          position,
+          notes,
+          plan_note_snapshot,
+          cardio_duration_minutes,
+          cardio_distance_km,
+          cardio_speed_kph,
+          cardio_incline_percent,
+          cardio_resistance_level,
+          cardio_pace_seconds_per_km,
+          cardio_floors,
+          cardio_stair_level
+        ) VALUES (?, ?, NULL, ?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?, ?, ?, ?, ?, ?);
+      `,
+        [
+          wseId,
+          sessionId,
+          exercise.exercise_id,
+          exercise.exercise_name,
+          exercise.exercise_type,
+          exercise.cardio_profile,
+          exerciseIndex + 1,
+          exercise.cardio_duration_minutes,
+          exercise.cardio_distance_km,
+          exercise.cardio_speed_kph,
+          exercise.cardio_incline_percent,
+          exercise.cardio_resistance_level,
+          exercise.cardio_pace_seconds_per_km,
+          exercise.cardio_floors,
+          exercise.cardio_stair_level,
+        ],
+      );
+
+      if (exercise.exercise_type !== EXERCISE_TYPE.STRENGTH) continue;
+
+      const sourceSets = listReusableWorkoutSets(exercise.id);
+      for (let setIndex = 0; setIndex < sourceSets.length; setIndex += 1) {
+        const sourceSet = sourceSets[setIndex];
+        const setId = newId('set');
+        createdSetIds.push(setId);
+        exec(
+          `
+          INSERT INTO workout_set (
+            id,
+            workout_session_exercise_id,
+            set_index,
+            weight,
+            reps,
+            rpe,
+            rest_seconds,
+            notes,
+            is_completed
+          ) VALUES (?, ?, ?, ?, ?, NULL, ?, NULL, 0);
+        `,
+          [
+            setId,
+            wseId,
+            sourceSet.set_index,
+            sourceSet.weight,
+            sourceSet.reps,
+            sourceSet.rest_seconds,
+          ],
+        );
+      }
+    }
+
+    enqueueWorkoutSessionSnapshot(sessionId);
+    for (const exerciseId of createdExerciseIds) {
+      enqueueWorkoutSessionExerciseSnapshot(exerciseId);
+    }
+    for (const setId of createdSetIds) {
+      enqueueWorkoutSetSnapshot(setId);
+    }
+    createWorkoutSessionInitialSnapshot(sessionId, 'user_added');
 
     return sessionId;
   });

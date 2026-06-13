@@ -4,6 +4,7 @@ import { WORKOUT_SESSION_STATUS } from './constants';
 import { fetchSessionDetail } from './sessionDetailRepo';
 import { enqueueOutboxOp } from './outboxRepo';
 import type { CardioProfile, ExerciseType } from './exerciseTypes';
+import { hasReusableWorkoutContent } from './workoutReuseRepo';
 
 export type CompletedSessionRow = {
   id: string;
@@ -92,7 +93,40 @@ export function listCompletedSessions(limit = 50): CompletedSessionRow[] {
        ended_at,
        workout_note,
        CASE
-         WHEN source_workout_plan_id IS NULL AND source_program_day_id IS NULL THEN 1
+         WHEN EXISTS (
+           SELECT 1
+           FROM workout_session_exercise wse
+           JOIN exercise e ON e.id = wse.exercise_id
+           WHERE wse.workout_session_id = workout_session.id
+             AND wse.deleted_at IS NULL
+             AND e.deleted_at IS NULL
+             AND (
+               (
+                 wse.exercise_type = 'strength'
+                 AND EXISTS (
+                   SELECT 1
+                   FROM workout_set wset
+                   WHERE wset.workout_session_exercise_id = wse.id
+                     AND wset.deleted_at IS NULL
+                     AND wset.is_completed = 1
+                     AND (COALESCE(wset.reps, 0) > 0 OR COALESCE(wset.weight, 0) > 0)
+                 )
+               )
+               OR (
+                 wse.exercise_type = 'cardio'
+                 AND (
+                   wse.cardio_duration_minutes IS NOT NULL OR
+                   wse.cardio_distance_km IS NOT NULL OR
+                   wse.cardio_speed_kph IS NOT NULL OR
+                   wse.cardio_incline_percent IS NOT NULL OR
+                   wse.cardio_resistance_level IS NOT NULL OR
+                   wse.cardio_pace_seconds_per_km IS NOT NULL OR
+                   wse.cardio_floors IS NOT NULL OR
+                   wse.cardio_stair_level IS NOT NULL
+                 )
+               )
+             )
+         ) THEN 1
          ELSE 0
        END AS can_reuse_as_plan
     FROM workout_session
@@ -328,13 +362,13 @@ export function getSessionDetail(sessionId: string): {
     workout_note: detail.session.workout_note,
     can_reuse_as_plan:
       detail.session.status === WORKOUT_SESSION_STATUS.COMPLETED &&
-      detail.session.source_workout_plan_id === null &&
-      detail.session.source_program_day_id === null
+      hasReusableWorkoutContent(sessionId)
         ? 1
         : 0,
   };
 
-  const isCompletedStrengthSet = (set: SessionSetRow): boolean => set.is_completed === 1;
+  const isCompletedStrengthSet = (set: SessionSetRow): boolean =>
+    set.is_completed === 1 && ((set.reps ?? 0) > 0 || (set.weight ?? 0) > 0);
 
   const completedStrengthSets = (sets: SessionSetRow[]): SessionSetRow[] =>
     sets.filter(isCompletedStrengthSet);

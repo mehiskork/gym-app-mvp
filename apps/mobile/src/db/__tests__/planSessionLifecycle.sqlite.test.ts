@@ -58,7 +58,7 @@ import {
   getWorkoutPlanById,
   listDaysForWorkoutPlan,
   listWorkoutPlansWithSessionCounts,
-  saveCompletedQuickWorkoutAsPlan,
+  saveCompletedWorkoutAsPlan,
 } from '../workoutPlanRepo';
 import { completeSession, createSessionFromPlanDay } from '../workoutSessionRepo';
 import {
@@ -329,7 +329,7 @@ describe('plan session lifecycle with SQLite', () => {
       distanceKm: 2,
     });
 
-    const result = await saveCompletedQuickWorkoutAsPlan({
+    const result = await saveCompletedWorkoutAsPlan({
       sessionId: 'quick-rowing',
       target: { kind: 'newPlan', name: 'Rowing Reuse Plan' },
     });

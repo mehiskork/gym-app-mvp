@@ -24,9 +24,10 @@ import {
 import { EXERCISE_TYPE } from '../db/exerciseTypes';
 import {
   listWorkoutPlansWithSessionCounts,
-  saveCompletedQuickWorkoutAsPlan,
+  saveCompletedWorkoutAsPlan,
   type WorkoutPlanWithSessionCountRow,
 } from '../db/workoutPlanRepo';
+import { startCompletedWorkoutAsQuickWorkout } from '../db/workoutSessionRepo';
 import { MAX_SESSIONS_PER_PLAN, isWorkoutLimitError } from '../db/workoutLimits';
 import { BottomSheetModal, Button, Input, ListRow, Snackbar } from '../ui';
 
@@ -56,8 +57,8 @@ export function SessionDetailScreen({ route, navigation }: Props) {
   const [reuseOpen, setReuseOpen] = useState(false);
   const [planName, setPlanName] = useState('Quick Workout Plan');
   const [plans, setPlans] = useState<WorkoutPlanWithSessionCountRow[]>([]);
-  const [isSavingReuse, setIsSavingReuse] = useState(false);
-  const savingReuseRef = useRef(false);
+  const [isReusing, setIsReusing] = useState(false);
+  const reusingRef = useRef(false);
   const [feedback, setFeedback] = useState<{
     message: string;
     variant: 'success' | 'error';
@@ -119,25 +120,46 @@ export function SessionDetailScreen({ route, navigation }: Props) {
     async (
       target: { kind: 'newPlan'; name: string } | { kind: 'existingPlan'; workoutPlanId: string },
     ) => {
-      if (savingReuseRef.current) return;
-      savingReuseRef.current = true;
-      setIsSavingReuse(true);
+      if (reusingRef.current) return;
+      reusingRef.current = true;
+      setIsReusing(true);
       setFeedback(null);
 
       try {
-        const result = await saveCompletedQuickWorkoutAsPlan({ sessionId, target });
+        const result = await saveCompletedWorkoutAsPlan({ sessionId, target });
         setReuseOpen(false);
         setFeedback({ message: 'Workout saved as a plan.', variant: 'success' });
         navigation.navigate('WorkoutPlanDetail', { workoutPlanId: result.workoutPlanId });
       } catch (error) {
         setFeedback({ message: getReuseErrorMessage(error), variant: 'error' });
       } finally {
-        savingReuseRef.current = false;
-        setIsSavingReuse(false);
+        reusingRef.current = false;
+        setIsReusing(false);
       }
     },
     [getReuseErrorMessage, navigation, sessionId],
   );
+
+  const handleStartQuickReuse = useCallback(() => {
+    if (reusingRef.current) return;
+    reusingRef.current = true;
+    setIsReusing(true);
+    setFeedback(null);
+
+    void Promise.resolve()
+      .then(() => {
+        const newSessionId = startCompletedWorkoutAsQuickWorkout(sessionId);
+        setReuseOpen(false);
+        navigation.navigate('WorkoutSession', { sessionId: newSessionId });
+      })
+      .catch((error: unknown) => {
+        setFeedback({ message: getReuseErrorMessage(error), variant: 'error' });
+      })
+      .finally(() => {
+        reusingRef.current = false;
+        setIsReusing(false);
+      });
+  }, [getReuseErrorMessage, navigation, sessionId]);
 
   if (!session) {
     return (
@@ -149,7 +171,7 @@ export function SessionDetailScreen({ route, navigation }: Props) {
   }
 
   const dur = formatDurationSeconds(durationSeconds(session.started_at, session.ended_at));
-  const canReuseAsPlan = session.can_reuse_as_plan === 1;
+  const canReuseWorkout = session.can_reuse_as_plan === 1;
   const formatCardio = (ex: SessionExerciseRow) => {
     const fields: string[] = [];
     if (ex.cardio_duration_minutes !== null)
@@ -173,31 +195,15 @@ export function SessionDetailScreen({ route, navigation }: Props) {
         keyboardShouldPersistTaps="handled"
       >
         <View style={{ gap: tokens.spacing.xs }}>
-          {canReuseAsPlan ? (
-            <View
-              style={{
-                padding: tokens.spacing.md,
-                backgroundColor: postFinish ? tokens.colors.surface2 : tokens.colors.surface,
-                borderRadius: tokens.radius.md,
-                borderWidth: 1,
-                borderColor: postFinish ? tokens.colors.primary : tokens.colors.border,
-                gap: tokens.spacing.sm,
+          {canReuseWorkout ? (
+            <Button
+              title="Reuse workout"
+              variant={postFinish ? 'primary' : 'secondary'}
+              onPress={() => {
+                setPlans(listWorkoutPlansWithSessionCounts());
+                setReuseOpen(true);
               }}
-            >
-              <Text variant="subtitle">Reuse this workout</Text>
-              <Text variant="muted">
-                Save exercises, sets, reps, weights, and cardio targets so you can use this workout
-                again.
-              </Text>
-              <Button
-                title="Reuse this workout"
-                variant="primary"
-                onPress={() => {
-                  setPlans(listWorkoutPlansWithSessionCounts());
-                  setReuseOpen(true);
-                }}
-              />
-            </View>
+            />
           ) : null}
 
           {prs.length > 0 ? (
@@ -293,34 +299,42 @@ export function SessionDetailScreen({ route, navigation }: Props) {
       </ScrollView>
       <BottomSheetModal
         visible={reuseOpen}
-        title="Reuse this workout"
+        title="Reuse workout"
         onClose={() => {
-          if (!isSavingReuse) setReuseOpen(false);
+          if (!isReusing) setReuseOpen(false);
         }}
         keyboardAware
       >
         <View style={{ gap: tokens.spacing.lg }}>
+          <Button
+            title="Start as Quick Workout"
+            variant="primary"
+            loading={isReusing}
+            disabled={isReusing}
+            onPress={() => void handleStartQuickReuse()}
+          />
+
           <View style={{ gap: tokens.spacing.sm }}>
             <Input
               label="New plan name"
               value={planName}
               onChangeText={setPlanName}
               placeholder="Quick Workout Plan"
-              editable={!isSavingReuse}
+              editable={!isReusing}
               maxLength={50}
             />
             <Button
               title="Create new plan"
-              variant="primary"
-              loading={isSavingReuse}
-              disabled={isSavingReuse || planName.trim().length === 0}
+              variant="secondary"
+              loading={isReusing}
+              disabled={isReusing || planName.trim().length === 0}
               onPress={() => void handleSaveReuse({ kind: 'newPlan', name: planName })}
             />
           </View>
 
           <View style={{ gap: tokens.spacing.sm }}>
             <Text variant="label" color={tokens.colors.mutedText}>
-              ADD TO EXISTING PLAN
+              Add to existing plan
             </Text>
             {plans.length === 0 ? (
               <Text variant="muted">No existing plans yet.</Text>
@@ -337,8 +351,8 @@ export function SessionDetailScreen({ route, navigation }: Props) {
                       <Button
                         title={full ? 'Plan is full' : 'Add'}
                         variant="secondary"
-                        disabled={full || isSavingReuse}
-                        loading={isSavingReuse}
+                        disabled={full || isReusing}
+                        loading={isReusing}
                         onPress={() =>
                           void handleSaveReuse({
                             kind: 'existingPlan',

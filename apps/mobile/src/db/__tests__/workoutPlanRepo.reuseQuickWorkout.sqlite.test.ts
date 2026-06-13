@@ -50,7 +50,7 @@ import {
   addDayToWorkoutPlan,
   createWorkoutPlan,
   listDaysForWorkoutPlan,
-  saveCompletedQuickWorkoutAsPlan,
+  saveCompletedWorkoutAsPlan,
 } from '../workoutPlanRepo';
 import { MAX_SESSIONS_PER_PLAN, WorkoutLimitError } from '../workoutLimits';
 import { SYNC_BATCH_LIMIT } from '../../sync/constants';
@@ -400,7 +400,7 @@ function expectGroupedPlannerOrder(entityTypes: string[], prefix: string[]) {
   expect(entityTypes.slice(firstPlannedSet).every((type) => type === 'planned_set')).toBe(true);
 }
 
-describe('saveCompletedQuickWorkoutAsPlan', () => {
+describe('saveCompletedWorkoutAsPlan', () => {
   beforeEach(() => {
     useDeterministicIds();
     migrateAndSeed();
@@ -410,7 +410,7 @@ describe('saveCompletedQuickWorkoutAsPlan', () => {
     const sessionId = seedCompletedQuickWorkout();
     exec('DELETE FROM outbox_op;');
 
-    const result = await saveCompletedQuickWorkoutAsPlan({
+    const result = await saveCompletedWorkoutAsPlan({
       sessionId,
       target: { kind: 'newPlan', name: 'Quick Workout Plan' },
     });
@@ -458,15 +458,7 @@ describe('saveCompletedQuickWorkoutAsPlan', () => {
         target_reps_max: 5,
         target_weight: 100,
         target_rpe: null,
-        rest_seconds: null,
-      },
-      {
-        set_index: 2,
-        target_reps_min: null,
-        target_reps_max: null,
-        target_weight: null,
-        target_rpe: null,
-        rest_seconds: null,
+        rest_seconds: 90,
       },
       {
         set_index: 1,
@@ -474,7 +466,7 @@ describe('saveCompletedQuickWorkoutAsPlan', () => {
         target_reps_max: 8,
         target_weight: 80,
         target_rpe: null,
-        rest_seconds: null,
+        rest_seconds: 60,
       },
       {
         set_index: 1,
@@ -482,7 +474,7 @@ describe('saveCompletedQuickWorkoutAsPlan', () => {
         target_reps_max: 10,
         target_weight: 90,
         target_rpe: null,
-        rest_seconds: null,
+        rest_seconds: 75,
       },
     ]);
   });
@@ -498,7 +490,7 @@ describe('saveCompletedQuickWorkoutAsPlan', () => {
     });
     exec('DELETE FROM outbox_op;');
 
-    const result = await saveCompletedQuickWorkoutAsPlan({
+    const result = await saveCompletedWorkoutAsPlan({
       sessionId,
       target: { kind: 'newPlan', name: 'Rowing Plan' },
     });
@@ -560,7 +552,7 @@ describe('saveCompletedQuickWorkoutAsPlan', () => {
       inclinePercent: 11,
     });
 
-    const result = await saveCompletedQuickWorkoutAsPlan({
+    const result = await saveCompletedWorkoutAsPlan({
       sessionId,
       target: { kind: 'newPlan', name: 'Treadmill Plan' },
     });
@@ -597,7 +589,7 @@ describe('saveCompletedQuickWorkoutAsPlan', () => {
   it('reuses mixed strength and cardio work in performed order', async () => {
     const sessionId = seedCompletedMixedQuickWorkout();
 
-    const result = await saveCompletedQuickWorkoutAsPlan({
+    const result = await saveCompletedWorkoutAsPlan({
       sessionId,
       target: { kind: 'newPlan', name: 'Mixed Plan' },
     });
@@ -676,7 +668,7 @@ describe('saveCompletedQuickWorkoutAsPlan', () => {
     const beforeDays = listDaysForWorkoutPlan(planId);
     exec('DELETE FROM outbox_op;');
 
-    const result = await saveCompletedQuickWorkoutAsPlan({
+    const result = await saveCompletedWorkoutAsPlan({
       sessionId,
       target: { kind: 'existingPlan', workoutPlanId: planId },
     });
@@ -700,7 +692,7 @@ describe('saveCompletedQuickWorkoutAsPlan', () => {
     const sessionId = seedCompletedQuickWorkout();
     exec('DELETE FROM outbox_op;');
 
-    await saveCompletedQuickWorkoutAsPlan({
+    await saveCompletedWorkoutAsPlan({
       sessionId,
       target: { kind: 'newPlan', name: 'Synced Plan' },
     });
@@ -716,18 +708,17 @@ describe('saveCompletedQuickWorkoutAsPlan', () => {
       'planned_set',
       'planned_set',
       'planned_set',
-      'planned_set',
     ]);
     expect(entityTypes.filter((type) => type === 'program')).toHaveLength(1);
     expect(entityTypes.filter((type) => type === 'program_week')).toHaveLength(1);
     expect(entityTypes.filter((type) => type === 'program_day')).toHaveLength(1);
     expect(entityTypes.filter((type) => type === 'program_day_exercise')).toHaveLength(3);
-    expect(entityTypes.filter((type) => type === 'planned_set')).toHaveLength(4);
+    expect(entityTypes.filter((type) => type === 'planned_set')).toHaveLength(3);
     expect(
       readOutboxRows()
         .filter((row) => row.entity_type === 'planned_set')
-        .every((row) => JSON.parse(row.payload_json).rest_seconds === null),
-    ).toBe(true);
+        .map((row) => JSON.parse(row.payload_json).rest_seconds),
+    ).toEqual([90, 60, 75]);
   });
 
   it('enqueues a created week before the appended day and copied children', async () => {
@@ -742,7 +733,7 @@ describe('saveCompletedQuickWorkoutAsPlan', () => {
     );
     exec('DELETE FROM outbox_op;');
 
-    await saveCompletedQuickWorkoutAsPlan({
+    await saveCompletedWorkoutAsPlan({
       sessionId,
       target: { kind: 'existingPlan', workoutPlanId: planId },
     });
@@ -755,7 +746,7 @@ describe('saveCompletedQuickWorkoutAsPlan', () => {
     const sessionId = seedLargeCompletedQuickWorkout();
     exec('DELETE FROM outbox_op;');
 
-    await saveCompletedQuickWorkoutAsPlan({
+    await saveCompletedWorkoutAsPlan({
       sessionId,
       target: { kind: 'newPlan', name: 'Large Synced Plan' },
     });
@@ -791,7 +782,7 @@ describe('saveCompletedQuickWorkoutAsPlan', () => {
     };
 
     await expect(
-      saveCompletedQuickWorkoutAsPlan({
+      saveCompletedWorkoutAsPlan({
         sessionId,
         target: { kind: 'existingPlan', workoutPlanId: planId },
       }),
@@ -805,7 +796,7 @@ describe('saveCompletedQuickWorkoutAsPlan', () => {
     expect(readOutboxRows()).toHaveLength(0);
   });
 
-  it('defensively rejects ineligible source sessions', async () => {
+  it('reuses completed Planned Workout sources and still rejects incomplete or deleted sources', async () => {
     const quickSessionId = seedCompletedQuickWorkout();
     const planId = createWorkoutPlan({ name: 'Plan Source' });
     const dayId = listDaysForWorkoutPlan(planId)[0]?.id;
@@ -820,12 +811,13 @@ describe('saveCompletedQuickWorkoutAsPlan', () => {
       [planId, dayId, quickSessionId],
     );
 
-    await expect(
-      saveCompletedQuickWorkoutAsPlan({
-        sessionId: quickSessionId,
-        target: { kind: 'newPlan', name: 'Rejected' },
-      }),
-    ).rejects.toThrow('Only completed Quick Workouts can be reused.');
+    const plannedResult = await saveCompletedWorkoutAsPlan({
+      sessionId: quickSessionId,
+      target: { kind: 'newPlan', name: 'Planned Reuse' },
+    });
+    expect(
+      count('SELECT COUNT(*) AS n FROM program_day WHERE id = ?;', [plannedResult.programDayId]),
+    ).toBe(1);
 
     exec(
       `
@@ -839,11 +831,11 @@ describe('saveCompletedQuickWorkoutAsPlan', () => {
     );
 
     await expect(
-      saveCompletedQuickWorkoutAsPlan({
+      saveCompletedWorkoutAsPlan({
         sessionId: quickSessionId,
         target: { kind: 'newPlan', name: 'Rejected' },
       }),
-    ).rejects.toThrow('Only completed Quick Workouts can be reused.');
+    ).rejects.toThrow('No completed sets or cardio details to reuse.');
 
     exec(
       `
@@ -856,11 +848,11 @@ describe('saveCompletedQuickWorkoutAsPlan', () => {
     );
 
     await expect(
-      saveCompletedQuickWorkoutAsPlan({
+      saveCompletedWorkoutAsPlan({
         sessionId: quickSessionId,
         target: { kind: 'newPlan', name: 'Rejected' },
       }),
-    ).rejects.toThrow('Only completed Quick Workouts can be reused.');
+    ).rejects.toThrow('No completed sets or cardio details to reuse.');
   });
 
   it('skips empty cardio exercises and rejects workouts with no reusable work', async () => {
@@ -884,7 +876,7 @@ describe('saveCompletedQuickWorkoutAsPlan', () => {
     );
 
     await expect(
-      saveCompletedQuickWorkoutAsPlan({
+      saveCompletedWorkoutAsPlan({
         sessionId,
         target: { kind: 'newPlan', name: 'No Sets' },
       }),

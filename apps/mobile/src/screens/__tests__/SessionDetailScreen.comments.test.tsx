@@ -61,7 +61,11 @@ jest.mock('../../db/historyRepo', () => ({
 
 jest.mock('../../db/workoutPlanRepo', () => ({
   listWorkoutPlansWithSessionCounts: jest.fn(() => []),
-  saveCompletedQuickWorkoutAsPlan: jest.fn(),
+  saveCompletedWorkoutAsPlan: jest.fn(),
+}));
+
+jest.mock('../../db/workoutSessionRepo', () => ({
+  startCompletedWorkoutAsQuickWorkout: jest.fn(),
 }));
 
 jest.mock('../../db/prRepo', () => ({
@@ -73,11 +77,12 @@ import React from 'react';
 import { getSessionDetail } from '../../db/historyRepo';
 import {
   listWorkoutPlansWithSessionCounts,
-  saveCompletedQuickWorkoutAsPlan,
+  saveCompletedWorkoutAsPlan,
 } from '../../db/workoutPlanRepo';
+import { startCompletedWorkoutAsQuickWorkout } from '../../db/workoutSessionRepo';
 import { SessionDetailScreen } from '../SessionDetailScreen';
 import type { SessionSetRow } from '../../db/historyRepo';
-import { Button } from '../../ui';
+import { BottomSheetModal, Button } from '../../ui';
 
 const findElementsByType = <P,>(
   node: React.ReactNode,
@@ -110,18 +115,25 @@ const findElementsByType = <P,>(
 describe('SessionDetailScreen notes', () => {
   const useStateMock = React.useState as jest.Mock;
 
+  const flushReuseStart = async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+  };
+
   beforeEach(() => {
     useStateMock.mockReset();
     useStateMock.mockImplementation((initial: unknown) => [initial, jest.fn()]);
     (getSessionDetail as jest.Mock).mockReset();
     (listWorkoutPlansWithSessionCounts as jest.Mock).mockReset();
     (listWorkoutPlansWithSessionCounts as jest.Mock).mockReturnValue([]);
-    (saveCompletedQuickWorkoutAsPlan as jest.Mock).mockReset();
-    (saveCompletedQuickWorkoutAsPlan as jest.Mock).mockResolvedValue({
+    (saveCompletedWorkoutAsPlan as jest.Mock).mockReset();
+    (saveCompletedWorkoutAsPlan as jest.Mock).mockResolvedValue({
       workoutPlanId: 'plan-1',
       programDayId: 'day-1',
       createdPlan: true,
     });
+    (startCompletedWorkoutAsQuickWorkout as jest.Mock).mockReset();
+    (startCompletedWorkoutAsQuickWorkout as jest.Mock).mockReturnValue('new-session-1');
   });
 
   it('shows workout and plan exercise notes in history details', () => {
@@ -387,7 +399,7 @@ describe('SessionDetailScreen notes', () => {
     expect(serialized).not.toContain('s/km');
   });
 
-  it('shows reuse action for eligible quick workouts', () => {
+  it('shows compact reuse action for eligible quick workouts and removes the old card copy', () => {
     const session = {
       id: 's-5',
       source_workout_plan_id: null,
@@ -415,8 +427,9 @@ describe('SessionDetailScreen notes', () => {
     } as never);
 
     const serialized = JSON.stringify(element);
-    expect(serialized).toContain('Reuse this workout');
-    expect(serialized).toContain(
+    expect(serialized).toContain('Reuse workout');
+    expect(serialized).not.toContain('Reuse this workout');
+    expect(serialized).not.toContain(
       'Save exercises, sets, reps, weights, and cardio targets so you can use this workout again.',
     );
   });
@@ -431,7 +444,7 @@ describe('SessionDetailScreen notes', () => {
       can_reuse_as_plan: 1,
     };
     let resolveSave: (value: unknown) => void = () => undefined;
-    (saveCompletedQuickWorkoutAsPlan as jest.Mock).mockImplementationOnce(
+    (saveCompletedWorkoutAsPlan as jest.Mock).mockImplementationOnce(
       () =>
         new Promise((resolve) => {
           resolveSave = resolve;
@@ -463,7 +476,7 @@ describe('SessionDetailScreen notes', () => {
     createButton?.props.onPress?.({} as never);
     createButton?.props.onPress?.({} as never);
 
-    expect(saveCompletedQuickWorkoutAsPlan).toHaveBeenCalledTimes(1);
+    expect(saveCompletedWorkoutAsPlan).toHaveBeenCalledTimes(1);
     resolveSave({ workoutPlanId: 'plan-1', programDayId: 'day-1', createdPlan: true });
     await Promise.resolve();
   });
@@ -477,7 +490,7 @@ describe('SessionDetailScreen notes', () => {
       workout_note: null,
       can_reuse_as_plan: 1,
     };
-    (saveCompletedQuickWorkoutAsPlan as jest.Mock)
+    (saveCompletedWorkoutAsPlan as jest.Mock)
       .mockRejectedValueOnce(new Error('save failed'))
       .mockResolvedValueOnce({ workoutPlanId: 'plan-1', programDayId: 'day-1', createdPlan: true });
 
@@ -507,15 +520,41 @@ describe('SessionDetailScreen notes', () => {
     await Promise.resolve();
     createButton?.props.onPress?.({} as never);
 
-    expect(saveCompletedQuickWorkoutAsPlan).toHaveBeenCalledTimes(2);
+    expect(saveCompletedWorkoutAsPlan).toHaveBeenCalledTimes(2);
   });
 
-  it('hides reuse action for planned workouts', () => {
+  it('shows reuse action for eligible planned workouts', () => {
     const session = {
       id: 's-6',
       source_workout_plan_id: 'plan-1',
       source_program_day_id: 'day-1',
       title: 'Push',
+      started_at: '2026-01-06T00:00:00Z',
+      ended_at: '2026-01-06T01:00:00Z',
+      workout_note: null,
+      can_reuse_as_plan: 1,
+    };
+
+    useStateMock.mockImplementationOnce(() => [session, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [[], jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [[], jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [[], jest.fn()]);
+    (getSessionDetail as jest.Mock).mockReturnValue({ session, exercises: [], sets: [] });
+
+    const element = SessionDetailScreen({
+      navigation: { setOptions: jest.fn(), navigate: jest.fn() },
+      route: { key: 'SessionDetail', name: 'SessionDetail', params: { sessionId: 's-6' } },
+    } as never);
+
+    expect(JSON.stringify(element)).toContain('Reuse workout');
+  });
+
+  it('hides reuse action for non-reusable completed workouts', () => {
+    const session = {
+      id: 's-empty',
+      source_workout_plan_id: null,
+      source_program_day_id: null,
+      title: 'Empty',
       started_at: '2026-01-06T00:00:00Z',
       ended_at: '2026-01-06T01:00:00Z',
       workout_note: null,
@@ -530,12 +569,13 @@ describe('SessionDetailScreen notes', () => {
 
     const element = SessionDetailScreen({
       navigation: { setOptions: jest.fn(), navigate: jest.fn() },
-      route: { key: 'SessionDetail', name: 'SessionDetail', params: { sessionId: 's-6' } },
+      route: { key: 'SessionDetail', name: 'SessionDetail', params: { sessionId: 's-empty' } },
     } as never);
 
-    expect(JSON.stringify(element)).not.toContain(
-      'Save exercises, sets, reps, weights, and cardio targets so you can use this workout again.',
-    );
+    const buttons = findElementsByType(element, Button) as Array<
+      React.ReactElement<React.ComponentProps<typeof Button>>
+    >;
+    expect(buttons.some((button) => button.props.title === 'Reuse workout')).toBe(false);
   });
 
   it('save sheet can call new-plan and existing-plan saves while full plans are disabled', async () => {
@@ -586,22 +626,160 @@ describe('SessionDetailScreen notes', () => {
     const buttons = findElementsByType(element, Button) as Array<
       React.ReactElement<React.ComponentProps<typeof Button>>
     >;
+    const startButton = buttons.find((button) => button.props.title === 'Start as Quick Workout');
     const createButton = buttons.find((button) => button.props.title === 'Create new plan');
     const addButton = buttons.find((button) => button.props.title === 'Add');
     const fullButton = buttons.find((button) => button.props.title === 'Plan is full');
 
+    expect(startButton).toBeTruthy();
+
     await createButton?.props.onPress?.({} as never);
-    expect(saveCompletedQuickWorkoutAsPlan).toHaveBeenCalledWith({
+    expect(saveCompletedWorkoutAsPlan).toHaveBeenCalledWith({
       sessionId: 's-7',
       target: { kind: 'newPlan', name: 'Quick Workout Plan' },
     });
 
     await addButton?.props.onPress?.({} as never);
-    expect(saveCompletedQuickWorkoutAsPlan).toHaveBeenCalledWith({
+    expect(saveCompletedWorkoutAsPlan).toHaveBeenCalledWith({
       sessionId: 's-7',
       target: { kind: 'existingPlan', workoutPlanId: 'plan-open' },
     });
     expect(fullButton?.props.disabled).toBe(true);
     expect(JSON.stringify(element)).toContain('Plan is full');
+    expect(JSON.stringify(element)).toContain('Add to existing plan');
+  });
+
+  it('guards start-as-quick against two immediate presses before re-render', async () => {
+    const session = {
+      id: 's-start',
+      title: 'Quick Workout',
+      started_at: '2026-01-01T10:00:00Z',
+      ended_at: '2026-01-01T10:45:00Z',
+      workout_note: null,
+      can_reuse_as_plan: 1,
+    };
+
+    useStateMock.mockImplementationOnce(() => [session, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [[], jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [[], jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [[], jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [true, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => ['Quick Workout Plan', jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [[], jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [false, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+    (getSessionDetail as jest.Mock).mockReturnValue({ session, exercises: [], sets: [] });
+
+    const element = SessionDetailScreen({
+      navigation: { navigate: jest.fn(), setOptions: jest.fn() },
+      route: { key: 'SessionDetail', name: 'SessionDetail', params: { sessionId: 's-start' } },
+    } as never);
+
+    const buttons = findElementsByType(element, Button) as Array<
+      React.ReactElement<React.ComponentProps<typeof Button>>
+    >;
+    const startButton = buttons.find((button) => button.props.title === 'Start as Quick Workout');
+
+    startButton?.props.onPress?.({} as never);
+    startButton?.props.onPress?.({} as never);
+
+    expect(startCompletedWorkoutAsQuickWorkout).not.toHaveBeenCalled();
+    await flushReuseStart();
+    expect(startCompletedWorkoutAsQuickWorkout).toHaveBeenCalledTimes(1);
+  });
+
+  it('starts a reused workout as a quick active session and resets the reuse guard', async () => {
+    const session = {
+      id: 's-start-nav',
+      title: 'Quick Workout',
+      started_at: '2026-01-01T10:00:00Z',
+      ended_at: '2026-01-01T10:45:00Z',
+      workout_note: null,
+      can_reuse_as_plan: 1,
+    };
+    const setReuseOpen = jest.fn();
+    const setIsReusing = jest.fn();
+
+    useStateMock.mockImplementationOnce(() => [session, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [[], jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [[], jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [[], jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [true, setReuseOpen]);
+    useStateMock.mockImplementationOnce(() => ['Quick Workout Plan', jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [[], jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [false, setIsReusing]);
+    useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+    (getSessionDetail as jest.Mock).mockReturnValue({ session, exercises: [], sets: [] });
+
+    const navigation = { navigate: jest.fn(), setOptions: jest.fn() };
+    const element = SessionDetailScreen({
+      navigation,
+      route: { key: 'SessionDetail', name: 'SessionDetail', params: { sessionId: 's-start-nav' } },
+    } as never);
+
+    const buttons = findElementsByType(element, Button) as Array<
+      React.ReactElement<React.ComponentProps<typeof Button>>
+    >;
+    const startButton = buttons.find((button) => button.props.title === 'Start as Quick Workout');
+
+    startButton?.props.onPress?.({} as never);
+
+    expect(setIsReusing).toHaveBeenCalledWith(true);
+    await flushReuseStart();
+    expect(startCompletedWorkoutAsQuickWorkout).toHaveBeenCalledWith('s-start-nav');
+    expect(setReuseOpen).toHaveBeenCalledWith(false);
+    expect(navigation.navigate).toHaveBeenCalledWith('WorkoutSession', {
+      sessionId: 'new-session-1',
+    });
+    expect(setIsReusing).toHaveBeenLastCalledWith(false);
+  });
+
+  it('returns to the mounted source detail with reuse sheet actions usable and closable', async () => {
+    const session = {
+      id: 's-start-return',
+      title: 'Quick Workout',
+      started_at: '2026-01-01T10:00:00Z',
+      ended_at: '2026-01-01T10:45:00Z',
+      workout_note: null,
+      can_reuse_as_plan: 1,
+    };
+    const setReuseOpenAfterReturn = jest.fn();
+
+    useStateMock.mockImplementationOnce(() => [session, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [[], jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [[], jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [[], jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [true, setReuseOpenAfterReturn]);
+    useStateMock.mockImplementationOnce(() => ['Quick Workout Plan', jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [[], jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [false, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+    (getSessionDetail as jest.Mock).mockReturnValue({ session, exercises: [], sets: [] });
+
+    const element = SessionDetailScreen({
+      navigation: { navigate: jest.fn(), setOptions: jest.fn() },
+      route: {
+        key: 'SessionDetail',
+        name: 'SessionDetail',
+        params: { sessionId: 's-start-return' },
+      },
+    } as never);
+
+    const buttons = findElementsByType(element, Button) as Array<
+      React.ReactElement<React.ComponentProps<typeof Button>>
+    >;
+    const startButton = buttons.find((button) => button.props.title === 'Start as Quick Workout');
+    const createButton = buttons.find((button) => button.props.title === 'Create new plan');
+    const sheet = findElementsByType<{
+      onClose?: () => void;
+    }>(element, BottomSheetModal)[0];
+
+    expect(startButton?.props.loading).toBe(false);
+    expect(startButton?.props.disabled).toBe(false);
+    expect(createButton?.props.loading).toBe(false);
+    expect(createButton?.props.disabled).toBe(false);
+
+    sheet?.props.onClose?.();
+    expect(setReuseOpenAfterReturn).toHaveBeenCalledWith(false);
   });
 });
