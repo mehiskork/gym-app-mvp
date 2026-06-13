@@ -7,7 +7,7 @@ import { useAppTheme } from '../theme/theme';
 import { tokens } from '../theme/tokens';
 import { Text } from './Text';
 
-type Variant = 'primary' | 'secondary' | 'ghost' | 'destructive';
+type Variant = 'primary' | 'primarySoft' | 'secondary' | 'ghost' | 'destructive';
 
 type Size = 'sm' | 'md' | 'lg';
 
@@ -55,12 +55,17 @@ export function Button({
   const content = children ?? title;
   const variantStyles: Record<Variant, ViewStyle> = {
     primary: {
-      backgroundColor: colors.primary,
+      backgroundColor: colors.primarySoft,
+      borderColor: colors.primaryBorder,
+      borderWidth: 1,
+    },
+    primarySoft: {
+      backgroundColor: colors.primarySoft,
       borderColor: colors.primaryBorder,
       borderWidth: 1,
     },
     secondary: {
-      backgroundColor: colors.secondary,
+      backgroundColor: 'transparent',
       borderColor: colors.border,
       borderWidth: 1,
     },
@@ -76,8 +81,9 @@ export function Button({
     },
   };
   const variantTextColors: Record<Variant, string> = {
-    primary: colors.primaryTextOnColor,
-    secondary: colors.onSecondary,
+    primary: colors.text,
+    primarySoft: colors.text,
+    secondary: colors.mutedText,
     ghost: colors.text,
     destructive: colors.text,
   };

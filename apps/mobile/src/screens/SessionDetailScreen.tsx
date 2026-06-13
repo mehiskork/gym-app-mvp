@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
@@ -63,6 +63,7 @@ export function SessionDetailScreen({ route, navigation }: Props) {
     message: string;
     variant: 'success' | 'error';
   } | null>(null);
+  const [reuseSheetError, setReuseSheetError] = useState<string | null>(null);
 
   const load = useCallback(() => {
     const data = getSessionDetail(sessionId);
@@ -92,6 +93,13 @@ export function SessionDetailScreen({ route, navigation }: Props) {
       if (session?.title) navigation.setOptions({ title: session.title });
     }, [navigation, session?.title]),
   );
+
+  useEffect(() => {
+    setReuseSheetError(null);
+    return () => {
+      reusingRef.current = false;
+    };
+  }, [sessionId]);
 
   const setsByWse = useMemo(() => {
     const map = new Map<string, SessionSetRow[]>();
@@ -124,14 +132,16 @@ export function SessionDetailScreen({ route, navigation }: Props) {
       reusingRef.current = true;
       setIsReusing(true);
       setFeedback(null);
+      setReuseSheetError(null);
 
       try {
         const result = await saveCompletedWorkoutAsPlan({ sessionId, target });
         setReuseOpen(false);
+        setReuseSheetError(null);
         setFeedback({ message: 'Workout saved as a plan.', variant: 'success' });
         navigation.navigate('WorkoutPlanDetail', { workoutPlanId: result.workoutPlanId });
       } catch (error) {
-        setFeedback({ message: getReuseErrorMessage(error), variant: 'error' });
+        setReuseSheetError(getReuseErrorMessage(error));
       } finally {
         reusingRef.current = false;
         setIsReusing(false);
@@ -145,15 +155,17 @@ export function SessionDetailScreen({ route, navigation }: Props) {
     reusingRef.current = true;
     setIsReusing(true);
     setFeedback(null);
+    setReuseSheetError(null);
 
     void Promise.resolve()
       .then(() => {
         const newSessionId = startCompletedWorkoutAsQuickWorkout(sessionId);
         setReuseOpen(false);
+        setReuseSheetError(null);
         navigation.navigate('WorkoutSession', { sessionId: newSessionId });
       })
       .catch((error: unknown) => {
-        setFeedback({ message: getReuseErrorMessage(error), variant: 'error' });
+        setReuseSheetError(getReuseErrorMessage(error));
       })
       .finally(() => {
         reusingRef.current = false;
@@ -301,7 +313,10 @@ export function SessionDetailScreen({ route, navigation }: Props) {
         visible={reuseOpen}
         title="Reuse workout"
         onClose={() => {
-          if (!isReusing) setReuseOpen(false);
+          if (!isReusing) {
+            setReuseOpen(false);
+            setReuseSheetError(null);
+          }
         }}
         keyboardAware
       >
@@ -313,6 +328,21 @@ export function SessionDetailScreen({ route, navigation }: Props) {
             disabled={isReusing}
             onPress={() => void handleStartQuickReuse()}
           />
+          {reuseSheetError ? (
+            <View
+              style={{
+                padding: tokens.spacing.md,
+                backgroundColor: 'rgba(224, 82, 75, 0.14)',
+                borderColor: tokens.colors.danger,
+                borderWidth: 1,
+                borderRadius: tokens.radius.md,
+              }}
+            >
+              <Text variant="muted" color={tokens.colors.text}>
+                {reuseSheetError}
+              </Text>
+            </View>
+          ) : null}
 
           <View style={{ gap: tokens.spacing.sm }}>
             <Input

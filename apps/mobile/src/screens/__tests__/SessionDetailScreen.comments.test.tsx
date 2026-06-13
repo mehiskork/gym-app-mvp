@@ -4,6 +4,7 @@ jest.mock('react', () => {
     ...actual,
     useState: jest.fn(),
     useCallback: (fn: () => unknown) => fn,
+    useEffect: (fn: () => unknown) => fn(),
     useMemo: (fn: () => unknown) => fn(),
     useRef: jest.fn((initial: unknown) => ({ current: initial })),
   };
@@ -114,6 +115,8 @@ const findElementsByType = <P,>(
 
 describe('SessionDetailScreen notes', () => {
   const useStateMock = React.useState as jest.Mock;
+  const activeConflictMessage =
+    'You already have an active workout. Finish or discard it before starting this workout.';
 
   const flushReuseStart = async () => {
     await Promise.resolve();
@@ -686,6 +689,177 @@ describe('SessionDetailScreen notes', () => {
     expect(startCompletedWorkoutAsQuickWorkout).not.toHaveBeenCalled();
     await flushReuseStart();
     expect(startCompletedWorkoutAsQuickWorkout).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows active workout conflict as an in-sheet error and not only global snackbar feedback', async () => {
+    const session = {
+      id: 's-conflict',
+      title: 'Quick Workout',
+      started_at: '2026-01-01T10:00:00Z',
+      ended_at: '2026-01-01T10:45:00Z',
+      workout_note: null,
+      can_reuse_as_plan: 1,
+    };
+    const setReuseOpen = jest.fn();
+    const setFeedback = jest.fn();
+    const setReuseSheetError = jest.fn();
+    (startCompletedWorkoutAsQuickWorkout as jest.Mock).mockImplementationOnce(() => {
+      throw new Error(activeConflictMessage);
+    });
+
+    useStateMock.mockImplementationOnce(() => [session, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [[], jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [[], jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [[], jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [true, setReuseOpen]);
+    useStateMock.mockImplementationOnce(() => ['Quick Workout Plan', jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [[], jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [false, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [null, setFeedback]);
+    useStateMock.mockImplementationOnce(() => [null, setReuseSheetError]);
+    (getSessionDetail as jest.Mock).mockReturnValue({ session, exercises: [], sets: [] });
+
+    const element = SessionDetailScreen({
+      navigation: { navigate: jest.fn(), setOptions: jest.fn() },
+      route: { key: 'SessionDetail', name: 'SessionDetail', params: { sessionId: 's-conflict' } },
+    } as never);
+
+    const buttons = findElementsByType(element, Button) as Array<
+      React.ReactElement<React.ComponentProps<typeof Button>>
+    >;
+    const startButton = buttons.find((button) => button.props.title === 'Start as Quick Workout');
+
+    startButton?.props.onPress?.({} as never);
+    await flushReuseStart();
+
+    expect(setReuseOpen).not.toHaveBeenCalledWith(false);
+    expect(setReuseSheetError).toHaveBeenCalledWith(activeConflictMessage);
+    expect(setFeedback).not.toHaveBeenCalledWith({
+      message: activeConflictMessage,
+      variant: 'error',
+    });
+  });
+
+  it('keeps the conflicted reuse sheet visible, closable, and usable', () => {
+    const session = {
+      id: 's-conflict-visible',
+      title: 'Quick Workout',
+      started_at: '2026-01-01T10:00:00Z',
+      ended_at: '2026-01-01T10:45:00Z',
+      workout_note: null,
+      can_reuse_as_plan: 1,
+    };
+    const plans = [
+      {
+        id: 'plan-open',
+        name: 'Open Plan',
+        description: null,
+        is_template: 0,
+        sessionCount: 2,
+      },
+    ];
+    const setReuseOpen = jest.fn();
+    const setReuseSheetError = jest.fn();
+
+    useStateMock.mockImplementationOnce(() => [session, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [[], jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [[], jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [[], jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [true, setReuseOpen]);
+    useStateMock.mockImplementationOnce(() => ['Quick Workout Plan', jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [plans, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [false, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [activeConflictMessage, setReuseSheetError]);
+    (getSessionDetail as jest.Mock).mockReturnValue({ session, exercises: [], sets: [] });
+
+    const element = SessionDetailScreen({
+      navigation: { navigate: jest.fn(), setOptions: jest.fn() },
+      route: {
+        key: 'SessionDetail',
+        name: 'SessionDetail',
+        params: { sessionId: 's-conflict-visible' },
+      },
+    } as never);
+
+    const serialized = JSON.stringify(element);
+    expect(serialized).toContain(activeConflictMessage);
+
+    const buttons = findElementsByType(element, Button) as Array<
+      React.ReactElement<React.ComponentProps<typeof Button>>
+    >;
+    const startButton = buttons.find((button) => button.props.title === 'Start as Quick Workout');
+    const createButton = buttons.find((button) => button.props.title === 'Create new plan');
+    const addButton = buttons.find((button) => button.props.title === 'Add');
+    const sheet = findElementsByType<{
+      onClose?: () => void;
+    }>(element, BottomSheetModal)[0];
+
+    expect(startButton?.props.disabled).toBe(false);
+    expect(startButton?.props.loading).toBe(false);
+    expect(createButton?.props.disabled).toBe(false);
+    expect(createButton?.props.loading).toBe(false);
+    expect(addButton?.props.disabled).toBe(false);
+    expect(addButton?.props.loading).toBe(false);
+
+    sheet?.props.onClose?.();
+    expect(setReuseOpen).toHaveBeenCalledWith(false);
+    expect(setReuseSheetError).toHaveBeenCalledWith(null);
+  });
+
+  it('resets guards after conflict so Start as Quick can be retried', async () => {
+    const session = {
+      id: 's-conflict-retry',
+      title: 'Quick Workout',
+      started_at: '2026-01-01T10:00:00Z',
+      ended_at: '2026-01-01T10:45:00Z',
+      workout_note: null,
+      can_reuse_as_plan: 1,
+    };
+    const setReuseSheetError = jest.fn();
+    (startCompletedWorkoutAsQuickWorkout as jest.Mock)
+      .mockImplementationOnce(() => {
+        throw new Error(activeConflictMessage);
+      })
+      .mockReturnValueOnce('new-session-after-retry');
+
+    useStateMock.mockImplementationOnce(() => [session, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [[], jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [[], jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [[], jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [true, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => ['Quick Workout Plan', jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [[], jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [false, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [null, jest.fn()]);
+    useStateMock.mockImplementationOnce(() => [activeConflictMessage, setReuseSheetError]);
+    (getSessionDetail as jest.Mock).mockReturnValue({ session, exercises: [], sets: [] });
+
+    const navigation = { navigate: jest.fn(), setOptions: jest.fn() };
+    const element = SessionDetailScreen({
+      navigation,
+      route: {
+        key: 'SessionDetail',
+        name: 'SessionDetail',
+        params: { sessionId: 's-conflict-retry' },
+      },
+    } as never);
+
+    const buttons = findElementsByType(element, Button) as Array<
+      React.ReactElement<React.ComponentProps<typeof Button>>
+    >;
+    const startButton = buttons.find((button) => button.props.title === 'Start as Quick Workout');
+
+    startButton?.props.onPress?.({} as never);
+    await flushReuseStart();
+    startButton?.props.onPress?.({} as never);
+    await flushReuseStart();
+
+    expect(startCompletedWorkoutAsQuickWorkout).toHaveBeenCalledTimes(2);
+    expect(setReuseSheetError).toHaveBeenCalledWith(null);
+    expect(navigation.navigate).toHaveBeenCalledWith('WorkoutSession', {
+      sessionId: 'new-session-after-retry',
+    });
   });
 
   it('starts a reused workout as a quick active session and resets the reuse guard', async () => {
