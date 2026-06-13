@@ -32,6 +32,7 @@ jest.mock('../../../theme/theme', () => ({
 jest.mock('../../../theme/tokens', () => ({
   tokens: {
     spacing: { xs: 4, sm: 8, md: 12 },
+    colors: { destructive: '#E0524B' },
   },
 }));
 
@@ -42,6 +43,8 @@ jest.mock('../../../ui', () => {
       React.createElement('Button', { title, ...props }),
     Card: ({ children, ...props }: { children?: React.ReactNode }) =>
       React.createElement('Card', props, children),
+    IconButton: ({ icon, ...props }: { icon?: React.ReactNode }) =>
+      React.createElement('IconButton', props, icon),
     IconChip: ({ children, ...props }: { children?: React.ReactNode }) =>
       React.createElement('IconChip', props, children),
     Text: ({ children, ...props }: { children?: React.ReactNode }) =>
@@ -96,6 +99,14 @@ function buttons(node: React.ReactNode) {
   return findElements(node, (element) => element.type === 'Button');
 }
 
+function iconButtons(node: React.ReactNode) {
+  return findElements(node, (element) => element.type === 'IconButton');
+}
+
+function icons(node: React.ReactNode) {
+  return findElements(node, (element) => element.type === 'Ionicons');
+}
+
 function pressables(node: React.ReactNode) {
   return findElements(node, (element) => element.type === 'Pressable');
 }
@@ -122,6 +133,8 @@ describe('TodayPrimaryAction', () => {
     expect(text).toContain('Create or choose a plan first.');
     expect(text).not.toContain('Build a plan');
     expect(text).not.toContain('Browse plans');
+    expect(icons(element).some((icon) => icon.props.name === 'barbell')).toBe(true);
+    expect(icons(element).some((icon) => icon.props.name === 'calendar-outline')).toBe(true);
 
     actionPressables
       .find((pressable) => pressable.props.accessibilityLabel === 'Quick workout')
@@ -162,23 +175,51 @@ describe('TodayPrimaryAction', () => {
     expect(onStart).toHaveBeenCalledTimes(1);
   });
 
-  it('keeps active-session branch unchanged', () => {
+  it('renders Resume and discard actions for active sessions', () => {
     const onResume = jest.fn();
+    const onDiscardActiveWorkout = jest.fn();
     const element = expandTree(
       TodayPrimaryAction({
         hasActiveWorkout: true,
         activeWorkoutTitle: 'Leg Day',
         hasPlans: false,
         onResume,
+        onDiscardActiveWorkout,
       }),
     );
 
     const text = textContent(element);
     const resumeButton = buttons(element).find((button) => button.props.title === 'Resume');
+    const discardButton = iconButtons(element).find(
+      (button) => button.props.accessibilityLabel === 'Discard active workout',
+    );
 
     expect(text).toContain('Active Session');
     expect(text).toContain('Leg Day');
+    expect(resumeButton).toBeTruthy();
+    expect(discardButton).toBeTruthy();
+    expect(discardButton?.props.variant).toBe('ghost');
+    expect(discardButton?.props.iconColor).toBe('#E0524B');
+    expect(discardButton?.props.children.props.name).toBe('trash-outline');
+    expect(icons(element).some((icon) => icon.props.name === 'flame')).toBe(false);
     resumeButton?.props.onPress();
+    discardButton?.props.onPress();
     expect(onResume).toHaveBeenCalledTimes(1);
+    expect(onDiscardActiveWorkout).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not render discard action when there is no active workout', () => {
+    const element = expandTree(
+      TodayPrimaryAction({
+        hasActiveWorkout: false,
+        hasPlans: false,
+      }),
+    );
+
+    expect(
+      iconButtons(element).some(
+        (button) => button.props.accessibilityLabel === 'Discard active workout',
+      ),
+    ).toBe(false);
   });
 });

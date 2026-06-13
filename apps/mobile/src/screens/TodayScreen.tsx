@@ -4,11 +4,11 @@ import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
 
-import { Button, Card, Screen, Snackbar, Text } from '../ui';
+import { Button, Card, DestructiveConfirmDialog, Screen, Snackbar, Text } from '../ui';
 import { tokens } from '../theme/tokens';
 import { TAB_ROUTES } from '../navigation/routes';
 import type { RootStackParamList } from '../navigation/types';
-import { getInProgressSession } from '../db/workoutSessionRepo';
+import { discardSession, getInProgressSession } from '../db/workoutSessionRepo';
 import { listWorkoutPlans } from '../db/workoutPlanRepo';
 import { getThisWeekSummary } from '../db/weeklyRepo';
 import { listRecentSessionSummaries } from '../db/historyRepo';
@@ -49,8 +49,12 @@ export function TodayScreen() {
   const [accountSignInBusy, setAccountSignInBusy] = useState(false);
   const [accountPromptError, setAccountPromptError] = useState<string | null>(null);
   const [quickStartError, setQuickStartError] = useState<string | null>(null);
+  const [discardError, setDiscardError] = useState<string | null>(null);
+  const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
+  const [discardBusy, setDiscardBusy] = useState(false);
   const [accountDeletionRecoveryActive, setAccountDeletionRecoveryActive] = useState(false);
   const accountSignInInFlightRef = useRef(false);
+  const discardInFlightRef = useRef(false);
 
   const load = useCallback(() => {
     const s = getInProgressSession();
@@ -117,6 +121,44 @@ export function TodayScreen() {
     navigation.navigate('QuickWorkoutDraft');
   }, [navigation]);
 
+  const handleOpenDiscardConfirm = useCallback(() => {
+    if (discardInFlightRef.current) return;
+    setDiscardError(null);
+    setDiscardConfirmOpen(true);
+  }, []);
+
+  const handleCloseDiscardConfirm = useCallback(() => {
+    if (discardInFlightRef.current) return;
+    setDiscardConfirmOpen(false);
+  }, []);
+
+  const handleConfirmDiscard = useCallback(() => {
+    if (discardBusy || discardInFlightRef.current) return;
+
+    discardInFlightRef.current = true;
+    setDiscardBusy(true);
+    setDiscardError(null);
+
+    try {
+      const currentActiveSession = getInProgressSession();
+      if (!currentActiveSession) {
+        setDiscardConfirmOpen(false);
+        load();
+        return;
+      }
+
+      discardSession(currentActiveSession.id);
+      setDiscardConfirmOpen(false);
+      load();
+    } catch {
+      setDiscardError("Couldn't discard active workout. Try again.");
+      load();
+    } finally {
+      discardInFlightRef.current = false;
+      setDiscardBusy(false);
+    }
+  }, [discardBusy, load]);
+
   const hasMeaningfulLocalData =
     Boolean(inProgressId) || weeklyWorkouts > 0 || recentSessions.length > 0;
   const showGuestProtectionCard =
@@ -142,6 +184,7 @@ export function TodayScreen() {
               ? () => navigation.navigate('WorkoutSession', { sessionId: inProgressId })
               : undefined
           }
+          onDiscardActiveWorkout={inProgressId ? handleOpenDiscardConfirm : undefined}
           hasPlans={hasPlans}
           onStart={() =>
             hasPlans
@@ -185,7 +228,22 @@ export function TodayScreen() {
         {quickStartError ? (
           <Snackbar visible message={quickStartError} variant="error" minHeight={44} />
         ) : null}
+        {discardError ? (
+          <Snackbar visible message={discardError} variant="error" minHeight={44} />
+        ) : null}
       </View>
+      <DestructiveConfirmDialog
+        visible={discardConfirmOpen}
+        title="Discard active workout?"
+        body="This workout will not be saved to History."
+        cancelLabel="Cancel"
+        confirmLabel="Discard"
+        onClose={handleCloseDiscardConfirm}
+        onConfirm={handleConfirmDiscard}
+        confirmLoading={discardBusy}
+        confirmDisabled={discardBusy}
+        cancelDisabled={discardBusy}
+      />
     </Screen>
   );
 }

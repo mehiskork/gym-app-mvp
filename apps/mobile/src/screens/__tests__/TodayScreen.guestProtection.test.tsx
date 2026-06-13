@@ -32,6 +32,8 @@ jest.mock('../../ui', () => {
       React.createElement('Button', { title, ...props }),
     Card: ({ children, ...props }: { children?: React.ReactNode }) =>
       React.createElement('Card', props, children),
+    DestructiveConfirmDialog: (props: unknown) =>
+      React.createElement('DestructiveConfirmDialog', props),
     Screen: ({ children, ...props }: { children?: React.ReactNode }) =>
       React.createElement('Screen', props, children),
     Snackbar: (props: unknown) => React.createElement('Snackbar', props),
@@ -77,6 +79,7 @@ jest.mock('../../features/today/TodayWeeklyStats', () => {
 
 jest.mock('../../db/workoutSessionRepo', () => ({
   getInProgressSession: jest.fn(() => null),
+  discardSession: jest.fn(),
 }));
 
 jest.mock('../../db/workoutPlanRepo', () => ({
@@ -113,7 +116,7 @@ import React from 'react';
 
 import { createGoogleAccountFromGuest } from '../../auth/googleAccountOrchestrator';
 import { resetToGuestBootstrap } from '../../auth/identityTransition';
-import { getInProgressSession } from '../../db/workoutSessionRepo';
+import { discardSession, getInProgressSession } from '../../db/workoutSessionRepo';
 import { TodayScreen } from '../TodayScreen';
 
 const useStateMock = React.useState as jest.Mock;
@@ -131,6 +134,7 @@ type RenderOptions = {
   accountPromptError?: string | null;
   accountSignInBusy?: boolean;
   inProgressId?: string | null;
+  setInProgressId?: jest.Mock;
   localAccountStatus?: 'guest' | 'linked_with_usable_account' | 'linked_reauth_required' | null;
   recentSessions?: RecentSession[];
   accountDeletionRecoveryActive?: boolean;
@@ -139,12 +143,19 @@ type RenderOptions = {
   setQuickStartError?: jest.Mock;
   weeklyWorkouts?: number;
   hasPlans?: boolean;
+  discardError?: string | null;
+  discardConfirmOpen?: boolean;
+  discardBusy?: boolean;
+  setDiscardError?: jest.Mock;
+  setDiscardConfirmOpen?: jest.Mock;
+  setDiscardBusy?: jest.Mock;
 };
 
 function renderTodayScreen({
   accountPromptError = null,
   accountSignInBusy = false,
   inProgressId = null,
+  setInProgressId = jest.fn(),
   localAccountStatus = 'guest',
   recentSessions = [],
   accountDeletionRecoveryActive = false,
@@ -153,10 +164,16 @@ function renderTodayScreen({
   setQuickStartError = jest.fn(),
   weeklyWorkouts = 0,
   hasPlans = false,
+  discardError = null,
+  discardConfirmOpen = false,
+  discardBusy = false,
+  setDiscardError = jest.fn(),
+  setDiscardConfirmOpen = jest.fn(),
+  setDiscardBusy = jest.fn(),
 }: RenderOptions = {}) {
   useStateMock.mockReset();
   useStateMock
-    .mockImplementationOnce(() => [inProgressId, jest.fn()])
+    .mockImplementationOnce(() => [inProgressId, setInProgressId])
     .mockImplementationOnce(() => [null, jest.fn()])
     .mockImplementationOnce(() => [hasPlans, jest.fn()])
     .mockImplementationOnce(() => [weeklyWorkouts, jest.fn()])
@@ -166,6 +183,9 @@ function renderTodayScreen({
     .mockImplementationOnce(() => [accountSignInBusy, jest.fn()])
     .mockImplementationOnce(() => [accountPromptError, setAccountPromptError])
     .mockImplementationOnce(() => [quickStartError, setQuickStartError])
+    .mockImplementationOnce(() => [discardError, setDiscardError])
+    .mockImplementationOnce(() => [discardConfirmOpen, setDiscardConfirmOpen])
+    .mockImplementationOnce(() => [discardBusy, setDiscardBusy])
     .mockImplementationOnce(() => [accountDeletionRecoveryActive, jest.fn()]);
 
   return TodayScreen();
@@ -218,6 +238,10 @@ function todayPrimaryAction(node: React.ReactNode) {
   return findElements(node, (element) => element.type === 'TodayPrimaryAction')[0] ?? null;
 }
 
+function destructiveDialog(node: React.ReactNode) {
+  return findElements(node, (element) => element.type === 'DestructiveConfirmDialog')[0] ?? null;
+}
+
 const recentSession: RecentSession = {
   id: 'session-1',
   title: 'Workout',
@@ -250,6 +274,155 @@ describe('TodayScreen guest progress protection prompt', () => {
     primaryAction?.props.onQuickStart();
 
     expect(mockNavigate).toHaveBeenCalledWith('WorkoutSession', { sessionId: 'active-session-1' });
+  });
+
+  it('opens active workout discard confirmation from Home', () => {
+    const setDiscardConfirmOpen = jest.fn();
+    const tree = expandTree(
+      renderTodayScreen({ inProgressId: 'active-session-1', setDiscardConfirmOpen }),
+    );
+    const primaryAction = todayPrimaryAction(tree);
+
+    primaryAction?.props.onDiscardActiveWorkout();
+
+    expect(setDiscardConfirmOpen).toHaveBeenCalledWith(true);
+  });
+
+  it('renders exact active workout discard confirmation copy', () => {
+    const tree = expandTree(
+      renderTodayScreen({ inProgressId: 'active-session-1', discardConfirmOpen: true }),
+    );
+    const dialog = destructiveDialog(tree);
+
+    expect(dialog?.props.visible).toBe(true);
+    expect(dialog?.props.title).toBe('Discard active workout?');
+    expect(dialog?.props.body).toBe('This workout will not be saved to History.');
+    expect(dialog?.props.cancelLabel).toBe('Cancel');
+    expect(dialog?.props.confirmLabel).toBe('Discard');
+  });
+
+  it('closes active workout discard confirmation on cancel without discarding', () => {
+    const setDiscardConfirmOpen = jest.fn();
+    const tree = expandTree(
+      renderTodayScreen({
+        inProgressId: 'active-session-1',
+        discardConfirmOpen: true,
+        setDiscardConfirmOpen,
+      }),
+    );
+    const dialog = destructiveDialog(tree);
+
+    dialog?.props.onClose();
+
+    expect(setDiscardConfirmOpen).toHaveBeenCalledWith(false);
+    expect(discardSession).not.toHaveBeenCalled();
+  });
+
+  it('discards the current active workout once and reloads Home', () => {
+    (getInProgressSession as jest.Mock)
+      .mockReturnValueOnce({ id: 'active-session-1' })
+      .mockReturnValueOnce(null);
+    const setInProgressId = jest.fn();
+    const setDiscardConfirmOpen = jest.fn();
+    const tree = expandTree(
+      renderTodayScreen({
+        inProgressId: 'active-session-1',
+        discardConfirmOpen: true,
+        setInProgressId,
+        setDiscardConfirmOpen,
+      }),
+    );
+    const dialog = destructiveDialog(tree);
+
+    dialog?.props.onConfirm();
+
+    expect(discardSession).toHaveBeenCalledTimes(1);
+    expect(discardSession).toHaveBeenCalledWith('active-session-1');
+    expect(setDiscardConfirmOpen).toHaveBeenCalledWith(false);
+    expect(setInProgressId).toHaveBeenCalledWith(null);
+  });
+
+  it('guards against duplicate active workout discard submits while in flight', () => {
+    (getInProgressSession as jest.Mock)
+      .mockReturnValueOnce({ id: 'active-session-1' })
+      .mockReturnValueOnce(null);
+    const tree = expandTree(
+      renderTodayScreen({ inProgressId: 'active-session-1', discardConfirmOpen: true }),
+    );
+    const dialog = destructiveDialog(tree);
+    (discardSession as jest.Mock).mockImplementationOnce(() => {
+      dialog?.props.onConfirm();
+    });
+
+    dialog?.props.onConfirm();
+
+    expect(discardSession).toHaveBeenCalledTimes(1);
+    expect(discardSession).toHaveBeenCalledWith('active-session-1');
+  });
+
+  it('closes and reloads without scary feedback if active workout disappeared before confirm', () => {
+    (getInProgressSession as jest.Mock).mockReturnValue(null);
+    const setDiscardConfirmOpen = jest.fn();
+    const setDiscardError = jest.fn();
+    const tree = expandTree(
+      renderTodayScreen({
+        inProgressId: 'active-session-1',
+        discardConfirmOpen: true,
+        setDiscardConfirmOpen,
+        setDiscardError,
+      }),
+    );
+    const dialog = destructiveDialog(tree);
+
+    dialog?.props.onConfirm();
+
+    expect(discardSession).not.toHaveBeenCalled();
+    expect(setDiscardConfirmOpen).toHaveBeenCalledWith(false);
+    expect(setDiscardError).toHaveBeenCalledWith(null);
+  });
+
+  it('keeps active workout visible and shows feedback when Home discard fails', () => {
+    (getInProgressSession as jest.Mock).mockReturnValue({ id: 'active-session-1' });
+    (discardSession as jest.Mock).mockImplementationOnce(() => {
+      throw new Error('discard failed');
+    });
+    const setInProgressId = jest.fn();
+    const setDiscardError = jest.fn();
+    const tree = expandTree(
+      renderTodayScreen({
+        inProgressId: 'active-session-1',
+        discardConfirmOpen: true,
+        setInProgressId,
+        setDiscardError,
+      }),
+    );
+    const dialog = destructiveDialog(tree);
+
+    dialog?.props.onConfirm();
+
+    expect(setDiscardError).toHaveBeenCalledWith("Couldn't discard active workout. Try again.");
+    expect(setInProgressId).toHaveBeenCalledWith('active-session-1');
+  });
+
+  it('shows active workout discard feedback in a Snackbar', () => {
+    const tree = expandTree(
+      renderTodayScreen({
+        inProgressId: 'active-session-1',
+        discardError: "Couldn't discard active workout. Try again.",
+      }),
+    );
+    const snackbars = findElements(tree, (element) => element.type === 'Snackbar');
+
+    expect(snackbars).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          props: expect.objectContaining({
+            message: "Couldn't discard active workout. Try again.",
+            variant: 'error',
+          }),
+        }),
+      ]),
+    );
   });
 
   it('routes the planned workout action to Workout Plans when there are no plans', () => {

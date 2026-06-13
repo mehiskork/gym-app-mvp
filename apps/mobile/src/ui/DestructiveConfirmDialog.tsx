@@ -16,6 +16,9 @@ type DestructiveConfirmDialogProps = {
   icon?: ReactNode;
   onClose: () => void;
   onConfirm: () => void;
+  confirmLoading?: boolean;
+  confirmDisabled?: boolean;
+  cancelDisabled?: boolean;
   testID?: string;
 };
 
@@ -28,6 +31,9 @@ export function DestructiveConfirmDialog({
   icon,
   onClose,
   onConfirm,
+  confirmLoading = false,
+  confirmDisabled = false,
+  cancelDisabled = false,
   testID,
 }: DestructiveConfirmDialogProps) {
   const renderedIcon = icon ?? (
@@ -58,10 +64,21 @@ export function DestructiveConfirmDialog({
           <Text variant="muted">{body}</Text>
           <View style={styles.actions}>
             <View style={{ flex: 1 }}>
-              <Button title={cancelLabel} variant="secondary" onPress={onClose} />
+              <Button
+                title={cancelLabel}
+                variant="secondary"
+                onPress={onClose}
+                disabled={cancelDisabled}
+              />
             </View>
             <View style={{ flex: 1 }}>
-              <Button title={confirmLabel} variant="destructive" onPress={onConfirm} />
+              <Button
+                title={confirmLabel}
+                variant="destructive"
+                onPress={onConfirm}
+                loading={confirmLoading}
+                disabled={confirmDisabled}
+              />
             </View>
           </View>
         </View>

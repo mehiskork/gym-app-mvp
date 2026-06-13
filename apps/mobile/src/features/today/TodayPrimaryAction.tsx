@@ -4,12 +4,13 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { useAppTheme } from '../../theme/theme';
 import { tokens } from '../../theme/tokens';
-import { Button, Card, IconChip, Text } from '../../ui';
+import { Button, Card, IconButton, IconChip, Text } from '../../ui';
 
 type TodayPrimaryActionProps = {
   hasActiveWorkout: boolean;
   activeWorkoutTitle?: string | null;
   onResume?: () => void;
+  onDiscardActiveWorkout?: () => void;
   hasPlans: boolean;
   onStart?: () => void;
   onQuickStart?: () => void;
@@ -19,6 +20,7 @@ export function TodayPrimaryAction({
   hasActiveWorkout,
   activeWorkoutTitle,
   onResume,
+  onDiscardActiveWorkout,
   hasPlans,
   onStart,
   onQuickStart,
@@ -33,14 +35,24 @@ export function TodayPrimaryAction({
     return (
       <Card variant="tinted" style={highlightedCardStyle}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.md }}>
-          <IconChip variant="primarySoft" size={56}>
-            <Ionicons name="flame" size={26} color={colors.primary} />
-          </IconChip>
-          <View style={{ flex: 1, gap: tokens.spacing.xs }}>
-            <Text variant="subtitle">Active Session</Text>
-            <Text variant="muted">{activeWorkoutTitle ?? 'Resume your workout'}</Text>
+          <View style={{ flex: 1, flexShrink: 1, minWidth: 0, gap: tokens.spacing.xs }}>
+            <Text variant="subtitle" numberOfLines={1} ellipsizeMode="tail">
+              Active Session
+            </Text>
+            <Text variant="muted" numberOfLines={1} ellipsizeMode="tail">
+              {activeWorkoutTitle ?? 'Resume your workout'}
+            </Text>
           </View>
-          <Button title="Resume" onPress={onResume} />
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.xs }}>
+            <Button title="Resume" size="sm" onPress={onResume} />
+            <IconButton
+              accessibilityLabel="Discard active workout"
+              variant="ghost"
+              iconColor={tokens.colors.destructive}
+              icon={<Ionicons name="trash-outline" size={20} />}
+              onPress={onDiscardActiveWorkout}
+            />
+          </View>
         </View>
       </Card>
     );
