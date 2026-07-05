@@ -27,7 +27,7 @@ jobs:
           cache-dependency-path: apps/mobile/package-lock.json
 
       - name: Install dependencies
-        run: npm ci
+        run: npx -y npm@10.9.3 ci --include=dev
 
       - name: Run lint
         run: npm run lint
