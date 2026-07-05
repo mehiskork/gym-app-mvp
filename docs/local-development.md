@@ -21,7 +21,7 @@ docker-compose.yml   Starts Postgres + backend together (local dev only credenti
 
 | Tool                    | Version                                 |
 | ----------------------- | --------------------------------------- |
-| Node.js                 | 18+                                     |
+| Node.js                 | 24                                      |
 | Java                    | 25                                      |
 | Docker + Docker Compose | Any recent version                      |
 | EAS CLI                 | `>= 16.28.0` — `npm install -g eas-cli` |
@@ -90,7 +90,7 @@ Flyway migrations run automatically on startup. Do not run them manually.
 From `apps/mobile`:
 
 ```bash
-npm install
+npm ci --include=dev
 ```
 
 ### Canonical config files
@@ -109,11 +109,11 @@ The canonical Expo/EAS config lives under `apps/mobile/`. Run EAS commands from 
 
 ### Expo Go is unsupported
 
-This app uses native modules such as `expo-sqlite`. **Expo Go will not work.** Use a development build or another native build.
+This app uses custom native modules, including `@react-native-google-signin/google-signin`. **Expo Go will not work.** Use a development build or another native build.
 
 ### Local SQLite baseline reset
 
-The mobile SQLite migrations are currently squashed into one reset-only private-beta baseline. This was done before any external testers existed, so old internal/dev SQLite databases are not supported across the squash.
+The mobile SQLite migrations include a historical reset-only baseline. Old development SQLite databases from before that baseline are not supported across the squash.
 
 If your dev build was installed before the mobile baseline squash, reset local mobile data before testing:
 

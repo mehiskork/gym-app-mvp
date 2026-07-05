@@ -1,6 +1,6 @@
 # Android Release Baseline
 
-This project is Android-focused for the current tester and Play closed-testing phase.
+TrainFrame is available in production on Google Play. This document records the Android identity, EAS build profiles, signing requirements, and release checks.
 
 For tester execution steps, see [`docs/internal/android-tester-runbook.md`](./internal/android-tester-runbook.md).
 
@@ -46,7 +46,7 @@ npx -y eas-cli@latest build -p android --profile production --clear-cache
 
 Use `--clear-cache` after icon or Expo config changes so EAS does not reuse stale native configuration.
 
-The production EAS profile is the canonical Play/closed-testing build profile. It must keep:
+The production EAS profile is the canonical Google Play build profile. It must keep:
 
 - `autoIncrement: true`
 - Android `buildType: app-bundle`
@@ -56,7 +56,7 @@ The production EAS profile is the canonical Play/closed-testing build profile. I
 
 Preview builds may continue to target the direct Railway preview/dev QA endpoint. Production builds must not use that endpoint.
 
-Current operational note: the first production AAB has been built and uploaded to Play internal testing. Internal testing is active, Play App Signing SHA-1/SHA-256 has been added to Firebase, and Google Sign-In has been validated from the Play-installed internal testing build. Future AAB uploads still require normal `versionCode` increments and Play release creation.
+TrainFrame is live in production on Google Play. Play App Signing SHA-1/SHA-256 has been added to Firebase, and Google Sign-In has been validated in a Play-installed build. Future AAB uploads still require normal `versionCode` increments and Play release creation.
 
 ## Firebase Android signing
 
@@ -108,9 +108,9 @@ Firebase API key restrictions have been externally verified for the current setu
 - Keep the Firebase Auth / Google Sign-In APIs required by the app enabled.
 - Do not paste private keys, service-account JSON, keystores, or secrets into the repo.
 
-## Play account deletion readiness
+## Play account deletion and release checks
 
-Before Play production submission:
+Before each Play production release:
 
 - Verify in-app deletion works from `Settings -> Delete account` for signed-in users.
 - Verify the public web deletion resource is reachable at `https://www.trainframe.eu/account-deletion`.
