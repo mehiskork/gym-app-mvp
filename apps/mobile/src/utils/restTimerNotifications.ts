@@ -2,6 +2,7 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
 import { getRestTimerNotificationId, setRestTimerNotificationId } from '../db/appMetaRepo';
+import { isNotificationPermissionGranted } from './notificationPermissions';
 
 export const REST_TIMER_CHANNEL_ID = 'rest-timer';
 export const REST_TIMER_CHANNEL_ID_V2 = 'rest-timer-v2';
@@ -44,13 +45,13 @@ export async function ensureRestTimerNotificationChannel(vibrationEnabled: boole
 
 export async function hasNotificationPermission(): Promise<boolean> {
   const current = await Notifications.getPermissionsAsync();
-  return current.status === 'granted';
+  return isNotificationPermissionGranted(current);
 }
 
 export async function requestRestTimerNotificationPermission(): Promise<boolean> {
   if (await hasNotificationPermission()) return true;
   const requested = await Notifications.requestPermissionsAsync();
-  return requested.status === 'granted';
+  return isNotificationPermissionGranted(requested);
 }
 
 export async function scheduleRestTimerNotification(
@@ -58,7 +59,7 @@ export async function scheduleRestTimerNotification(
   vibrationEnabled = true,
 ): Promise<void> {
   const permissions = await Notifications.getPermissionsAsync();
-  if (permissions.status !== 'granted') return;
+  if (!isNotificationPermissionGranted(permissions)) return;
   await ensureRestTimerNotificationChannel(vibrationEnabled);
   await cancelRestTimerNotification();
   const seconds = Math.max(0, Math.floor(remainingSeconds));
