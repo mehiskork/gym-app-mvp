@@ -11,6 +11,7 @@ import {
 } from '../db/appMetaRepo';
 import type { UnfinishedWorkoutReminderState } from '../db/appMetaRepo';
 import { logEvent } from './logger';
+import { isNotificationPermissionGranted } from './notificationPermissions';
 import { parseTimestampMs } from './timestamp';
 
 export const UNFINISHED_WORKOUT_REMINDER_CHANNEL_ID = 'unfinished-workout-reminders-v1';
@@ -177,7 +178,7 @@ async function scheduleReplacement(input: {
   const permissions = await Notifications.getPermissionsAsync();
   const existing = getUnfinishedWorkoutReminderState();
 
-  if (permissions.status !== 'granted') {
+  if (!isNotificationPermissionGranted(permissions)) {
     await cancelStoredNotification(existing);
     setUnfinishedWorkoutReminderState(null);
     setUnfinishedWorkoutRemindersEnabled(false);

@@ -6,7 +6,6 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -24,7 +23,6 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#070A0F"
       },
-      "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "googleServicesFile": "./google-services.json",
       "package": "com.mehka.gymappmvp",
@@ -36,9 +34,16 @@
     },
     "plugins": [
       "expo-sqlite",
-      "expo-secure-store",
+      [
+        "expo-secure-store",
+        {
+          "configureAndroidBackup": false
+        }
+      ],
       "@react-native-google-signin/google-signin",
-      "./plugins/withAndroidBackupDisabled"
+      "./plugins/withAndroidBackupDisabled",
+      "expo-font",
+      "expo-sharing"
     ],
     "extra": {
       "EXPO_PUBLIC_APP_ENV": "preview",

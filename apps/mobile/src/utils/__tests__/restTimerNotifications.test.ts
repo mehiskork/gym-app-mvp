@@ -53,6 +53,15 @@ describe('restTimerNotifications', () => {
     expect(granted).toBe(true);
   });
 
+  it('accepts the SDK 55 granted permission field without prompting again', async () => {
+    (Notifications.getPermissionsAsync as jest.Mock).mockResolvedValue({ granted: true });
+
+    const granted = await requestRestTimerNotificationPermission();
+
+    expect(Notifications.requestPermissionsAsync).not.toHaveBeenCalled();
+    expect(granted).toBe(true);
+  });
+
   it('does not schedule a rest notification when permission remains denied or undetermined', async () => {
     (Notifications.getPermissionsAsync as jest.Mock).mockResolvedValueOnce({ status: 'denied' });
 
