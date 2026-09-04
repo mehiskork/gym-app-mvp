@@ -6,11 +6,6 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#070A0F"
-    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.mehka.gymappmvp",
@@ -43,7 +38,16 @@
       "@react-native-google-signin/google-signin",
       "./plugins/withAndroidBackupDisabled",
       "expo-font",
-      "expo-sharing"
+      "expo-sharing",
+      "expo-status-bar",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#070A0F"
+        }
+      ]
     ],
     "extra": {
       "EXPO_PUBLIC_APP_ENV": "preview",
