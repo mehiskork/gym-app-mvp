@@ -50,7 +50,7 @@ export function DestructiveConfirmDialog({
     >
       <View style={styles.overlay}>
         <Pressable
-          style={StyleSheet.absoluteFillObject}
+          style={StyleSheet.absoluteFill}
           onPress={onClose}
           accessibilityLabel="Dismiss dialog"
         />

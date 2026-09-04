@@ -108,7 +108,7 @@ export function BottomSheetModal({
         }}
       >
         <Pressable
-          style={{ ...StyleSheet.absoluteFillObject }}
+          style={StyleSheet.absoluteFill}
           onPress={onClose}
           accessibilityLabel="Dismiss finish workout sheet"
         />
