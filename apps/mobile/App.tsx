@@ -4,6 +4,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { runMigrations } from './src/db/migrate';
+import { TransactionRollbackError } from './src/db/tx';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { seedCuratedExercises } from './src/db/curatedExerciseSeed';
 import { repairStaleInFlightOps } from './src/db/outboxRepo';
@@ -48,6 +49,22 @@ function StartupRecoveryScreen({
   accountDeletionRecovery?: boolean;
 }) {
   const [resetConfirmVisible, setResetConfirmVisible] = useState(false);
+  const restartRequired = error instanceof TransactionRollbackError && error.restartRequired;
+
+  if (restartRequired) {
+    return (
+      <View style={styles.recoveryContainer}>
+        <Text variant="title" weight="700" style={styles.recoveryTitle}>
+          Restart TrainFrame
+        </Text>
+        <Text variant="body" style={styles.recoveryBody}>
+          The app couldn't safely finish a database operation. Close TrainFrame completely and
+          reopen it before trying again. Do not uninstall the app or clear its storage; that can
+          erase unsynced workouts.
+        </Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.recoveryContainer}>

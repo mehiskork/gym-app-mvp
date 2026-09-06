@@ -4,8 +4,6 @@ export const migration001_private_beta_baseline: Migration = {
   id: 1,
   name: 'private beta baseline',
   up: `
-    PRAGMA journal_mode = WAL;
-
     CREATE TABLE IF NOT EXISTS schema_migrations (
       id INTEGER PRIMARY KEY,
       name TEXT NOT NULL,

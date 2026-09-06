@@ -145,6 +145,7 @@ import { AppState } from 'react-native';
 import App from '../../App';
 import { seedCuratedExercises } from '../db/curatedExerciseSeed';
 import { runMigrations } from '../db/migrate';
+import { TransactionRollbackError } from '../db/tx';
 import { repairStaleInFlightOps } from '../db/outboxRepo';
 import { ensureRestTimerNotificationChannel } from '../utils/restTimerNotifications';
 import { reconcileUnfinishedWorkoutReminder } from '../utils/unfinishedWorkoutReminderNotifications';
@@ -225,6 +226,68 @@ describe('App startup recovery', () => {
     expect((repairStaleInFlightOps as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
       (reconcileUnfinishedWorkoutReminder as jest.Mock).mock.invocationCallOrder[0],
     );
+  });
+
+  it.each([false, true])(
+    'stops startup after migration failure (account deletion pending: %s)',
+    async (markerPending) => {
+      const setBootState = jest.fn();
+      const failure = new Error('migration failed');
+      useStateMock.mockImplementationOnce(() => [{ kind: 'initializing' }, setBootState]);
+      (hasPendingAccountDeletionCleanupMarker as jest.Mock).mockResolvedValueOnce(markerPending);
+      (runMigrations as jest.Mock).mockImplementationOnce(() => {
+        throw failure;
+      });
+
+      App();
+      await flushPromises();
+
+      expect(setBootState).toHaveBeenLastCalledWith({
+        kind: markerPending ? 'accountDeletionRecoveryFailed' : 'failed',
+        error: failure,
+      });
+      expect(hasPendingAccountDeletionRecovery).not.toHaveBeenCalled();
+      expect(recoverAccountDeletionAfterStartup).not.toHaveBeenCalled();
+      expect(recoverInterruptedIdentityResetPause).not.toHaveBeenCalled();
+      expect(seedCuratedExercises).not.toHaveBeenCalled();
+      expect(repairStaleInFlightOps).not.toHaveBeenCalled();
+      expect(scheduleStartupSync).not.toHaveBeenCalled();
+      expect(scheduleForegroundSync).not.toHaveBeenCalled();
+      expect(resetToGuestBootstrap).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['failed', 'accountDeletionRecoveryFailed'])(
+    'requires restart without retry or reset actions for uncertain rollback in %s',
+    (kind) => {
+      useEffectMock.mockImplementation(() => undefined);
+      const error = new TransactionRollbackError(new Error('commit'), new Error('rollback'), true);
+      useStateMock.mockReturnValue([{ kind, error }, jest.fn()]);
+
+      const element = App();
+      const text = findElements(element, (el) => el.type === 'Text')
+        .map((el) => el.props.children)
+        .flat()
+        .join(' ');
+      expect(text).toContain('Restart TrainFrame');
+      expect(text).toContain('Do not uninstall the app or clear its storage');
+      expect(findElements(element, (el) => el.type === 'Button')).toEqual([]);
+      expect(findElements(element, (el) => el.type === 'DestructiveConfirmDialog')).toEqual([]);
+      expect(resetToGuestBootstrap).not.toHaveBeenCalled();
+      expect(scheduleStartupSync).not.toHaveBeenCalled();
+    },
+  );
+
+  it('keeps retry available when SQLite already ended the failed transaction', () => {
+    useEffectMock.mockImplementation(() => undefined);
+    const error = new TransactionRollbackError(
+      new Error('write'),
+      new Error('already rolled back'),
+      false,
+    );
+    useStateMock.mockReturnValue([{ kind: 'failed', error }, jest.fn()]);
+    const buttons = findElements(App(), (el) => el.type === 'Button');
+    expect(buttons.map((button) => button.props.title)).toContain('Try again');
   });
 
   it('runs migrations before checking SQLite-backed account deletion pause state on fresh startup', async () => {
