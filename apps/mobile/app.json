@@ -46,6 +46,7 @@
       ],
       "@react-native-google-signin/google-signin",
       "./plugins/withAndroidBackupDisabled",
+      "./plugins/withAndroidR8Optimization",
       "expo-font",
       "expo-sharing",
       "expo-status-bar",

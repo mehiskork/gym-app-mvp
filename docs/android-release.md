@@ -58,6 +58,46 @@ Preview builds may continue to target the direct Railway preview/dev QA endpoint
 
 TrainFrame is live in production on Google Play. Play App Signing SHA-1/SHA-256 has been added to Firebase, and Google Sign-In has been validated in a Play-installed build. Future AAB uploads still require normal `versionCode` increments and Play release creation.
 
+## Android release optimisation
+
+Release builds enable R8 minification and resource shrinking through
+`expo-build-properties`. The local `withAndroidR8Optimization` plugin additionally
+selects `proguard-android-optimize.txt` and sets
+`android.r8.optimizedResourceShrinking=true`. These enable code optimisation and
+the optimised resource shrinking pipeline on the current AGP 8.12 toolchain.
+The ordinary `proguard-android.txt` defaults disable code optimisation even when
+minification is enabled.
+
+The plugin preserves application and dependency keep rules. If the Expo Android
+template changes unexpectedly, prebuild fails with an instruction to review the
+plugin. Reassess it when upgrading Expo or AGP; AGP 9 enables optimised resource
+shrinking by default. See [Android's R8 guidance](https://developer.android.com/topic/performance/app-optimization/enable-app-optimization).
+
+Before rolling out an optimisation change:
+
+- Run mobile lint, typecheck, tests and Expo Doctor. The R8 tests use Expo's file
+  providers with the installed Android template and check repeated generation.
+- Run an Android prebuild in a disposable copy. Confirm `android/app/build.gradle`
+  selects `proguard-android-optimize.txt`, and `android/gradle.properties` enables
+  minification, resource shrinking and optimised resource shrinking.
+- Build the production AAB with `--clear-cache` using the command above. Confirm
+  `:app:minifyReleaseWithR8` ran successfully in the build logs. Inspect the
+  effective `android/app/build/outputs/mapping/release/configuration.txt` for active
+  `-dontoptimize`, `-dontshrink` or `-dontobfuscate` directives. If any are present,
+  trace their origin before claiming full optimisation is enabled.
+- Retain the matching `mapping.txt` from the same output directory with the build
+  identity and version code; confirm Play has the bundle's deobfuscation mapping.
+  Obtain these outputs from the build environment if they are not exposed as EAS
+  artefacts. A prebuild or JavaScript test does not prove that R8 completed.
+- Upload that production bundle to Play internal testing. Test cold startup,
+  Google sign-in, workout creation and resume, offline persistence across restart,
+  sync, notifications and account deletion. Use the Play-installed build so signing
+  and the production configuration match the eventual release.
+- Check that Play recognises code optimisation and optimised resource shrinking,
+  and inspect its optimisation, shrinking and obfuscation percentages. Enabling
+  these settings does not guarantee specific percentages. The separate AGP-upgrade
+  recommendation can remain until a compatible toolchain upgrade is completed.
+
 ## Firebase Android signing
 
 Firebase is used for Auth only. TrainFrame Google Sign-In depends on the Android package and signing fingerprints matching Firebase/Google Cloud configuration.
